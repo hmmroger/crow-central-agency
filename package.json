@@ -22,7 +22,7 @@
     "dev:shared": "npm run dev -w packages/shared",
     "dev:backend": "npm run dev -w packages/backend",
     "dev:frontend": "npm run dev -w packages/frontend",
-    "build": "npm run build -w @omnikukan/shared && npm run typecheck && npm run lint && npm run build --workspaces --if-present && npm run copy-frontend",
+    "build": "npm run build -w @crow-central-agency/shared && npm run typecheck && npm run lint && npm run build --workspaces --if-present && npm run copy-frontend",
     "copy-frontend": "node --input-type=module -e \"import{cpSync,rmSync,existsSync}from'fs';const s='packages/frontend/dist',d='packages/backend/dist/public';if(existsSync(d))rmSync(d,{recursive:true});cpSync(s,d,{recursive:true});console.log('Copied frontend to backend/dist/public')\"",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint \"packages/**/*.ts\" \"packages/**/*.tsx\"",
