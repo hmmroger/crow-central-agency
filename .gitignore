@@ -1,3 +1,9 @@
+# Crow runtime data
+.crow/
+
+# Build output
+packages/*/dist/
+
 # Logs
 logs
 *.log
@@ -139,3 +145,4 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 .claude/*.local.*
+TODO.md

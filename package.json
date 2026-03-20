@@ -1,7 +1,8 @@
 {
   "name": "crow-central-agency",
+  "private": true,
   "version": "1.0.0",
-  "description": "",
+  "description": "Crow central agency",
   "homepage": "https://github.com/hmmroger/crow-central-agency#readme",
   "bugs": {
     "url": "https://github.com/hmmroger/crow-central-agency/issues"
@@ -13,8 +14,33 @@
   "license": "ISC",
   "author": "",
   "type": "module",
-  "main": "dist/index.js",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "npm run build:shared && concurrently -n shared,backend,frontend -c orange,blue,green \"npm run dev:shared\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:shared": "npm run dev -w packages/shared",
+    "dev:backend": "npm run dev -w packages/backend",
+    "dev:frontend": "npm run dev -w packages/frontend",
+    "build": "npm run build -w @omnikukan/shared && npm run typecheck && npm run lint && npm run build --workspaces --if-present && npm run copy-frontend",
+    "copy-frontend": "node --input-type=module -e \"import{cpSync,rmSync,existsSync}from'fs';const s='packages/frontend/dist',d='packages/backend/dist/public';if(existsSync(d))rmSync(d,{recursive:true});cpSync(s,d,{recursive:true});console.log('Copied frontend to backend/dist/public')\"",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint \"packages/**/*.ts\" \"packages/**/*.tsx\"",
+    "start": "npm run fullstack -w packages/backend"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "^5.9.0",
+    "@types/node": "^24.11.0",
+    "concurrently": "^9.2.1",
+    "dotenv-cli": "^11.0.0",
+    "eslint": "^9.39.3",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }
