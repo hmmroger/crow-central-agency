@@ -18,3 +18,4 @@
 - Keep documentation up-to-date alongside any code changes.
 - NEVER amend commit
 - Add proper JSDoc comments to functions and code
+- DO NOT divide implementation phases by backend / frontend / shared, etc. The plan should be feature-oriented functional phases.
