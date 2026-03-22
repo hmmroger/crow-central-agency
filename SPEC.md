@@ -208,10 +208,12 @@ Environment variables with sensible defaults:
 
 ## Design Principles
 
- - **Backend is the source of truth**: The frontend renders what the backend provides. No derived state, no duplicated logic on the client.
- - **Agents are identities, not templates**: Each agent config maps to exactly one agent instance. Never design patterns where one config spawns multiple instances.
- - **Event-driven coordination**: Loose coupling through `EventBus`. Agent deletion triggers cleanup in the registry, orchestrator, and loop scheduler independently.
- - **Stream-first communication**: Real-time data flows over WebSocket. REST is for queries and one-shot mutations. The UI never polls.
- - **MCP for agent collaboration**: Agents interact through standardized MCP tools, not ad-hoc APIs. This keeps the agent-to-agent protocol discoverable and tool-native.
- - **Design tokens over hardcoded values**: All visual properties use theme tokens from the Tailwind `@theme` block. No raw pixel values or color codes in components.
- - **Graceful degradation**: Optional features (OpenAI generation, loop automation) are conditionally initialized. The core system works without them.
+ - Backend is the source of truth: The frontend renders what the backend provides. No derived state, no duplicated logic on the client.
+ - Agents are identities, not templates: Each agent config maps to exactly one agent instance. Never design patterns where one config spawns multiple instances.
+ - Event-driven coordination: Loose coupling through `EventBus`. Agent deletion triggers cleanup in the registry, orchestrator, and loop scheduler independently.
+ - Stream-first communication: Real-time data flows over WebSocket. REST is for queries and one-shot mutations. The UI never polls.
+ - MCP for agent collaboration: Agents interact through standardized MCP tools, not ad-hoc APIs. This keeps the agent-to-agent protocol discoverable and tool-native.
+ - Design tokens over hardcoded values: All visual properties use theme tokens from the Tailwind `@theme` block. No raw pixel values or color codes in components.
+ - Optional features (OpenAI generation, loop automation) are conditionally initialized. The core system works without them.
+ - MUST NOT use variant design pattern for UI component like variant="primary" size="md".
+ - AppError MUST NOT contain http status, services throwing error should not be concern about http. This is our CCA internal error class. What status code to return is a route concern.
