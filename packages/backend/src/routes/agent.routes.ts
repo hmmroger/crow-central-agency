@@ -152,7 +152,7 @@ export async function registerAgentRoutes(
     return { success: true, data: { newSession: true } };
   });
 
-  /** Trigger manual compaction for an agent's session */
+  /** Trigger manual compaction for an agent's session (fire-and-forget, like /send) */
   server.post<{ Params: { id: string } }>("/api/agents/:id/session/compact", async (request) => {
     const agentId = validateUuidParam(request.params.id);
     const state = orchestrator.getState(agentId);
@@ -161,11 +161,23 @@ export async function registerAgentRoutes(
       throw new AppError("No active session", AppErrorCodes.SessionNotFound);
     }
 
-    // Compact is implemented as sending /compact command — reuses sendMessage
-    await orchestrator.sendMessage(agentId, "/compact");
+    const sessionIdBeforeCompact = state.sessionId;
 
-    // Invalidate cache after compaction
-    sessionManager.invalidateCache(state.sessionId);
+    // Fire-and-forget — result delivered via WS, consistent with /send
+    orchestrator
+      .sendMessage(agentId, "/compact")
+      .then(() => {
+        sessionManager.invalidateCache(sessionIdBeforeCompact);
+
+        const updatedState = orchestrator.getState(agentId);
+
+        if (updatedState?.sessionId && updatedState.sessionId !== sessionIdBeforeCompact) {
+          sessionManager.invalidateCache(updatedState.sessionId);
+        }
+      })
+      .catch((error) => {
+        logger.error({ agentId, error }, "Compact failed");
+      });
 
     return { success: true, data: { compacted: true } };
   });

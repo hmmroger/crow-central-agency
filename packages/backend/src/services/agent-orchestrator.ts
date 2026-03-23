@@ -1,10 +1,12 @@
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { AGENT_STATUS, type AgentRuntimeState } from "@crow-central-agency/shared";
+import { AGENT_STATUS, AgentRuntimeStateSchema, type AgentRuntimeState } from "@crow-central-agency/shared";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { OrchestratorEvents, RunningAgent, McpServerFactory } from "./agent-orchestrator.types.js";
 import type { AgentRegistry } from "./agent-registry.js";
 import { processStream } from "../stream/stream-processor.js";
+import { AppError } from "../error/app-error.js";
+import { AppErrorCodes } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 import { readJsonFile, writeJsonFile } from "../utils/fs-utils.js";
@@ -35,14 +37,23 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
   /** Load persisted runtime states and run startup recovery */
   async initialize(): Promise<void> {
-    const saved = await readJsonFile<AgentRuntimeState[]>(this.stateFilePath);
+    const saved = await readJsonFile<unknown[]>(this.stateFilePath);
 
     if (saved) {
-      for (const state of saved) {
-        this.runtimeStates.set(state.agentId, state);
+      for (const raw of saved) {
+        const result = AgentRuntimeStateSchema.safeParse(raw);
+
+        if (result.success) {
+          this.runtimeStates.set(result.data.agentId, result.data);
+        } else {
+          log.warn(
+            { id: (raw as { agentId?: unknown }).agentId, issues: result.error.issues },
+            "Skipping invalid runtime state on load"
+          );
+        }
       }
 
-      log.info({ count: saved.length }, "Loaded persisted runtime states");
+      log.info({ count: this.runtimeStates.size }, "Loaded persisted runtime states");
     }
 
     await this.runStartupRecovery();
@@ -72,13 +83,13 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const agentConfig = this.registry.get(agentId);
 
     if (!agentConfig) {
-      throw new Error(`Agent not found: ${agentId}`);
+      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
     }
 
     const state = this.ensureState(agentId);
 
     if (state.status !== AGENT_STATUS.IDLE && state.status !== AGENT_STATUS.ERROR) {
-      throw new Error(`Agent ${agentId} is busy (status: ${state.status})`);
+      throw new AppError(`Agent ${agentId} is busy (status: ${state.status})`, AppErrorCodes.AgentBusy);
     }
 
     // Build system prompt: persona + AGENT.md + peer list
@@ -172,12 +183,19 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const running = this.runningAgents.get(agentId);
 
     if (!running) {
-      throw new Error(`Agent ${agentId} is not streaming`);
+      throw new AppError(`Agent ${agentId} is not streaming`, AppErrorCodes.AgentNotRunning);
     }
 
     await running.query.streamInput(
       (async function* () {
-        yield { type: "user", message: text, isSynthetic: true, priority: "now" } as SDKUserMessage;
+        yield {
+          type: "user",
+          message: { role: "user", content: text },
+          parent_tool_use_id: null,
+          session_id: "",
+          isSynthetic: true,
+          priority: "now",
+        } as SDKUserMessage;
       })()
     );
   }
@@ -187,7 +205,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const running = this.runningAgents.get(agentId);
 
     if (!running) {
-      throw new Error(`Agent ${agentId} is not streaming`);
+      throw new AppError(`Agent ${agentId} is not streaming`, AppErrorCodes.AgentNotRunning);
     }
 
     running.abortController.abort();
@@ -207,7 +225,9 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       contextTotal: 0,
     };
 
-    this.persistState();
+    this.persistState().catch((error) => {
+      log.error({ agentId, error }, "Failed to persist state after newSession");
+    });
   }
 
   /** Cleanup when an agent is deleted */
@@ -221,7 +241,9 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     this.runtimeStates.delete(agentId);
-    this.persistState();
+    this.persistState().catch((error) => {
+      log.error({ agentId, error }, "Failed to persist state after cleanup");
+    });
   }
 
   /** Ensure a runtime state exists for the given agent */
@@ -246,16 +268,12 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     return state;
   }
 
-  /** Set agent status and emit events */
+  /** Set agent status and emit event (bootstrap handles broadcasting) */
   private setStatus(agentId: string, status: AgentRuntimeState["status"]): void {
     const state = this.ensureState(agentId);
     state.status = status;
 
     this.emit("agentStatus", { agentId, status });
-    this.emit("agentMessage", {
-      agentId,
-      message: { type: "agent_status", agentId, status },
-    });
   }
 
   /** Build MCP servers for a query using registered factories */
