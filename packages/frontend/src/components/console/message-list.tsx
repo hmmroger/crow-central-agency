@@ -1,7 +1,7 @@
 import type { AgentMessage } from "../../hooks/use-agent-interaction.types.js";
 import { useAutoScroll } from "../../hooks/use-auto-scroll.js";
 import { AgentMessageView } from "./agent-message.js";
-import { MarkdownRenderer } from "./markdown-renderer.js";
+import { MarkdownRenderer } from "../common/markdown-renderer.js";
 import { StreamingIndicator } from "./streaming-indicator.js";
 
 interface MessageListProps {

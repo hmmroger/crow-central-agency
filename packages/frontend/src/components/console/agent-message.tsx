@@ -1,5 +1,5 @@
 import { AGENT_MESSAGE_KIND, type AgentMessage } from "../../hooks/use-agent-interaction.types.js";
-import { MarkdownRenderer } from "./markdown-renderer.js";
+import { MarkdownRenderer } from "../common/markdown-renderer.js";
 import { ActivityItem } from "./activity-item.js";
 import { ResultBanner } from "./result-banner.js";
 
