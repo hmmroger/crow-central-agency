@@ -32,15 +32,16 @@ export function AgentCardMessages({
     return <div className="flex-1 min-h-0 flex items-center text-xs text-text-muted italic">No messages yet</div>;
   }
 
-  const containerClass = `${expanded ? "space-y-1" : "space-y-0.5"} text-xs flex-1 min-h-0 overflow-y-auto`;
-  const messageClass = expanded ? "" : "line-clamp-2";
-
   return (
-    <div className={containerClass}>
+    <div className={`${expanded ? "space-y-1 h-96" : "space-y-0.5 h-40"} text-xs shrink-0 overflow-y-auto px-2.5 py-2`}>
       {recentMessages.map((message) => (
-        <div key={message.id} className={`overflow-hidden ${messageClass}`}>
-          {message.role === AGENT_MESSAGE_ROLE.USER && <MarkdownRenderer content={`**You:** ${message.content}`} />}
-          {message.role === AGENT_MESSAGE_ROLE.AGENT && <MarkdownRenderer content={message.content} />}
+        <div key={message.id}>
+          {message.role === AGENT_MESSAGE_ROLE.USER && (
+            <MarkdownRenderer content={`**You:** ${message.content}`} className="text-xs text-text-secondary" />
+          )}
+          {message.role === AGENT_MESSAGE_ROLE.AGENT && (
+            <MarkdownRenderer content={message.content} className="text-xs text-text-secondary" />
+          )}
           {message.role === AGENT_MESSAGE_ROLE.SYSTEM && (
             <span className="text-text-muted">
               <span className="font-mono">{message.toolName}</span> {message.content}
@@ -51,7 +52,7 @@ export function AgentCardMessages({
 
       {streamingText && (
         <div className="animate-pulse">
-          <MarkdownRenderer content={streamingText} />
+          <MarkdownRenderer content={streamingText} className="text-xs" />
         </div>
       )}
 

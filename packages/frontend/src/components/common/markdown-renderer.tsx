@@ -1,9 +1,11 @@
 import { useMemo } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import { cn } from "../../utils/cn";
 
 interface MarkdownRendererProps {
   content: string;
+  className?: string;
 }
 
 /**
@@ -11,7 +13,7 @@ interface MarkdownRendererProps {
  * for styling (defined in index.css).
  * Content is sanitized via DOMPurify to prevent XSS.
  */
-export function MarkdownRenderer({ content }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
   const sanitizedHtml = useMemo(() => {
     const rawHtml = marked.parse(content, { async: false }) as string;
 
@@ -19,5 +21,10 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     return DOMPurify.sanitize(rawHtml);
   }, [content]);
 
-  return <div className="markdown-content" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />;
+  return (
+    <div
+      className={cn("markdown-content leading-relaxed", className)}
+      dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+    />
+  );
 }

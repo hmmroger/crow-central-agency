@@ -69,7 +69,7 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
   }
 
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div className="h-full p-6">
       {/* Header row — title, stats, filter, new button */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -90,17 +90,19 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
       </div>
 
       {/* Agent cards grid */}
-      {filteredAgents.length === 0 ? (
-        <div className="flex items-center justify-center py-12 text-text-muted text-sm">
-          No agents match &quot;{searchQuery}&quot;
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredAgents.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} />
-          ))}
-        </div>
-      )}
+      <div className="p-8 overflow-y-auto h-full">
+        {filteredAgents.length === 0 ? (
+          <div className="flex items-center justify-center py-12 text-text-muted text-sm">
+            No agents match &quot;{searchQuery}&quot;
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {filteredAgents.map((agent) => (
+              <AgentCard key={agent.id} agent={agent} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

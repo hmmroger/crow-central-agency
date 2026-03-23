@@ -4,7 +4,6 @@ import { useAgentInteraction } from "../../hooks/use-agent-interaction.js";
 import { AgentCardHeader } from "./agent-card-header.js";
 import { AgentCardMessages } from "./agent-card-messages.js";
 import { AgentCardInput } from "./agent-card-input.js";
-import { AgentCardUsage } from "./agent-card-usage.js";
 import { AgentCardPermission } from "./agent-card-permission.js";
 
 interface AgentCardProps {
@@ -24,7 +23,6 @@ export function AgentCard({ agent }: AgentCardProps) {
     streamingText,
     isStreaming,
     status,
-    usage,
     pendingPermissions,
     activeToolUse,
     sendMessage,
@@ -35,9 +33,9 @@ export function AgentCard({ agent }: AgentCardProps) {
 
   return (
     <div
-      className={`flex flex-col gap-3 p-4 rounded-lg bg-surface border border-border-subtle hover:border-border transition-colors ${expanded ? "h-96" : "h-48"}`}
+      className={`flex flex-col rounded-lg bg-surface border border-border-subtle hover:border-border transition-colors`}
     >
-      <div className="shrink-0">
+      <div className="shrink-0 border-b border-border-subtle px-2.5 py-2">
         <AgentCardHeader
           agent={agent}
           status={status}
@@ -45,18 +43,6 @@ export function AgentCard({ agent }: AgentCardProps) {
           onToggleExpand={() => setExpanded(!expanded)}
         />
       </div>
-
-      {(usage.totalCostUsd > 0 || usage.inputTokens > 0) && (
-        <div className="shrink-0">
-          <AgentCardUsage usage={usage} />
-        </div>
-      )}
-
-      {pendingPermissions.length > 0 && (
-        <div className="shrink-0">
-          <AgentCardPermission permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
-        </div>
-      )}
 
       {/* Messages — fills remaining space, expand controls truncation */}
       <AgentCardMessages
@@ -66,7 +52,13 @@ export function AgentCard({ agent }: AgentCardProps) {
         activeToolUse={activeToolUse}
       />
 
-      <div className="shrink-0">
+      {pendingPermissions.length > 0 && (
+        <div className="shrink-0 px-2.5 py-2">
+          <AgentCardPermission permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
+        </div>
+      )}
+
+      <div className="shrink-0 border-t border-border-subtle px-2.5 py-2">
         <AgentCardInput
           onSend={(text) => (isStreaming ? injectMessage(text) : sendMessage(text))}
           isStreaming={isStreaming}
