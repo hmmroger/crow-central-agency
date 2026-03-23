@@ -45,7 +45,7 @@ export async function registerAgentRoutes(
     return { success: true, data: agents };
   });
 
-  /** Get a single agent by ID */
+  /** Get a single agent by ID, including AGENT.md content */
   server.get<{ Params: { id: string } }>("/api/agents/:id", async (request) => {
     const agentId = validateUuidParam(request.params.id);
     const agent = registry.get(agentId);
@@ -54,7 +54,9 @@ export async function registerAgentRoutes(
       throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
     }
 
-    return { success: true, data: agent };
+    const agentMd = await registry.getAgentMd(agentId);
+
+    return { success: true, data: { ...agent, agentMd: agentMd ?? "" } };
   });
 
   /** Create a new agent */

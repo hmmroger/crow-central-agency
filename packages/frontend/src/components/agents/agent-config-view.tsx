@@ -50,6 +50,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   const [saving, setSaving] = useState(false);
   const [loadingAgent, setLoadingAgent] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [agentMd, setAgentMd] = useState("");
   const [customToolInput, setCustomToolInput] = useState("");
   const customToolInputRef = useRef<HTMLInputElement>(null);
 
@@ -83,6 +84,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           setLoopHour(agent.loop.hour);
           setLoopMinute(agent.loop.minute);
           setLoopPrompt(agent.loop.prompt);
+          setAgentMd((agent as { agentMd?: string }).agentMd ?? "");
         } else {
           setError(response.error.message);
         }
@@ -125,6 +127,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
             autoApprovedTools: autoApprovedTools.length > 0 ? autoApprovedTools : undefined,
           },
           loop: loopConfig,
+          agentMd: agentMd.trim() || undefined,
         };
 
         const response = await apiClient.patch(`/agents/${agentId}`, input);
@@ -148,6 +151,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
             autoApprovedTools: autoApprovedTools.length > 0 ? autoApprovedTools : undefined,
           },
           loop: loopConfig,
+          agentMd: agentMd.trim() || undefined,
         };
 
         const response = await apiClient.post("/agents", input);
@@ -183,6 +187,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     loopHour,
     loopMinute,
     loopPrompt,
+    agentMd,
     goToDashboard,
   ]);
 
@@ -437,12 +442,10 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
             />
           </FieldGroup>
 
-          {/* AGENT.md Editor — only when editing existing agent */}
-          {isEditing && agentId && (
-            <FieldGroup label="AGENT.md">
-              <AgentMdEditor agentId={agentId} />
-            </FieldGroup>
-          )}
+          {/* AGENT.md — persistent markdown instructions for the agent */}
+          <FieldGroup label="AGENT.md">
+            <AgentMdEditor value={agentMd} onChange={setAgentMd} />
+          </FieldGroup>
 
           {/* Generation — only when editing existing agent */}
           {isEditing && agentId && (

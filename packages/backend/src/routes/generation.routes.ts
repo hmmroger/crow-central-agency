@@ -8,47 +8,14 @@ import { AppErrorCodes } from "../error/app-error.types.js";
 const uuidParamSchema = z.uuid();
 
 /**
- * Register generation routes (persona, AGENT.md) and AGENT.md CRUD.
- * Generation routes only registered if generationService is provided (OPENAI configured).
+ * Register generation routes (persona, AGENT.md).
+ * Only registered if generationService is provided (OPENAI configured).
  */
 export async function registerGenerationRoutes(
   server: FastifyInstance,
   registry: AgentRegistry,
   generationService?: MdGenerationService
 ) {
-  /** Read AGENT.md for an agent */
-  server.get<{ Params: { id: string } }>("/api/agents/:id/agent-md", async (request) => {
-    const parseResult = uuidParamSchema.safeParse(request.params.id);
-
-    if (!parseResult.success) {
-      throw new AppError("Invalid agent id", AppErrorCodes.Validation);
-    }
-
-    const content = await registry.getAgentMd(parseResult.data);
-
-    return { success: true, data: { content: content ?? "" } };
-  });
-
-  /** Write AGENT.md for an agent */
-  server.put<{ Params: { id: string }; Body: { content: string } }>("/api/agents/:id/agent-md", async (request) => {
-    const parseResult = uuidParamSchema.safeParse(request.params.id);
-
-    if (!parseResult.success) {
-      throw new AppError("Invalid agent id", AppErrorCodes.Validation);
-    }
-
-    const { content } = request.body;
-
-    if (typeof content !== "string") {
-      throw new AppError("Content is required", AppErrorCodes.Validation);
-    }
-
-    await registry.setAgentMd(parseResult.data, content);
-
-    return { success: true, data: { saved: true } };
-  });
-
-  // Generation routes — only if service is available
   if (!generationService) {
     return;
   }

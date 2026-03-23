@@ -81,11 +81,12 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   /** Create a new agent */
   async create(input: CreateAgentInput): Promise<AgentConfig> {
     const validated = CreateAgentInputSchema.parse(input);
+    const { agentMd, ...configFields } = validated;
     const now = new Date().toISOString();
     const id = generateId();
 
     const agent = AgentConfigSchema.parse({
-      ...validated,
+      ...configFields,
       id,
       availableTools: [...DEFAULT_AVAILABLE_TOOLS],
       createdAt: now,
@@ -95,6 +96,11 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     // Create agent folder
     const agentDir = this.getAgentDir(id);
     await ensureDir(agentDir);
+
+    // Write AGENT.md if provided
+    if (agentMd) {
+      await writeTextFile(this.getAgentMdPath(id), agentMd);
+    }
 
     // Persist
     this.agents.set(id, agent);
@@ -115,11 +121,12 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     }
 
     const validated = UpdateAgentInputSchema.parse(input);
+    const { agentMd, ...configFields } = validated;
     const now = new Date().toISOString();
 
     const updated: AgentConfig = {
       ...existing,
-      ...validated,
+      ...configFields,
       id: existing.id,
       createdAt: existing.createdAt,
       updatedAt: now,
@@ -127,6 +134,11 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
     this.agents.set(agentId, updated);
     await this.persist();
+
+    // Write AGENT.md if provided
+    if (agentMd !== undefined) {
+      await writeTextFile(this.getAgentMdPath(agentId), agentMd);
+    }
 
     log.info({ agentId, name: updated.name }, "Agent updated");
     this.emit("agentUpdated", { agent: updated });

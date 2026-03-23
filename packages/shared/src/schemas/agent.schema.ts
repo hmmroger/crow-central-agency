@@ -61,6 +61,7 @@ export const CreateAgentInputSchema = z.object({
   settingSources: z.array(SettingSourceSchema).optional(),
   toolConfig: ToolConfigSchema.optional(),
   loop: LoopConfigSchema.optional(),
+  agentMd: z.string().optional(),
 });
 
 /**
@@ -77,6 +78,7 @@ export const UpdateAgentInputSchema = z.object({
   availableTools: z.array(z.string()).optional(),
   toolConfig: ToolConfigSchema.optional(),
   loop: LoopConfigSchema.optional(),
+  agentMd: z.string().optional(),
 });
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
