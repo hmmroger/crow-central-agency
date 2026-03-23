@@ -2,15 +2,21 @@ import { useCallback, useEffect, useState } from "react";
 import {
   PERMISSION_MODE,
   TOOL_MODE,
+  TIME_MODE,
   DEFAULT_MODEL,
   type AgentConfig,
   type CreateAgentInput,
   type UpdateAgentInput,
   type PermissionMode,
   type ToolMode,
+  type TimeMode,
+  type DayOfWeek,
 } from "@crow-central-agency/shared";
 import { apiClient } from "../../services/api-client.js";
 import { useAppStore } from "../../stores/app-store.js";
+import { LoopConfigPanel } from "./loop-config-panel.js";
+import { AgentMdEditor } from "./agentmd-editor.js";
+import { GenerationPanel } from "./generation-panel.js";
 
 interface AgentConfigViewProps {
   agentId?: string;
@@ -34,6 +40,12 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [autoApprovedTools, setAutoApprovedTools] = useState<string[]>([]);
   const [availableTools, setAvailableTools] = useState<string[]>([]);
+  const [loopEnabled, setLoopEnabled] = useState(false);
+  const [loopDays, setLoopDays] = useState<DayOfWeek[]>([]);
+  const [loopTimeMode, setLoopTimeMode] = useState<TimeMode>(TIME_MODE.EVERY);
+  const [loopHour, setLoopHour] = useState<number | undefined>(undefined);
+  const [loopMinute, setLoopMinute] = useState<number | undefined>(undefined);
+  const [loopPrompt, setLoopPrompt] = useState("");
   const [saving, setSaving] = useState(false);
   const [loadingAgent, setLoadingAgent] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -62,6 +74,12 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           setSelectedTools(agent.toolConfig.tools ?? []);
           setAutoApprovedTools(agent.toolConfig.autoApprovedTools ?? []);
           setAvailableTools(agent.availableTools ?? []);
+          setLoopEnabled(agent.loop.enabled);
+          setLoopDays(agent.loop.daysOfWeek);
+          setLoopTimeMode(agent.loop.timeMode);
+          setLoopHour(agent.loop.hour);
+          setLoopMinute(agent.loop.minute);
+          setLoopPrompt(agent.loop.prompt);
         } else {
           setError(response.error.message);
         }
@@ -81,6 +99,15 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     setError(undefined);
 
     try {
+      const loopConfig = {
+        enabled: loopEnabled,
+        daysOfWeek: loopDays,
+        timeMode: loopTimeMode,
+        hour: loopHour,
+        minute: loopMinute,
+        prompt: loopPrompt,
+      };
+
       if (isEditing) {
         const input: UpdateAgentInput = {
           name,
@@ -94,6 +121,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
             tools: toolMode === TOOL_MODE.RESTRICTED ? selectedTools : undefined,
             autoApprovedTools: autoApprovedTools.length > 0 ? autoApprovedTools : undefined,
           },
+          loop: loopConfig,
         };
 
         const response = await apiClient.patch(`/agents/${agentId}`, input);
@@ -116,6 +144,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
             tools: toolMode === TOOL_MODE.RESTRICTED ? selectedTools : undefined,
             autoApprovedTools: autoApprovedTools.length > 0 ? autoApprovedTools : undefined,
           },
+          loop: loopConfig,
         };
 
         const response = await apiClient.post("/agents", input);
@@ -145,6 +174,12 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     toolMode,
     selectedTools,
     autoApprovedTools,
+    loopEnabled,
+    loopDays,
+    loopTimeMode,
+    loopHour,
+    loopMinute,
+    loopPrompt,
     goToDashboard,
   ]);
 
@@ -323,6 +358,38 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
                   />
                 ))}
               </div>
+            </FieldGroup>
+          )}
+
+          {/* Loop Configuration */}
+          <FieldGroup label="Loop Schedule">
+            <LoopConfigPanel
+              enabled={loopEnabled}
+              daysOfWeek={loopDays}
+              timeMode={loopTimeMode}
+              hour={loopHour}
+              minute={loopMinute}
+              prompt={loopPrompt}
+              onEnabledChange={setLoopEnabled}
+              onDaysChange={setLoopDays}
+              onTimeModeChange={setLoopTimeMode}
+              onHourChange={setLoopHour}
+              onMinuteChange={setLoopMinute}
+              onPromptChange={setLoopPrompt}
+            />
+          </FieldGroup>
+
+          {/* AGENT.md Editor — only when editing existing agent */}
+          {isEditing && agentId && (
+            <FieldGroup label="AGENT.md">
+              <AgentMdEditor agentId={agentId} />
+            </FieldGroup>
+          )}
+
+          {/* Generation — only when editing existing agent */}
+          {isEditing && agentId && (
+            <FieldGroup label="AI Generation">
+              <GenerationPanel agentId={agentId} onPersonaGenerated={setPersona} />
             </FieldGroup>
           )}
 

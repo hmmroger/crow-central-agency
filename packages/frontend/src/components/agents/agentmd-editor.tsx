@@ -40,7 +40,7 @@ export function AgentMdEditor({ agentId }: AgentMdEditorProps) {
     setSaving(true);
 
     try {
-      await apiClient.post(`/agents/${agentId}/agent-md`, { content });
+      await apiClient.put(`/agents/${agentId}/agent-md`, { content });
       setDirty(false);
     } catch {
       // Error handling in future

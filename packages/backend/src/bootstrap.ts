@@ -14,6 +14,8 @@ import { registerArtifactRoutes } from "./routes/artifact.routes.js";
 import { createArtifactsMcpServer } from "./mcp/artifacts-mcp-server.js";
 import { createAgentsMcpServer } from "./mcp/agents-mcp-server.js";
 import { LoopScheduler } from "./services/loop-scheduler.js";
+import { AppError } from "./error/app-error.js";
+import { AppErrorCodes } from "./error/app-error.types.js";
 import { OpenAIProvider } from "./services/openai-provider.js";
 import { MdGenerationService } from "./services/md-generation-service.js";
 import { registerGenerationRoutes } from "./routes/generation.routes.js";
@@ -99,6 +101,12 @@ export async function bootstrap(options: BootstrapOptions) {
 
   loopScheduler.on("loopTick", ({ agentId, prompt }) => {
     orchestrator.sendMessage(agentId, prompt).catch((error) => {
+      if (error instanceof AppError && error.errorCode === AppErrorCodes.AgentBusy) {
+        logger.debug({ agentId }, "Loop tick skipped — agent is busy");
+
+        return;
+      }
+
       logger.error({ agentId, error }, "Loop tick failed");
     });
   });

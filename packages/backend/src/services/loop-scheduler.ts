@@ -117,7 +117,10 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
       return false;
     }
 
-    if (hasMinute && now.getMinutes() !== loop.minute) {
+    // When only hour is specified, default minute to 0 (fire at HH:00)
+    const requiredMinute = hasMinute ? loop.minute : 0;
+
+    if (now.getMinutes() !== requiredMinute) {
       return false;
     }
 

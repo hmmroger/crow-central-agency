@@ -47,6 +47,17 @@ export const apiClient = {
     return parseResponse<T>(response);
   },
 
+  /** PUT request with JSON body */
+  async put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
+    const response = await fetch(`${BASE_URL}${path}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    return parseResponse<T>(response);
+  },
+
   /** DELETE request */
   async del<T>(path: string): Promise<ApiResponse<T>> {
     const response = await fetch(`${BASE_URL}${path}`, {
