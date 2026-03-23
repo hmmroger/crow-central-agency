@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Eye, Pencil } from "lucide-react";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
 
@@ -8,11 +8,45 @@ interface AgentMdEditorProps {
 }
 
 /**
- * Markdown editor with edit/preview toggle for AGENT.md content.
+ * Code-editor-style markdown editor with line numbers and edit/preview toggle.
  * Pure controlled component — parent owns the state and save logic.
  */
 export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
   const [previewing, setPreviewing] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
+
+  /** Sync line numbers scroll with textarea */
+  const handleScroll = useCallback(() => {
+    if (textareaRef.current && lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  }, []);
+
+  /** Handle tab key for indentation */
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Tab") {
+        event.preventDefault();
+        const textarea = event.currentTarget;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newValue = value.substring(0, start) + "  " + value.substring(end);
+
+        onChange(newValue);
+
+        // Restore cursor position after React re-render
+        requestAnimationFrame(() => {
+          textarea.selectionStart = start + 2;
+          textarea.selectionEnd = start + 2;
+        });
+      }
+    },
+    [value, onChange]
+  );
+
+  const lineCount = Math.max(value.split("\n").length, 1);
+  const lineNumbers = Array.from({ length: lineCount }, (_, index) => index + 1);
 
   return (
     <div className="space-y-2">
@@ -47,7 +81,7 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
       </div>
 
       {previewing ? (
-        <div className="min-h-48 px-3 py-2 rounded-md bg-surface-inset border border-border-subtle overflow-y-auto">
+        <div className="min-h-80 max-h-[70vh] px-4 py-3 rounded-md bg-surface-inset border border-border-subtle overflow-y-auto">
           {value ? (
             <MarkdownRenderer content={value} />
           ) : (
@@ -55,13 +89,32 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
           )}
         </div>
       ) : (
-        <textarea
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder="# Agent Instructions&#10;&#10;Write persistent instructions here..."
-          rows={8}
-          className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus resize-y"
-        />
+        <div className="relative flex min-h-80 max-h-[70vh] rounded-md bg-surface-inset border border-border-subtle overflow-hidden">
+          {/* Line numbers gutter */}
+          <div
+            ref={lineNumbersRef}
+            className="flex-none w-10 py-3 pr-2 text-right text-xs font-mono text-text-muted/50 select-none overflow-hidden border-r border-border-subtle bg-surface-inset"
+            aria-hidden="true"
+          >
+            {lineNumbers.map((lineNumber) => (
+              <div key={lineNumber} className="leading-5">
+                {lineNumber}
+              </div>
+            ))}
+          </div>
+
+          {/* Textarea */}
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            onScroll={handleScroll}
+            onKeyDown={handleKeyDown}
+            placeholder="# Agent Instructions&#10;&#10;Write persistent instructions here..."
+            spellCheck={false}
+            className="flex-1 py-3 pl-3 pr-3 text-sm font-mono leading-5 text-text-primary bg-transparent placeholder:text-text-muted focus:outline-none resize-none overflow-y-auto"
+          />
+        </div>
       )}
     </div>
   );
