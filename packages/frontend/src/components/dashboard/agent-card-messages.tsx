@@ -24,9 +24,7 @@ export function AgentCardMessages({ messages, streamingText, expanded, maxMessag
     return <div className="flex-1 min-h-0 flex items-center text-xs text-text-muted italic">No messages yet</div>;
   }
 
-  const containerClass = expanded
-    ? "space-y-1 text-xs flex-1 min-h-0 overflow-y-auto"
-    : "space-y-0.5 text-xs flex-1 min-h-0 overflow-y-auto";
+  const containerClass = `${expanded ? "space-y-1" : "space-y-0.5"} text-xs flex-1 min-h-0 overflow-y-auto`;
 
   const messageClass = expanded ? "" : "line-clamp-2";
 

@@ -45,13 +45,17 @@ export function AgentCard({ agent }: AgentCardProps) {
         />
       </div>
 
-      <div className="shrink-0">
-        <AgentCardUsage usage={usage} />
-      </div>
+      {(usage.totalCostUsd > 0 || usage.inputTokens > 0) && (
+        <div className="shrink-0">
+          <AgentCardUsage usage={usage} />
+        </div>
+      )}
 
-      <div className="shrink-0">
-        <AgentCardPermission permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
-      </div>
+      {pendingPermissions.length > 0 && (
+        <div className="shrink-0">
+          <AgentCardPermission permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
+        </div>
+      )}
 
       {/* Messages — fills remaining space, expand controls truncation */}
       <AgentCardMessages messages={messages} streamingText={streamingText} expanded={expanded} />
