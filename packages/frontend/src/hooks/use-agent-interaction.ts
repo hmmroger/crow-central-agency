@@ -20,6 +20,7 @@ import {
   type AgentInteractionState,
   type PendingPermissionRequest,
 } from "./use-agent-interaction.types.js";
+import { transformSessionMessages } from "../utils/session-message-transformer.js";
 
 /**
  * Composite hook for agent console interaction.
@@ -55,7 +56,7 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
       try {
         const [stateResponse, messagesResponse] = await Promise.all([
           apiClient.get<{ status: AgentStatus; sessionUsage?: SessionUsage }>(`/agents/${agentId}/state`),
-          apiClient.get<{ type: string; message: unknown }[]>(`/agents/${agentId}/messages`),
+          apiClient.get<{ type: "user" | "assistant"; message: unknown }[]>(`/agents/${agentId}/messages`),
         ]);
 
         if (stateResponse.success && stateResponse.data) {
@@ -67,18 +68,7 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
         }
 
         if (messagesResponse.success && messagesResponse.data.length > 0) {
-          const rendered = messagesResponse.data
-            .filter((sessionMsg) => sessionMsg.type === "user" || sessionMsg.type === "assistant")
-            .map(
-              (sessionMsg): AgentMessage => ({
-                id: nextId(),
-                kind: AGENT_MESSAGE_KIND.TEXT,
-                text: typeof sessionMsg.message === "string" ? sessionMsg.message : JSON.stringify(sessionMsg.message),
-                timestamp: Date.now(),
-              })
-            );
-
-          setMessages(rendered);
+          setMessages(transformSessionMessages(messagesResponse.data, nextId));
         }
       } catch {
         // Errors on initial load are non-fatal — console starts empty
