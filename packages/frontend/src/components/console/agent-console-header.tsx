@@ -1,5 +1,5 @@
 import { ArrowLeft, FolderOpen, Minimize2, Plus } from "lucide-react";
-import type { AgentConfig, AgentStatus, SessionUsage } from "@crow-central-agency/shared";
+import { AGENT_STATUS, type AgentConfig, type AgentStatus, type SessionUsage } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
 import { STATUS_DOT_COLOR, STATUS_LABEL } from "../../utils/agent-status-display.js";
 
@@ -45,7 +45,9 @@ export function AgentConsoleHeader({
           <h2 className="text-sm font-semibold text-text-primary">{agent.name}</h2>
           <div className="flex items-center gap-2 text-xs text-text-muted">
             <span className="inline-flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_COLOR[status]}`} />
+              <span
+                className={`shrink-0 w-1.5 h-1.5 rounded-full ${STATUS_DOT_COLOR[status]} ${status === AGENT_STATUS.STREAMING ? "animate-pulse" : ""}`}
+              />
               {STATUS_LABEL[status]}
             </span>
             <span className="font-mono">{agent.model}</span>
