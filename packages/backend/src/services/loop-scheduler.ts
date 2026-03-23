@@ -99,6 +99,14 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
         continue;
       }
 
+      // Seed missing tracking (e.g., server restart) — start counting from now
+      if (!this.lastTickTime.has(agent.id)) {
+        this.lastTickTime.set(agent.id, now.getTime());
+        log.debug({ agentId: agent.id }, "Loop tracking seeded on first encounter");
+
+        continue;
+      }
+
       if (this.shouldTick(agent, now)) {
         this.lastTickTime.set(agent.id, now.getTime());
         this.emit("loopTick", { agentId: agent.id, prompt: agent.loop.prompt });
@@ -154,7 +162,8 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
       return false;
     }
 
-    // Prevent double-tick within the same minute
+    // Prevent double-tick within the same minute.
+    // lastTick may be undefined after restart — && short-circuits safely, no seed needed for "at" mode.
     const lastTick = this.lastTickTime.get(agentId);
 
     if (lastTick && now.getTime() - lastTick < ONE_MINUTE_MS) {
@@ -180,9 +189,6 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
     const lastTick = this.lastTickTime.get(agentId);
 
     if (!lastTick) {
-      // No tracking entry (e.g., server restart) — seed and start counting fresh
-      this.lastTickTime.set(agentId, now.getTime());
-
       return false;
     }
 
