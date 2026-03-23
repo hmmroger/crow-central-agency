@@ -6,7 +6,6 @@ import { MessageList } from "./message-list.js";
 import { MessageInput } from "./message-input.js";
 import { PermissionQueue } from "./permission-queue.js";
 import { ArtifactPanel } from "./artifact-panel.js";
-import { ResultBanner } from "./result-banner.js";
 
 interface AgentConsoleProps {
   agent: AgentConfig;
@@ -25,7 +24,6 @@ export function AgentConsole({ agent }: AgentConsoleProps) {
     status,
     usage,
     pendingPermissions,
-    lastResult,
     activeToolUse,
     sendMessage,
     injectMessage,
@@ -57,16 +55,6 @@ export function AgentConsole({ agent }: AgentConsoleProps) {
           isStreaming={isStreaming}
           activeToolUse={activeToolUse}
         />
-
-        {lastResult && (
-          <div className="px-4 py-1 shrink-0">
-            <ResultBanner
-              subtype={lastResult.subtype}
-              costUsd={lastResult.costUsd}
-              durationMs={lastResult.durationMs}
-            />
-          </div>
-        )}
 
         <PermissionQueue permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
 
