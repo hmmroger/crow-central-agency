@@ -13,6 +13,9 @@ export type McpServerFactory = (agentId: string) => unknown;
 
 /** Events emitted by the AgentOrchestrator — lifecycle only */
 export interface OrchestratorEvents extends EventMap {
-  /** Agent state changed (status transition) */
+  /**
+   * Agent status transitioned. No internal subscribers — exposed as a
+   * lifecycle event for external consumers (monitoring, future services).
+   */
   agentStateChanged: { agentId: string; status: AgentRuntimeState["status"] };
 }

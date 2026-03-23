@@ -58,12 +58,6 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
 
   /** Wire up registry lifecycle events — owns its own listeners */
   private listenToRegistryEvents(): void {
-    this.registry.on("agentCreated", ({ agent }) => {
-      if (agent.loop.enabled) {
-        log.debug({ agentId: agent.id }, "New agent with loop enabled — tracking started");
-      }
-    });
-
     this.registry.on("agentUpdated", ({ agent }) => {
       // Reset tick tracking when loop config changes so new timing takes effect immediately
       if (this.lastTickTime.has(agent.id)) {
