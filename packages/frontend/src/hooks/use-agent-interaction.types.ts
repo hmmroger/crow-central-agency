@@ -44,6 +44,13 @@ export interface AgentInteractionState {
   status: AgentStatus;
   /** Session usage stats */
   usage: SessionUsage;
+  /** Pending permission requests awaiting user response */
+  pendingPermissions: {
+    toolUseId: string;
+    toolName: string;
+    input?: Record<string, unknown>;
+    decisionReason?: string;
+  }[];
   /** Send a user message */
   sendMessage: (text: string) => void;
   /** Inject a btw message while streaming */
@@ -54,4 +61,8 @@ export interface AgentInteractionState {
   newConversation: () => Promise<void>;
   /** Trigger manual compaction (disabled while streaming) */
   compact: () => Promise<void>;
+  /** Allow a pending permission */
+  allowPermission: (toolUseId: string) => void;
+  /** Deny a pending permission (optionally with message for agent) */
+  denyPermission: (toolUseId: string, message?: string) => void;
 }

@@ -1,10 +1,11 @@
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
-import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { SDKUserMessage, CanUseTool } from "@anthropic-ai/claude-agent-sdk";
 import { AGENT_STATUS, AgentRuntimeStateSchema, type AgentRuntimeState } from "@crow-central-agency/shared";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { OrchestratorEvents, RunningAgent, McpServerFactory } from "./agent-orchestrator.types.js";
 import type { AgentRegistry } from "./agent-registry.js";
 import { processStream } from "../stream/stream-processor.js";
+import type { PermissionHandler } from "./permission-handler.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
@@ -27,12 +28,19 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   private mcpServerFactories = new Map<string, McpServerFactory>();
   private stateFilePath: string;
 
+  private permissionHandler: PermissionHandler | undefined;
+
   constructor(
     private readonly registry: AgentRegistry,
     crowSystemPath: string
   ) {
     super();
     this.stateFilePath = path.join(crowSystemPath, STATE_FILE);
+  }
+
+  /** Set the permission handler (injected from bootstrap after both are created) */
+  setPermissionHandler(handler: PermissionHandler): void {
+    this.permissionHandler = handler;
   }
 
   /** Load persisted runtime states and run startup recovery */
@@ -118,6 +126,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         | "dontAsk",
       allowedTools: agentConfig.toolConfig.autoApprovedTools,
       tools: toolsOption,
+      canUseTool: this.buildCanUseTool(agentId),
       settingSources: agentConfig.settingSources as ("user" | "project" | "local")[],
       mcpServers: this.buildMcpServers(agentId),
       persistSession: true,
@@ -274,6 +283,36 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     state.status = status;
 
     this.emit("agentStatus", { agentId, status });
+  }
+
+  /** Build canUseTool callback that bridges SDK permission requests to our PermissionHandler */
+  private buildCanUseTool(agentId: string): CanUseTool | undefined {
+    if (!this.permissionHandler) {
+      return undefined;
+    }
+
+    const handler = this.permissionHandler;
+
+    return async (toolName, input, options) => {
+      this.setStatus(agentId, AGENT_STATUS.WAITING_PERMISSION);
+
+      const result = await handler.requestPermission(
+        agentId,
+        toolName,
+        input,
+        options.toolUseID,
+        options.decisionReason
+      );
+
+      // Restore to streaming after permission is resolved
+      this.setStatus(agentId, AGENT_STATUS.STREAMING);
+
+      if (result.behavior === "allow") {
+        return { behavior: "allow" as const, updatedInput: result.updatedInput, toolUseID: options.toolUseID };
+      }
+
+      return { behavior: "deny" as const, message: result.message ?? "Denied", toolUseID: options.toolUseID };
+    };
   }
 
   /** Build MCP servers for a query using registered factories */

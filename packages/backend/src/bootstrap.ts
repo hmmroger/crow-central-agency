@@ -7,6 +7,7 @@ import { AgentRegistry } from "./services/agent-registry.js";
 import { AgentOrchestrator } from "./services/agent-orchestrator.js";
 import { SessionManager } from "./services/session-manager.js";
 import { WsBroadcaster } from "./services/ws-broadcaster.js";
+import { PermissionHandler } from "./services/permission-handler.js";
 import { setupWebSocket } from "./server/setup-websocket.js";
 
 export interface BootstrapOptions {
@@ -28,6 +29,30 @@ export async function bootstrap(options: BootstrapOptions) {
 
   const sessionManager = new SessionManager();
   const broadcaster = new WsBroadcaster();
+  const permissionHandler = new PermissionHandler();
+
+  // Wire permission handler into orchestrator
+  orchestrator.setPermissionHandler(permissionHandler);
+
+  // Wire permission events → broadcaster
+  permissionHandler.on("permissionRequest", ({ agentId, toolUseId, toolName, input, decisionReason }) => {
+    broadcaster.broadcast(agentId, {
+      type: "permission_request",
+      agentId,
+      toolUseId,
+      toolName,
+      input,
+      decisionReason,
+    });
+  });
+
+  permissionHandler.on("permissionCancelled", ({ agentId, toolUseId }) => {
+    broadcaster.broadcast(agentId, {
+      type: "permission_cancelled",
+      agentId,
+      toolUseId,
+    });
+  });
 
   // Wire registry events → broadcaster
   registry.on("agentUpdated", ({ agent }) => {
@@ -59,7 +84,7 @@ export async function bootstrap(options: BootstrapOptions) {
   const server = await createServer({ serveStatic: options.serveStatic });
 
   // Register WebSocket + routes
-  await setupWebSocket(server, broadcaster, orchestrator);
+  await setupWebSocket(server, broadcaster, orchestrator, permissionHandler);
   await registerHealthRoutes(server);
   await registerAgentRoutes(server, registry, orchestrator, sessionManager);
 

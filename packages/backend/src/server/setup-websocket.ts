@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { ClientMessageSchema } from "@crow-central-agency/shared";
 import type { WsBroadcaster } from "../services/ws-broadcaster.js";
 import type { AgentOrchestrator } from "../services/agent-orchestrator.js";
+import type { PermissionHandler } from "../services/permission-handler.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "websocket" });
@@ -13,7 +14,8 @@ const log = logger.child({ context: "websocket" });
 export async function setupWebSocket(
   server: FastifyInstance,
   broadcaster: WsBroadcaster,
-  orchestrator: AgentOrchestrator
+  orchestrator: AgentOrchestrator,
+  permissionHandler?: PermissionHandler
 ) {
   server.get("/ws", { websocket: true }, (socket) => {
     log.debug("WebSocket client connected");
@@ -69,11 +71,18 @@ export async function setupWebSocket(
             });
             break;
 
-          // Phase 3 will add: permission_response
+          case "permission_response":
+            if (permissionHandler) {
+              permissionHandler.resolvePermission(message.toolUseId, message.decision, message.message);
+            }
 
-          default:
-            log.warn({ messageType: message.type }, "Unhandled message type");
             break;
+
+          default: {
+            const _exhaustive: never = message;
+            log.warn({ message: _exhaustive }, "Unhandled message type");
+            break;
+          }
         }
       } catch (error) {
         log.error(error, "Error processing WebSocket message");

@@ -6,6 +6,8 @@ import {
   AgentResultWsMessageSchema,
   AgentStatusWsMessageSchema,
   AgentUsageWsMessageSchema,
+  PermissionRequestWsMessageSchema,
+  PermissionCancelledWsMessageSchema,
   type AgentStatus,
   type SessionUsage,
 } from "@crow-central-agency/shared";
@@ -13,6 +15,7 @@ import { useWs } from "./use-ws.js";
 import { useWsSubscription } from "./use-ws-subscription.js";
 import { apiClient } from "../services/api-client.js";
 import { AGENT_MESSAGE_KIND, type AgentMessage, type AgentInteractionState } from "./use-agent-interaction.types.js";
+import type { PendingPermissionRequest } from "../components/console/permission-queue.js";
 
 /**
  * Composite hook for agent console interaction.
@@ -24,6 +27,7 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [streamingText, setStreamingText] = useState("");
   const [status, setStatus] = useState<AgentStatus>(AGENT_STATUS.IDLE);
+  const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
   const [usage, setUsage] = useState<SessionUsage>({
     inputTokens: 0,
     outputTokens: 0,
@@ -185,6 +189,34 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
         break;
       }
 
+      case "permission_request": {
+        const parsed = PermissionRequestWsMessageSchema.safeParse(data);
+
+        if (parsed.success) {
+          setPendingPermissions((prev) => [
+            ...prev,
+            {
+              toolUseId: parsed.data.toolUseId,
+              toolName: parsed.data.toolName,
+              input: parsed.data.input,
+              decisionReason: parsed.data.decisionReason,
+            },
+          ]);
+        }
+
+        break;
+      }
+
+      case "permission_cancelled": {
+        const parsed = PermissionCancelledWsMessageSchema.safeParse(data);
+
+        if (parsed.success) {
+          setPendingPermissions((prev) => prev.filter((perm) => perm.toolUseId !== parsed.data.toolUseId));
+        }
+
+        break;
+      }
+
       default:
         break;
     }
@@ -231,7 +263,25 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
     await apiClient.post(`/agents/${agentId}/session/compact`);
   }, [agentId]);
 
-  // Only STREAMING is truly "streaming" — WAITING_PERMISSION is a paused state (Phase 3)
+  /** Allow a pending permission request */
+  const allowPermission = useCallback(
+    (toolUseId: string) => {
+      send({ type: "permission_response", agentId, toolUseId, decision: "allow" });
+      setPendingPermissions((prev) => prev.filter((perm) => perm.toolUseId !== toolUseId));
+    },
+    [send, agentId]
+  );
+
+  /** Deny a pending permission request (optionally with a text message for the agent) */
+  const denyPermission = useCallback(
+    (toolUseId: string, message?: string) => {
+      send({ type: "permission_response", agentId, toolUseId, decision: "deny", message });
+      setPendingPermissions((prev) => prev.filter((perm) => perm.toolUseId !== toolUseId));
+    },
+    [send, agentId]
+  );
+
+  // Only STREAMING is truly "streaming" — WAITING_PERMISSION is a paused state
   const isStreaming = status === AGENT_STATUS.STREAMING;
 
   return {
@@ -240,10 +290,13 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
     isStreaming,
     status,
     usage,
+    pendingPermissions,
     sendMessage,
     injectMessage,
     abort,
     newConversation,
     compact,
+    allowPermission,
+    denyPermission,
   };
 }
