@@ -38,11 +38,10 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     private readonly broadcaster: WsBroadcaster,
     private readonly permissionHandler: PermissionHandler,
     private readonly artifactManager: ArtifactManager,
-    private readonly loopScheduler: LoopScheduler,
-    crowSystemPath: string
+    private readonly loopScheduler: LoopScheduler
   ) {
     super();
-    this.stateFilePath = path.join(crowSystemPath, STATE_FILE);
+    this.stateFilePath = path.join(env.CROW_SYSTEM_PATH, STATE_FILE);
     this.listenToRegistryEvents();
     this.listenToLoopScheduler();
   }

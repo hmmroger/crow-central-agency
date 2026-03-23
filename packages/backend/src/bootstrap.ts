@@ -31,22 +31,15 @@ export async function bootstrap(options: BootstrapOptions) {
 
   // Create services — order matters for dependency graph
   const broadcaster = new WsBroadcaster();
-  const registry = new AgentRegistry(env.CROW_SYSTEM_PATH, broadcaster);
+  const registry = new AgentRegistry(broadcaster);
   await registry.initialize();
 
   const sessionManager = new SessionManager();
   const permissionHandler = new PermissionHandler(broadcaster);
-  const artifactManager = new ArtifactManager(env.CROW_SYSTEM_PATH);
+  const artifactManager = new ArtifactManager();
   const loopScheduler = new LoopScheduler(registry);
 
-  const orchestrator = new AgentOrchestrator(
-    registry,
-    broadcaster,
-    permissionHandler,
-    artifactManager,
-    loopScheduler,
-    env.CROW_SYSTEM_PATH
-  );
+  const orchestrator = new AgentOrchestrator(registry, broadcaster, permissionHandler, artifactManager, loopScheduler);
   await orchestrator.initialize();
 
   // Register MCP server factories on orchestrator

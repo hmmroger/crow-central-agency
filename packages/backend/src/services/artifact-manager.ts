@@ -4,6 +4,7 @@ import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { assertWithinBase, ensureDir } from "../utils/fs-utils.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
+import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "artifact-manager" });
@@ -15,8 +16,8 @@ const log = logger.child({ context: "artifact-manager" });
 export class ArtifactManager {
   private readonly agentsBaseDir: string;
 
-  constructor(crowSystemPath: string) {
-    this.agentsBaseDir = path.join(crowSystemPath, "agents");
+  constructor() {
+    this.agentsBaseDir = path.join(env.CROW_SYSTEM_PATH, "agents");
   }
 
   /** List all artifacts for an agent */

@@ -13,6 +13,7 @@ import type { AgentRegistryEvents } from "./agent-registry.types.js";
 import type { WsBroadcaster } from "./ws-broadcaster.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
+import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 import { generateId } from "../utils/id-utils.js";
 import {
@@ -37,13 +38,10 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   private readonly agentsFilePath: string;
   private readonly agentsBaseDir: string;
 
-  constructor(
-    crowSystemPath: string,
-    private readonly broadcaster: WsBroadcaster
-  ) {
+  constructor(private readonly broadcaster: WsBroadcaster) {
     super();
-    this.agentsFilePath = path.join(crowSystemPath, "agents.json");
-    this.agentsBaseDir = path.join(crowSystemPath, "agents");
+    this.agentsFilePath = path.join(env.CROW_SYSTEM_PATH, "agents.json");
+    this.agentsBaseDir = path.join(env.CROW_SYSTEM_PATH, "agents");
   }
 
   /** Load all agent configs from agents.json on startup, validating each against schema */
