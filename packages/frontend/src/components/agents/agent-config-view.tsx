@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
 import {
   PERMISSION_MODE,
   TOOL_MODE,
@@ -17,7 +18,7 @@ import { apiClient } from "../../services/api-client.js";
 import { useAppStore } from "../../stores/app-store.js";
 import { LoopConfigPanel } from "./loop-config-panel.js";
 import { AgentMdEditor } from "./agentmd-editor.js";
-import { GenerationPanel } from "./generation-panel.js";
+import { GenerateModal } from "./generate-modal.js";
 
 interface AgentConfigViewProps {
   agentId?: string;
@@ -53,6 +54,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   const [agentMd, setAgentMd] = useState("");
   const [customToolInput, setCustomToolInput] = useState("");
   const customToolInputRef = useRef<HTMLInputElement>(null);
+  const [generateModalType, setGenerateModalType] = useState<"persona" | "agentmd" | undefined>(undefined);
 
   // Load existing agent config when editing
   useEffect(() => {
@@ -246,7 +248,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-2xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-xl font-semibold text-text-primary">{isEditing ? "Edit Agent" : "Create Agent"}</h2>
@@ -264,218 +266,269 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           <div className="mb-6 p-3 rounded-md bg-error/10 border border-error/20 text-error text-sm">{error}</div>
         )}
 
-        <div className="space-y-6">
-          {/* Name */}
-          <FieldGroup label="Name">
-            <input
-              type="text"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Agent name"
-              maxLength={50}
-              className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus"
-            />
-          </FieldGroup>
-
-          {/* Description */}
-          <FieldGroup label="Description">
-            <input
-              type="text"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="What does this agent do?"
-              className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus"
-            />
-          </FieldGroup>
-
-          {/* Workspace */}
-          <FieldGroup label="Workspace Path">
-            <input
-              type="text"
-              value={workspace}
-              onChange={(event) => setWorkspace(event.target.value)}
-              placeholder="/path/to/workspace"
-              className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
-            />
-          </FieldGroup>
-
-          {/* Model */}
-          <FieldGroup label="Model">
-            <input
-              type="text"
-              value={model}
-              onChange={(event) => setModel(event.target.value)}
-              placeholder={DEFAULT_MODEL}
-              className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
-            />
-          </FieldGroup>
-
-          {/* Persona */}
-          <FieldGroup label="Persona">
-            <textarea
-              value={persona}
-              onChange={(event) => setPersona(event.target.value)}
-              placeholder="System-level instructions that shape agent behavior..."
-              rows={4}
-              className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus resize-y"
-            />
-          </FieldGroup>
-
-          {/* Permission Mode */}
-          <FieldGroup label="Permission Mode">
-            <select
-              value={permissionMode}
-              onChange={(event) => setPermissionMode(event.target.value as PermissionMode)}
-              className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm focus:outline-none focus:border-border-focus"
-            >
-              <option value={PERMISSION_MODE.DEFAULT}>Default</option>
-              <option value={PERMISSION_MODE.ACCEPT_EDITS}>Accept Edits</option>
-              <option value={PERMISSION_MODE.PLAN}>Plan</option>
-              <option value={PERMISSION_MODE.DONT_ASK}>Don&apos;t Ask</option>
-              <option value={PERMISSION_MODE.BYPASS_PERMISSIONS}>Bypass Permissions</option>
-            </select>
-          </FieldGroup>
-
-          {/* Tool Mode */}
-          <FieldGroup label="Tools">
-            <div className="flex gap-2 mb-3">
-              <ToggleButton
-                active={toolMode === TOOL_MODE.UNRESTRICTED}
-                onClick={() => handleToolModeChange(TOOL_MODE.UNRESTRICTED)}
-                label="Unrestricted"
-              />
-              <ToggleButton
-                active={toolMode === TOOL_MODE.RESTRICTED}
-                onClick={() => handleToolModeChange(TOOL_MODE.RESTRICTED)}
-                label="Restricted"
-              />
-            </div>
-
-            {toolMode === TOOL_MODE.RESTRICTED && availableTools.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {availableTools.map((tool) => (
-                  <ChipButton
-                    key={tool}
-                    label={tool}
-                    active={selectedTools.includes(tool)}
-                    onClick={() => toggleTool(tool)}
-                  />
-                ))}
-              </div>
-            )}
-
-            {toolMode === TOOL_MODE.RESTRICTED && availableTools.length === 0 && (
-              <p className="text-xs text-text-muted">
-                Available tools will be populated after the agent&apos;s first query.
-              </p>
-            )}
-          </FieldGroup>
-
-          {/* Auto-Approved Tools */}
-          <FieldGroup label="Auto-Approved Tools">
-            <p className="text-xs text-text-muted mb-2">These tools skip the permission dialog.</p>
-
-            {autoApprovedSource.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {autoApprovedSource.map((tool) => (
-                  <ChipButton
-                    key={tool}
-                    label={tool}
-                    active={autoApprovedTools.includes(tool)}
-                    onClick={() => toggleAutoApproved(tool)}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Custom auto-approved tools not in the source list */}
-            {customOnlyTools.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {customOnlyTools.map((tool) => (
-                  <ChipButton key={tool} label={tool} active onClick={() => toggleAutoApproved(tool)} />
-                ))}
-              </div>
-            )}
-
-            {/* Add custom tool input */}
-            <div className="flex gap-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left column — settings */}
+          <div className="space-y-6">
+            {/* Name */}
+            <FieldGroup label="Name">
               <input
-                ref={customToolInputRef}
                 type="text"
-                value={customToolInput}
-                onChange={(event) => setCustomToolInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    addCustomAutoApproved();
-                  }
-                }}
-                placeholder="Add custom tool (e.g. mcp__server__tool)"
-                className="flex-1 px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Agent name"
+                maxLength={50}
+                className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus"
               />
+            </FieldGroup>
+
+            {/* Description */}
+            <FieldGroup label="Description">
+              <input
+                type="text"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="What does this agent do?"
+                className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+              />
+            </FieldGroup>
+
+            {/* Workspace */}
+            <FieldGroup label="Workspace Path">
+              <input
+                type="text"
+                value={workspace}
+                onChange={(event) => setWorkspace(event.target.value)}
+                placeholder="/path/to/workspace"
+                className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+              />
+            </FieldGroup>
+
+            {/* Model */}
+            <FieldGroup label="Model">
+              <input
+                type="text"
+                value={model}
+                onChange={(event) => setModel(event.target.value)}
+                placeholder={DEFAULT_MODEL}
+                className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+              />
+            </FieldGroup>
+
+            {/* Persona */}
+            <FieldGroup
+              label="Persona"
+              action={
+                <button
+                  type="button"
+                  className="text-text-muted hover:text-secondary transition-colors"
+                  onClick={() => setGenerateModalType("persona")}
+                  title="Generate with AI"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                </button>
+              }
+            >
+              <textarea
+                value={persona}
+                onChange={(event) => setPersona(event.target.value)}
+                placeholder="System-level instructions that shape agent behavior..."
+                rows={4}
+                className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus resize-y"
+              />
+            </FieldGroup>
+
+            {/* Permission Mode */}
+            <FieldGroup label="Permission Mode">
+              <select
+                value={permissionMode}
+                onChange={(event) => setPermissionMode(event.target.value as PermissionMode)}
+                className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm focus:outline-none focus:border-border-focus"
+              >
+                <option value={PERMISSION_MODE.DEFAULT}>Default</option>
+                <option value={PERMISSION_MODE.ACCEPT_EDITS}>Accept Edits</option>
+                <option value={PERMISSION_MODE.PLAN}>Plan</option>
+                <option value={PERMISSION_MODE.DONT_ASK}>Don&apos;t Ask</option>
+                <option value={PERMISSION_MODE.BYPASS_PERMISSIONS}>Bypass Permissions</option>
+              </select>
+            </FieldGroup>
+
+            {/* Tool Mode */}
+            <FieldGroup label="Tools">
+              <div className="flex gap-2 mb-3">
+                <ToggleButton
+                  active={toolMode === TOOL_MODE.UNRESTRICTED}
+                  onClick={() => handleToolModeChange(TOOL_MODE.UNRESTRICTED)}
+                  label="Unrestricted"
+                />
+                <ToggleButton
+                  active={toolMode === TOOL_MODE.RESTRICTED}
+                  onClick={() => handleToolModeChange(TOOL_MODE.RESTRICTED)}
+                  label="Restricted"
+                />
+              </div>
+
+              {toolMode === TOOL_MODE.RESTRICTED && availableTools.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {availableTools.map((tool) => (
+                    <ChipButton
+                      key={tool}
+                      label={tool}
+                      active={selectedTools.includes(tool)}
+                      onClick={() => toggleTool(tool)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {toolMode === TOOL_MODE.RESTRICTED && availableTools.length === 0 && (
+                <p className="text-xs text-text-muted">
+                  Available tools will be populated after the agent&apos;s first query.
+                </p>
+              )}
+            </FieldGroup>
+
+            {/* Auto-Approved Tools */}
+            <FieldGroup label="Auto-Approved Tools">
+              <p className="text-xs text-text-muted mb-2">These tools skip the permission dialog.</p>
+
+              {autoApprovedSource.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {autoApprovedSource.map((tool) => (
+                    <ChipButton
+                      key={tool}
+                      label={tool}
+                      active={autoApprovedTools.includes(tool)}
+                      onClick={() => toggleAutoApproved(tool)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Custom auto-approved tools not in the source list */}
+              {customOnlyTools.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {customOnlyTools.map((tool) => (
+                    <ChipButton key={tool} label={tool} active onClick={() => toggleAutoApproved(tool)} />
+                  ))}
+                </div>
+              )}
+
+              {/* Add custom tool input */}
+              <div className="flex gap-2">
+                <input
+                  ref={customToolInputRef}
+                  type="text"
+                  value={customToolInput}
+                  onChange={(event) => setCustomToolInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addCustomAutoApproved();
+                    }
+                  }}
+                  placeholder="Add custom tool (e.g. mcp__server__tool)"
+                  className="flex-1 px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+                />
+                <button
+                  type="button"
+                  className="px-3 py-1.5 rounded-md bg-surface-elevated text-text-secondary text-xs font-medium hover:text-text-primary transition-colors disabled:opacity-50"
+                  onClick={addCustomAutoApproved}
+                  disabled={!customToolInput.trim()}
+                >
+                  Add
+                </button>
+              </div>
+            </FieldGroup>
+
+            {/* Loop Configuration */}
+            <FieldGroup label="Loop Schedule">
+              <LoopConfigPanel
+                enabled={loopEnabled}
+                daysOfWeek={loopDays}
+                timeMode={loopTimeMode}
+                hour={loopHour}
+                minute={loopMinute}
+                prompt={loopPrompt}
+                onEnabledChange={setLoopEnabled}
+                onDaysChange={setLoopDays}
+                onTimeModeChange={setLoopTimeMode}
+                onHourChange={setLoopHour}
+                onMinuteChange={setLoopMinute}
+                onPromptChange={setLoopPrompt}
+              />
+            </FieldGroup>
+
+            {/* Save */}
+            <div className="pt-4 border-t border-border-subtle">
               <button
                 type="button"
-                className="px-3 py-1.5 rounded-md bg-surface-elevated text-text-secondary text-xs font-medium hover:text-text-primary transition-colors disabled:opacity-50"
-                onClick={addCustomAutoApproved}
-                disabled={!customToolInput.trim()}
+                className="px-4 py-2 rounded-md bg-primary text-text-primary font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+                onClick={handleSave}
+                disabled={saving || !name.trim() || !workspace.trim()}
               >
-                Add
+                {saving ? "Saving..." : isEditing ? "Save Changes" : "Create Agent"}
               </button>
             </div>
-          </FieldGroup>
+          </div>
 
-          {/* Loop Configuration */}
-          <FieldGroup label="Loop Schedule">
-            <LoopConfigPanel
-              enabled={loopEnabled}
-              daysOfWeek={loopDays}
-              timeMode={loopTimeMode}
-              hour={loopHour}
-              minute={loopMinute}
-              prompt={loopPrompt}
-              onEnabledChange={setLoopEnabled}
-              onDaysChange={setLoopDays}
-              onTimeModeChange={setLoopTimeMode}
-              onHourChange={setLoopHour}
-              onMinuteChange={setLoopMinute}
-              onPromptChange={setLoopPrompt}
-            />
-          </FieldGroup>
-
-          {/* AGENT.md — persistent markdown instructions for the agent */}
-          <FieldGroup label="AGENT.md">
-            <AgentMdEditor value={agentMd} onChange={setAgentMd} />
-          </FieldGroup>
-
-          {/* Generation — only when editing existing agent */}
-          {isEditing && agentId && (
-            <FieldGroup label="AI Generation">
-              <GenerationPanel agentId={agentId} onPersonaGenerated={setPersona} />
-            </FieldGroup>
-          )}
-
-          {/* Save */}
-          <div className="pt-4 border-t border-border-subtle">
-            <button
-              type="button"
-              className="px-4 py-2 rounded-md bg-primary text-text-primary font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
-              onClick={handleSave}
-              disabled={saving || !name.trim() || !workspace.trim()}
+          {/* Right column — AGENT.md editor */}
+          <div className="lg:sticky lg:top-6 lg:self-start">
+            <FieldGroup
+              label="AGENT.md"
+              action={
+                <button
+                  type="button"
+                  className="text-text-muted hover:text-secondary transition-colors"
+                  onClick={() => setGenerateModalType("agentmd")}
+                  title="Generate with AI"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                </button>
+              }
             >
-              {saving ? "Saving..." : isEditing ? "Save Changes" : "Create Agent"}
-            </button>
+              <AgentMdEditor value={agentMd} onChange={setAgentMd} />
+            </FieldGroup>
           </div>
         </div>
+
+        {/* Generate Modal */}
+        {generateModalType && (
+          <GenerateModal
+            type={generateModalType}
+            context={
+              [description, generateModalType === "agentmd" ? persona : ""].filter(Boolean).join("\n") || undefined
+            }
+            onApply={(content) => {
+              if (generateModalType === "persona") {
+                setPersona(content);
+              } else {
+                setAgentMd(content);
+              }
+            }}
+            onClose={() => setGenerateModalType(undefined)}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-/** Field group with label */
-function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+/** Field group with label and optional action element */
+function FieldGroup({
+  label,
+  action,
+  children,
+}: {
+  label: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div>
-      <label className="block text-sm font-medium text-text-secondary mb-1.5">{label}</label>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-sm font-medium text-text-secondary">{label}</label>
+        {action}
+      </div>
       {children}
     </div>
   );

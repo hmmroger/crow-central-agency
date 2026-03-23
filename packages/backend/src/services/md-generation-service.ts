@@ -1,11 +1,19 @@
 import type { OpenAIProvider } from "./openai-provider.js";
-import type { GenerationConfig } from "./md-generation-service.types.js";
+import { GENERATION_TYPE, type GenerateTextInput } from "./md-generation-service.types.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "md-generation" });
 
+const SYSTEM_PROMPTS: Record<string, string> = {
+  [GENERATION_TYPE.PERSONA]:
+    "You are an expert at crafting AI agent personas. Generate a concise, focused persona that defines the agent's behavior, expertise, and communication style. Be specific and actionable. The persona should cover: role, expertise areas, communication style, and key behaviors.",
+  [GENERATION_TYPE.AGENT_MD]:
+    "You are an expert at writing AGENT.md instruction files for AI coding agents. Generate clear, structured markdown instructions that guide an agent's behavior in a development context. Use proper markdown formatting with headings, lists, and code blocks where appropriate.",
+};
+
 /**
- * Generates personas and AGENT.md content via an OpenAI-compatible API.
+ * Text generation via an OpenAI-compatible API.
+ * Uses type-specific system prompts with user-provided instructions.
  * Optional — requires OPENAI_BASE_URL to be configured.
  */
 export class MdGenerationService {
@@ -14,54 +22,11 @@ export class MdGenerationService {
     private readonly model: string
   ) {}
 
-  /** Generate a persona for an agent based on its name and description */
-  async generatePersona(config: GenerationConfig): Promise<string> {
-    const systemPrompt =
-      "You are an expert at crafting AI agent personas. Generate a concise, focused persona that defines the agent's behavior, expertise, and communication style. Be specific and actionable.";
+  /** Generate text based on type, user prompt, and optional context */
+  async generate(input: GenerateTextInput): Promise<string> {
+    const systemPrompt = SYSTEM_PROMPTS[input.type];
+    const userPrompt = input.context ? `${input.prompt}\n\nContext:\n${input.context}` : input.prompt;
 
-    const userPrompt = [
-      `Generate a persona for an AI agent with the following details:`,
-      `Name: ${config.agentName}`,
-      `Description: ${config.agentDescription}`,
-      config.existingPersona ? `Current persona (improve upon this): ${config.existingPersona}` : "",
-      "",
-      "The persona should be 2-4 paragraphs covering: role, expertise areas, communication style, and key behaviors.",
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    const result = await this.generate(systemPrompt, userPrompt);
-
-    log.info({ agentName: config.agentName }, "Persona generated");
-
-    return result;
-  }
-
-  /** Generate AGENT.md content for an agent */
-  async generateAgentMd(config: GenerationConfig): Promise<string> {
-    const systemPrompt =
-      "You are an expert at writing AGENT.md files for AI coding agents. Generate clear, structured markdown instructions that guide an agent's behavior in a development context.";
-
-    const userPrompt = [
-      `Generate an AGENT.md file for an AI agent:`,
-      `Name: ${config.agentName}`,
-      `Description: ${config.agentDescription}`,
-      config.existingPersona ? `Persona: ${config.existingPersona}` : "",
-      "",
-      "Include sections for: Overview, Key Responsibilities, Guidelines, and Constraints.",
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    const result = await this.generate(systemPrompt, userPrompt);
-
-    log.info({ agentName: config.agentName }, "AGENT.md generated");
-
-    return result;
-  }
-
-  /** Internal: generate text via the OpenAI provider */
-  private async generate(systemPrompt: string, userPrompt: string): Promise<string> {
     let result = "";
 
     const stream = this.provider.streamTextGeneration(this.model, [
@@ -74,6 +39,8 @@ export class MdGenerationService {
         result += event.content;
       }
     }
+
+    log.info({ type: input.type }, "Text generated");
 
     return result;
   }

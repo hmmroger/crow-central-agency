@@ -66,7 +66,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerHealthRoutes(server);
   await registerAgentRoutes(server, registry, orchestrator, sessionManager);
   await registerArtifactRoutes(server, artifactManager);
-  await registerGenerationRoutes(server, registry, generationService);
+  await registerGenerationRoutes(server, generationService);
 
   // Start listening
   await server.listen({ host: env.HOST, port: env.PORT });
