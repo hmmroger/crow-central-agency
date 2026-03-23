@@ -1,12 +1,12 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { AppError } from "../error/app-error.js";
-import { AppErrorCodes } from "../error/app-error.types.js";
+import { AppErrorCodes, type AppErrorCode } from "../error/app-error.types.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "error-handler" });
 
 /** Map AppErrorCode → HTTP status code */
-const HTTP_STATUS_MAP: Record<string, number> = {
+const HTTP_STATUS_MAP: Record<AppErrorCode, number> = {
   [AppErrorCodes.Unknown]: 500,
   [AppErrorCodes.NotFound]: 404,
   [AppErrorCodes.Validation]: 400,
@@ -36,7 +36,7 @@ export function registerErrorHandler(server: FastifyInstance): void {
       if (httpStatus >= 500) {
         log.error({ errorCode: error.errorCode, message: error.message }, "Server error");
       } else {
-        log.debug({ errorCode: error.errorCode, message: error.message }, "Client error");
+        log.warn({ errorCode: error.errorCode, message: error.message }, "Client error");
       }
 
       return reply.status(httpStatus).send({
