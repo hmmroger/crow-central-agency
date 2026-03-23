@@ -168,8 +168,10 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
     const lastTick = this.lastTickTime.get(agentId);
 
     if (!lastTick) {
-      // No tracking entry — fires immediately (e.g., after server restart)
-      return true;
+      // No tracking entry (e.g., server restart) — seed and start counting fresh
+      this.lastTickTime.set(agentId, now.getTime());
+
+      return false;
     }
 
     return now.getTime() - lastTick >= intervalMs;
