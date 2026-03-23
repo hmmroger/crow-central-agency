@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { Send, Square } from "lucide-react";
 
 interface MessageInputProps {
   onSend: (text: string) => void;
@@ -56,18 +57,20 @@ export function MessageInput({ onSend, onInject, onAbort, isStreaming, disabled 
       {isStreaming ? (
         <button
           type="button"
-          className="px-3 py-2 rounded-md bg-error/20 text-error text-sm font-medium hover:bg-error/30 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-error/20 text-error text-sm font-medium hover:bg-error/30 transition-colors"
           onClick={onAbort}
         >
+          <Square size={14} />
           Stop
         </button>
       ) : (
         <button
           type="button"
-          className="px-3 py-2 rounded-md bg-primary text-text-primary text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-primary text-text-primary text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           onClick={handleSubmit}
           disabled={disabled || !text.trim()}
         >
+          <Send size={14} />
           Send
         </button>
       )}

@@ -46,11 +46,7 @@ export function AgentCard({ agent }: AgentCardProps) {
       </div>
 
       {/* Permission indicator */}
-      <AgentCardPermission
-        permissions={pendingPermissions}
-        onAllow={allowPermission}
-        onDeny={(toolUseId) => denyPermission(toolUseId)}
-      />
+      <AgentCardPermission permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
 
       {/* Expanded content — mini-console + input */}
       {expanded && (

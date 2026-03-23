@@ -1,3 +1,4 @@
+import { ArrowLeft, Minimize2, Plus } from "lucide-react";
 import { AGENT_STATUS, type AgentConfig, type AgentStatus, type SessionUsage } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
 
@@ -9,6 +10,16 @@ interface AgentConsoleHeaderProps {
   onCompact: () => void;
   onNewSession: () => void;
 }
+
+/** Status badge color map */
+const STATUS_COLOR_MAP: Record<AgentStatus, string> = {
+  [AGENT_STATUS.IDLE]: "bg-text-muted",
+  [AGENT_STATUS.STREAMING]: "bg-primary",
+  [AGENT_STATUS.WAITING_PERMISSION]: "bg-warning",
+  [AGENT_STATUS.WAITING_AGENT]: "bg-info",
+  [AGENT_STATUS.COMPACTING]: "bg-secondary",
+  [AGENT_STATUS.ERROR]: "bg-error",
+};
 
 /**
  * Console header — agent name, status, usage stats, compact/new session buttons.
@@ -29,15 +40,19 @@ export function AgentConsoleHeader({
       <div className="flex items-center gap-3">
         <button
           type="button"
-          className="text-text-muted hover:text-text-primary transition-colors text-sm"
+          className="flex items-center gap-1 text-text-muted hover:text-text-primary transition-colors text-sm"
           onClick={goToDashboard}
         >
-          &larr; Back
+          <ArrowLeft size={14} />
+          Back
         </button>
         <div>
           <h2 className="text-sm font-semibold text-text-primary">{agent.name}</h2>
           <div className="flex items-center gap-2 text-xs text-text-muted">
-            <StatusBadge status={status} />
+            <span className="inline-flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR_MAP[status]}`} />
+              {status}
+            </span>
             <span className="font-mono">{agent.model}</span>
           </div>
         </div>
@@ -59,42 +74,25 @@ export function AgentConsoleHeader({
         <div className="flex items-center gap-1">
           <button
             type="button"
-            className="px-2 py-1 rounded text-xs text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors disabled:opacity-30"
+            className="flex items-center gap-1 px-2 py-1 rounded text-xs text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors disabled:opacity-30"
             onClick={onCompact}
             disabled={isStreaming}
             title="Compact context"
           >
+            <Minimize2 size={12} />
             Compact
           </button>
           <button
             type="button"
-            className="px-2 py-1 rounded text-xs text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
+            className="flex items-center gap-1 px-2 py-1 rounded text-xs text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
             onClick={onNewSession}
             title="New session"
           >
+            <Plus size={12} />
             New
           </button>
         </div>
       </div>
     </div>
-  );
-}
-
-/** Status indicator badge */
-function StatusBadge({ status }: { status: AgentStatus }) {
-  const colorMap: Record<AgentStatus, string> = {
-    [AGENT_STATUS.IDLE]: "bg-text-muted",
-    [AGENT_STATUS.STREAMING]: "bg-primary",
-    [AGENT_STATUS.WAITING_PERMISSION]: "bg-warning",
-    [AGENT_STATUS.WAITING_AGENT]: "bg-info",
-    [AGENT_STATUS.COMPACTING]: "bg-secondary",
-    [AGENT_STATUS.ERROR]: "bg-error",
-  };
-
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className={`w-1.5 h-1.5 rounded-full ${colorMap[status]}`} />
-      {status}
-    </span>
   );
 }

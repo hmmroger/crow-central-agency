@@ -1,5 +1,4 @@
-import type { AgentMessage } from "../../hooks/use-agent-interaction.types.js";
-import { AGENT_MESSAGE_KIND } from "../../hooks/use-agent-interaction.types.js";
+import { AGENT_MESSAGE_KIND, type AgentMessage } from "../../hooks/use-agent-interaction.types.js";
 
 interface AgentCardMessagesProps {
   messages: AgentMessage[];

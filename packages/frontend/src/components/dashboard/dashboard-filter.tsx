@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { Search } from "lucide-react";
 
 interface DashboardFilterProps {
   searchQuery: string;
@@ -6,24 +6,19 @@ interface DashboardFilterProps {
 }
 
 /**
- * Filter bar for the dashboard — search by agent name.
- * Phase 4+ could add status filter dropdown.
+ * Filter bar for the dashboard — search by agent name/description.
  */
 export function DashboardFilter({ searchQuery, onSearchChange }: DashboardFilterProps) {
-  const handleChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      onSearchChange(event.target.value);
-    },
-    [onSearchChange]
-  );
-
   return (
-    <input
-      type="text"
-      value={searchQuery}
-      onChange={handleChange}
-      placeholder="Search agents..."
-      className="px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus w-48"
-    />
+    <div className="relative">
+      <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
+      <input
+        type="text"
+        value={searchQuery}
+        onChange={(event) => onSearchChange(event.target.value)}
+        placeholder="Search agents..."
+        className="pl-8 pr-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus w-48"
+      />
+    </div>
   );
 }

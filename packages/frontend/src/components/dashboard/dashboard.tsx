@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Plus, RefreshCw } from "lucide-react";
 import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
 import { AgentCard } from "./agent-card.js";
@@ -43,9 +44,10 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
         <p className="text-error">{error}</p>
         <button
           type="button"
-          className="px-3 py-1.5 rounded-md bg-surface-elevated text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-elevated text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
           onClick={() => refetch()}
         >
+          <RefreshCw size={14} />
           Retry
         </button>
       </div>
@@ -59,9 +61,10 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
         <p className="text-sm">Create your first agent to get started.</p>
         <button
           type="button"
-          className="px-4 py-2 rounded-md bg-primary text-text-primary font-medium hover:opacity-90 transition-opacity"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-text-primary font-medium hover:opacity-90 transition-opacity"
           onClick={() => goToAgentEditor()}
         >
+          <Plus size={16} />
           Create Agent
         </button>
       </div>
@@ -74,16 +77,17 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-semibold text-text-primary">Agents</h2>
-          <DashboardStatsBar agents={agents} activeCount={0} totalCost={0} />
+          <DashboardStatsBar agents={agents} />
         </div>
         <div className="flex items-center gap-3">
           <DashboardFilter searchQuery={searchQuery} onSearchChange={setSearchQuery} />
           <button
             type="button"
-            className="px-3 py-1.5 rounded-md bg-primary text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
             onClick={() => goToAgentEditor()}
           >
-            + New Agent
+            <Plus size={14} />
+            New Agent
           </button>
         </div>
       </div>
