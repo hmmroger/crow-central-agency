@@ -1,6 +1,5 @@
 import type { SDKMessage, Query, SessionMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { ServerMessage } from "@crow-central-agency/shared";
-import { TextCoalescer } from "./text-coalescer.js";
 import { parseToolActivity } from "./tool-activity-parser.js";
 import type { ProcessedStreamEvent, StreamEventMeta, StreamResultInfo } from "./stream-processor.types.js";
 import { logger } from "../utils/logger.js";
@@ -13,18 +12,18 @@ const log = logger.child({ context: "stream-processor" });
  * The stream processor is a pure data transformer — it has no side effects.
  * The orchestrator decides what to do with each yielded event.
  *
+ * Text deltas are pushed directly as agent_text WS messages — no server-side
+ * batching. The frontend accumulates them in streamingText for real-time display.
+ *
  * @param agentId - The agent this stream belongs to
  * @param queryStream - The SDK Query async generator
  */
 export async function* processStream(agentId: string, queryStream: Query): AsyncGenerator<ProcessedStreamEvent> {
   const pendingWsMessages: ServerMessage[] = [];
-  const coalescer = new TextCoalescer((text) => {
-    pendingWsMessages.push({ type: "agent_text", agentId, text });
-  });
 
   try {
     for await (const message of queryStream) {
-      const partial = handleMessage(agentId, message, coalescer, pendingWsMessages);
+      const partial = handleMessage(agentId, message, pendingWsMessages);
 
       if (pendingWsMessages.length > 0 || partial.sessionMessage || partial.meta) {
         yield {
@@ -36,7 +35,6 @@ export async function* processStream(agentId: string, queryStream: Query): Async
     }
   } catch (error) {
     log.error({ agentId, error }, "Stream processing error");
-    coalescer.flush();
     yield {
       wsMessages: pendingWsMessages.splice(0),
       meta: {
@@ -51,8 +49,6 @@ export async function* processStream(agentId: string, queryStream: Query): Async
       },
     };
   } finally {
-    coalescer.flush();
-
     if (pendingWsMessages.length > 0) {
       yield { wsMessages: pendingWsMessages.splice(0) };
     }
@@ -66,31 +62,25 @@ interface MessagePartial {
 }
 
 /** Process a single SDK message — returns extracted data, pushes WS messages to pending array */
-function handleMessage(
-  agentId: string,
-  message: SDKMessage,
-  coalescer: TextCoalescer,
-  pendingWsMessages: ServerMessage[]
-): MessagePartial {
+function handleMessage(agentId: string, message: SDKMessage, pendingWsMessages: ServerMessage[]): MessagePartial {
   switch (message.type) {
     case "system":
-      return handleSystemMessage(agentId, message, coalescer, pendingWsMessages);
+      return handleSystemMessage(agentId, message, pendingWsMessages);
 
     case "stream_event":
-      handleStreamEvent(agentId, message, coalescer, pendingWsMessages);
+      handleStreamEvent(agentId, message, pendingWsMessages);
       return {};
 
     case "assistant":
-      return handleAssistantMessage(message, coalescer);
+      return handleAssistantMessage(message);
 
     case "result":
-      return handleResultMessage(agentId, message, coalescer, pendingWsMessages);
+      return handleResultMessage(agentId, message, pendingWsMessages);
 
     case "tool_progress":
-      return handleToolProgress(agentId, message, coalescer, pendingWsMessages);
+      return handleToolProgress(agentId, message, pendingWsMessages);
 
     case "rate_limit_event": {
-      coalescer.flush();
       const rateMsg = message as SDKMessage & { rate_limit_info?: unknown };
       log.warn({ agentId, rateLimit: rateMsg.rate_limit_info }, "Rate limit event");
       return {};
@@ -105,7 +95,6 @@ function handleMessage(
 function handleSystemMessage(
   agentId: string,
   message: SDKMessage & { type: "system" },
-  coalescer: TextCoalescer,
   pendingWsMessages: ServerMessage[]
 ): MessagePartial {
   if (!("subtype" in message)) {
@@ -125,7 +114,6 @@ function handleSystemMessage(
     }
 
     case "status": {
-      coalescer.flush();
       const statusMsg = message as SDKMessage & { type: "system"; subtype: "status"; status: string | null };
 
       if (statusMsg.status === "compacting") {
@@ -137,7 +125,6 @@ function handleSystemMessage(
     }
 
     case "compact_boundary": {
-      coalescer.flush();
       log.info({ agentId }, "Compact boundary reached");
       return {};
     }
@@ -151,7 +138,6 @@ function handleSystemMessage(
 function handleStreamEvent(
   agentId: string,
   message: SDKMessage & { type: "stream_event" },
-  coalescer: TextCoalescer,
   pendingWsMessages: ServerMessage[]
 ): void {
   const event = (
@@ -168,7 +154,7 @@ function handleStreamEvent(
   switch (event.type) {
     case "content_block_delta": {
       if (event.delta?.type === "text_delta" && event.delta.text) {
-        coalescer.append(event.delta.text);
+        pendingWsMessages.push({ type: "agent_text", agentId, text: event.delta.text });
       }
 
       break;
@@ -176,8 +162,6 @@ function handleStreamEvent(
 
     case "content_block_start": {
       if (event.content_block?.type === "tool_use" && event.content_block.name) {
-        coalescer.flush();
-
         const toolName = event.content_block.name;
         const toolInput = (event.content_block.input ?? {}) as Record<string, unknown>;
         const description = parseToolActivity(toolName, toolInput);
@@ -202,9 +186,7 @@ function handleStreamEvent(
  * Handle complete assistant message — convert to SessionMessage for cache persistence.
  * Also extracts per-turn usage for meta.
  */
-function handleAssistantMessage(message: SDKMessage & { type: "assistant" }, coalescer: TextCoalescer): MessagePartial {
-  coalescer.flush();
-
+function handleAssistantMessage(message: SDKMessage & { type: "assistant" }): MessagePartial {
   const assistantMsg = message as SDKMessage & {
     type: "assistant";
     uuid: string;
@@ -235,11 +217,8 @@ function handleAssistantMessage(message: SDKMessage & { type: "assistant" }, coa
 function handleToolProgress(
   agentId: string,
   message: SDKMessage & { type: "tool_progress" },
-  coalescer: TextCoalescer,
   pendingWsMessages: ServerMessage[]
 ): MessagePartial {
-  coalescer.flush();
-
   const progressMsg = message as SDKMessage & {
     type: "tool_progress";
     tool_name: string;
@@ -260,11 +239,8 @@ function handleToolProgress(
 function handleResultMessage(
   agentId: string,
   message: SDKMessage & { type: "result" },
-  coalescer: TextCoalescer,
   pendingWsMessages: ServerMessage[]
 ): MessagePartial {
-  coalescer.flush();
-
   const resultMsg = message as SDKMessage & {
     type: "result";
     subtype: string;
