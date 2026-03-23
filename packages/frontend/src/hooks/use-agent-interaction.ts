@@ -1,17 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
-import { AGENT_STATUS, type AgentStatus, type SessionUsage } from "@crow-central-agency/shared";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  AGENT_STATUS,
+  AgentTextWsMessageSchema,
+  AgentActivityWsMessageSchema,
+  AgentResultWsMessageSchema,
+  AgentStatusWsMessageSchema,
+  AgentUsageWsMessageSchema,
+  type AgentStatus,
+  type SessionUsage,
+} from "@crow-central-agency/shared";
 import { useWs } from "./use-ws.js";
 import { useWsSubscription } from "./use-ws-subscription.js";
 import { apiClient } from "../services/api-client.js";
 import { AGENT_MESSAGE_KIND, type AgentMessage, type AgentInteractionState } from "./use-agent-interaction.types.js";
-
-let messageCounter = 0;
-
-function nextId(): string {
-  messageCounter += 1;
-
-  return `msg-${messageCounter}`;
-}
 
 /**
  * Composite hook for agent console interaction.
@@ -31,34 +32,74 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
     contextTotal: 0,
   });
 
-  // Load initial messages from REST on mount
+  // Per-instance message counter (not module-level, scoped to hook instance)
+  const messageCounterRef = useRef(0);
+
+  function nextId(): string {
+    messageCounterRef.current += 1;
+
+    return `msg-${messageCounterRef.current}`;
+  }
+
+  // Load initial state + messages from REST on mount
   useEffect(() => {
-    const loadMessages = async () => {
-      const stateResponse = await apiClient.get<{ status: AgentStatus; sessionUsage?: SessionUsage }>(
-        `/agents/${agentId}/state`
-      );
+    const loadInitialState = async () => {
+      try {
+        const [stateResponse, messagesResponse] = await Promise.all([
+          apiClient.get<{ status: AgentStatus; sessionUsage?: SessionUsage }>(`/agents/${agentId}/state`),
+          apiClient.get<{ type: string; message: unknown }[]>(`/agents/${agentId}/messages`),
+        ]);
 
-      if (stateResponse.success && stateResponse.data) {
-        setStatus(stateResponse.data.status);
+        if (stateResponse.success && stateResponse.data) {
+          setStatus(stateResponse.data.status);
 
-        if (stateResponse.data.sessionUsage) {
-          setUsage(stateResponse.data.sessionUsage);
+          if (stateResponse.data.sessionUsage) {
+            setUsage(stateResponse.data.sessionUsage);
+          }
         }
+
+        if (messagesResponse.success && messagesResponse.data.length > 0) {
+          const rendered = messagesResponse.data
+            .filter((sessionMsg) => sessionMsg.type === "user" || sessionMsg.type === "assistant")
+            .map(
+              (sessionMsg): AgentMessage => ({
+                id: nextId(),
+                kind: AGENT_MESSAGE_KIND.TEXT,
+                text: typeof sessionMsg.message === "string" ? sessionMsg.message : JSON.stringify(sessionMsg.message),
+                timestamp: Date.now(),
+              })
+            );
+
+          setMessages(rendered);
+        }
+      } catch {
+        // Errors on initial load are non-fatal — console starts empty
       }
     };
 
-    loadMessages();
+    loadInitialState();
   }, [agentId]);
 
-  // Handle incoming WS messages
-  const handleWsMessage = useCallback((data: { type: string; [key: string]: unknown }) => {
+  // Handle incoming WS messages — plain function, stabilized by useWsSubscription's useRef
+  const handleWsMessage = (data: { type: string; [key: string]: unknown }) => {
     switch (data.type) {
       case "agent_text": {
-        setStreamingText((prev) => prev + (data.text as string));
+        const parsed = AgentTextWsMessageSchema.safeParse(data);
+
+        if (parsed.success) {
+          setStreamingText((prev) => prev + parsed.data.text);
+        }
+
         break;
       }
 
       case "agent_activity": {
+        const parsed = AgentActivityWsMessageSchema.safeParse(data);
+
+        if (!parsed.success) {
+          break;
+        }
+
         // Flush streaming text as a text message before adding activity
         setStreamingText((prev) => {
           if (prev.length > 0) {
@@ -76,9 +117,9 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
           {
             id: nextId(),
             kind: AGENT_MESSAGE_KIND.ACTIVITY,
-            toolName: data.toolName as string,
-            description: data.description as string,
-            isSubagent: data.isSubagent as boolean,
+            toolName: parsed.data.toolName,
+            description: parsed.data.description,
+            isSubagent: parsed.data.isSubagent,
             timestamp: Date.now(),
           },
         ]);
@@ -86,6 +127,12 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
       }
 
       case "agent_result": {
+        const parsed = AgentResultWsMessageSchema.safeParse(data);
+
+        if (!parsed.success) {
+          break;
+        }
+
         // Flush any remaining streaming text
         setStreamingText((prev) => {
           if (prev.length > 0) {
@@ -103,9 +150,9 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
           {
             id: nextId(),
             kind: AGENT_MESSAGE_KIND.RESULT,
-            subtype: data.subtype as string,
-            costUsd: data.totalCostUsd as number | undefined,
-            durationMs: data.durationMs as number | undefined,
+            subtype: parsed.data.subtype,
+            costUsd: parsed.data.totalCostUsd ?? parsed.data.costUsd,
+            durationMs: parsed.data.durationMs,
             timestamp: Date.now(),
           },
         ]);
@@ -113,35 +160,44 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
       }
 
       case "agent_status": {
-        setStatus(data.status as AgentStatus);
+        const parsed = AgentStatusWsMessageSchema.safeParse(data);
+
+        if (parsed.success) {
+          setStatus(parsed.data.status);
+        }
+
         break;
       }
 
       case "agent_usage": {
-        setUsage({
-          inputTokens: data.inputTokens as number,
-          outputTokens: data.outputTokens as number,
-          totalCostUsd: data.totalCostUsd as number,
-          contextUsed: data.contextUsed as number,
-          contextTotal: data.contextTotal as number,
-        });
+        const parsed = AgentUsageWsMessageSchema.safeParse(data);
+
+        if (parsed.success) {
+          setUsage({
+            inputTokens: parsed.data.inputTokens,
+            outputTokens: parsed.data.outputTokens,
+            totalCostUsd: parsed.data.totalCostUsd,
+            contextUsed: parsed.data.contextUsed,
+            contextTotal: parsed.data.contextTotal,
+          });
+        }
+
         break;
       }
 
       default:
         break;
     }
-  }, []);
+  };
 
   useWsSubscription(agentId, handleWsMessage);
 
   /** Send a user message */
   const sendMessage = useCallback(
     (text: string) => {
-      // Add user message to local state
       setMessages((prev) => [
         ...prev,
-        { id: nextId(), kind: AGENT_MESSAGE_KIND.TEXT, text: `**You:** ${text}`, timestamp: Date.now() },
+        { id: `user-${Date.now()}`, kind: AGENT_MESSAGE_KIND.TEXT, text: `**You:** ${text}`, timestamp: Date.now() },
       ]);
 
       send({ type: "send_message", agentId, message: text });
@@ -175,7 +231,8 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
     await apiClient.post(`/agents/${agentId}/session/compact`);
   }, [agentId]);
 
-  const isStreaming = status === AGENT_STATUS.STREAMING || status === AGENT_STATUS.WAITING_PERMISSION;
+  // Only STREAMING is truly "streaming" — WAITING_PERMISSION is a paused state (Phase 3)
+  const isStreaming = status === AGENT_STATUS.STREAMING;
 
   return {
     messages,

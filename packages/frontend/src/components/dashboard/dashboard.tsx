@@ -1,13 +1,20 @@
-import { useAgents } from "../../hooks/use-agents.js";
+import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
 import { AgentCard } from "./agent-card.js";
 
+interface DashboardProps {
+  agents: AgentConfig[];
+  loading: boolean;
+  error?: string;
+  refetch: () => void;
+}
+
 /**
  * Dashboard — agent cards grid with empty state.
+ * Receives agent data from AppContent (single useAgents() call).
  * Phase 4 will add stats bar, filtering, mini-consoles.
  */
-export function Dashboard() {
-  const { agents, loading, error, refetch } = useAgents();
+export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
   const goToAgentEditor = useAppStore((state) => state.goToAgentEditor);
 
   if (loading) {

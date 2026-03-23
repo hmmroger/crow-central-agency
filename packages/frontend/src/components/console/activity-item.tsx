@@ -13,7 +13,7 @@ export function ActivityItem({ toolName, description, isSubagent }: ActivityItem
       <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-secondary" />
       <span className="font-mono text-text-muted">{toolName}</span>
       <span className="truncate">{description}</span>
-      {isSubagent && <span className="text-accent text-[0.65rem]">subagent</span>}
+      {isSubagent && <span className="text-accent text-2xs">subagent</span>}
     </div>
   );
 }
