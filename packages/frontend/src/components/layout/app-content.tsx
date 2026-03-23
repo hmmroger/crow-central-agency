@@ -31,5 +31,11 @@ export function AppContent() {
           <div className="h-full flex items-center justify-center text-text-muted">Agent Editor — coming next</div>
         </main>
       );
+
+    default: {
+      const _exhaustive: never = viewMode;
+
+      return _exhaustive;
+    }
   }
 }
