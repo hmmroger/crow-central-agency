@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Eye, Pencil } from "lucide-react";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
 
@@ -6,6 +6,9 @@ interface AgentMdEditorProps {
   value: string;
   onChange: (value: string) => void;
 }
+
+/** Shared line height for gutter and textarea alignment */
+const LINE_HEIGHT = "1.25rem";
 
 /**
  * Code-editor-style markdown editor with line numbers and edit/preview toggle.
@@ -15,6 +18,16 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
   const [previewing, setPreviewing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
+
+  /** Restore cursor position after React commits DOM mutations */
+  useLayoutEffect(() => {
+    if (pendingSelectionRef.current && textareaRef.current) {
+      textareaRef.current.selectionStart = pendingSelectionRef.current.start;
+      textareaRef.current.selectionEnd = pendingSelectionRef.current.end;
+      pendingSelectionRef.current = null;
+    }
+  });
 
   /** Sync line numbers scroll with textarea */
   const handleScroll = useCallback(() => {
@@ -26,27 +39,39 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
   /** Handle tab key for indentation */
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.key === "Tab") {
-        event.preventDefault();
-        const textarea = event.currentTarget;
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      event.preventDefault();
+      const textarea = event.currentTarget;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+
+      if (start === end) {
+        // No selection — insert two spaces at cursor
         const newValue = value.substring(0, start) + "  " + value.substring(end);
-
+        pendingSelectionRef.current = { start: start + 2, end: start + 2 };
         onChange(newValue);
-
-        // Restore cursor position after React re-render
-        requestAnimationFrame(() => {
-          textarea.selectionStart = start + 2;
-          textarea.selectionEnd = start + 2;
-        });
+      } else {
+        // Multi-line selection — indent every selected line
+        const before = value.substring(0, start);
+        const selected = value.substring(start, end);
+        const after = value.substring(end);
+        const indented = selected.replace(/^/gm, "  ");
+        const addedChars = indented.length - selected.length;
+        pendingSelectionRef.current = { start, end: end + addedChars };
+        onChange(before + indented + after);
       }
     },
     [value, onChange]
   );
 
-  const lineCount = Math.max(value.split("\n").length, 1);
-  const lineNumbers = Array.from({ length: lineCount }, (_, index) => index + 1);
+  const lineNumbers = useMemo(() => {
+    const count = Math.max(value.split("\n").length, 1);
+
+    return Array.from({ length: count }, (_, index) => index + 1);
+  }, [value]);
 
   return (
     <div className="space-y-2">
@@ -93,11 +118,11 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
           {/* Line numbers gutter */}
           <div
             ref={lineNumbersRef}
-            className="flex-none w-10 py-3 pr-2 text-right text-xs font-mono text-text-muted/50 select-none overflow-hidden border-r border-border-subtle bg-surface-inset"
+            className="flex-none w-12 py-3 pr-2 text-right text-xs font-mono text-text-muted/50 select-none overflow-hidden border-r border-border-subtle bg-surface-inset"
             aria-hidden="true"
           >
             {lineNumbers.map((lineNumber) => (
-              <div key={lineNumber} className="leading-5">
+              <div key={lineNumber} style={{ height: LINE_HEIGHT, lineHeight: LINE_HEIGHT }}>
                 {lineNumber}
               </div>
             ))}
@@ -112,7 +137,8 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
             onKeyDown={handleKeyDown}
             placeholder="# Agent Instructions&#10;&#10;Write persistent instructions here..."
             spellCheck={false}
-            className="flex-1 py-3 pl-3 pr-3 text-sm font-mono leading-5 text-text-primary bg-transparent placeholder:text-text-muted focus:outline-none resize-none overflow-y-auto"
+            style={{ lineHeight: LINE_HEIGHT }}
+            className="flex-1 py-3 pl-3 pr-3 text-sm font-mono text-text-primary bg-transparent placeholder:text-text-muted focus:outline-none resize-none overflow-y-auto"
           />
         </div>
       )}
