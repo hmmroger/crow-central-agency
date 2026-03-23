@@ -159,9 +159,13 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         state.sessionId = streamResult.sessionId;
       }
 
-      // Update available tools from init message
+      // Update available tools from init message — filter out internal MCP tools
       if (streamResult.discoveredTools && streamResult.discoveredTools.length > 0) {
-        await this.registry.update(agentId, { availableTools: streamResult.discoveredTools });
+        const internalMcpPrefixes = [...this.mcpServerFactories.keys()].map((serverName) => `mcp__${serverName}__`);
+        const userFacingTools = streamResult.discoveredTools.filter(
+          (tool) => !internalMcpPrefixes.some((prefix) => tool.startsWith(prefix))
+        );
+        await this.registry.update(agentId, { availableTools: userFacingTools });
       }
 
       // Update session usage
