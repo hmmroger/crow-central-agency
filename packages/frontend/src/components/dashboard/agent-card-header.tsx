@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, Settings } from "lucide-react";
 import { AGENT_STATUS, type AgentConfig, type AgentStatus } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
+import { STATUS_DOT_COLOR, STATUS_TEXT_COLOR, STATUS_LABEL } from "../../utils/agent-status-display.js";
 
 interface AgentCardHeaderProps {
   agent: AgentConfig;
@@ -8,36 +9,6 @@ interface AgentCardHeaderProps {
   expanded: boolean;
   onToggleExpand: () => void;
 }
-
-/** Status dot color map */
-const STATUS_DOT_COLOR: Record<AgentStatus, string> = {
-  [AGENT_STATUS.IDLE]: "bg-text-muted",
-  [AGENT_STATUS.STREAMING]: "bg-primary",
-  [AGENT_STATUS.WAITING_PERMISSION]: "bg-warning",
-  [AGENT_STATUS.WAITING_AGENT]: "bg-info",
-  [AGENT_STATUS.COMPACTING]: "bg-secondary",
-  [AGENT_STATUS.ERROR]: "bg-error",
-};
-
-/** Status text color map */
-const STATUS_TEXT_COLOR: Record<AgentStatus, string> = {
-  [AGENT_STATUS.IDLE]: "text-text-muted",
-  [AGENT_STATUS.STREAMING]: "text-primary",
-  [AGENT_STATUS.WAITING_PERMISSION]: "text-warning",
-  [AGENT_STATUS.WAITING_AGENT]: "text-info",
-  [AGENT_STATUS.COMPACTING]: "text-secondary",
-  [AGENT_STATUS.ERROR]: "text-error",
-};
-
-/** Status display labels */
-const STATUS_LABEL: Record<AgentStatus, string> = {
-  [AGENT_STATUS.IDLE]: "Idle",
-  [AGENT_STATUS.STREAMING]: "Streaming",
-  [AGENT_STATUS.WAITING_PERMISSION]: "Waiting Permission",
-  [AGENT_STATUS.WAITING_AGENT]: "Waiting Agent",
-  [AGENT_STATUS.COMPACTING]: "Compacting",
-  [AGENT_STATUS.ERROR]: "Error",
-};
 
 /**
  * Agent card header — name, status indicator with label, settings, expand/collapse.
@@ -54,7 +25,7 @@ export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: Age
       </div>
 
       {/* Status badge */}
-      <div className="flex items-center gap-1.5 mr-2">
+      <div className="flex items-center gap-1.5 mr-2 shrink-0">
         <span
           className={`shrink-0 w-2 h-2 rounded-full ${STATUS_DOT_COLOR[status]} ${status === AGENT_STATUS.STREAMING ? "animate-pulse" : ""}`}
         />

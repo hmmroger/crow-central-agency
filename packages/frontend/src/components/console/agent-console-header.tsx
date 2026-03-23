@@ -1,6 +1,7 @@
 import { ArrowLeft, FolderOpen, Minimize2, Plus } from "lucide-react";
-import { AGENT_STATUS, type AgentConfig, type AgentStatus, type SessionUsage } from "@crow-central-agency/shared";
+import type { AgentConfig, AgentStatus, SessionUsage } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
+import { STATUS_DOT_COLOR, STATUS_LABEL } from "../../utils/agent-status-display.js";
 
 interface AgentConsoleHeaderProps {
   agent: AgentConfig;
@@ -12,16 +13,6 @@ interface AgentConsoleHeaderProps {
   onToggleArtifacts?: () => void;
   showingArtifacts?: boolean;
 }
-
-/** Status badge color map */
-const STATUS_COLOR_MAP: Record<AgentStatus, string> = {
-  [AGENT_STATUS.IDLE]: "bg-text-muted",
-  [AGENT_STATUS.STREAMING]: "bg-primary",
-  [AGENT_STATUS.WAITING_PERMISSION]: "bg-warning",
-  [AGENT_STATUS.WAITING_AGENT]: "bg-info",
-  [AGENT_STATUS.COMPACTING]: "bg-secondary",
-  [AGENT_STATUS.ERROR]: "bg-error",
-};
 
 /**
  * Console header — agent name, status, usage stats, compact/new session buttons.
@@ -54,8 +45,8 @@ export function AgentConsoleHeader({
           <h2 className="text-sm font-semibold text-text-primary">{agent.name}</h2>
           <div className="flex items-center gap-2 text-xs text-text-muted">
             <span className="inline-flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR_MAP[status]}`} />
-              {status}
+              <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_COLOR[status]}`} />
+              {STATUS_LABEL[status]}
             </span>
             <span className="font-mono">{agent.model}</span>
           </div>
