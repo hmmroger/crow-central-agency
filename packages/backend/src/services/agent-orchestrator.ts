@@ -122,12 +122,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         : { type: "preset" as const, preset: "claude_code" as const },
       abortController,
       includePartialMessages: true,
-      permissionMode: agentConfig.permissionMode as
-        | "default"
-        | "acceptEdits"
-        | "bypassPermissions"
-        | "plan"
-        | "dontAsk",
+      permissionMode: agentConfig.permissionMode,
       allowedTools: agentConfig.toolConfig.autoApprovedTools,
       tools: toolsOption,
       canUseTool: this.buildCanUseTool(agentId),
