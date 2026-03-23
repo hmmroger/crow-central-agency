@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyReply }
 import cors from "@fastify/cors";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
+import { registerErrorHandler } from "./error-handler.js";
 
 /**
  * Create and configure the Fastify server instance.
@@ -21,6 +22,9 @@ export async function createServer(options: { serveStatic: boolean }) {
   // WebSocket
   const websocket = await import("@fastify/websocket");
   await server.register(websocket.default);
+
+  // Error handler — maps AppError → HTTP status
+  registerErrorHandler(server);
 
   // Static file serving (fullstack mode only)
   if (options.serveStatic) {
