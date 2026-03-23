@@ -1,4 +1,5 @@
 import { AGENT_MESSAGE_KIND, type AgentMessage } from "../../hooks/use-agent-interaction.types.js";
+import { MarkdownRenderer } from "../common/markdown-renderer.js";
 
 interface AgentCardMessagesProps {
   messages: AgentMessage[];
@@ -26,9 +27,7 @@ export function AgentCardMessages({
     <div className="space-y-0.5 text-xs max-h-24 overflow-y-auto">
       {recentMessages.map((message) => (
         <div key={message.id} className="truncate">
-          {message.kind === AGENT_MESSAGE_KIND.TEXT && (
-            <span className="text-text-secondary">{truncateText(message.text ?? "", 80)}</span>
-          )}
+          {message.kind === AGENT_MESSAGE_KIND.TEXT && <MarkdownRenderer content={message.text ?? ""} />}
           {message.kind === AGENT_MESSAGE_KIND.ACTIVITY && (
             <span className="text-text-muted">
               <span className="font-mono">{message.toolName}</span> {message.description}
@@ -43,17 +42,10 @@ export function AgentCardMessages({
       ))}
 
       {streamingText && (
-        <div className="truncate text-text-secondary animate-pulse">{truncateText(streamingText, 80)}</div>
+        <div className="animate-pulse">
+          <MarkdownRenderer content={streamingText} />
+        </div>
       )}
     </div>
   );
-}
-
-/** Truncate text to maxLength with ellipsis */
-function truncateText(text: string, maxLength: number): string {
-  if (text.length <= maxLength) {
-    return text;
-  }
-
-  return text.slice(0, maxLength - 3) + "...";
 }

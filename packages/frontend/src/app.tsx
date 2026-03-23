@@ -1,4 +1,5 @@
 import { WsProvider } from "./providers/ws-provider.js";
+import { ErrorBoundary } from "./components/common/error-boundary.js";
 import { AppLayout } from "./components/layout/app-layout.js";
 import { AppContent } from "./components/layout/app-content.js";
 
@@ -7,10 +8,12 @@ import { AppContent } from "./components/layout/app-content.js";
  */
 export function App() {
   return (
-    <WsProvider>
-      <AppLayout>
-        <AppContent />
-      </AppLayout>
-    </WsProvider>
+    <ErrorBoundary>
+      <WsProvider>
+        <AppLayout>
+          <AppContent />
+        </AppLayout>
+      </WsProvider>
+    </ErrorBoundary>
   );
 }
