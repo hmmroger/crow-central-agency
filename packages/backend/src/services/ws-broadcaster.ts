@@ -74,11 +74,19 @@ export class WsBroadcaster {
     }
 
     const payload = JSON.stringify(message);
+    const staleClients: WebSocket[] = [];
 
     for (const ws of clients) {
       if (ws.readyState === ws.OPEN) {
         ws.send(payload);
+      } else if (ws.readyState !== ws.CONNECTING) {
+        staleClients.push(ws);
       }
+    }
+
+    // Evict non-recoverable sockets to prevent unbounded set growth
+    for (const ws of staleClients) {
+      this.removeClient(ws);
     }
   }
 

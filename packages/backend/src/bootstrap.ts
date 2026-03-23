@@ -28,7 +28,7 @@ export async function bootstrap(options: BootstrapOptions) {
     broadcaster.broadcast(agent.id, {
       type: "agent_updated",
       agentId: agent.id,
-      config: agent as unknown as Record<string, unknown>,
+      config: agent,
     });
   });
 
