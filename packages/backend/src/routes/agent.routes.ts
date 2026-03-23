@@ -56,7 +56,7 @@ export async function registerAgentRoutes(server: FastifyInstance, registry: Age
 
       return { success: true, data: agent };
     } catch (error) {
-      wrapZodError(error);
+      return wrapZodError(error);
     }
   });
 
@@ -69,7 +69,7 @@ export async function registerAgentRoutes(server: FastifyInstance, registry: Age
 
       return { success: true, data: agent };
     } catch (error) {
-      wrapZodError(error);
+      return wrapZodError(error);
     }
   });
 

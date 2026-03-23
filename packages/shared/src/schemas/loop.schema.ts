@@ -2,6 +2,20 @@ import { z } from "zod";
 import { DAY_OF_WEEK } from "../constants/day-of-week.js";
 import { TIME_MODE } from "../constants/time-mode.js";
 
+/** Zod schema for DayOfWeek values */
+export const DayOfWeekSchema = z.enum([
+  DAY_OF_WEEK.MONDAY,
+  DAY_OF_WEEK.TUESDAY,
+  DAY_OF_WEEK.WEDNESDAY,
+  DAY_OF_WEEK.THURSDAY,
+  DAY_OF_WEEK.FRIDAY,
+  DAY_OF_WEEK.SATURDAY,
+  DAY_OF_WEEK.SUNDAY,
+]);
+
+/** Zod schema for TimeMode values */
+export const TimeModeSchema = z.enum([TIME_MODE.AT, TIME_MODE.EVERY]);
+
 /**
  * Loop configuration schema — single source of truth.
  * Used both standalone and embedded in AgentConfigSchema.
@@ -18,20 +32,8 @@ import { TIME_MODE } from "../constants/time-mode.js";
  */
 export const LoopConfigSchema = z.object({
   enabled: z.boolean().default(false),
-  daysOfWeek: z
-    .array(
-      z.enum([
-        DAY_OF_WEEK.MONDAY,
-        DAY_OF_WEEK.TUESDAY,
-        DAY_OF_WEEK.WEDNESDAY,
-        DAY_OF_WEEK.THURSDAY,
-        DAY_OF_WEEK.FRIDAY,
-        DAY_OF_WEEK.SATURDAY,
-        DAY_OF_WEEK.SUNDAY,
-      ])
-    )
-    .default([]),
-  timeMode: z.enum([TIME_MODE.AT, TIME_MODE.EVERY]).default(TIME_MODE.EVERY),
+  daysOfWeek: z.array(DayOfWeekSchema).default([]),
+  timeMode: TimeModeSchema.default(TIME_MODE.EVERY),
   hour: z.number().min(0).max(23).optional(),
   minute: z.number().min(0).max(59).optional(),
   prompt: z.string().default(""),

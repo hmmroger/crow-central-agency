@@ -16,7 +16,7 @@ export const PermissionRequestSchema = z.object({
   agentId: z.string(),
   toolName: z.string(),
   input: z.record(z.string(), z.unknown()).optional(),
-  timestamp: z.iso.datetime(),
+  timestamp: z.iso.datetime({ offset: true }),
 });
 
 /**

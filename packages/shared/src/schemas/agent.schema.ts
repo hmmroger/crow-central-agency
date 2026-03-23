@@ -3,7 +3,6 @@ import { PERMISSION_MODE } from "../constants/permission-mode.js";
 import { SETTING_SOURCE } from "../constants/setting-source.js";
 import { TOOL_MODE } from "../constants/tool-mode.js";
 import { TIME_MODE } from "../constants/time-mode.js";
-import { DAY_OF_WEEK } from "../constants/day-of-week.js";
 import { LoopConfigSchema } from "./loop.schema.js";
 
 /** Default model for new agents */
@@ -20,20 +19,6 @@ export const PermissionModeSchema = z.enum([
 
 /** Zod schema for SettingSource values */
 export const SettingSourceSchema = z.enum([SETTING_SOURCE.USER, SETTING_SOURCE.PROJECT, SETTING_SOURCE.LOCAL]);
-
-/** Zod schema for DayOfWeek values */
-export const DayOfWeekSchema = z.enum([
-  DAY_OF_WEEK.MONDAY,
-  DAY_OF_WEEK.TUESDAY,
-  DAY_OF_WEEK.WEDNESDAY,
-  DAY_OF_WEEK.THURSDAY,
-  DAY_OF_WEEK.FRIDAY,
-  DAY_OF_WEEK.SATURDAY,
-  DAY_OF_WEEK.SUNDAY,
-]);
-
-/** Zod schema for TimeMode values */
-export const TimeModeSchema = z.enum([TIME_MODE.AT, TIME_MODE.EVERY]);
 
 /**
  * Tool configuration for agent

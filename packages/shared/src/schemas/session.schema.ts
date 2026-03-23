@@ -15,7 +15,7 @@ export type SessionRole = (typeof SESSION_ROLE)[keyof typeof SESSION_ROLE];
 export const SessionMessageSchema = z.object({
   role: z.enum([SESSION_ROLE.USER, SESSION_ROLE.ASSISTANT, SESSION_ROLE.SYSTEM]),
   content: z.string(),
-  timestamp: z.iso.datetime().optional(),
+  timestamp: z.iso.datetime({ offset: true }).optional(),
 });
 
 export type SessionMessage = z.infer<typeof SessionMessageSchema>;

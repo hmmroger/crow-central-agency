@@ -21,8 +21,6 @@ export {
   ToolConfigSchema,
   PermissionModeSchema,
   SettingSourceSchema,
-  DayOfWeekSchema,
-  TimeModeSchema,
   type AgentConfig,
   type CreateAgentInput,
   type UpdateAgentInput,
@@ -30,7 +28,7 @@ export {
 } from "./schemas/agent.schema.js";
 
 // Schemas — Loop (single source of truth, used by AgentConfigSchema internally)
-export { LoopConfigSchema, type LoopConfig } from "./schemas/loop.schema.js";
+export { LoopConfigSchema, DayOfWeekSchema, TimeModeSchema, type LoopConfig } from "./schemas/loop.schema.js";
 
 // Schemas — API Response
 export {
