@@ -11,6 +11,7 @@ export {
 } from "./constants/message-type.js";
 export { TIME_MODE, type TimeMode } from "./constants/time-mode.js";
 export { DAY_OF_WEEK, type DayOfWeek } from "./constants/day-of-week.js";
+export { AGENT_MESSAGE_ROLE, type AgentMessageRole } from "./constants/agent-message-role.js";
 
 // Schemas — Agent
 export {
@@ -92,6 +93,9 @@ export {
   type PermissionRequest,
   type PermissionResponseData,
 } from "./schemas/permission.schema.js";
+
+// Schemas — Agent Message
+export { AgentMessageSchema, type AgentMessage } from "./schemas/agent-message.schema.js";
 
 // Schemas — Artifact
 export { ArtifactMetadataSchema, type ArtifactMetadata } from "./schemas/artifact.schema.js";
