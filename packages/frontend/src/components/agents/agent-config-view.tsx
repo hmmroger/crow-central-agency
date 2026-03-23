@@ -64,7 +64,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
       setLoadingAgent(true);
 
       try {
-        const response = await apiClient.get<AgentConfig>(`/agents/${agentId}`);
+        const response = await apiClient.get<AgentConfig & { agentMd?: string }>(`/agents/${agentId}`);
 
         if (response.success) {
           const agent = response.data;
@@ -84,7 +84,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           setLoopHour(agent.loop.hour);
           setLoopMinute(agent.loop.minute);
           setLoopPrompt(agent.loop.prompt);
-          setAgentMd((agent as { agentMd?: string }).agentMd ?? "");
+          setAgentMd(agent.agentMd ?? "");
         } else {
           setError(response.error.message);
         }

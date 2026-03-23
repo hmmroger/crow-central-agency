@@ -98,7 +98,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     await ensureDir(agentDir);
 
     // Write AGENT.md if provided
-    if (agentMd) {
+    if (agentMd !== undefined) {
       await writeTextFile(this.getAgentMdPath(id), agentMd);
     }
 
