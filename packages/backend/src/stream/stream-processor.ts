@@ -36,13 +36,13 @@ export async function* processStream(agentId: string, queryStream: Query): Async
     }
   } catch (error) {
     log.error({ agentId, error }, "Stream processing error");
+    coalescer.flush();
     yield {
       wsMessages: pendingWsMessages.splice(0),
       meta: {
         result: {
           success: false,
           subtype: "error_during_execution",
-          costUsd: 0,
           totalCostUsd: 0,
           durationMs: 0,
           inputTokens: 0,
@@ -306,7 +306,6 @@ function handleResultMessage(
   const resultInfo: StreamResultInfo = {
     success: !resultMsg.is_error,
     subtype: resultMsg.subtype,
-    costUsd: resultMsg.total_cost_usd,
     totalCostUsd: resultMsg.total_cost_usd,
     durationMs: resultMsg.duration_ms,
     inputTokens: resultMsg.usage.input_tokens,

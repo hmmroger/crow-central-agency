@@ -32,7 +32,6 @@ export interface StreamEventMeta {
 export interface StreamResultInfo {
   success: boolean;
   subtype: string;
-  costUsd: number;
   totalCostUsd: number;
   durationMs: number;
   inputTokens: number;

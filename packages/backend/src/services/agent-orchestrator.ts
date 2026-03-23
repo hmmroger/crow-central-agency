@@ -222,7 +222,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         this.setStatus(agentId, AGENT_STATUS.IDLE);
         this.notifyWaitingAgents(agentId);
       } else {
-        state.lastError = streamErrorSubtype ?? "Unknown error";
+        state.lastError = streamErrorSubtype ?? "Stream ended without result event";
         this.setStatus(agentId, AGENT_STATUS.ERROR);
       }
     } catch (error) {
