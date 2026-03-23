@@ -44,8 +44,8 @@ export const AgentConfigSchema = z.object({
   availableTools: z.array(z.string()).optional(),
   toolConfig: ToolConfigSchema.default({ mode: TOOL_MODE.UNRESTRICTED }),
   loop: LoopConfigSchema.default({ enabled: false, daysOfWeek: [], timeMode: TIME_MODE.EVERY, prompt: "" }),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
 });
 
 /**
