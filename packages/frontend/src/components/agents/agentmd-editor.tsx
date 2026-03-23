@@ -56,7 +56,7 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
       textareaRef.current.selectionEnd = pendingSelectionRef.current.end;
       pendingSelectionRef.current = null;
     }
-  });
+  }, [value]);
 
   /** Sync line numbers scroll with textarea */
   const handleScroll = useCallback(() => {
