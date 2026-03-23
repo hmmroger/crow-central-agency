@@ -46,7 +46,10 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
 
     observer.observe(container);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      setVisibleLineCount(0);
+    };
   }, [previewing]);
 
   /** Restore cursor position after React commits DOM mutations */

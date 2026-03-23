@@ -33,7 +33,6 @@ export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: Age
           <span className={`shrink-0 w-2.5 h-2.5 rounded-full ${STATUS_COLOR_MAP[status]}`} />
           <h3 className="text-sm font-semibold text-text-primary truncate">{agent.name}</h3>
         </div>
-        {agent.description && <p className="mt-0.5 ml-5 text-xs text-text-muted truncate">{agent.description}</p>}
       </div>
 
       <div className="flex items-center gap-1.5 shrink-0">
