@@ -5,6 +5,7 @@ import { assertWithinBase, ensureDir } from "../utils/fs-utils.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
+import { AGENTS_DIR_NAME } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "artifact-manager" });
@@ -17,7 +18,7 @@ export class ArtifactManager {
   private readonly agentsBaseDir: string;
 
   constructor() {
-    this.agentsBaseDir = path.join(env.CROW_SYSTEM_PATH, "agents");
+    this.agentsBaseDir = path.join(env.CROW_SYSTEM_PATH, AGENTS_DIR_NAME);
   }
 
   /** List all artifacts for an agent */

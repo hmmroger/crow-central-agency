@@ -84,7 +84,6 @@ export async function registerAgentRoutes(
   /** Delete an agent */
   server.delete<{ Params: { id: string } }>("/api/agents/:id", async (request) => {
     const agentId = validateUuidParam(request.params.id);
-    orchestrator.cleanup(agentId);
     await registry.delete(agentId);
 
     return { success: true, data: { deleted: true } };

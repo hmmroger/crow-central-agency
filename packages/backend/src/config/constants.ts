@@ -16,3 +16,12 @@ export const ARTIFACT_TIMESTAMP_WINDOW_MS = 5 * 60 * 1000;
 
 /** Default message sent to the agent when a tool permission is denied without a typed response */
 export const DEFAULT_PERMISSION_DENY_MESSAGE = "Permission denied by user";
+
+/** Subdirectory name under CROW_SYSTEM_PATH for per-agent folders */
+export const AGENTS_DIR_NAME = "agents";
+
+/** Filename for the agents config file under CROW_SYSTEM_PATH */
+export const AGENTS_CONFIG_FILENAME = "agents.json";
+
+/** Filename for the orchestrator state file under CROW_SYSTEM_PATH */
+export const ORCHESTRATOR_STATE_FILENAME = "orchestrator-state.json";

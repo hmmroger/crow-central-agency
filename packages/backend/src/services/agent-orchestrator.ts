@@ -12,15 +12,16 @@ import { processStream } from "../stream/stream-processor.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
-import { DEFAULT_PERMISSION_DENY_MESSAGE, ARTIFACT_TIMESTAMP_WINDOW_MS } from "../config/constants.js";
+import {
+  DEFAULT_PERMISSION_DENY_MESSAGE,
+  ARTIFACT_TIMESTAMP_WINDOW_MS,
+  ORCHESTRATOR_STATE_FILENAME,
+} from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 import { readJsonFile, writeJsonFile } from "../utils/fs-utils.js";
 import path from "node:path";
 
 const log = logger.child({ context: "orchestrator" });
-
-/** Path to persisted orchestrator state */
-const STATE_FILE = "orchestrator-state.json";
 
 /**
  * Agent orchestrator — central state machine that owns agent runtimes.
@@ -31,7 +32,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   private runningAgents = new Map<string, RunningAgent>();
   private runtimeStates = new Map<string, AgentRuntimeState>();
   private mcpServerFactories = new Map<string, McpServerFactory>();
-  private stateFilePath: string;
+  private readonly stateFilePath: string;
 
   constructor(
     private readonly registry: AgentRegistry,
@@ -41,7 +42,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     private readonly loopScheduler: LoopScheduler
   ) {
     super();
-    this.stateFilePath = path.join(env.CROW_SYSTEM_PATH, STATE_FILE);
+    this.stateFilePath = path.join(env.CROW_SYSTEM_PATH, ORCHESTRATOR_STATE_FILENAME);
     this.listenToRegistryEvents();
     this.listenToLoopScheduler();
   }

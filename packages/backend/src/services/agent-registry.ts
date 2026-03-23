@@ -14,6 +14,7 @@ import type { WsBroadcaster } from "./ws-broadcaster.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
+import { AGENTS_DIR_NAME, AGENTS_CONFIG_FILENAME } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 import { generateId } from "../utils/id-utils.js";
 import {
@@ -40,8 +41,8 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
   constructor(private readonly broadcaster: WsBroadcaster) {
     super();
-    this.agentsFilePath = path.join(env.CROW_SYSTEM_PATH, "agents.json");
-    this.agentsBaseDir = path.join(env.CROW_SYSTEM_PATH, "agents");
+    this.agentsFilePath = path.join(env.CROW_SYSTEM_PATH, AGENTS_CONFIG_FILENAME);
+    this.agentsBaseDir = path.join(env.CROW_SYSTEM_PATH, AGENTS_DIR_NAME);
   }
 
   /** Load all agent configs from agents.json on startup, validating each against schema */
