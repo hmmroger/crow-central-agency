@@ -10,7 +10,7 @@ interface ReconnectBannerProps {
  * Hidden when connected.
  */
 export function ReconnectBanner({ connectionState }: ReconnectBannerProps) {
-  if (connectionState === WS_STATE.CONNECTED) {
+  if (connectionState === WS_STATE.CONNECTED || connectionState === WS_STATE.CONNECTING) {
     return null;
   }
 

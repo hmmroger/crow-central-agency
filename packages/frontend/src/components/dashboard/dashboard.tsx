@@ -5,6 +5,8 @@ import { useAppStore } from "../../stores/app-store.js";
 import { AgentCard } from "./agent-card.js";
 import { DashboardStatsBar } from "./dashboard-stats-bar.js";
 import { DashboardFilter } from "./dashboard-filter.js";
+import { LoadingSkeleton } from "../common/loading-skeleton.js";
+import { EmptyState } from "../common/empty-state.js";
 
 interface DashboardProps {
   agents: AgentConfig[];
@@ -35,39 +37,43 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
   }, [agents, searchQuery]);
 
   if (loading) {
-    return <div className="h-full flex items-center justify-center text-text-muted">Loading agents...</div>;
+    return <LoadingSkeleton lines={4} />;
   }
 
   if (error) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-4 text-text-muted">
-        <p className="text-error">{error}</p>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-elevated text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
-          onClick={() => refetch()}
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Retry
-        </button>
-      </div>
+      <EmptyState
+        message={error}
+        action={
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-elevated text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
+            onClick={() => refetch()}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Retry
+          </button>
+        }
+      />
     );
   }
 
   if (agents.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-4 text-text-muted">
-        <p className="text-lg">No agents yet</p>
-        <p className="text-sm">Create your first agent to get started.</p>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-text-primary font-medium hover:opacity-90 transition-opacity"
-          onClick={() => goToAgentEditor()}
-        >
-          <Plus className="h-4 w-4" />
-          Create Agent
-        </button>
-      </div>
+      <EmptyState
+        message="No agents yet"
+        description="Create your first agent to get started."
+        action={
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-text-primary font-medium hover:opacity-90 transition-opacity"
+            onClick={() => goToAgentEditor()}
+          >
+            <Plus className="h-4 w-4" />
+            Create Agent
+          </button>
+        }
+      />
     );
   }
 

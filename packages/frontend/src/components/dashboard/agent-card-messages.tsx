@@ -26,7 +26,7 @@ export function AgentCardMessages({
   return (
     <div className="space-y-0.5 text-xs max-h-24 overflow-y-auto">
       {recentMessages.map((message) => (
-        <div key={message.id} className="truncate">
+        <div key={message.id} className="overflow-hidden line-clamp-2">
           {message.kind === AGENT_MESSAGE_KIND.TEXT && <MarkdownRenderer content={message.text ?? ""} />}
           {message.kind === AGENT_MESSAGE_KIND.ACTIVITY && (
             <span className="text-text-muted">

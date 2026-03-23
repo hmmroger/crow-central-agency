@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { apiClient } from "../../services/api-client.js";
+import { MarkdownRenderer } from "../common/markdown-renderer.js";
 
 interface ArtifactViewerProps {
   agentId: string;
@@ -55,6 +56,8 @@ export function ArtifactViewer({ agentId, filename, onClose }: ArtifactViewerPro
       <div className="flex-1 overflow-auto p-3">
         {loading ? (
           <span className="text-sm text-text-muted">Loading...</span>
+        ) : filename.endsWith(".md") ? (
+          <MarkdownRenderer content={content ?? ""} />
         ) : (
           <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap">{content}</pre>
         )}
