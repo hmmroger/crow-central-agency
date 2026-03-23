@@ -16,7 +16,6 @@
   }
 
   body {
-    @apply bg-surface text-text-primary
     color-scheme: dark;
   }
 

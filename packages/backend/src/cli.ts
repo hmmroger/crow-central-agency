@@ -2,6 +2,7 @@
 import "dotenv/config";
 import { Command } from "commander";
 import { logger } from "./utils/logger.js";
+import { bootstrap } from "./bootstrap.js";
 
 const program = new Command();
 
@@ -9,9 +10,26 @@ program.name("crow").description("Crow Central Agency — Multi-Instance Claude 
 
 program
   .command("server")
-  .description("Start the orchestrator server")
+  .description("Start the API + WebSocket server (no static file serving)")
   .action(async () => {
-    logger.info("Starting server...");
+    try {
+      await bootstrap({ serveStatic: false });
+    } catch (error) {
+      logger.error(error, "Failed to start server");
+      process.exit(1);
+    }
+  });
+
+program
+  .command("fullstack")
+  .description("Start the API + WebSocket server with bundled frontend")
+  .action(async () => {
+    try {
+      await bootstrap({ serveStatic: true });
+    } catch (error) {
+      logger.error(error, "Failed to start fullstack server");
+      process.exit(1);
+    }
   });
 
 program.parse();

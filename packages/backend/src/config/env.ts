@@ -18,8 +18,9 @@ function getOptionalNumber(key: string, defaultValue?: number): number | undefin
 const NODE_ENV = getOptional("NODE_ENV") ?? "development";
 const IS_DEV = NODE_ENV === "development";
 const CORS_ORIGINS = getOptional("CORS_ORIGINS") ?? "http://localhost:5101";
-const CROW_DIR = getOptional("CROW_DIR") ?? ".crow";
-const STATIC_DIR = getOptional("STATIC_DIR") ?? DEFAULT_STATIC_DIR;
+const CROW_SYSTEM_PATH = getOptional("CROW_SYSTEM_PATH") ?? ".crow";
+const STATIC_PATH = getOptional("STATIC_PATH") ?? DEFAULT_STATIC_DIR;
+const CLAUDE_CLI_PATH = getOptional("CLAUDE_CLI_PATH");
 
 const OPENAI_BASE_URL = getOptional("OPENAI_BASE_URL");
 const OPENAI = OPENAI_BASE_URL
@@ -38,7 +39,8 @@ export const env = {
   HOST: getOptional("HOST") ?? "localhost",
   PORT: getOptionalNumber("PORT") ?? 3030,
   CORS_ORIGINS: CORS_ORIGINS.split(",").map((origin) => origin.trim()),
-  CROW_DIR: path.resolve(CROW_DIR),
-  STATIC_DIR: path.resolve(STATIC_DIR),
+  CROW_SYSTEM_PATH: path.resolve(CROW_SYSTEM_PATH),
+  STATIC_PATH: path.resolve(STATIC_PATH),
+  CLAUDE_CLI_PATH,
   OPENAI,
 } as const;
