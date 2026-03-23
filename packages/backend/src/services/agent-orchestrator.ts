@@ -131,7 +131,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       allowedTools: agentConfig.toolConfig.autoApprovedTools,
       tools: toolsOption,
       canUseTool: this.buildCanUseTool(agentId),
-      settingSources: agentConfig.settingSources as ("user" | "project" | "local")[],
+      settingSources: agentConfig.settingSources,
       mcpServers: this.buildMcpServers(agentId),
       persistSession: true,
       agentProgressSummaries: true,

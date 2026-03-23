@@ -1,7 +1,7 @@
 // Constants
 export { AGENT_STATUS, type AgentStatus } from "./constants/agent-status.js";
 export { PERMISSION_MODE, type PermissionMode } from "./constants/permission-mode.js";
-export { SETTING_SOURCE, type SettingSource } from "./constants/setting-source.js";
+export { SETTING_SOURCE, DEFAULT_SETTING_SOURCES, type SettingSource } from "./constants/setting-source.js";
 export { TOOL_MODE, DEFAULT_AVAILABLE_TOOLS, type ToolMode } from "./constants/tool-mode.js";
 export {
   CLIENT_MESSAGE_TYPE,

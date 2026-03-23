@@ -3,6 +3,7 @@ import { Sparkles } from "lucide-react";
 import {
   PERMISSION_MODE,
   SETTING_SOURCE,
+  DEFAULT_SETTING_SOURCES,
   TOOL_MODE,
   TIME_MODE,
   DEFAULT_MODEL,
@@ -40,11 +41,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   const [persona, setPersona] = useState("");
   const [model, setModel] = useState(DEFAULT_MODEL);
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(PERMISSION_MODE.DEFAULT);
-  const [settingSources, setSettingSources] = useState<SettingSource[]>([
-    SETTING_SOURCE.USER,
-    SETTING_SOURCE.PROJECT,
-    SETTING_SOURCE.LOCAL,
-  ]);
+  const [settingSources, setSettingSources] = useState<SettingSource[]>([...DEFAULT_SETTING_SOURCES]);
   const [toolMode, setToolMode] = useState<ToolMode>(TOOL_MODE.UNRESTRICTED);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [autoApprovedTools, setAutoApprovedTools] = useState<string[]>([]);

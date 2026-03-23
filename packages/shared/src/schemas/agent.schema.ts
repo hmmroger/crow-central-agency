@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PERMISSION_MODE } from "../constants/permission-mode.js";
-import { SETTING_SOURCE } from "../constants/setting-source.js";
+import { SETTING_SOURCE, DEFAULT_SETTING_SOURCES } from "../constants/setting-source.js";
 import { TOOL_MODE } from "../constants/tool-mode.js";
 import { TIME_MODE } from "../constants/time-mode.js";
 import { LoopConfigSchema } from "./loop.schema.js";
@@ -40,7 +40,7 @@ export const AgentConfigSchema = z.object({
   persona: z.string().default(""),
   model: z.string().default(DEFAULT_MODEL),
   permissionMode: PermissionModeSchema.default(PERMISSION_MODE.DEFAULT),
-  settingSources: z.array(SettingSourceSchema).default([SETTING_SOURCE.USER, SETTING_SOURCE.PROJECT]),
+  settingSources: z.array(SettingSourceSchema).default([...DEFAULT_SETTING_SOURCES]),
   availableTools: z.array(z.string()).optional(),
   toolConfig: ToolConfigSchema.default({ mode: TOOL_MODE.UNRESTRICTED }),
   loop: LoopConfigSchema.default({ enabled: false, daysOfWeek: [], timeMode: TIME_MODE.EVERY, prompt: "" }),
