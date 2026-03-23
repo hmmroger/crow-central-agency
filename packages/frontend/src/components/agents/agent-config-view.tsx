@@ -471,23 +471,22 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
             </div>
           </div>
 
-          {/* Right column — AGENT.md editor */}
-          <div className="lg:sticky lg:top-6 lg:self-start">
-            <FieldGroup
-              label="AGENT.md"
-              action={
-                <button
-                  type="button"
-                  className="text-text-muted hover:text-secondary transition-colors"
-                  onClick={() => setGenerateModalType("agentmd")}
-                  title="Generate with AI"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                </button>
-              }
-            >
+          {/* Right column — AGENT.md editor, viewport height */}
+          <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:flex lg:flex-col">
+            <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
+              <label className="text-sm font-medium text-text-secondary">AGENT.md</label>
+              <button
+                type="button"
+                className="text-text-muted hover:text-secondary transition-colors"
+                onClick={() => setGenerateModalType("agentmd")}
+                title="Generate with AI"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
               <AgentMdEditor value={agentMd} onChange={setAgentMd} />
-            </FieldGroup>
+            </div>
           </div>
         </div>
 
@@ -496,7 +495,9 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           <GenerateModal
             type={generateModalType}
             context={
-              [description, generateModalType === "agentmd" ? persona : ""].filter(Boolean).join("\n") || undefined
+              generateModalType === "agentmd"
+                ? [description, persona].filter(Boolean).join("\n") || undefined
+                : description || undefined
             }
             onApply={(content) => {
               if (generateModalType === "persona") {

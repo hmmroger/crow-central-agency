@@ -27,6 +27,7 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<string | undefined>(undefined);
+  const [error, setError] = useState<string | undefined>(undefined);
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
   // Focus prompt input on mount
@@ -43,6 +44,7 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
     }
 
     setGenerating(true);
+    setError(undefined);
 
     try {
       const response = await apiClient.post<{ content: string }>("/generate", {
@@ -53,9 +55,11 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
 
       if (response.success) {
         setPreview(response.data.content);
+      } else {
+        setError(response.error.message);
       }
     } catch {
-      // Generation service may not be available
+      setError("Generation failed. The AI service may not be available.");
     } finally {
       setGenerating(false);
     }
@@ -107,6 +111,9 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
               className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus resize-y"
             />
           </div>
+
+          {/* Error */}
+          {error && <div className="p-2 rounded-md bg-error/10 border border-error/20 text-error text-xs">{error}</div>}
 
           {/* Preview */}
           {hasPreview && (

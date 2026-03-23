@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Eye, Pencil } from "lucide-react";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
 
@@ -10,15 +10,44 @@ interface AgentMdEditorProps {
 /** Shared line height for gutter and textarea alignment */
 const LINE_HEIGHT = "1.25rem";
 
+/** Line height in pixels (1.25rem at 16px base) for visible line count calculation */
+const LINE_HEIGHT_PX = 20;
+
+/** Vertical padding inside the editor (py-3 = 0.75rem * 2 = 24px) */
+const EDITOR_PADDING_PX = 24;
+
 /**
  * Code-editor-style markdown editor with line numbers and edit/preview toggle.
  * Pure controlled component — parent owns the state and save logic.
  */
 export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
   const [previewing, setPreviewing] = useState(false);
+  const [visibleLineCount, setVisibleLineCount] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
+
+  /** Track editor container height to show line numbers for all visible lines */
+  useEffect(() => {
+    const container = editorContainerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const height = entry.contentRect.height;
+        const lines = Math.ceil((height - EDITOR_PADDING_PX) / LINE_HEIGHT_PX);
+        setVisibleLineCount(lines);
+      }
+    });
+
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, [previewing]);
 
   /** Restore cursor position after React commits DOM mutations */
   useLayoutEffect(() => {
@@ -68,14 +97,15 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
   );
 
   const lineNumbers = useMemo(() => {
-    const count = Math.max(value.split("\n").length, 1);
+    const contentLines = Math.max(value.split("\n").length, 1);
+    const count = Math.max(contentLines, visibleLineCount);
 
     return Array.from({ length: count }, (_, index) => index + 1);
-  }, [value]);
+  }, [value, visibleLineCount]);
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full gap-2">
+      <div className="flex items-center justify-between flex-shrink-0">
         <p className="text-xs text-text-muted">Persistent instructions loaded into every query.</p>
         <div className="flex items-center gap-1">
           <button
@@ -106,7 +136,7 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
       </div>
 
       {previewing ? (
-        <div className="min-h-80 max-h-[70vh] px-4 py-3 rounded-md bg-surface-inset border border-border-subtle overflow-y-auto">
+        <div className="flex-1 min-h-0 px-4 py-3 rounded-md bg-surface-inset border border-border-subtle overflow-y-auto">
           {value ? (
             <MarkdownRenderer content={value} />
           ) : (
@@ -114,11 +144,14 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
           )}
         </div>
       ) : (
-        <div className="relative flex min-h-80 max-h-[70vh] rounded-md bg-surface-inset border border-border-subtle overflow-hidden">
+        <div
+          ref={editorContainerRef}
+          className="relative flex flex-1 min-h-0 rounded-md bg-surface-inset border border-border-subtle overflow-hidden"
+        >
           {/* Line numbers gutter */}
           <div
             ref={lineNumbersRef}
-            className="flex-none w-12 py-3 pr-2 text-right text-xs font-mono text-text-muted/50 select-none overflow-hidden border-r border-border-subtle bg-surface-inset"
+            className="flex-none w-12 py-3 pr-2 text-right text-xs font-mono text-text-muted/50 select-none overflow-hidden border-r border-border-subtle bg-surface"
             aria-hidden="true"
           >
             {lineNumbers.map((lineNumber) => (
