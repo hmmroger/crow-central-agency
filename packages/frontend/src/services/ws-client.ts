@@ -15,6 +15,7 @@ export class WsClient {
   private subscriptions = new Set<string>();
   private messageHandlers = new Set<WsMessageHandler>();
   private stateChangeHandlers = new Set<(state: WsState) => void>();
+  private intentionalDisconnect = false;
   private url: string;
 
   constructor(url: string) {
@@ -51,7 +52,10 @@ export class WsClient {
 
     this.ws.onclose = () => {
       this.setState(WS_STATE.DISCONNECTED);
-      this.scheduleReconnect();
+
+      if (!this.intentionalDisconnect) {
+        this.scheduleReconnect();
+      }
     };
 
     this.ws.onerror = () => {
@@ -61,10 +65,12 @@ export class WsClient {
 
   /** Disconnect and stop reconnecting */
   disconnect(): void {
+    this.intentionalDisconnect = true;
     this.clearReconnectTimer();
     this.ws?.close();
     this.ws = undefined;
     this.setState(WS_STATE.DISCONNECTED);
+    this.intentionalDisconnect = false;
   }
 
   /** Send a typed message to the server */

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useWs } from "./use-ws.js";
 
 /**
@@ -14,6 +14,10 @@ export function useWsSubscription(
 ): void {
   const { subscribe, unsubscribe, onMessage: registerHandler } = useWs();
 
+  // Stabilize the callback reference so the effect only re-runs when agentId changes
+  const onMessageRef = useRef(onMessage);
+  onMessageRef.current = onMessage;
+
   useEffect(() => {
     if (!agentId) {
       return;
@@ -25,7 +29,7 @@ export function useWsSubscription(
       const message = raw as { type?: string; agentId?: string };
 
       if (message.agentId === agentId) {
-        onMessage(message as { type: string; agentId: string; [key: string]: unknown });
+        onMessageRef.current(message as { type: string; agentId: string; [key: string]: unknown });
       }
     });
 
@@ -33,5 +37,5 @@ export function useWsSubscription(
       unsubscribe(agentId);
       unregister();
     };
-  }, [agentId, subscribe, unsubscribe, registerHandler, onMessage]);
+  }, [agentId, subscribe, unsubscribe, registerHandler]);
 }
