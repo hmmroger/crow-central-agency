@@ -1,7 +1,7 @@
 import { getSessionMessages, getSessionInfo, listSessions } from "@anthropic-ai/claude-agent-sdk";
 import type { SessionMessage, SDKSessionInfo } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentMessage } from "@crow-central-agency/shared";
-import { transformSessionMessages, transformSingleMessage } from "./session-message-transformer.js";
+import { transformSessionMessages, transformSingleMessage } from "../stream/session-message-transformer.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "session-manager" });
@@ -54,7 +54,7 @@ export class SessionManager {
       this.messageCache.set(sessionId, cached);
     }
 
-    const baseTimestamp = cached.length > 0 ? cached[cached.length - 1].timestamp + 1 : Date.now();
+    const baseTimestamp = cached.length > 0 ? cached[cached.length - 1].timestamp + 1 : 0;
     const agentMessages = transformSingleMessage(message, baseTimestamp);
     cached.push(...agentMessages);
 

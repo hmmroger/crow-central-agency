@@ -1,6 +1,6 @@
 import { AGENT_MESSAGE_ROLE, type AgentMessage } from "@crow-central-agency/shared";
 import type { SessionMessage } from "@anthropic-ai/claude-agent-sdk";
-import { parseToolActivity } from "../stream/tool-activity-parser.js";
+import { parseToolActivity } from "./tool-activity-parser.js";
 
 /** Content block types from the Anthropic API (inside SessionMessage.message) */
 interface TextBlock {
@@ -21,6 +21,25 @@ interface ApiMessage {
   content?: string | ContentBlock[];
 }
 
+/** Type guard for SDK message payload */
+function isApiMessage(value: unknown): value is ApiMessage {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const obj = value as Record<string, unknown>;
+
+  if ("content" in obj) {
+    const content = obj.content;
+
+    if (typeof content !== "string" && !Array.isArray(content) && content !== undefined) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function isTextBlock(block: ContentBlock): block is TextBlock {
   return block.type === "text";
 }
@@ -32,15 +51,19 @@ function isToolUseBlock(block: ContentBlock): block is ToolUseBlock {
 /**
  * Transform a single SessionMessage into AgentMessage[].
  * One SessionMessage may produce multiple AgentMessages (e.g., assistant with multiple content blocks).
+ *
+ * @param sessionMessage - A single SDK session message
+ * @param baseTimestamp - Starting timestamp for ordering
+ * @returns Array of AgentMessages derived from this message
  */
-function transformSingle(sessionMsg: SessionMessage, timestampCounter: number): AgentMessage[] {
-  const apiMsg = sessionMsg.message as ApiMessage;
-
-  if (!apiMsg) {
+export function transformSingleMessage(sessionMessage: SessionMessage, baseTimestamp: number): AgentMessage[] {
+  if (!isApiMessage(sessionMessage.message)) {
     return [];
   }
 
-  if (sessionMsg.type === "user") {
+  const apiMsg = sessionMessage.message;
+
+  if (sessionMessage.type === "user") {
     const content = typeof apiMsg.content === "string" ? apiMsg.content : extractTextFromBlocks(apiMsg.content);
 
     if (!content) {
@@ -49,15 +72,15 @@ function transformSingle(sessionMsg: SessionMessage, timestampCounter: number): 
 
     return [
       {
-        id: sessionMsg.uuid,
+        id: sessionMessage.uuid,
         role: AGENT_MESSAGE_ROLE.USER,
         content,
-        timestamp: timestampCounter,
+        timestamp: baseTimestamp,
       },
     ];
   }
 
-  if (sessionMsg.type === "assistant") {
+  if (sessionMessage.type === "assistant") {
     const blocks = Array.isArray(apiMsg.content) ? apiMsg.content : [];
     const messages: AgentMessage[] = [];
     let blockIndex = 0;
@@ -65,19 +88,19 @@ function transformSingle(sessionMsg: SessionMessage, timestampCounter: number): 
     for (const block of blocks) {
       if (isTextBlock(block) && block.text.trim()) {
         messages.push({
-          id: `${sessionMsg.uuid}-${blockIndex}`,
+          id: `${sessionMessage.uuid}-${blockIndex}`,
           role: AGENT_MESSAGE_ROLE.AGENT,
           content: block.text,
-          timestamp: timestampCounter + blockIndex,
+          timestamp: baseTimestamp + blockIndex,
         });
         blockIndex++;
       } else if (isToolUseBlock(block)) {
         messages.push({
-          id: `${sessionMsg.uuid}-${blockIndex}`,
+          id: `${sessionMessage.uuid}-${blockIndex}`,
           role: AGENT_MESSAGE_ROLE.SYSTEM,
           content: parseToolActivity(block.name, block.input),
           toolName: block.name,
-          timestamp: timestampCounter + blockIndex,
+          timestamp: baseTimestamp + blockIndex,
         });
         blockIndex++;
       }
@@ -113,22 +136,10 @@ export function transformSessionMessages(sessionMessages: SessionMessage[]): Age
   let timestampCounter = 0;
 
   for (const sessionMsg of sessionMessages) {
-    const messages = transformSingle(sessionMsg, timestampCounter);
+    const messages = transformSingleMessage(sessionMsg, timestampCounter);
     result.push(...messages);
     timestampCounter += Math.max(messages.length, 1);
   }
 
   return result;
-}
-
-/**
- * Transform a single SessionMessage and return AgentMessage[].
- * Used by SessionManager.addMessage() for individual messages during streaming.
- *
- * @param sessionMessage - A single SDK session message
- * @param baseTimestamp - Starting timestamp for ordering
- * @returns Array of AgentMessages derived from this message
- */
-export function transformSingleMessage(sessionMessage: SessionMessage, baseTimestamp: number): AgentMessage[] {
-  return transformSingle(sessionMessage, baseTimestamp);
 }
