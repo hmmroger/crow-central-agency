@@ -50,6 +50,8 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   const [saving, setSaving] = useState(false);
   const [loadingAgent, setLoadingAgent] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [customToolInput, setCustomToolInput] = useState("");
+  const customToolInputRef = useRef<HTMLInputElement>(null);
 
   // Load existing agent config when editing
   useEffect(() => {
@@ -184,11 +186,14 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     goToDashboard,
   ]);
 
-  /** Change tool mode and clear auto-approved tools to prevent stale entries */
-  const handleToolModeChange = useCallback((mode: ToolMode) => {
-    setToolMode(mode);
-    setAutoApprovedTools([]);
-  }, []);
+  /** Change tool mode — preserve custom tools (MCP), clear source-list-derived approvals */
+  const handleToolModeChange = useCallback(
+    (mode: ToolMode) => {
+      setToolMode(mode);
+      setAutoApprovedTools((prev) => prev.filter((tool) => !availableTools.includes(tool)));
+    },
+    [availableTools]
+  );
 
   /** Toggle a tool in the selected tools list. Also removes from auto-approved if deselected. */
   const toggleTool = useCallback((tool: string) => {
@@ -211,9 +216,6 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     );
   }, []);
 
-  const [customToolInput, setCustomToolInput] = useState("");
-  const customToolInputRef = useRef<HTMLInputElement>(null);
-
   /** Add a custom tool name to auto-approved list */
   const addCustomAutoApproved = useCallback(() => {
     const toolName = customToolInput.trim();
@@ -229,6 +231,9 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
 
   /** The source of tools for auto-approved selection depends on tool mode */
   const autoApprovedSource = toolMode === TOOL_MODE.RESTRICTED ? selectedTools : availableTools;
+
+  /** Custom tools added by user that aren't in the standard source list */
+  const customOnlyTools = autoApprovedTools.filter((tool) => !autoApprovedSource.includes(tool));
 
   if (loadingAgent) {
     return <div className="h-full flex items-center justify-center text-text-muted">Loading agent...</div>;
@@ -379,13 +384,11 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
             )}
 
             {/* Custom auto-approved tools not in the source list */}
-            {autoApprovedTools.filter((tool) => !autoApprovedSource.includes(tool)).length > 0 && (
+            {customOnlyTools.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-3">
-                {autoApprovedTools
-                  .filter((tool) => !autoApprovedSource.includes(tool))
-                  .map((tool) => (
-                    <ChipButton key={tool} label={tool} active onClick={() => toggleAutoApproved(tool)} />
-                  ))}
+                {customOnlyTools.map((tool) => (
+                  <ChipButton key={tool} label={tool} active onClick={() => toggleAutoApproved(tool)} />
+                ))}
               </div>
             )}
 
