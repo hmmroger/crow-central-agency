@@ -4,6 +4,7 @@ import {
   TOOL_MODE,
   TIME_MODE,
   DEFAULT_MODEL,
+  DEFAULT_AVAILABLE_TOOLS,
   type AgentConfig,
   type CreateAgentInput,
   type UpdateAgentInput,
@@ -39,7 +40,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   const [toolMode, setToolMode] = useState<ToolMode>(TOOL_MODE.UNRESTRICTED);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [autoApprovedTools, setAutoApprovedTools] = useState<string[]>([]);
-  const [availableTools, setAvailableTools] = useState<string[]>([]);
+  const [availableTools, setAvailableTools] = useState<string[]>([...DEFAULT_AVAILABLE_TOOLS]);
   const [loopEnabled, setLoopEnabled] = useState(false);
   const [loopDays, setLoopDays] = useState<DayOfWeek[]>([]);
   const [loopTimeMode, setLoopTimeMode] = useState<TimeMode>(TIME_MODE.EVERY);
