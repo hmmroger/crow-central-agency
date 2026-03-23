@@ -4,9 +4,11 @@ import { AGENT_STATUS, AgentRuntimeStateSchema, type AgentRuntimeState } from "@
 import { EventBus } from "../event-bus/event-bus.js";
 import type { OrchestratorEvents, RunningAgent, McpServerFactory } from "./agent-orchestrator.types.js";
 import type { AgentRegistry } from "./agent-registry.js";
-import { processStream } from "../stream/stream-processor.js";
+import type { WsBroadcaster } from "./ws-broadcaster.js";
 import type { PermissionHandler } from "./permission-handler.js";
 import type { ArtifactManager } from "./artifact-manager.js";
+import type { LoopScheduler } from "./loop-scheduler.js";
+import { processStream } from "../stream/stream-processor.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
@@ -23,6 +25,7 @@ const STATE_FILE = "orchestrator-state.json";
 /**
  * Agent orchestrator — central state machine that owns agent runtimes.
  * Creates SDK queries, processes streams, coordinates lifecycle, persists state.
+ * Owns all its dependencies — broadcasts directly, listens to registry/loopScheduler events internally.
  */
 export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   private runningAgents = new Map<string, RunningAgent>();
@@ -30,25 +33,18 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   private mcpServerFactories = new Map<string, McpServerFactory>();
   private stateFilePath: string;
 
-  private permissionHandler: PermissionHandler | undefined;
-  private artifactManager: ArtifactManager | undefined;
-
   constructor(
     private readonly registry: AgentRegistry,
+    private readonly broadcaster: WsBroadcaster,
+    private readonly permissionHandler: PermissionHandler,
+    private readonly artifactManager: ArtifactManager,
+    private readonly loopScheduler: LoopScheduler,
     crowSystemPath: string
   ) {
     super();
     this.stateFilePath = path.join(crowSystemPath, STATE_FILE);
-  }
-
-  /** Set the permission handler (injected from bootstrap after both are created) */
-  setPermissionHandler(handler: PermissionHandler): void {
-    this.permissionHandler = handler;
-  }
-
-  /** Set the artifact manager (injected from bootstrap) */
-  setArtifactManager(manager: ArtifactManager): void {
-    this.artifactManager = manager;
+    this.listenToRegistryEvents();
+    this.listenToLoopScheduler();
   }
 
   /** Load persisted runtime states and run startup recovery */
@@ -155,7 +151,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     // Process stream
     try {
       const streamResult = await processStream(agentId, queryInstance, (wsMessage) => {
-        this.emit("agentMessage", { agentId, message: wsMessage });
+        this.broadcaster.broadcast(agentId, wsMessage);
       });
 
       // Capture session ID
@@ -180,7 +176,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       if (streamResult.success) {
         state.lastError = undefined;
         this.setStatus(agentId, AGENT_STATUS.IDLE);
-        this.emit("agentIdle", { agentId });
         this.notifyWaitingAgents(agentId);
       } else {
         state.lastError = streamResult.errorSubtype ?? "Unknown error";
@@ -266,7 +261,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       throw new AppError(`Agent ${agentId} is not streaming`, AppErrorCodes.AgentNotRunning);
     }
 
-    this.permissionHandler?.cancelAllForAgent(agentId);
+    this.permissionHandler.cancelAllForAgent(agentId);
     running.abortController.abort();
     await running.query.interrupt();
     running.query.close();
@@ -291,7 +286,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
   /** Cleanup when an agent is deleted */
   cleanup(agentId: string): void {
-    this.permissionHandler?.cancelAllForAgent(agentId);
+    this.permissionHandler.cancelAllForAgent(agentId);
     const running = this.runningAgents.get(agentId);
 
     if (running) {
@@ -328,12 +323,17 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     return state;
   }
 
-  /** Set agent status and emit event (bootstrap handles broadcasting) */
+  /** Set agent status — broadcasts to WS clients and emits lifecycle event */
   private setStatus(agentId: string, status: AgentRuntimeState["status"]): void {
     const state = this.ensureState(agentId);
     state.status = status;
 
-    this.emit("agentStatus", { agentId, status });
+    this.broadcaster.broadcast(agentId, {
+      type: "agent_status",
+      agentId,
+      status,
+    });
+    this.emit("agentStateChanged", { agentId, status });
   }
 
   /** Notify agents that were waiting for the given agent to complete */
@@ -349,25 +349,20 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
       const notifyWithArtifact = async () => {
         let notificationPrompt: string;
+        const recentArtifact = await this.artifactManager.getMostRecentArtifact(completedAgentId);
+        const isRecent =
+          recentArtifact !== undefined &&
+          Date.now() - new Date(recentArtifact.updatedAt).getTime() <= ARTIFACT_TIMESTAMP_WINDOW_MS;
 
-        if (this.artifactManager) {
-          const recentArtifact = await this.artifactManager.getMostRecentArtifact(completedAgentId);
-          const isRecent =
-            recentArtifact !== undefined &&
-            Date.now() - new Date(recentArtifact.updatedAt).getTime() <= ARTIFACT_TIMESTAMP_WINDOW_MS;
-
-          if (isRecent && recentArtifact) {
-            notificationPrompt = [
-              `[Inter-agent response: Agent "${targetName}" has completed your requested task]`,
-              "",
-              `Result artifact: "${recentArtifact.filename}"`,
-              `Use read_artifact(agentId: "${completedAgentId}", filename: "${recentArtifact.filename}") to retrieve the result.`,
-            ].join("\n");
-          } else {
-            notificationPrompt = `[Inter-agent response: Agent "${targetName}" has completed your requested task, but did not produce a response artifact.]`;
-          }
+        if (isRecent && recentArtifact) {
+          notificationPrompt = [
+            `[Inter-agent response: Agent "${targetName}" has completed your requested task]`,
+            "",
+            `Result artifact: "${recentArtifact.filename}"`,
+            `Use read_artifact(agentId: "${completedAgentId}", filename: "${recentArtifact.filename}") to retrieve the result.`,
+          ].join("\n");
         } else {
-          notificationPrompt = `[Inter-agent response: Agent "${targetName}" has completed your requested task]`;
+          notificationPrompt = `[Inter-agent response: Agent "${targetName}" has completed your requested task, but did not produce a response artifact.]`;
         }
 
         const running = this.runningAgents.get(agentId);
@@ -390,11 +385,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   }
 
   /** Build canUseTool callback that bridges SDK permission requests to our PermissionHandler */
-  private buildCanUseTool(agentId: string): CanUseTool | undefined {
-    if (!this.permissionHandler) {
-      return undefined;
-    }
-
+  private buildCanUseTool(agentId: string): CanUseTool {
     const handler = this.permissionHandler;
 
     return async (toolName, input, options) => {
@@ -451,7 +442,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   private async persistState(): Promise<void> {
     const states = Array.from(this.runtimeStates.values());
     await writeJsonFile(this.stateFilePath, states);
-    this.emit("stateChanged", undefined);
   }
 
   /** Startup recovery — resume agents based on their persisted status */
@@ -524,5 +514,27 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     await this.persistState();
+  }
+
+  /** Listen to registry lifecycle events for cleanup */
+  private listenToRegistryEvents(): void {
+    this.registry.on("agentDeleted", ({ agentId }) => {
+      this.cleanup(agentId);
+    });
+  }
+
+  /** Listen to loop scheduler ticks and send scheduled prompts */
+  private listenToLoopScheduler(): void {
+    this.loopScheduler.on("loopTick", ({ agentId, prompt }) => {
+      this.sendMessage(agentId, prompt).catch((error) => {
+        if (error instanceof AppError && error.errorCode === AppErrorCodes.AgentBusy) {
+          log.debug({ agentId }, "Loop tick skipped — agent is busy");
+
+          return;
+        }
+
+        log.error({ agentId, error }, "Loop tick failed");
+      });
+    });
   }
 }

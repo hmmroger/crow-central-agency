@@ -14,8 +14,6 @@ import { registerArtifactRoutes } from "./routes/artifact.routes.js";
 import { createArtifactsMcpServer } from "./mcp/artifacts-mcp-server.js";
 import { createAgentsMcpServer } from "./mcp/agents-mcp-server.js";
 import { LoopScheduler } from "./services/loop-scheduler.js";
-import { AppError } from "./error/app-error.js";
-import { AppErrorCodes } from "./error/app-error.types.js";
 import { OpenAIProvider } from "./services/openai-provider.js";
 import { MdGenerationService } from "./services/md-generation-service.js";
 import { registerGenerationRoutes } from "./routes/generation.routes.js";
@@ -25,100 +23,40 @@ export interface BootstrapOptions {
 }
 
 /**
- * Bootstrap the application — create server, wire services, start listening.
+ * Bootstrap the application — create services with constructor deps, start server.
+ * No event wiring here — services own their own listeners.
  */
 export async function bootstrap(options: BootstrapOptions) {
   logger.info({ env: env.NODE_ENV }, "Bootstrapping Crow Central Agency");
 
-  // Initialize services
-  const registry = new AgentRegistry(env.CROW_SYSTEM_PATH);
+  // Create services — order matters for dependency graph
+  const broadcaster = new WsBroadcaster();
+  const registry = new AgentRegistry(env.CROW_SYSTEM_PATH, broadcaster);
   await registry.initialize();
 
-  const orchestrator = new AgentOrchestrator(registry, env.CROW_SYSTEM_PATH);
-  await orchestrator.initialize();
-
   const sessionManager = new SessionManager();
-  const broadcaster = new WsBroadcaster();
-  const permissionHandler = new PermissionHandler();
+  const permissionHandler = new PermissionHandler(broadcaster);
   const artifactManager = new ArtifactManager(env.CROW_SYSTEM_PATH);
+  const loopScheduler = new LoopScheduler(registry);
 
-  // Wire handlers into orchestrator
-  orchestrator.setPermissionHandler(permissionHandler);
-  orchestrator.setArtifactManager(artifactManager);
+  const orchestrator = new AgentOrchestrator(
+    registry,
+    broadcaster,
+    permissionHandler,
+    artifactManager,
+    loopScheduler,
+    env.CROW_SYSTEM_PATH
+  );
+  await orchestrator.initialize();
 
   // Register MCP server factories on orchestrator
   orchestrator.registerMcpServer("crow-artifacts", (agentId) => createArtifactsMcpServer(agentId, artifactManager));
   orchestrator.registerMcpServer("crow-agents", (agentId) => createAgentsMcpServer(agentId, orchestrator, registry));
 
-  // Wire permission events → broadcaster
-  permissionHandler.on("permissionRequest", ({ agentId, toolUseId, toolName, input, decisionReason }) => {
-    broadcaster.broadcast(agentId, {
-      type: "permission_request",
-      agentId,
-      toolUseId,
-      toolName,
-      input,
-      decisionReason,
-    });
-  });
-
-  permissionHandler.on("permissionCancelled", ({ agentId, toolUseId }) => {
-    broadcaster.broadcast(agentId, {
-      type: "permission_cancelled",
-      agentId,
-      toolUseId,
-    });
-  });
-
-  // Wire registry events → broadcaster
-  registry.on("agentUpdated", ({ agent }) => {
-    broadcaster.broadcast(agent.id, {
-      type: "agent_updated",
-      agentId: agent.id,
-      config: agent,
-    });
-  });
-
-  registry.on("agentDeleted", ({ agentId }) => {
-    broadcaster.removeAgent(agentId);
-  });
-
-  // Wire orchestrator events → broadcaster
-  orchestrator.on("agentMessage", ({ agentId, message }) => {
-    broadcaster.broadcast(agentId, message);
-  });
-
-  orchestrator.on("agentStatus", ({ agentId, status }) => {
-    broadcaster.broadcast(agentId, {
-      type: "agent_status",
-      agentId,
-      status,
-    });
-  });
-
-  // Loop scheduler
-  const loopScheduler = new LoopScheduler(registry);
-
-  loopScheduler.on("loopTick", ({ agentId, prompt }) => {
-    orchestrator.sendMessage(agentId, prompt).catch((error) => {
-      if (error instanceof AppError && error.errorCode === AppErrorCodes.AgentBusy) {
-        logger.debug({ agentId }, "Loop tick skipped — agent is busy");
-
-        return;
-      }
-
-      logger.error({ agentId, error }, "Loop tick failed");
-    });
-  });
-
+  // Start loop scheduler
   loopScheduler.start();
 
-  // Cleanup on agent deletion
-  registry.on("agentDeleted", ({ agentId }) => {
-    loopScheduler.removeAgent(agentId);
-  });
-
-  // Conditionally initialize generation service (requires OPENAI config)
+  // Conditionally create generation service (requires OPENAI config)
   let generationService: MdGenerationService | undefined;
 
   if (env.OPENAI) {

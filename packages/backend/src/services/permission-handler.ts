@@ -1,5 +1,5 @@
-import { EventBus } from "../event-bus/event-bus.js";
-import type { PermissionHandlerEvents, PendingPermission, PermissionResult } from "./permission-handler.types.js";
+import type { PendingPermission, PermissionResult } from "./permission-handler.types.js";
+import type { WsBroadcaster } from "./ws-broadcaster.js";
 import { PERMISSION_TIMEOUT_MS } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 
@@ -8,9 +8,12 @@ const log = logger.child({ context: "permission-handler" });
 /**
  * Manages tool permission requests with configurable timeout.
  * Bridges the SDK's canUseTool callback with WS-based user responses.
+ * Takes WsBroadcaster as a direct dependency — broadcasting is intrinsic to this service.
  */
-export class PermissionHandler extends EventBus<PermissionHandlerEvents> {
+export class PermissionHandler {
   private pending = new Map<string, PendingPermission>();
+
+  constructor(private readonly broadcaster: WsBroadcaster) {}
 
   /**
    * Request permission for a tool use. Broadcasts a permission_request to WS
@@ -41,8 +44,9 @@ export class PermissionHandler extends EventBus<PermissionHandlerEvents> {
 
       this.pending.set(toolUseId, pendingRequest);
 
-      // Broadcast request to WS subscribers
-      this.emit("permissionRequest", {
+      // Broadcast request directly to WS subscribers
+      this.broadcaster.broadcast(agentId, {
+        type: "permission_request",
         agentId,
         toolUseId,
         toolName,
@@ -93,8 +97,9 @@ export class PermissionHandler extends EventBus<PermissionHandlerEvents> {
     clearTimeout(pendingRequest.timeout);
     this.pending.delete(toolUseId);
 
-    // Broadcast cancellation
-    this.emit("permissionCancelled", {
+    // Broadcast cancellation directly to WS subscribers
+    this.broadcaster.broadcast(pendingRequest.agentId, {
+      type: "permission_cancelled",
       agentId: pendingRequest.agentId,
       toolUseId,
     });

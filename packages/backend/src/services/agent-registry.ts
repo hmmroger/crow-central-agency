@@ -10,6 +10,7 @@ import {
 } from "@crow-central-agency/shared";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { AgentRegistryEvents } from "./agent-registry.types.js";
+import type { WsBroadcaster } from "./ws-broadcaster.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
 import { logger } from "../utils/logger.js";
@@ -36,7 +37,10 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   private readonly agentsFilePath: string;
   private readonly agentsBaseDir: string;
 
-  constructor(crowSystemPath: string) {
+  constructor(
+    crowSystemPath: string,
+    private readonly broadcaster: WsBroadcaster
+  ) {
     super();
     this.agentsFilePath = path.join(crowSystemPath, "agents.json");
     this.agentsBaseDir = path.join(crowSystemPath, "agents");
@@ -127,6 +131,11 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
     log.info({ agentId, name: updated.name }, "Agent updated");
     this.emit("agentUpdated", { agent: updated });
+    this.broadcaster.broadcast(agentId, {
+      type: "agent_updated",
+      agentId,
+      config: updated,
+    });
 
     return updated;
   }
@@ -149,6 +158,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
     log.info({ agentId, name: existing.name }, "Agent deleted");
     this.emit("agentDeleted", { agentId });
+    this.broadcaster.removeAgent(agentId);
   }
 
   /** Read the agent's AGENT.md file. Returns undefined if not found. */

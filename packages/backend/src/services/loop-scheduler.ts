@@ -30,6 +30,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
 
   constructor(private readonly registry: AgentRegistry) {
     super();
+    this.listenToRegistryEvents();
   }
 
   /** Start the scheduler — checks every minute */
@@ -55,9 +56,26 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
     log.info("Loop scheduler stopped");
   }
 
-  /** Remove tracking for a deleted agent */
-  removeAgent(agentId: string): void {
-    this.lastTickTime.delete(agentId);
+  /** Wire up registry lifecycle events — owns its own listeners */
+  private listenToRegistryEvents(): void {
+    this.registry.on("agentCreated", ({ agent }) => {
+      if (agent.loop.enabled) {
+        log.debug({ agentId: agent.id }, "New agent with loop enabled — tracking started");
+      }
+    });
+
+    this.registry.on("agentUpdated", ({ agent }) => {
+      // Reset tick tracking when loop config changes so new timing takes effect immediately
+      if (this.lastTickTime.has(agent.id)) {
+        this.lastTickTime.delete(agent.id);
+        log.debug({ agentId: agent.id }, "Loop tracking reset after config update");
+      }
+    });
+
+    this.registry.on("agentDeleted", ({ agentId }) => {
+      this.lastTickTime.delete(agentId);
+      log.debug({ agentId }, "Loop tracking removed for deleted agent");
+    });
   }
 
   /** Check all agents and fire ticks for those whose loop is due */

@@ -1,5 +1,3 @@
-import type { EventMap } from "../event-bus/event-bus.types.js";
-
 /** A pending permission request awaiting user response */
 export interface PendingPermission {
   agentId: string;
@@ -15,19 +13,4 @@ export interface PermissionResult {
   message?: string;
   updatedInput?: Record<string, unknown>;
   toolUseID: string;
-}
-
-/** Events emitted by the PermissionHandler */
-export interface PermissionHandlerEvents extends EventMap {
-  permissionRequest: {
-    agentId: string;
-    toolUseId: string;
-    toolName: string;
-    input: Record<string, unknown>;
-    decisionReason?: string;
-  };
-  permissionCancelled: {
-    agentId: string;
-    toolUseId: string;
-  };
 }
