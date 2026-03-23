@@ -58,12 +58,18 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
 
   /** Wire up registry lifecycle events — owns its own listeners */
   private listenToRegistryEvents(): void {
-    this.registry.on("agentUpdated", ({ agent }) => {
-      // Reset tick tracking when loop config changes so new timing takes effect immediately
-      if (this.lastTickTime.has(agent.id)) {
-        this.lastTickTime.delete(agent.id);
-        log.debug({ agentId: agent.id }, "Loop tracking reset after config update");
+    this.registry.on("agentCreated", ({ agent }) => {
+      if (agent.loop.enabled) {
+        // Seed timestamp so "every" mode counts from creation, not fires immediately
+        this.lastTickTime.set(agent.id, Date.now());
+        log.debug({ agentId: agent.id }, "Loop tracking seeded for new agent");
       }
+    });
+
+    this.registry.on("agentUpdated", ({ agent }) => {
+      // Seed timestamp to current time so intervals restart from now
+      this.lastTickTime.set(agent.id, Date.now());
+      log.debug({ agentId: agent.id }, "Loop tracking reset after config update");
     });
 
     this.registry.on("agentDeleted", ({ agentId }) => {
@@ -162,7 +168,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
     const lastTick = this.lastTickTime.get(agentId);
 
     if (!lastTick) {
-      // First tick — fire immediately
+      // No tracking entry — fires immediately (e.g., after server restart)
       return true;
     }
 
