@@ -11,7 +11,7 @@ interface DashboardFilterProps {
 export function DashboardFilter({ searchQuery, onSearchChange }: DashboardFilterProps) {
   return (
     <div className="relative">
-      <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
+      <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
       <input
         type="text"
         value={searchQuery}

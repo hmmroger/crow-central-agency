@@ -46,7 +46,7 @@ export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: Age
           }}
           title={expanded ? "Collapse" : "Expand"}
         >
-          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         </button>
         <button
           type="button"
@@ -57,7 +57,7 @@ export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: Age
           }}
           title="Edit agent"
         >
-          <Settings size={12} />
+          <Settings className="h-3 w-3" />
         </button>
       </div>
     </div>

@@ -43,7 +43,7 @@ export function AgentConsoleHeader({
           className="flex items-center gap-1 text-text-muted hover:text-text-primary transition-colors text-sm"
           onClick={goToDashboard}
         >
-          <ArrowLeft size={14} />
+          <ArrowLeft className="h-3.5 w-3.5" />
           Back
         </button>
         <div>
@@ -79,7 +79,7 @@ export function AgentConsoleHeader({
             disabled={isStreaming}
             title="Compact context"
           >
-            <Minimize2 size={12} />
+            <Minimize2 className="h-3 w-3" />
             Compact
           </button>
           <button
@@ -88,7 +88,7 @@ export function AgentConsoleHeader({
             onClick={onNewSession}
             title="New session"
           >
-            <Plus size={12} />
+            <Plus className="h-3 w-3" />
             New
           </button>
         </div>
