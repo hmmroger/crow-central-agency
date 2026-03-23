@@ -4,6 +4,8 @@ import { createServer } from "./server/create-server.js";
 import { registerHealthRoutes } from "./routes/health.routes.js";
 import { registerAgentRoutes } from "./routes/agent.routes.js";
 import { AgentRegistry } from "./services/agent-registry.js";
+import { WsBroadcaster } from "./services/ws-broadcaster.js";
+import { setupWebSocket } from "./server/setup-websocket.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -19,10 +21,26 @@ export async function bootstrap(options: BootstrapOptions) {
   const registry = new AgentRegistry(env.CROW_SYSTEM_PATH);
   await registry.initialize();
 
+  const broadcaster = new WsBroadcaster();
+
+  // Wire registry events → broadcaster
+  registry.on("agentUpdated", ({ agent }) => {
+    broadcaster.broadcast(agent.id, {
+      type: "agent_updated",
+      agentId: agent.id,
+      config: agent as unknown as Record<string, unknown>,
+    });
+  });
+
+  registry.on("agentDeleted", ({ agentId }) => {
+    broadcaster.removeAgent(agentId);
+  });
+
   // Create Fastify server
   const server = await createServer({ serveStatic: options.serveStatic });
 
-  // Register routes
+  // Register WebSocket + routes
+  await setupWebSocket(server, broadcaster);
   await registerHealthRoutes(server);
   await registerAgentRoutes(server, registry);
 
