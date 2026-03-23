@@ -42,13 +42,17 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
 
   if (error) {
     return (
-      <EmptyState
-        message={error}
-        className="text-error"
-        actionLabel="Retry"
-        actionIcon={RefreshCw}
-        onAction={refetch}
-      />
+      <div className="h-full flex flex-col items-center justify-center gap-4 text-text-muted">
+        <p className="text-lg text-error">{error}</p>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-elevated text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
+          onClick={() => refetch()}
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Retry
+        </button>
+      </div>
     );
   }
 
