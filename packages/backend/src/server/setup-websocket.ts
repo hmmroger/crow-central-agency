@@ -1,15 +1,20 @@
 import type { FastifyInstance } from "fastify";
 import { ClientMessageSchema } from "@crow-central-agency/shared";
 import type { WsBroadcaster } from "../services/ws-broadcaster.js";
+import type { AgentOrchestrator } from "../services/agent-orchestrator.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "websocket" });
 
 /**
  * Set up WebSocket endpoint with message routing.
- * Handles subscribe/unsubscribe for agent-level pub/sub.
+ * Handles subscribe/unsubscribe, send_message, btw_message.
  */
-export async function setupWebSocket(server: FastifyInstance, broadcaster: WsBroadcaster) {
+export async function setupWebSocket(
+  server: FastifyInstance,
+  broadcaster: WsBroadcaster,
+  orchestrator: AgentOrchestrator
+) {
   server.get("/ws", { websocket: true }, (socket) => {
     log.debug("WebSocket client connected");
 
@@ -40,7 +45,30 @@ export async function setupWebSocket(server: FastifyInstance, broadcaster: WsBro
             broadcaster.unsubscribe(socket, message.agentId);
             break;
 
-          // Phase 2 will add: send_message, btw_message
+          case "send_message":
+            orchestrator.sendMessage(message.agentId, message.message).catch((error) => {
+              log.error({ agentId: message.agentId, error }, "Failed to send message");
+              broadcaster.sendTo(socket, {
+                type: "error",
+                agentId: message.agentId,
+                code: "agent_busy",
+                message: error instanceof Error ? error.message : "Failed to send message",
+              });
+            });
+            break;
+
+          case "btw_message":
+            orchestrator.btwMessage(message.agentId, message.message).catch((error) => {
+              log.error({ agentId: message.agentId, error }, "Failed to inject btw message");
+              broadcaster.sendTo(socket, {
+                type: "error",
+                agentId: message.agentId,
+                code: "agent_not_running",
+                message: error instanceof Error ? error.message : "Agent is not streaming",
+              });
+            });
+            break;
+
           // Phase 3 will add: permission_response
 
           default:
@@ -59,7 +87,6 @@ export async function setupWebSocket(server: FastifyInstance, broadcaster: WsBro
 
     socket.on("error", (error) => {
       log.error(error, "WebSocket socket error");
-      // close event will follow and handle cleanup via removeClient
     });
 
     socket.on("close", () => {

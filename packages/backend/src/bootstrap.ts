@@ -4,6 +4,8 @@ import { createServer } from "./server/create-server.js";
 import { registerHealthRoutes } from "./routes/health.routes.js";
 import { registerAgentRoutes } from "./routes/agent.routes.js";
 import { AgentRegistry } from "./services/agent-registry.js";
+import { AgentOrchestrator } from "./services/agent-orchestrator.js";
+import { SessionManager } from "./services/session-manager.js";
 import { WsBroadcaster } from "./services/ws-broadcaster.js";
 import { setupWebSocket } from "./server/setup-websocket.js";
 
@@ -21,6 +23,10 @@ export async function bootstrap(options: BootstrapOptions) {
   const registry = new AgentRegistry(env.CROW_SYSTEM_PATH);
   await registry.initialize();
 
+  const orchestrator = new AgentOrchestrator(registry, env.CROW_SYSTEM_PATH);
+  await orchestrator.initialize();
+
+  const sessionManager = new SessionManager();
   const broadcaster = new WsBroadcaster();
 
   // Wire registry events → broadcaster
@@ -36,13 +42,26 @@ export async function bootstrap(options: BootstrapOptions) {
     broadcaster.removeAgent(agentId);
   });
 
+  // Wire orchestrator events → broadcaster
+  orchestrator.on("agentMessage", ({ agentId, message }) => {
+    broadcaster.broadcast(agentId, message);
+  });
+
+  orchestrator.on("agentStatus", ({ agentId, status }) => {
+    broadcaster.broadcast(agentId, {
+      type: "agent_status",
+      agentId,
+      status,
+    });
+  });
+
   // Create Fastify server
   const server = await createServer({ serveStatic: options.serveStatic });
 
   // Register WebSocket + routes
-  await setupWebSocket(server, broadcaster);
+  await setupWebSocket(server, broadcaster, orchestrator);
   await registerHealthRoutes(server);
-  await registerAgentRoutes(server, registry);
+  await registerAgentRoutes(server, registry, orchestrator, sessionManager);
 
   // Start listening
   await server.listen({ host: env.HOST, port: env.PORT });
