@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   PERMISSION_MODE,
   TOOL_MODE,
@@ -211,6 +211,22 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     );
   }, []);
 
+  const [customToolInput, setCustomToolInput] = useState("");
+  const customToolInputRef = useRef<HTMLInputElement>(null);
+
+  /** Add a custom tool name to auto-approved list */
+  const addCustomAutoApproved = useCallback(() => {
+    const toolName = customToolInput.trim();
+
+    if (!toolName || autoApprovedTools.includes(toolName)) {
+      return;
+    }
+
+    setAutoApprovedTools((prev) => [...prev, toolName]);
+    setCustomToolInput("");
+    customToolInputRef.current?.focus();
+  }, [customToolInput, autoApprovedTools]);
+
   /** The source of tools for auto-approved selection depends on tool mode */
   const autoApprovedSource = toolMode === TOOL_MODE.RESTRICTED ? selectedTools : availableTools;
 
@@ -346,10 +362,11 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           </FieldGroup>
 
           {/* Auto-Approved Tools */}
-          {autoApprovedSource.length > 0 && (
-            <FieldGroup label="Auto-Approved Tools">
-              <p className="text-xs text-text-muted mb-2">These tools skip the permission dialog.</p>
-              <div className="flex flex-wrap gap-1.5">
+          <FieldGroup label="Auto-Approved Tools">
+            <p className="text-xs text-text-muted mb-2">These tools skip the permission dialog.</p>
+
+            {autoApprovedSource.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
                 {autoApprovedSource.map((tool) => (
                   <ChipButton
                     key={tool}
@@ -359,8 +376,45 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
                   />
                 ))}
               </div>
-            </FieldGroup>
-          )}
+            )}
+
+            {/* Custom auto-approved tools not in the source list */}
+            {autoApprovedTools.filter((tool) => !autoApprovedSource.includes(tool)).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {autoApprovedTools
+                  .filter((tool) => !autoApprovedSource.includes(tool))
+                  .map((tool) => (
+                    <ChipButton key={tool} label={tool} active onClick={() => toggleAutoApproved(tool)} />
+                  ))}
+              </div>
+            )}
+
+            {/* Add custom tool input */}
+            <div className="flex gap-2">
+              <input
+                ref={customToolInputRef}
+                type="text"
+                value={customToolInput}
+                onChange={(event) => setCustomToolInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addCustomAutoApproved();
+                  }
+                }}
+                placeholder="Add custom tool (e.g. mcp__server__tool)"
+                className="flex-1 px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+              />
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded-md bg-surface-elevated text-text-secondary text-xs font-medium hover:text-text-primary transition-colors disabled:opacity-50"
+                onClick={addCustomAutoApproved}
+                disabled={!customToolInput.trim()}
+              >
+                Add
+              </button>
+            </div>
+          </FieldGroup>
 
           {/* Loop Configuration */}
           <FieldGroup label="Loop Schedule">
