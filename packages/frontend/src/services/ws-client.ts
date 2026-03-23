@@ -56,6 +56,8 @@ export class WsClient {
       if (!this.intentionalDisconnect) {
         this.scheduleReconnect();
       }
+
+      this.intentionalDisconnect = false;
     };
 
     this.ws.onerror = () => {
@@ -70,7 +72,7 @@ export class WsClient {
     this.ws?.close();
     this.ws = undefined;
     this.setState(WS_STATE.DISCONNECTED);
-    this.intentionalDisconnect = false;
+    // intentionalDisconnect is cleared in onclose handler, not here
   }
 
   /** Send a typed message to the server */
