@@ -2,6 +2,17 @@ import type { ApiResponse } from "./api-client.types.js";
 
 const BASE_URL = "/api";
 
+/** Parse a fetch response into a typed ApiResponse, handling non-JSON errors */
+async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (!contentType.includes("application/json")) {
+    return { success: false, error: { code: "http_error", message: `HTTP ${response.status}: non-JSON response` } };
+  }
+
+  return response.json() as Promise<ApiResponse<T>>;
+}
+
 /**
  * REST API client for communicating with the backend.
  * All methods return typed ApiResponse wrappers.
@@ -11,7 +22,7 @@ export const apiClient = {
   async get<T>(path: string): Promise<ApiResponse<T>> {
     const response = await fetch(`${BASE_URL}${path}`);
 
-    return response.json() as Promise<ApiResponse<T>>;
+    return parseResponse<T>(response);
   },
 
   /** POST request with JSON body */
@@ -22,7 +33,7 @@ export const apiClient = {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    return response.json() as Promise<ApiResponse<T>>;
+    return parseResponse<T>(response);
   },
 
   /** PATCH request with JSON body */
@@ -33,7 +44,7 @@ export const apiClient = {
       body: JSON.stringify(body),
     });
 
-    return response.json() as Promise<ApiResponse<T>>;
+    return parseResponse<T>(response);
   },
 
   /** DELETE request */
@@ -42,6 +53,6 @@ export const apiClient = {
       method: "DELETE",
     });
 
-    return response.json() as Promise<ApiResponse<T>>;
+    return parseResponse<T>(response);
   },
 };

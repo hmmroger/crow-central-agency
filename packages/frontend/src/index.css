@@ -63,6 +63,23 @@
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
 
+  /* ── UI element colors ── */
+  --color-scrollbar-thumb: oklch(0.35 0.015 285 / 0.6);
+  --color-scrollbar-thumb-hover: oklch(0.45 0.02 285 / 0.8);
+  --color-selection: oklch(0.5 0.1 192 / 0.3);
+  --color-surface-hover: oklch(0.17 0.02 285 / 0.5);
+  --color-surface-tint-secondary: oklch(0.15 0.025 295 / 0.5);
+
+  /* ── Syntax highlighting ── */
+  --color-syntax-keyword: oklch(0.72 0.14 295);
+  --color-syntax-string: oklch(0.74 0.12 155);
+  --color-syntax-number: oklch(0.76 0.13 75);
+  --color-syntax-comment: oklch(0.45 0.01 285);
+  --color-syntax-function: oklch(0.78 0.13 220);
+  --color-syntax-type: oklch(0.72 0.1 192);
+  --color-syntax-operator: oklch(0.65 0.1 340);
+  --color-syntax-punctuation: oklch(0.55 0.01 285);
+
   /* ── Shadows & Effects ── */
   --shadow-glow: 0 0 40px -8px oklch(0.45 0.08 175 / 0.3);
   --shadow-glow-primary: 0 0 30px -6px oklch(0.5 0.1 192 / 0.25);
@@ -102,17 +119,17 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: oklch(0.35 0.015 285 / 0.6);
+    background: var(--color-scrollbar-thumb);
     border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: oklch(0.45 0.02 285 / 0.8);
+    background: var(--color-scrollbar-thumb-hover);
   }
 
   /* Selection — primary tint */
   ::selection {
-    background: oklch(0.5 0.1 192 / 0.3);
+    background: var(--color-selection);
     color: var(--color-text-primary);
   }
 }
@@ -167,7 +184,7 @@
     & a {
       color: var(--color-primary);
       text-decoration: none;
-      border-bottom: 1px solid oklch(0.75 0.15 192 / 0.3);
+      border-bottom: 1px solid var(--color-selection);
       transition: border-color 0.15s ease;
 
       &:hover { border-bottom-color: var(--color-primary); }
@@ -222,14 +239,14 @@
       }
 
       /* Syntax highlighting tokens */
-      & .token-keyword { color: oklch(0.72 0.14 295); }
-      & .token-string { color: oklch(0.74 0.12 155); }
-      & .token-number { color: oklch(0.76 0.13 75); }
-      & .token-comment { color: oklch(0.45 0.01 285); font-style: italic; }
-      & .token-function { color: oklch(0.78 0.13 220); }
-      & .token-type { color: oklch(0.72 0.1 192); }
-      & .token-operator { color: oklch(0.65 0.1 340); }
-      & .token-punctuation { color: oklch(0.55 0.01 285); }
+      & .token-keyword { color: var(--color-syntax-keyword); }
+      & .token-string { color: var(--color-syntax-string); }
+      & .token-number { color: var(--color-syntax-number); }
+      & .token-comment { color: var(--color-syntax-comment); font-style: italic; }
+      & .token-function { color: var(--color-syntax-function); }
+      & .token-type { color: var(--color-syntax-type); }
+      & .token-operator { color: var(--color-syntax-operator); }
+      & .token-punctuation { color: var(--color-syntax-punctuation); }
     }
 
     /* Blockquotes */
@@ -237,7 +254,7 @@
       margin: 1em 0;
       padding: 0.5em 1em;
       border-left: 3px solid var(--color-secondary);
-      background: oklch(0.15 0.025 295 / 0.5);
+      background: var(--color-surface-tint-secondary);
       border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
       color: var(--color-text-secondary);
 
@@ -269,7 +286,7 @@
     }
 
     & tr:hover td {
-      background: oklch(0.17 0.02 285 / 0.5);
+      background: var(--color-surface-hover);
     }
 
     /* Horizontal rule */

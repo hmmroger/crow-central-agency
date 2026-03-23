@@ -2,8 +2,8 @@ import { AppLayout } from "./components/layout/app-layout.js";
 import { AppContent } from "./components/layout/app-content.js";
 
 /**
- * App root — thin shell with context providers and top-level composition.
- * No logic here, just providers + layout + content.
+ * App root — thin shell with top-level composition.
+ * No logic here. WsProvider added in task 1.6.
  */
 export function App() {
   return (
