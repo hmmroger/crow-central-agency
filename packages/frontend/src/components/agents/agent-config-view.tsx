@@ -472,7 +472,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           </div>
 
           {/* Right column — AGENT.md editor, viewport height */}
-          <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:flex lg:flex-col">
+          <div className="flex flex-col min-h-96 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]">
             <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
               <label className="text-sm font-medium text-text-secondary">AGENT.md</label>
               <button
