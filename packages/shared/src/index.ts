@@ -47,18 +47,6 @@ export {
   type AgentRuntimeState,
 } from "./schemas/agent-runtime-state.schema.js";
 
-// Schemas — Messages (domain-level, for history/display)
-export {
-  AgentTextMessageSchema,
-  AgentActivityMessageSchema,
-  AgentResultMessageSchema,
-  AgentUsageMessageSchema,
-  type AgentTextMessage,
-  type AgentActivityMessage,
-  type AgentResultMessage,
-  type AgentUsageMessage,
-} from "./schemas/message.schema.js";
-
 // Schemas — WebSocket (transport-level, with type discriminators)
 export {
   ClientMessageSchema,
@@ -94,9 +82,6 @@ export {
   type ErrorWsMessage,
   type ServerMessage,
 } from "./schemas/websocket.schema.js";
-
-// Schemas — Session
-export { SESSION_ROLE, SessionMessageSchema, type SessionRole, type SessionMessage } from "./schemas/session.schema.js";
 
 // Schemas — Permission
 export {
