@@ -39,7 +39,14 @@ export async function bootstrap(options: BootstrapOptions) {
   const artifactManager = new ArtifactManager();
   const loopScheduler = new LoopScheduler(registry);
 
-  const orchestrator = new AgentOrchestrator(registry, broadcaster, permissionHandler, artifactManager, loopScheduler);
+  const orchestrator = new AgentOrchestrator(
+    registry,
+    broadcaster,
+    permissionHandler,
+    artifactManager,
+    loopScheduler,
+    sessionManager
+  );
   await orchestrator.initialize();
 
   // Register MCP server factories on orchestrator

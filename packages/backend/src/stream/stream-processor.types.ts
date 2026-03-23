@@ -1,30 +1,42 @@
 import type { ServerMessage } from "@crow-central-agency/shared";
+import type { SessionMessage } from "@anthropic-ai/claude-agent-sdk";
 
-/** Callback to emit a WS message to the agent's subscribers */
-export type StreamEmitter = (message: ServerMessage) => void;
+/**
+ * A processed event yielded by the stream processor async generator.
+ * The orchestrator iterates these and decides what to do with each piece.
+ */
+export interface ProcessedStreamEvent {
+  /** Real-time WS messages to broadcast (agent_text, agent_activity, agent_status, etc.) */
+  wsMessages: ServerMessage[];
+  /** Complete assistant turn as SessionMessage — for session manager to transform and store */
+  sessionMessage?: SessionMessage;
+  /** Metadata updates captured from SDK events */
+  meta?: StreamEventMeta;
+}
 
-/** Result from processing a complete query stream */
-export interface StreamResult {
-  /** Session ID captured from init message */
+/** Metadata extracted from SDK stream events */
+export interface StreamEventMeta {
+  /** Session ID from system.init */
   sessionId?: string;
-  /** Tools discovered from init message */
+  /** Discovered tools from system.init */
   discoveredTools?: string[];
-  /** Whether the stream completed successfully */
+  /** Per-turn usage from assistant messages */
+  usage?: { inputTokens: number; outputTokens: number };
+  /** Result info from the final result message */
+  result?: StreamResultInfo;
+  /** Status update (e.g., "compacting" from system.status) */
+  status?: string;
+}
+
+/** Result information from the SDK result message */
+export interface StreamResultInfo {
   success: boolean;
-  /** Error subtype if failed */
-  errorSubtype?: string;
-  /** Cost for this query */
-  costUsd?: number;
-  /** Cumulative session cost */
-  totalCostUsd?: number;
-  /** Wall clock duration */
-  durationMs?: number;
-  /** Input tokens for this query */
-  inputTokens?: number;
-  /** Output tokens for this query */
-  outputTokens?: number;
-  /** Context window used */
+  subtype: string;
+  costUsd: number;
+  totalCostUsd: number;
+  durationMs: number;
+  inputTokens: number;
+  outputTokens: number;
   contextUsed?: number;
-  /** Context window total */
   contextTotal?: number;
 }

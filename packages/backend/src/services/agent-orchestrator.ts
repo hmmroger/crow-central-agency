@@ -8,7 +8,9 @@ import type { WsBroadcaster } from "./ws-broadcaster.js";
 import type { PermissionHandler } from "./permission-handler.js";
 import type { ArtifactManager } from "./artifact-manager.js";
 import type { LoopScheduler } from "./loop-scheduler.js";
+import type { SessionManager } from "./session-manager.js";
 import { processStream } from "../stream/stream-processor.js";
+import crypto from "node:crypto";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
@@ -39,7 +41,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     private readonly broadcaster: WsBroadcaster,
     private readonly permissionHandler: PermissionHandler,
     private readonly artifactManager: ArtifactManager,
-    private readonly loopScheduler: LoopScheduler
+    private readonly loopScheduler: LoopScheduler,
+    private readonly sessionManager: SessionManager
   ) {
     super();
     this.stateFilePath = path.join(env.CROW_SYSTEM_PATH, ORCHESTRATOR_STATE_FILENAME);
@@ -141,41 +144,85 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     this.runningAgents.set(agentId, { query: queryInstance, abortController });
     this.setStatus(agentId, AGENT_STATUS.STREAMING);
 
-    // Process stream
+    // Process stream via async generator
+    let userMessageAdded = false;
+    let streamSuccess = false;
+    let streamErrorSubtype: string | undefined;
+
     try {
-      const streamResult = await processStream(agentId, queryInstance, (wsMessage) => {
-        this.broadcaster.broadcast(agentId, wsMessage);
-      });
+      for await (const event of processStream(agentId, queryInstance)) {
+        // 1. Broadcast real-time WS messages (streaming text, activity hints, status)
+        for (const wsMsg of event.wsMessages) {
+          this.broadcaster.broadcast(agentId, wsMsg);
+        }
 
-      // Capture session ID
-      if (streamResult.sessionId) {
-        state.sessionId = streamResult.sessionId;
+        // 2. Capture sessionId from init → add user message as SessionMessage
+        if (event.meta?.sessionId) {
+          state.sessionId = event.meta.sessionId;
+
+          if (!userMessageAdded) {
+            const userSessionMsg = {
+              type: "user" as const,
+              uuid: crypto.randomUUID(),
+              session_id: event.meta.sessionId,
+              message: { role: "user", content: message },
+              parent_tool_use_id: null,
+            };
+            const userMessages = this.sessionManager.addMessage(event.meta.sessionId, userSessionMsg);
+
+            for (const msg of userMessages) {
+              this.broadcaster.broadcast(agentId, { type: "agent_message", agentId, message: msg });
+            }
+
+            userMessageAdded = true;
+          }
+        }
+
+        // 3. Discovered tools → filter internal MCP tools, update registry
+        if (event.meta?.discoveredTools && event.meta.discoveredTools.length > 0) {
+          const internalMcpPrefixes = [...this.mcpServerFactories.keys()].map((serverName) => `mcp__${serverName}__`);
+          const userFacingTools = event.meta.discoveredTools.filter(
+            (tool) => !internalMcpPrefixes.some((prefix) => tool.startsWith(prefix))
+          );
+          await this.registry.update(agentId, { availableTools: userFacingTools });
+        }
+
+        // 4. Complete assistant turn → session manager transforms, stores, returns canonical messages
+        if (event.sessionMessage && state.sessionId) {
+          const agentMessages = this.sessionManager.addMessage(state.sessionId, event.sessionMessage);
+
+          for (const msg of agentMessages) {
+            this.broadcaster.broadcast(agentId, { type: "agent_message", agentId, message: msg });
+          }
+        }
+
+        // 5. Per-turn usage accumulation
+        if (event.meta?.usage) {
+          state.sessionUsage.inputTokens += event.meta.usage.inputTokens;
+          state.sessionUsage.outputTokens += event.meta.usage.outputTokens;
+        }
+
+        // 6. Result → update session usage with final totals
+        if (event.meta?.result) {
+          const resultInfo = event.meta.result;
+          state.sessionUsage = {
+            inputTokens: state.sessionUsage.inputTokens,
+            outputTokens: state.sessionUsage.outputTokens,
+            totalCostUsd: resultInfo.totalCostUsd,
+            contextUsed: resultInfo.contextUsed ?? state.sessionUsage.contextUsed,
+            contextTotal: resultInfo.contextTotal ?? state.sessionUsage.contextTotal,
+          };
+          streamSuccess = resultInfo.success;
+          streamErrorSubtype = resultInfo.success ? undefined : resultInfo.subtype;
+        }
       }
 
-      // Update available tools from init message — filter out internal MCP tools
-      if (streamResult.discoveredTools && streamResult.discoveredTools.length > 0) {
-        const internalMcpPrefixes = [...this.mcpServerFactories.keys()].map((serverName) => `mcp__${serverName}__`);
-        const userFacingTools = streamResult.discoveredTools.filter(
-          (tool) => !internalMcpPrefixes.some((prefix) => tool.startsWith(prefix))
-        );
-        await this.registry.update(agentId, { availableTools: userFacingTools });
-      }
-
-      // Update session usage
-      state.sessionUsage = {
-        inputTokens: state.sessionUsage.inputTokens + (streamResult.inputTokens ?? 0),
-        outputTokens: state.sessionUsage.outputTokens + (streamResult.outputTokens ?? 0),
-        totalCostUsd: streamResult.totalCostUsd ?? state.sessionUsage.totalCostUsd,
-        contextUsed: streamResult.contextUsed ?? state.sessionUsage.contextUsed,
-        contextTotal: streamResult.contextTotal ?? state.sessionUsage.contextTotal,
-      };
-
-      if (streamResult.success) {
+      if (streamSuccess) {
         state.lastError = undefined;
         this.setStatus(agentId, AGENT_STATUS.IDLE);
         this.notifyWaitingAgents(agentId);
       } else {
-        state.lastError = streamResult.errorSubtype ?? "Unknown error";
+        state.lastError = streamErrorSubtype ?? "Unknown error";
         this.setStatus(agentId, AGENT_STATUS.ERROR);
       }
     } catch (error) {

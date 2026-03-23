@@ -24,6 +24,8 @@ export const SERVER_MESSAGE_TYPE = {
   PERMISSION_REQUEST: "permission_request",
   PERMISSION_CANCELLED: "permission_cancelled",
   ERROR: "error",
+  AGENT_MESSAGE: "agent_message",
+  AGENT_TOOL_PROGRESS: "agent_tool_progress",
 } as const;
 
 export type ServerMessageType = (typeof SERVER_MESSAGE_TYPE)[keyof typeof SERVER_MESSAGE_TYPE];

@@ -81,6 +81,10 @@ export {
   type PermissionRequestWsMessage,
   type PermissionCancelledWsMessage,
   type ErrorWsMessage,
+  AgentMessageWsMessageSchema,
+  AgentToolProgressWsMessageSchema,
+  type AgentMessageWsMessage,
+  type AgentToolProgressWsMessage,
   type ServerMessage,
 } from "./schemas/websocket.schema.js";
 
