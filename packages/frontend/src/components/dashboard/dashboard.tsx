@@ -1,6 +1,9 @@
+import { useMemo, useState } from "react";
 import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
 import { AgentCard } from "./agent-card.js";
+import { DashboardStatsBar } from "./dashboard-stats-bar.js";
+import { DashboardFilter } from "./dashboard-filter.js";
 
 interface DashboardProps {
   agents: AgentConfig[];
@@ -10,12 +13,25 @@ interface DashboardProps {
 }
 
 /**
- * Dashboard — agent cards grid with empty state.
+ * Dashboard — agent cards grid with stats bar, search filter, and empty state.
  * Receives agent data from AppContent (single useAgents() call).
- * Phase 4 will add stats bar, filtering, mini-consoles.
  */
 export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
   const goToAgentEditor = useAppStore((state) => state.goToAgentEditor);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Filter agents by search query
+  const filteredAgents = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return agents;
+    }
+
+    const query = searchQuery.toLowerCase();
+
+    return agents.filter(
+      (agent) => agent.name.toLowerCase().includes(query) || agent.description.toLowerCase().includes(query)
+    );
+  }, [agents, searchQuery]);
 
   if (loading) {
     return <div className="h-full flex items-center justify-center text-text-muted">Loading agents...</div>;
@@ -26,6 +42,7 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
       <div className="h-full flex flex-col items-center justify-center gap-4 text-text-muted">
         <p className="text-error">{error}</p>
         <button
+          type="button"
           className="px-3 py-1.5 rounded-md bg-surface-elevated text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
           onClick={() => refetch()}
         >
@@ -41,6 +58,7 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
         <p className="text-lg">No agents yet</p>
         <p className="text-sm">Create your first agent to get started.</p>
         <button
+          type="button"
           className="px-4 py-2 rounded-md bg-primary text-text-primary font-medium hover:opacity-90 transition-opacity"
           onClick={() => goToAgentEditor()}
         >
@@ -52,21 +70,36 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
 
   return (
     <div className="h-full overflow-y-auto p-6">
+      {/* Header row — title, stats, filter, new button */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold text-text-primary">Agents ({agents.length})</h2>
-        <button
-          className="px-3 py-1.5 rounded-md bg-primary text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
-          onClick={() => goToAgentEditor()}
-        >
-          + New Agent
-        </button>
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold text-text-primary">Agents</h2>
+          <DashboardStatsBar agents={agents} activeCount={0} totalCost={0} />
+        </div>
+        <div className="flex items-center gap-3">
+          <DashboardFilter searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+          <button
+            type="button"
+            className="px-3 py-1.5 rounded-md bg-primary text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
+            onClick={() => goToAgentEditor()}
+          >
+            + New Agent
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {agents.map((agent) => (
-          <AgentCard key={agent.id} agent={agent} />
-        ))}
-      </div>
+      {/* Agent cards grid */}
+      {filteredAgents.length === 0 ? (
+        <div className="flex items-center justify-center py-12 text-text-muted text-sm">
+          No agents match &quot;{searchQuery}&quot;
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredAgents.map((agent) => (
+            <AgentCard key={agent.id} agent={agent} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
