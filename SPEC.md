@@ -31,7 +31,7 @@ A file in an agent's `artifacts/` directory. Artifacts are the primary mechanism
 
 ### Session
 
-A conversation between a user (or the system) and a single agent, managed by the Claude Agent SDK. Sessions are persisted to disk by the SDK and can be resumed across server restarts. Each agent work on one session at a time, and is captured from Claude Agent SDK message during streaming, orchestrator captured the ID and track it with `currentSessionId` in AgentConfig.
+A conversation between a user (or the system) and a single agent, managed by the Claude Agent SDK. Sessions are persisted to disk by the SDK and can be resumed across server restarts. Each agent work on one session at a time, and is captured from Claude Agent SDK message during streaming, orchestrator captured the ID and track it with `sessionId` in runtime state.
 
 ### Orchestrator
 
