@@ -10,6 +10,9 @@ export const TOOL_MODE = {
 
 export type ToolMode = (typeof TOOL_MODE)[keyof typeof TOOL_MODE];
 
+/** The SDK tool name used to launch a subagent */
+export const SUBAGENT_TOOL_NAME = "Agent" as const;
+
 /**
  * Default available tools for new agent creation.
  * These are known builtin Claude Code tools. After first query,

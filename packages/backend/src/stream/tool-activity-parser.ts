@@ -1,3 +1,5 @@
+import { SUBAGENT_TOOL_NAME } from "@crow-central-agency/shared";
+
 /**
  * Extracts a human-readable description from a tool name and its input.
  * Used to build agent_activity WS messages from SDK stream events.
@@ -44,7 +46,7 @@ export function parseToolActivity(toolName: string, toolInput: Record<string, un
     case "WebSearch":
       return `Searching: ${toolInput.query ?? ""}`;
 
-    case "Agent":
+    case SUBAGENT_TOOL_NAME:
       return `Launching subagent: ${toolInput.description ?? toolInput.prompt ?? "task"}`;
 
     case "Skill":

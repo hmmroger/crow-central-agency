@@ -1,4 +1,4 @@
-const SUBAGENT_TOOL_NAME = "Agent";
+import { SUBAGENT_TOOL_NAME } from "@crow-central-agency/shared";
 
 interface ActivityItemProps {
   toolName: string;
