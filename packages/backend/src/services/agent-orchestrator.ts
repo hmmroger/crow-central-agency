@@ -10,7 +10,7 @@ import type { ArtifactManager } from "./artifact-manager.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
-import { DEFAULT_PERMISSION_DENY_MESSAGE } from "../config/constants.js";
+import { DEFAULT_PERMISSION_DENY_MESSAGE, ARTIFACT_TIMESTAMP_WINDOW_MS } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 import { readJsonFile, writeJsonFile } from "../utils/fs-utils.js";
 import path from "node:path";
@@ -352,8 +352,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
         if (this.artifactManager) {
           const recentArtifact = await this.artifactManager.getMostRecentArtifact(completedAgentId);
+          const isRecent =
+            recentArtifact !== undefined &&
+            Date.now() - new Date(recentArtifact.updatedAt).getTime() <= ARTIFACT_TIMESTAMP_WINDOW_MS;
 
-          if (recentArtifact) {
+          if (isRecent && recentArtifact) {
             notificationPrompt = [
               `[Inter-agent response: Agent "${targetName}" has completed your requested task]`,
               "",
@@ -507,7 +510,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     // Handle waiting_agent agents whose targets are idle (not being resumed)
-    for (const [agentId, state] of this.runtimeStates) {
+    for (const [_agentId, state] of this.runtimeStates) {
       if (state.status !== AGENT_STATUS.WAITING_AGENT || !state.waitingForAgentId) {
         continue;
       }
@@ -515,12 +518,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       const targetIsBeingResumed = agentsToResume.includes(state.waitingForAgentId);
 
       if (!targetIsBeingResumed) {
-        // Target was already idle — check artifacts and notify
-        // This will be fully implemented in Phase 5 with artifact checking
-        log.info(
-          { agentId, targetId: state.waitingForAgentId },
-          "Target agent was idle — will notify when artifacts are implemented"
-        );
+        // Target was already idle — notify waiting agent with artifact check
+        this.notifyWaitingAgents(state.waitingForAgentId);
       }
     }
 

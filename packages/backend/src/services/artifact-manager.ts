@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { ArtifactInfo } from "./artifact-manager.types.js";
+import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { assertWithinBase, ensureDir } from "../utils/fs-utils.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
@@ -20,12 +20,12 @@ export class ArtifactManager {
   }
 
   /** List all artifacts for an agent */
-  async listArtifacts(agentId: string): Promise<ArtifactInfo[]> {
+  async listArtifacts(agentId: string): Promise<ArtifactMetadata[]> {
     const artifactsDir = this.getArtifactsDir(agentId);
 
     try {
       const entries = await fs.readdir(artifactsDir, { withFileTypes: true });
-      const artifacts: ArtifactInfo[] = [];
+      const artifacts: ArtifactMetadata[] = [];
 
       for (const entry of entries) {
         if (!entry.isFile()) {
@@ -37,6 +37,7 @@ export class ArtifactManager {
 
         artifacts.push({
           filename: entry.name,
+          agentId,
           size: stat.size,
           createdAt: stat.birthtime.toISOString(),
           updatedAt: stat.mtime.toISOString(),
@@ -80,7 +81,7 @@ export class ArtifactManager {
   }
 
   /** Get the most recent artifact for an agent (by modification time) */
-  async getMostRecentArtifact(agentId: string): Promise<ArtifactInfo | undefined> {
+  async getMostRecentArtifact(agentId: string): Promise<ArtifactMetadata | undefined> {
     const artifacts = await this.listArtifacts(agentId);
 
     if (artifacts.length === 0) {

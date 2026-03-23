@@ -1,25 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
+import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { apiClient } from "../services/api-client.js";
-
-interface ArtifactInfo {
-  filename: string;
-  size: number;
-  createdAt: string;
-  updatedAt: string;
-}
 
 /**
  * Fetch artifacts list for an agent via REST.
  */
 export function useAgentArtifacts(agentId: string) {
-  const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
+  const [artifacts, setArtifacts] = useState<ArtifactMetadata[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchArtifacts = useCallback(async () => {
     setLoading(true);
 
     try {
-      const response = await apiClient.get<ArtifactInfo[]>(`/agents/${agentId}/artifacts`);
+      const response = await apiClient.get<ArtifactMetadata[]>(`/agents/${agentId}/artifacts`);
 
       if (response.success) {
         setArtifacts(response.data);
