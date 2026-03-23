@@ -74,7 +74,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           setToolMode(agent.toolConfig.mode);
           setSelectedTools(agent.toolConfig.tools ?? []);
           setAutoApprovedTools(agent.toolConfig.autoApprovedTools ?? []);
-          setAvailableTools(agent.availableTools ?? []);
+          setAvailableTools(agent.availableTools ?? [...DEFAULT_AVAILABLE_TOOLS]);
           setLoopEnabled(agent.loop.enabled);
           setLoopDays(agent.loop.daysOfWeek);
           setLoopTimeMode(agent.loop.timeMode);
