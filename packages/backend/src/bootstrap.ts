@@ -13,6 +13,10 @@ import { setupWebSocket } from "./server/setup-websocket.js";
 import { registerArtifactRoutes } from "./routes/artifact.routes.js";
 import { createArtifactsMcpServer } from "./mcp/artifacts-mcp-server.js";
 import { createAgentsMcpServer } from "./mcp/agents-mcp-server.js";
+import { LoopScheduler } from "./services/loop-scheduler.js";
+import { OpenAIProvider } from "./services/openai-provider.js";
+import { MdGenerationService } from "./services/md-generation-service.js";
+import { registerGenerationRoutes } from "./routes/generation.routes.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -90,6 +94,31 @@ export async function bootstrap(options: BootstrapOptions) {
     });
   });
 
+  // Loop scheduler
+  const loopScheduler = new LoopScheduler(registry);
+
+  loopScheduler.on("loopTick", ({ agentId, prompt }) => {
+    orchestrator.sendMessage(agentId, prompt).catch((error) => {
+      logger.error({ agentId, error }, "Loop tick failed");
+    });
+  });
+
+  loopScheduler.start();
+
+  // Cleanup on agent deletion
+  registry.on("agentDeleted", ({ agentId }) => {
+    loopScheduler.removeAgent(agentId);
+  });
+
+  // Conditionally initialize generation service (requires OPENAI config)
+  let generationService: MdGenerationService | undefined;
+
+  if (env.OPENAI) {
+    const openaiProvider = new OpenAIProvider({ baseURL: env.OPENAI.baseURL, apiKey: env.OPENAI.apiKey });
+    generationService = new MdGenerationService(openaiProvider, env.OPENAI.model ?? "gpt-4o");
+    logger.info("Generation service initialized");
+  }
+
   // Create Fastify server
   const server = await createServer({ serveStatic: options.serveStatic });
 
@@ -98,6 +127,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerHealthRoutes(server);
   await registerAgentRoutes(server, registry, orchestrator, sessionManager);
   await registerArtifactRoutes(server, artifactManager);
+  await registerGenerationRoutes(server, registry, generationService);
 
   // Start listening
   await server.listen({ host: env.HOST, port: env.PORT });
@@ -106,6 +136,7 @@ export async function bootstrap(options: BootstrapOptions) {
   // Graceful shutdown
   const shutdown = async () => {
     logger.info("Shutting down...");
+    loopScheduler.stop();
     await server.close();
     process.exit(0);
   };
