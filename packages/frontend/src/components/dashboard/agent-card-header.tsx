@@ -9,8 +9,8 @@ interface AgentCardHeaderProps {
   onToggleExpand: () => void;
 }
 
-/** Status badge color map — module-level constant */
-const STATUS_COLOR_MAP: Record<AgentStatus, string> = {
+/** Status dot color map */
+const STATUS_DOT_COLOR: Record<AgentStatus, string> = {
   [AGENT_STATUS.IDLE]: "bg-text-muted",
   [AGENT_STATUS.STREAMING]: "bg-primary",
   [AGENT_STATUS.WAITING_PERMISSION]: "bg-warning",
@@ -19,23 +19,50 @@ const STATUS_COLOR_MAP: Record<AgentStatus, string> = {
   [AGENT_STATUS.ERROR]: "bg-error",
 };
 
+/** Status text color map */
+const STATUS_TEXT_COLOR: Record<AgentStatus, string> = {
+  [AGENT_STATUS.IDLE]: "text-text-muted",
+  [AGENT_STATUS.STREAMING]: "text-primary",
+  [AGENT_STATUS.WAITING_PERMISSION]: "text-warning",
+  [AGENT_STATUS.WAITING_AGENT]: "text-info",
+  [AGENT_STATUS.COMPACTING]: "text-secondary",
+  [AGENT_STATUS.ERROR]: "text-error",
+};
+
+/** Status display labels */
+const STATUS_LABEL: Record<AgentStatus, string> = {
+  [AGENT_STATUS.IDLE]: "Idle",
+  [AGENT_STATUS.STREAMING]: "Streaming",
+  [AGENT_STATUS.WAITING_PERMISSION]: "Waiting Permission",
+  [AGENT_STATUS.WAITING_AGENT]: "Waiting Agent",
+  [AGENT_STATUS.COMPACTING]: "Compacting",
+  [AGENT_STATUS.ERROR]: "Error",
+};
+
 /**
- * Agent card header — name, status badge, settings button, expand/collapse.
+ * Agent card header — name, status indicator with label, settings, expand/collapse.
  */
 export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: AgentCardHeaderProps) {
   const goToAgentEditor = useAppStore((state) => state.goToAgentEditor);
   const goToConsole = useAppStore((state) => state.goToConsole);
 
   return (
-    <div className="flex items-start justify-between">
+    <div className="flex items-center justify-between">
+      {/* Name — click to open console */}
       <div className="flex-1 min-w-0 cursor-pointer" onClick={() => goToConsole(agent.id)}>
-        <div className="flex items-center gap-2">
-          <span className={`shrink-0 w-2.5 h-2.5 rounded-full ${STATUS_COLOR_MAP[status]}`} />
-          <h3 className="text-sm font-semibold text-text-primary truncate">{agent.name}</h3>
-        </div>
+        <h3 className="text-sm font-semibold text-text-primary truncate">{agent.name}</h3>
       </div>
 
-      <div className="flex items-center gap-1.5 shrink-0">
+      {/* Status badge */}
+      <div className="flex items-center gap-1.5 mr-2">
+        <span
+          className={`shrink-0 w-2 h-2 rounded-full ${STATUS_DOT_COLOR[status]} ${status === AGENT_STATUS.STREAMING ? "animate-pulse" : ""}`}
+        />
+        <span className={`text-xs font-medium ${STATUS_TEXT_COLOR[status]}`}>{STATUS_LABEL[status]}</span>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 shrink-0">
         <button
           type="button"
           className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
