@@ -44,11 +44,11 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
   // Per-instance message counter (not module-level, scoped to hook instance)
   const messageCounterRef = useRef(0);
 
-  function nextId(): string {
+  const nextId = useCallback((): string => {
     messageCounterRef.current += 1;
 
     return `msg-${messageCounterRef.current}`;
-  }
+  }, []);
 
   // Load initial state + messages from REST on mount
   useEffect(() => {
@@ -76,7 +76,7 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
     };
 
     loadInitialState();
-  }, [agentId]);
+  }, [agentId, nextId]);
 
   // Handle incoming WS messages — plain function, stabilized by useWsSubscription's useRef
   const handleWsMessage = (data: { type: string; [key: string]: unknown }) => {

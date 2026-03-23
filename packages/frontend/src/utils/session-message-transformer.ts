@@ -19,17 +19,15 @@ interface ApiMessage {
   content?: string | ContentBlock[];
 }
 
-interface SessionMessage {
-  type: "user" | "assistant";
-  message: unknown;
-}
-
 /**
  * Transform raw SDK session messages into renderable AgentMessage[].
  * Extracts text blocks and tool_use blocks from assistant messages,
  * and text content from user messages.
  */
-export function transformSessionMessages(sessionMessages: SessionMessage[], nextId: () => string): AgentMessage[] {
+export function transformSessionMessages(
+  sessionMessages: { type: "user" | "assistant"; message: unknown }[],
+  nextId: () => string
+): AgentMessage[] {
   const result: AgentMessage[] = [];
 
   for (const sessionMsg of sessionMessages) {
@@ -99,7 +97,7 @@ function isToolUseBlock(block: ContentBlock): block is ToolUseBlock {
 
 /** Generate a human-readable summary of tool input */
 function summarizeToolInput(toolName: string, input: Record<string, unknown>): string {
-  if (typeof input.file_path === "string") {
+  if ((toolName === "Read" || toolName === "Edit" || toolName === "Write") && typeof input.file_path === "string") {
     return input.file_path;
   }
 
