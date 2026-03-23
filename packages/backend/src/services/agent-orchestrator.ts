@@ -9,6 +9,7 @@ import type { PermissionHandler } from "./permission-handler.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
+import { DEFAULT_PERMISSION_DENY_MESSAGE } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 import { readJsonFile, writeJsonFile } from "../utils/fs-utils.js";
 import path from "node:path";
@@ -217,6 +218,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       throw new AppError(`Agent ${agentId} is not streaming`, AppErrorCodes.AgentNotRunning);
     }
 
+    this.permissionHandler?.cancelAllForAgent(agentId);
     running.abortController.abort();
     await running.query.interrupt();
     running.query.close();
@@ -241,6 +243,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
   /** Cleanup when an agent is deleted */
   cleanup(agentId: string): void {
+    this.permissionHandler?.cancelAllForAgent(agentId);
     const running = this.runningAgents.get(agentId);
 
     if (running) {
@@ -311,7 +314,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         return { behavior: "allow" as const, updatedInput: result.updatedInput, toolUseID: options.toolUseID };
       }
 
-      return { behavior: "deny" as const, message: result.message ?? "Denied", toolUseID: options.toolUseID };
+      return {
+        behavior: "deny" as const,
+        message: result.message ?? DEFAULT_PERMISSION_DENY_MESSAGE,
+        toolUseID: options.toolUseID,
+      };
     };
   }
 

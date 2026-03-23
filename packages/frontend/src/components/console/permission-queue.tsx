@@ -1,11 +1,5 @@
+import type { PendingPermissionRequest } from "../../hooks/use-agent-interaction.types.js";
 import { PermissionDialog } from "./permission-dialog.js";
-
-export interface PendingPermissionRequest {
-  toolUseId: string;
-  toolName: string;
-  input?: Record<string, unknown>;
-  decisionReason?: string;
-}
 
 interface PermissionQueueProps {
   permissions: PendingPermissionRequest[];

@@ -14,8 +14,12 @@ import {
 import { useWs } from "./use-ws.js";
 import { useWsSubscription } from "./use-ws-subscription.js";
 import { apiClient } from "../services/api-client.js";
-import { AGENT_MESSAGE_KIND, type AgentMessage, type AgentInteractionState } from "./use-agent-interaction.types.js";
-import type { PendingPermissionRequest } from "../components/console/permission-queue.js";
+import {
+  AGENT_MESSAGE_KIND,
+  type AgentMessage,
+  type AgentInteractionState,
+  type PendingPermissionRequest,
+} from "./use-agent-interaction.types.js";
 
 /**
  * Composite hook for agent console interaction.

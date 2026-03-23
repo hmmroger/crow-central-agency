@@ -13,3 +13,6 @@ export const TEXT_COALESCE_FLUSH_DELAY_MS = 50;
 
 /** Artifact timestamp window for inter-agent validation (5 minutes) */
 export const ARTIFACT_TIMESTAMP_WINDOW_MS = 5 * 60 * 1000;
+
+/** Default message sent to the agent when a tool permission is denied without a typed response */
+export const DEFAULT_PERMISSION_DENY_MESSAGE = "Permission denied by user";

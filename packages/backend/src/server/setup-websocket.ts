@@ -15,7 +15,7 @@ export async function setupWebSocket(
   server: FastifyInstance,
   broadcaster: WsBroadcaster,
   orchestrator: AgentOrchestrator,
-  permissionHandler?: PermissionHandler
+  permissionHandler: PermissionHandler
 ) {
   server.get("/ws", { websocket: true }, (socket) => {
     log.debug("WebSocket client connected");
@@ -72,9 +72,7 @@ export async function setupWebSocket(
             break;
 
           case "permission_response":
-            if (permissionHandler) {
-              permissionHandler.resolvePermission(message.toolUseId, message.decision, message.message);
-            }
+            permissionHandler.resolvePermission(message.toolUseId, message.decision, message.message);
 
             break;
 

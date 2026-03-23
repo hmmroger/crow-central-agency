@@ -1,5 +1,13 @@
 import type { AgentStatus, SessionUsage } from "@crow-central-agency/shared";
 
+/** A pending permission request awaiting user response */
+export interface PendingPermissionRequest {
+  toolUseId: string;
+  toolName: string;
+  input?: Record<string, unknown>;
+  decisionReason?: string;
+}
+
 /** Display message types for the agent console */
 export const AGENT_MESSAGE_KIND = {
   TEXT: "text",
@@ -45,12 +53,7 @@ export interface AgentInteractionState {
   /** Session usage stats */
   usage: SessionUsage;
   /** Pending permission requests awaiting user response */
-  pendingPermissions: {
-    toolUseId: string;
-    toolName: string;
-    input?: Record<string, unknown>;
-    decisionReason?: string;
-  }[];
+  pendingPermissions: PendingPermissionRequest[];
   /** Send a user message */
   sendMessage: (text: string) => void;
   /** Inject a btw message while streaming */
