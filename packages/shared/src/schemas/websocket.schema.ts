@@ -64,7 +64,6 @@ export const AgentActivityWsMessageSchema = z.object({
   agentId: z.string(),
   toolName: z.string(),
   description: z.string(),
-  isSubagent: z.boolean().default(false),
 });
 
 export const AgentResultWsMessageSchema = z.object({

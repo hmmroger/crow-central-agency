@@ -187,7 +187,6 @@ function handleStreamEvent(
           agentId,
           toolName,
           description,
-          isSubagent: false,
         });
       }
 

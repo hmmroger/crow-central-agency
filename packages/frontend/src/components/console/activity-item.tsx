@@ -1,3 +1,5 @@
+const SUBAGENT_TOOL_NAME = "Agent";
+
 interface ActivityItemProps {
   toolName: string;
   content: string;
@@ -8,7 +10,7 @@ interface ActivityItemProps {
  * Subagent status is derived from toolName rather than passed as a prop.
  */
 export function ActivityItem({ toolName, content }: ActivityItemProps) {
-  const isSubagent = toolName === "Agent";
+  const isSubagent = toolName === SUBAGENT_TOOL_NAME;
 
   return (
     <div className="flex items-center gap-2 px-3 py-1 text-xs text-text-muted">

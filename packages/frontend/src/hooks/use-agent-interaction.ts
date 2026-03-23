@@ -147,6 +147,11 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
         if (parsed.success) {
           setStatus(parsed.data.status);
 
+          // Clear stale result banner when a new query starts
+          if (parsed.data.status === AGENT_STATUS.STREAMING) {
+            setLastResult(undefined);
+          }
+
           // Clear streaming state when agent becomes idle
           if (parsed.data.status === AGENT_STATUS.IDLE || parsed.data.status === AGENT_STATUS.ERROR) {
             setStreamingText("");
