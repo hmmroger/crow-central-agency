@@ -131,7 +131,7 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
         if (parsed.success) {
           setLastResult({
             subtype: parsed.data.subtype,
-            costUsd: parsed.data.totalCostUsd ?? parsed.data.costUsd,
+            costUsd: parsed.data.totalCostUsd,
             durationMs: parsed.data.durationMs,
           });
           setStreamingText("");

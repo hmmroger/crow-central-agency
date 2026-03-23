@@ -70,7 +70,6 @@ export const AgentResultWsMessageSchema = z.object({
   type: z.literal("agent_result"),
   agentId: z.string(),
   subtype: z.string(),
-  costUsd: z.number().optional(),
   totalCostUsd: z.number().optional(),
   durationMs: z.number().optional(),
 });

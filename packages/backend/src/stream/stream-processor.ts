@@ -318,7 +318,6 @@ function handleResultMessage(
     type: "agent_result",
     agentId,
     subtype: resultMsg.subtype,
-    costUsd: resultMsg.total_cost_usd,
     totalCostUsd: resultMsg.total_cost_usd,
     durationMs: resultMsg.duration_ms,
   });
