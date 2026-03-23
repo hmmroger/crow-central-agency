@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   AGENT_STATUS,
   AgentTextWsMessageSchema,
@@ -6,26 +6,28 @@ import {
   AgentResultWsMessageSchema,
   AgentStatusWsMessageSchema,
   AgentUsageWsMessageSchema,
+  AgentMessageWsMessageSchema,
+  AgentToolProgressWsMessageSchema,
   PermissionRequestWsMessageSchema,
   PermissionCancelledWsMessageSchema,
+  type AgentMessage,
   type AgentStatus,
   type SessionUsage,
 } from "@crow-central-agency/shared";
 import { useWs } from "./use-ws.js";
 import { useWsSubscription } from "./use-ws-subscription.js";
 import { apiClient } from "../services/api-client.js";
-import {
-  AGENT_MESSAGE_KIND,
-  type AgentMessage,
-  type AgentInteractionState,
-  type PendingPermissionRequest,
+import type {
+  AgentInteractionState,
+  PendingPermissionRequest,
+  QueryResult,
+  ActiveToolUse,
 } from "./use-agent-interaction.types.js";
-import { transformSessionMessages } from "../utils/session-message-transformer.js";
 
 /**
  * Composite hook for agent console interaction.
- * Manages local render state, WS subscriptions, and API actions.
- * Backend is source of truth — local state is for display only.
+ * Frontend is purely reactive — messages come only from backend (REST or agent_message WS).
+ * streamingText is a display-only buffer. Frontend NEVER constructs AgentMessage objects.
  */
 export function useAgentInteraction(agentId: string): AgentInteractionState {
   const { send } = useWs();
@@ -33,6 +35,8 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
   const [streamingText, setStreamingText] = useState("");
   const [status, setStatus] = useState<AgentStatus>(AGENT_STATUS.IDLE);
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
+  const [lastResult, setLastResult] = useState<QueryResult | undefined>();
+  const [activeToolUse, setActiveToolUse] = useState<ActiveToolUse | undefined>();
   const [usage, setUsage] = useState<SessionUsage>({
     inputTokens: 0,
     outputTokens: 0,
@@ -41,22 +45,13 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
     contextTotal: 0,
   });
 
-  // Per-instance message counter (not module-level, scoped to hook instance)
-  const messageCounterRef = useRef(0);
-
-  const nextId = useCallback((): string => {
-    messageCounterRef.current += 1;
-
-    return `msg-${messageCounterRef.current}`;
-  }, []);
-
   // Load initial state + messages from REST on mount
   useEffect(() => {
     const loadInitialState = async () => {
       try {
         const [stateResponse, messagesResponse] = await Promise.all([
           apiClient.get<{ status: AgentStatus; sessionUsage?: SessionUsage }>(`/agents/${agentId}/state`),
-          apiClient.get<{ type: "user" | "assistant"; message: unknown }[]>(`/agents/${agentId}/messages`),
+          apiClient.get<AgentMessage[]>(`/agents/${agentId}/messages`),
         ]);
 
         if (stateResponse.success && stateResponse.data) {
@@ -68,7 +63,7 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
         }
 
         if (messagesResponse.success && messagesResponse.data.length > 0) {
-          setMessages(transformSessionMessages(messagesResponse.data, nextId));
+          setMessages(messagesResponse.data);
         }
       } catch {
         // Errors on initial load are non-fatal — console starts empty
@@ -76,7 +71,7 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
     };
 
     loadInitialState();
-  }, [agentId, nextId]);
+  }, [agentId]);
 
   // Handle incoming WS messages — plain function, stabilized by useWsSubscription's useRef
   const handleWsMessage = (data: { type: string; [key: string]: unknown }) => {
@@ -91,69 +86,58 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
         break;
       }
 
+      case "agent_message": {
+        const parsed = AgentMessageWsMessageSchema.safeParse(data);
+
+        if (parsed.success) {
+          setMessages((prev) => [...prev, parsed.data.message]);
+          setStreamingText("");
+          setActiveToolUse(undefined);
+        }
+
+        break;
+      }
+
       case "agent_activity": {
         const parsed = AgentActivityWsMessageSchema.safeParse(data);
 
-        if (!parsed.success) {
-          break;
-        }
-
-        // Flush streaming text as a text message before adding activity
-        setStreamingText((prev) => {
-          if (prev.length > 0) {
-            setMessages((msgs) => [
-              ...msgs,
-              { id: nextId(), kind: AGENT_MESSAGE_KIND.TEXT, text: prev, timestamp: Date.now() },
-            ]);
-          }
-
-          return "";
-        });
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: nextId(),
-            kind: AGENT_MESSAGE_KIND.ACTIVITY,
+        if (parsed.success) {
+          setActiveToolUse({
             toolName: parsed.data.toolName,
             description: parsed.data.description,
-            isSubagent: parsed.data.isSubagent,
-            timestamp: Date.now(),
-          },
-        ]);
+          });
+        }
+
+        break;
+      }
+
+      case "agent_tool_progress": {
+        const parsed = AgentToolProgressWsMessageSchema.safeParse(data);
+
+        if (parsed.success) {
+          setActiveToolUse((prev) =>
+            prev
+              ? { ...prev, elapsedTimeSeconds: parsed.data.elapsedTimeSeconds }
+              : { toolName: parsed.data.toolName, description: "", elapsedTimeSeconds: parsed.data.elapsedTimeSeconds }
+          );
+        }
+
         break;
       }
 
       case "agent_result": {
         const parsed = AgentResultWsMessageSchema.safeParse(data);
 
-        if (!parsed.success) {
-          break;
-        }
-
-        // Flush any remaining streaming text
-        setStreamingText((prev) => {
-          if (prev.length > 0) {
-            setMessages((msgs) => [
-              ...msgs,
-              { id: nextId(), kind: AGENT_MESSAGE_KIND.TEXT, text: prev, timestamp: Date.now() },
-            ]);
-          }
-
-          return "";
-        });
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: nextId(),
-            kind: AGENT_MESSAGE_KIND.RESULT,
+        if (parsed.success) {
+          setLastResult({
             subtype: parsed.data.subtype,
             costUsd: parsed.data.totalCostUsd ?? parsed.data.costUsd,
             durationMs: parsed.data.durationMs,
-            timestamp: Date.now(),
-          },
-        ]);
+          });
+          setStreamingText("");
+          setActiveToolUse(undefined);
+        }
+
         break;
       }
 
@@ -162,6 +146,12 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
 
         if (parsed.success) {
           setStatus(parsed.data.status);
+
+          // Clear streaming state when agent becomes idle
+          if (parsed.data.status === AGENT_STATUS.IDLE || parsed.data.status === AGENT_STATUS.ERROR) {
+            setStreamingText("");
+            setActiveToolUse(undefined);
+          }
         }
 
         break;
@@ -218,14 +208,9 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
 
   useWsSubscription(agentId, handleWsMessage);
 
-  /** Send a user message */
+  /** Send a user message — backend creates the AgentMessage and broadcasts agent_message WS */
   const sendMessage = useCallback(
     (text: string) => {
-      setMessages((prev) => [
-        ...prev,
-        { id: `user-${Date.now()}`, kind: AGENT_MESSAGE_KIND.TEXT, text: `**You:** ${text}`, timestamp: Date.now() },
-      ]);
-
       send({ type: "send_message", agentId, message: text });
     },
     [send, agentId]
@@ -249,6 +234,8 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
     await apiClient.post(`/agents/${agentId}/session/new`);
     setMessages([]);
     setStreamingText("");
+    setLastResult(undefined);
+    setActiveToolUse(undefined);
     setUsage({ inputTokens: 0, outputTokens: 0, totalCostUsd: 0, contextUsed: 0, contextTotal: 0 });
   }, [agentId]);
 
@@ -285,6 +272,8 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
     status,
     usage,
     pendingPermissions,
+    lastResult,
+    activeToolUse,
     sendMessage,
     injectMessage,
     abort,

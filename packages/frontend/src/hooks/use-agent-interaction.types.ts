@@ -1,4 +1,4 @@
-import type { AgentStatus, SessionUsage } from "@crow-central-agency/shared";
+import type { AgentMessage, AgentStatus, SessionUsage } from "@crow-central-agency/shared";
 
 /** A pending permission request awaiting user response */
 export interface PendingPermissionRequest {
@@ -8,43 +8,25 @@ export interface PendingPermissionRequest {
   decisionReason?: string;
 }
 
-/** Display message types for the agent console */
-export const AGENT_MESSAGE_KIND = {
-  TEXT: "text",
-  ACTIVITY: "activity",
-  RESULT: "result",
-  USAGE: "usage",
-} as const;
-
-export type AgentMessageKind = (typeof AGENT_MESSAGE_KIND)[keyof typeof AGENT_MESSAGE_KIND];
-
-/** A rendered message in the agent console */
-export interface AgentMessage {
-  id: string;
-  kind: AgentMessageKind;
-  /** Text content (for text messages) */
-  text?: string;
-  /** Tool name (for activity messages) */
-  toolName?: string;
-  /** Human-readable description (for activity messages) */
-  description?: string;
-  /** Whether this activity is from a subagent */
-  isSubagent?: boolean;
-  /** Result subtype — "success" or error type */
-  subtype?: string;
-  /** Cost in USD (for result messages) */
+/** Last query result info (displayed outside the message list) */
+export interface QueryResult {
+  subtype: string;
   costUsd?: number;
-  /** Duration in ms (for result messages) */
   durationMs?: number;
-  /** Timestamp */
-  timestamp: number;
+}
+
+/** Real-time tool execution state (from agent_activity + agent_tool_progress WS events) */
+export interface ActiveToolUse {
+  toolName: string;
+  description: string;
+  elapsedTimeSeconds?: number;
 }
 
 /** Return type of useAgentInteraction hook */
 export interface AgentInteractionState {
-  /** Rendered messages for the console */
+  /** Committed messages from backend (via REST or agent_message WS) */
   messages: AgentMessage[];
-  /** Currently streaming text (not yet committed to messages) */
+  /** Currently streaming text — display-only buffer, not a message */
   streamingText: string;
   /** Whether the agent is currently streaming */
   isStreaming: boolean;
@@ -54,6 +36,10 @@ export interface AgentInteractionState {
   usage: SessionUsage;
   /** Pending permission requests awaiting user response */
   pendingPermissions: PendingPermissionRequest[];
+  /** Last query result (cost, duration) — displayed outside message list */
+  lastResult?: QueryResult;
+  /** Currently executing tool — real-time indicator */
+  activeToolUse?: ActiveToolUse;
   /** Send a user message */
   sendMessage: (text: string) => void;
   /** Inject a btw message while streaming */

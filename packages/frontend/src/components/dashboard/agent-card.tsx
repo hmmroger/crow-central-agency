@@ -26,6 +26,7 @@ export function AgentCard({ agent }: AgentCardProps) {
     status,
     usage,
     pendingPermissions,
+    activeToolUse,
     sendMessage,
     injectMessage,
     allowPermission,
@@ -58,7 +59,12 @@ export function AgentCard({ agent }: AgentCardProps) {
       )}
 
       {/* Messages — fills remaining space, expand controls truncation */}
-      <AgentCardMessages messages={messages} streamingText={streamingText} expanded={expanded} />
+      <AgentCardMessages
+        messages={messages}
+        streamingText={streamingText}
+        expanded={expanded}
+        activeToolUse={activeToolUse}
+      />
 
       <div className="shrink-0">
         <AgentCardInput

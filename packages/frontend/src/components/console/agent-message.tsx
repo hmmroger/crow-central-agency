@@ -1,46 +1,32 @@
-import { AGENT_MESSAGE_KIND, type AgentMessage } from "../../hooks/use-agent-interaction.types.js";
+import { AGENT_MESSAGE_ROLE, type AgentMessage } from "@crow-central-agency/shared";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
 import { ActivityItem } from "./activity-item.js";
-import { ResultBanner } from "./result-banner.js";
 
 interface AgentMessageProps {
   message: AgentMessage;
 }
 
 /**
- * Renders a single message in the agent console — text, activity, or result.
+ * Renders a single committed message in the agent console by role.
  */
 export function AgentMessageView({ message }: AgentMessageProps) {
-  switch (message.kind) {
-    case AGENT_MESSAGE_KIND.TEXT:
+  switch (message.role) {
+    case AGENT_MESSAGE_ROLE.USER:
+      return (
+        <div className="px-4 py-2 bg-surface-alt">
+          <MarkdownRenderer content={`**You:** ${message.content}`} />
+        </div>
+      );
+
+    case AGENT_MESSAGE_ROLE.AGENT:
       return (
         <div className="px-4 py-2">
-          <MarkdownRenderer content={message.text ?? ""} />
+          <MarkdownRenderer content={message.content} />
         </div>
       );
 
-    case AGENT_MESSAGE_KIND.ACTIVITY:
-      return (
-        <ActivityItem
-          toolName={message.toolName ?? ""}
-          description={message.description ?? ""}
-          isSubagent={message.isSubagent}
-        />
-      );
-
-    case AGENT_MESSAGE_KIND.RESULT:
-      return (
-        <div className="px-4 py-1">
-          <ResultBanner
-            subtype={message.subtype ?? "success"}
-            costUsd={message.costUsd}
-            durationMs={message.durationMs}
-          />
-        </div>
-      );
-
-    case AGENT_MESSAGE_KIND.USAGE:
-      return null;
+    case AGENT_MESSAGE_ROLE.SYSTEM:
+      return <ActivityItem toolName={message.toolName ?? ""} content={message.content} />;
 
     default:
       return null;
