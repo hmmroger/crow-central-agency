@@ -2,6 +2,8 @@ import { env } from "./config/env.js";
 import { logger } from "./utils/logger.js";
 import { createServer } from "./server/create-server.js";
 import { registerHealthRoutes } from "./routes/health.routes.js";
+import { registerAgentRoutes } from "./routes/agent.routes.js";
+import { AgentRegistry } from "./services/agent-registry.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -13,11 +15,16 @@ export interface BootstrapOptions {
 export async function bootstrap(options: BootstrapOptions) {
   logger.info({ env: env.NODE_ENV }, "Bootstrapping Crow Central Agency");
 
+  // Initialize services
+  const registry = new AgentRegistry(env.CROW_SYSTEM_PATH);
+  await registry.initialize();
+
   // Create Fastify server
   const server = await createServer({ serveStatic: options.serveStatic });
 
   // Register routes
   await registerHealthRoutes(server);
+  await registerAgentRoutes(server, registry);
 
   // Start listening
   await server.listen({ host: env.HOST, port: env.PORT });
