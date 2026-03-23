@@ -1,4 +1,4 @@
-import { ArrowLeft, Minimize2, Plus } from "lucide-react";
+import { ArrowLeft, FolderOpen, Minimize2, Plus } from "lucide-react";
 import { AGENT_STATUS, type AgentConfig, type AgentStatus, type SessionUsage } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
 
@@ -9,6 +9,8 @@ interface AgentConsoleHeaderProps {
   isStreaming: boolean;
   onCompact: () => void;
   onNewSession: () => void;
+  onToggleArtifacts?: () => void;
+  showingArtifacts?: boolean;
 }
 
 /** Status badge color map */
@@ -31,6 +33,8 @@ export function AgentConsoleHeader({
   isStreaming,
   onCompact,
   onNewSession,
+  onToggleArtifacts,
+  showingArtifacts,
 }: AgentConsoleHeaderProps) {
   const goToDashboard = useAppStore((state) => state.goToDashboard);
 
@@ -91,6 +95,21 @@ export function AgentConsoleHeader({
             <Plus className="h-3 w-3" />
             New
           </button>
+          {onToggleArtifacts && (
+            <button
+              type="button"
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                showingArtifacts
+                  ? "text-primary bg-primary/10"
+                  : "text-text-muted hover:text-text-primary hover:bg-surface-elevated"
+              }`}
+              onClick={onToggleArtifacts}
+              title="Toggle artifacts"
+            >
+              <FolderOpen className="h-3 w-3" />
+              Artifacts
+            </button>
+          )}
         </div>
       </div>
     </div>

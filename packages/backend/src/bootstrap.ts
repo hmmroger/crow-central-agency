@@ -8,7 +8,11 @@ import { AgentOrchestrator } from "./services/agent-orchestrator.js";
 import { SessionManager } from "./services/session-manager.js";
 import { WsBroadcaster } from "./services/ws-broadcaster.js";
 import { PermissionHandler } from "./services/permission-handler.js";
+import { ArtifactManager } from "./services/artifact-manager.js";
 import { setupWebSocket } from "./server/setup-websocket.js";
+import { registerArtifactRoutes } from "./routes/artifact.routes.js";
+import { createArtifactsMcpServer } from "./mcp/artifacts-mcp-server.js";
+import { createAgentsMcpServer } from "./mcp/agents-mcp-server.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -30,9 +34,15 @@ export async function bootstrap(options: BootstrapOptions) {
   const sessionManager = new SessionManager();
   const broadcaster = new WsBroadcaster();
   const permissionHandler = new PermissionHandler();
+  const artifactManager = new ArtifactManager(env.CROW_SYSTEM_PATH);
 
-  // Wire permission handler into orchestrator
+  // Wire handlers into orchestrator
   orchestrator.setPermissionHandler(permissionHandler);
+  orchestrator.setArtifactManager(artifactManager);
+
+  // Register MCP server factories on orchestrator
+  orchestrator.registerMcpServer("crow-artifacts", (agentId) => createArtifactsMcpServer(agentId, artifactManager));
+  orchestrator.registerMcpServer("crow-agents", (agentId) => createAgentsMcpServer(agentId, orchestrator, registry));
 
   // Wire permission events → broadcaster
   permissionHandler.on("permissionRequest", ({ agentId, toolUseId, toolName, input, decisionReason }) => {
@@ -87,6 +97,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await setupWebSocket(server, broadcaster, orchestrator, permissionHandler);
   await registerHealthRoutes(server);
   await registerAgentRoutes(server, registry, orchestrator, sessionManager);
+  await registerArtifactRoutes(server, artifactManager);
 
   // Start listening
   await server.listen({ host: env.HOST, port: env.PORT });

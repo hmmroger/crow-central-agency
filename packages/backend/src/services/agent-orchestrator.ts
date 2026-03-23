@@ -6,6 +6,7 @@ import type { OrchestratorEvents, RunningAgent, McpServerFactory } from "./agent
 import type { AgentRegistry } from "./agent-registry.js";
 import { processStream } from "../stream/stream-processor.js";
 import type { PermissionHandler } from "./permission-handler.js";
+import type { ArtifactManager } from "./artifact-manager.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
@@ -30,6 +31,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   private stateFilePath: string;
 
   private permissionHandler: PermissionHandler | undefined;
+  private artifactManager: ArtifactManager | undefined;
 
   constructor(
     private readonly registry: AgentRegistry,
@@ -42,6 +44,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   /** Set the permission handler (injected from bootstrap after both are created) */
   setPermissionHandler(handler: PermissionHandler): void {
     this.permissionHandler = handler;
+  }
+
+  /** Set the artifact manager (injected from bootstrap) */
+  setArtifactManager(manager: ArtifactManager): void {
+    this.artifactManager = manager;
   }
 
   /** Load persisted runtime states and run startup recovery */
@@ -174,6 +181,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         state.lastError = undefined;
         this.setStatus(agentId, AGENT_STATUS.IDLE);
         this.emit("agentIdle", { agentId });
+        this.notifyWaitingAgents(agentId);
       } else {
         state.lastError = streamResult.errorSubtype ?? "Unknown error";
         this.setStatus(agentId, AGENT_STATUS.ERROR);
@@ -208,6 +216,46 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         } as SDKUserMessage;
       })()
     );
+  }
+
+  /**
+   * Handle inter-agent invocation: deliver task to target, mark source as waiting.
+   * Called from crow-agents MCP tool.
+   */
+  async invokeInterAgent(sourceAgentId: string, targetAgentId: string, task: string): Promise<void> {
+    const targetConfig = this.registry.get(targetAgentId);
+
+    if (!targetConfig) {
+      throw new AppError(`Target agent not found: ${targetAgentId}`, AppErrorCodes.AgentNotFound);
+    }
+
+    const sourceConfig = this.registry.get(sourceAgentId);
+    const sourceName = sourceConfig?.name ?? sourceAgentId;
+
+    const taskPrompt = [
+      `[Inter-agent request from "${sourceName}" (id: ${sourceAgentId})]`,
+      "",
+      task,
+      "",
+      "Write any output to your artifacts folder so the requesting agent can retrieve them.",
+    ].join("\n");
+
+    const targetState = this.ensureState(targetAgentId);
+
+    if (targetState.status === AGENT_STATUS.IDLE || targetState.status === AGENT_STATUS.ERROR) {
+      this.sendMessage(targetAgentId, taskPrompt).catch((error) => {
+        log.error({ sourceAgentId, targetAgentId, error }, "Failed to deliver inter-agent task");
+      });
+    } else {
+      await this.btwMessage(targetAgentId, taskPrompt);
+    }
+
+    const sourceState = this.ensureState(sourceAgentId);
+    sourceState.waitingForAgentId = targetAgentId;
+    this.setStatus(sourceAgentId, AGENT_STATUS.WAITING_AGENT);
+    await this.persistState();
+
+    log.info({ sourceAgentId, targetAgentId }, "Inter-agent invocation started");
   }
 
   /** Stop an active agent */
@@ -286,6 +334,56 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     state.status = status;
 
     this.emit("agentStatus", { agentId, status });
+  }
+
+  /** Notify agents that were waiting for the given agent to complete */
+  private notifyWaitingAgents(completedAgentId: string): void {
+    for (const [agentId, state] of this.runtimeStates) {
+      if (state.waitingForAgentId !== completedAgentId) {
+        continue;
+      }
+
+      state.waitingForAgentId = undefined;
+      const targetConfig = this.registry.get(completedAgentId);
+      const targetName = targetConfig?.name ?? completedAgentId;
+
+      const notifyWithArtifact = async () => {
+        let notificationPrompt: string;
+
+        if (this.artifactManager) {
+          const recentArtifact = await this.artifactManager.getMostRecentArtifact(completedAgentId);
+
+          if (recentArtifact) {
+            notificationPrompt = [
+              `[Inter-agent response: Agent "${targetName}" has completed your requested task]`,
+              "",
+              `Result artifact: "${recentArtifact.filename}"`,
+              `Use read_artifact(agentId: "${completedAgentId}", filename: "${recentArtifact.filename}") to retrieve the result.`,
+            ].join("\n");
+          } else {
+            notificationPrompt = `[Inter-agent response: Agent "${targetName}" has completed your requested task, but did not produce a response artifact.]`;
+          }
+        } else {
+          notificationPrompt = `[Inter-agent response: Agent "${targetName}" has completed your requested task]`;
+        }
+
+        const running = this.runningAgents.get(agentId);
+
+        if (running) {
+          await this.btwMessage(agentId, notificationPrompt);
+        } else {
+          this.sendMessage(agentId, notificationPrompt).catch((error) => {
+            log.error({ agentId, error }, "Failed to notify waiting agent");
+          });
+        }
+      };
+
+      notifyWithArtifact().catch((error) => {
+        log.error({ agentId, completedAgentId, error }, "Failed to notify waiting agent with artifact check");
+      });
+
+      log.info({ waitingAgentId: agentId, completedAgentId }, "Notifying waiting agent");
+    }
   }
 
   /** Build canUseTool callback that bridges SDK permission requests to our PermissionHandler */
