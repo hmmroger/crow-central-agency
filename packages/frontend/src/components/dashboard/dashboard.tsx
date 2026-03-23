@@ -44,6 +44,7 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
     return (
       <EmptyState
         message={error}
+        messageClassName="text-lg text-error"
         action={
           <button
             type="button"
