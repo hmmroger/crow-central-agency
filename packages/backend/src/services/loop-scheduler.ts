@@ -100,10 +100,12 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
         continue;
       }
 
-      // Seed missing tracking (e.g., server restart) — start counting from now
-      if (!this.lastTickTime.has(agent.id)) {
+      // "every" mode needs a seed on first encounter so the interval starts
+      // from now rather than firing immediately. "at" mode needs no seed —
+      // shouldTickAt handles a missing entry via && short-circuit.
+      if (!this.lastTickTime.has(agent.id) && agent.loop.timeMode === TIME_MODE.EVERY) {
         this.lastTickTime.set(agent.id, now.getTime());
-        log.debug({ agentId: agent.id }, "Loop tracking seeded on first encounter");
+        log.debug({ agentId: agent.id }, "Loop 'every' tracking seeded on first encounter");
 
         continue;
       }
