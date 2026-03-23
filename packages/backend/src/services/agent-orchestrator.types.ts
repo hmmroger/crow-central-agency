@@ -1,4 +1,4 @@
-import type { Query } from "@anthropic-ai/claude-agent-sdk";
+import type { McpSdkServerConfigWithInstance, Query } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentRuntimeState } from "@crow-central-agency/shared";
 import type { EventMap } from "../event-bus/event-bus.types.js";
 
@@ -9,7 +9,7 @@ export interface RunningAgent {
 }
 
 /** Factory function that creates an MCP server config for a specific agent */
-export type McpServerFactory = (agentId: string) => unknown;
+export type McpServerFactory = (agentId: string) => McpSdkServerConfigWithInstance;
 
 /** Events emitted by the AgentOrchestrator — lifecycle only */
 export interface OrchestratorEvents extends EventMap {

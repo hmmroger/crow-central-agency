@@ -1,5 +1,5 @@
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
-import type { SDKUserMessage, CanUseTool } from "@anthropic-ai/claude-agent-sdk";
+import type { SDKUserMessage, CanUseTool, McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import { AGENT_STATUS, AgentRuntimeStateSchema, type AgentRuntimeState } from "@crow-central-agency/shared";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { OrchestratorEvents, RunningAgent, McpServerFactory } from "./agent-orchestrator.types.js";
@@ -113,30 +113,28 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const abortController = new AbortController();
     const toolsOption = agentConfig.toolConfig.mode === "restricted" ? agentConfig.toolConfig.tools : undefined;
 
-    const sdkOptions = {
-      cwd: agentConfig.workspace,
-      model: agentConfig.model,
-      resume: state.sessionId,
-      systemPrompt: appendPrompt
-        ? { type: "preset" as const, preset: "claude_code" as const, append: appendPrompt }
-        : { type: "preset" as const, preset: "claude_code" as const },
-      abortController,
-      includePartialMessages: true,
-      permissionMode: agentConfig.permissionMode,
-      allowedTools: agentConfig.toolConfig.autoApprovedTools,
-      tools: toolsOption,
-      canUseTool: this.buildCanUseTool(agentId),
-      settingSources: agentConfig.settingSources,
-      mcpServers: this.buildMcpServers(agentId),
-      persistSession: true,
-      agentProgressSummaries: true,
-      pathToClaudeCodeExecutable: env.CLAUDE_CLI_PATH,
-    };
-
     // Create query (mcpServers cast will be properly typed when MCP servers are implemented in Phase 5)
     const queryInstance = sdkQuery({
       prompt: message,
-      options: sdkOptions as Parameters<typeof sdkQuery>[0]["options"],
+      options: {
+        cwd: agentConfig.workspace,
+        model: agentConfig.model,
+        resume: state.sessionId,
+        systemPrompt: appendPrompt
+          ? { type: "preset" as const, preset: "claude_code" as const, append: appendPrompt }
+          : { type: "preset" as const, preset: "claude_code" as const },
+        abortController,
+        includePartialMessages: true,
+        permissionMode: agentConfig.permissionMode,
+        allowedTools: agentConfig.toolConfig.autoApprovedTools,
+        tools: toolsOption,
+        canUseTool: this.buildCanUseTool(agentId),
+        settingSources: agentConfig.settingSources,
+        mcpServers: this.buildMcpServers(agentId),
+        persistSession: true,
+        agentProgressSummaries: true,
+        pathToClaudeCodeExecutable: env.CLAUDE_CLI_PATH,
+      },
     });
 
     // Track running agent
@@ -414,8 +412,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   }
 
   /** Build MCP servers for a query using registered factories */
-  private buildMcpServers(agentId: string): Record<string, unknown> {
-    const servers: Record<string, unknown> = {};
+  private buildMcpServers(agentId: string): Record<string, McpSdkServerConfigWithInstance> {
+    const servers: Record<string, McpSdkServerConfigWithInstance> = {};
 
     for (const [name, factory] of this.mcpServerFactories) {
       servers[name] = factory(agentId);
