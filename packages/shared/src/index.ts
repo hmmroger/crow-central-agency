@@ -18,7 +18,6 @@ export {
   AgentConfigSchema,
   CreateAgentInputSchema,
   UpdateAgentInputSchema,
-  LoopConfigSchema as AgentLoopConfigSchema,
   ToolConfigSchema,
   PermissionModeSchema,
   SettingSourceSchema,
@@ -27,9 +26,11 @@ export {
   type AgentConfig,
   type CreateAgentInput,
   type UpdateAgentInput,
-  type LoopConfig as AgentLoopConfig,
   type ToolConfig,
 } from "./schemas/agent.schema.js";
+
+// Schemas — Loop (single source of truth, used by AgentConfigSchema internally)
+export { LoopConfigSchema, type LoopConfig } from "./schemas/loop.schema.js";
 
 // Schemas — API Response
 export {
@@ -63,11 +64,12 @@ export {
 // Schemas — WebSocket (transport-level, with type discriminators)
 export {
   ClientMessageSchema,
+  ServerMessageSchema,
   SubscribeMessageSchema,
   UnsubscribeMessageSchema,
   SendMessageSchema,
   BtwMessageSchema,
-  PermissionResponseSchema as PermissionResponseWsSchema,
+  PermissionResponseWsSchema,
   AgentTextWsMessageSchema,
   AgentActivityWsMessageSchema,
   AgentResultWsMessageSchema,
@@ -82,7 +84,7 @@ export {
   type UnsubscribeMessage,
   type SendMessage,
   type BtwMessage,
-  type PermissionResponse as PermissionResponseWs,
+  type PermissionResponseWs,
   type AgentTextWsMessage,
   type AgentActivityWsMessage,
   type AgentResultWsMessage,
@@ -110,6 +112,3 @@ export {
 
 // Schemas — Artifact
 export { ArtifactMetadataSchema, type ArtifactMetadata } from "./schemas/artifact.schema.js";
-
-// Schemas — Loop (standalone detailed version)
-export { LoopConfigSchema, type LoopConfig } from "./schemas/loop.schema.js";

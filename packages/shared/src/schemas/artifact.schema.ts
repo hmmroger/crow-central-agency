@@ -7,8 +7,8 @@ export const ArtifactMetadataSchema = z.object({
   filename: z.string(),
   agentId: z.string(),
   size: z.number(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 
 export type ArtifactMetadata = z.infer<typeof ArtifactMetadataSchema>;

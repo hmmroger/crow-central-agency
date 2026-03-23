@@ -10,6 +10,8 @@ import {
 } from "@crow-central-agency/shared";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { AgentRegistryEvents } from "./agent-registry.types.js";
+import { AppError } from "../error/app-error.js";
+import { AppErrorCodes } from "../error/app-error.types.js";
 import { logger } from "../utils/logger.js";
 import { generateId } from "../utils/id-utils.js";
 import {
@@ -40,14 +42,23 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     this.agentsBaseDir = path.join(crowSystemPath, "agents");
   }
 
-  /** Load all agent configs from agents.json on startup */
+  /** Load all agent configs from agents.json on startup, validating each against schema */
   async initialize(): Promise<void> {
     await ensureDir(this.agentsBaseDir);
-    const data = await readJsonFile<AgentConfig[]>(this.agentsFilePath);
+    const data = await readJsonFile<unknown[]>(this.agentsFilePath);
 
     if (data) {
-      for (const agent of data) {
-        this.agents.set(agent.id, agent);
+      for (const raw of data) {
+        const result = AgentConfigSchema.safeParse(raw);
+
+        if (result.success) {
+          this.agents.set(result.data.id, result.data);
+        } else {
+          log.warn(
+            { id: (raw as { id?: unknown }).id, issues: result.error.issues },
+            "Skipping invalid agent config on load"
+          );
+        }
       }
     }
 
@@ -97,7 +108,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     const existing = this.agents.get(agentId);
 
     if (!existing) {
-      throw new Error(`Agent not found: ${agentId}`);
+      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
     }
 
     const validated = UpdateAgentInputSchema.parse(input);
@@ -106,8 +117,8 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     const updated: AgentConfig = {
       ...existing,
       ...validated,
-      id: existing.id, // Prevent ID override
-      createdAt: existing.createdAt, // Prevent createdAt override
+      id: existing.id,
+      createdAt: existing.createdAt,
       updatedAt: now,
     };
 
@@ -125,16 +136,16 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     const existing = this.agents.get(agentId);
 
     if (!existing) {
-      throw new Error(`Agent not found: ${agentId}`);
+      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
     }
 
-    // Remove agent folder (AGENT.md + artifacts)
-    const agentDir = this.getAgentDir(agentId);
-    await removeDir(agentDir);
-
-    // Remove from registry
+    // Persist JSON first — orphaned folder is recoverable; orphaned JSON entry is not
     this.agents.delete(agentId);
     await this.persist();
+
+    // Then remove agent folder (AGENT.md + artifacts)
+    const agentDir = this.getAgentDir(agentId);
+    await removeDir(agentDir);
 
     log.info({ agentId, name: existing.name }, "Agent deleted");
     this.emit("agentDeleted", { agentId });
@@ -142,6 +153,10 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
   /** Read the agent's AGENT.md file. Returns undefined if not found. */
   async getAgentMd(agentId: string): Promise<string | undefined> {
+    if (!this.agents.has(agentId)) {
+      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
+    }
+
     const mdPath = this.getAgentMdPath(agentId);
 
     return readTextFile(mdPath);
@@ -150,7 +165,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   /** Write the agent's AGENT.md file */
   async setAgentMd(agentId: string, content: string): Promise<void> {
     if (!this.agents.has(agentId)) {
-      throw new Error(`Agent not found: ${agentId}`);
+      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
     }
 
     const mdPath = this.getAgentMdPath(agentId);

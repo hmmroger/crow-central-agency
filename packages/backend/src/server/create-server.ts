@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyReply } from "fastify";
 import cors from "@fastify/cors";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
@@ -33,14 +33,17 @@ export async function createServer(options: { serveStatic: boolean }) {
 /**
  * Configure static file serving with SPA fallback routing.
  */
-async function setupStatic(server: ReturnType<typeof Fastify>) {
+async function setupStatic(server: FastifyInstance) {
   const fastifyStatic = await import("@fastify/static");
-  const fs = await import("node:fs");
+  const { access } = await import("node:fs/promises");
 
   const staticPath = env.STATIC_PATH;
 
-  if (!fs.existsSync(staticPath)) {
+  try {
+    await access(staticPath);
+  } catch {
     logger.warn({ staticPath }, "Static path does not exist, skipping static file serving");
+
     return;
   }
 
@@ -51,19 +54,11 @@ async function setupStatic(server: ReturnType<typeof Fastify>) {
   });
 
   // SPA fallback — serve index.html for non-API, non-file routes
-  server.setNotFoundHandler(
-    async (
-      request: { url: string },
-      reply: {
-        status: (code: number) => { send: (body: unknown) => void };
-        type: (mime: string) => { sendFile: (file: string, root: string) => void };
-      }
-    ) => {
-      if (request.url.startsWith("/api/") || request.url.startsWith("/ws")) {
-        return reply.status(404).send({ success: false, error: { code: "not_found", message: "Route not found" } });
-      }
-
-      return reply.type("text/html").sendFile("index.html", staticPath);
+  server.setNotFoundHandler(async (request: FastifyRequest, reply: FastifyReply) => {
+    if (request.url.startsWith("/api/") || request.url.startsWith("/ws")) {
+      return reply.status(404).send({ success: false, error: { code: "not_found", message: "Route not found" } });
     }
-  );
+
+    return reply.type("text/html").sendFile("index.html", staticPath);
+  });
 }

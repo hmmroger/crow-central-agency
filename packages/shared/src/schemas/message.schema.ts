@@ -6,7 +6,7 @@ import { z } from "zod";
 export const AgentTextMessageSchema = z.object({
   agentId: z.string(),
   text: z.string(),
-  timestamp: z.string(),
+  timestamp: z.iso.datetime(),
 });
 
 /**
@@ -16,7 +16,7 @@ export const AgentActivityMessageSchema = z.object({
   agentId: z.string(),
   toolName: z.string(),
   description: z.string(),
-  timestamp: z.string(),
+  timestamp: z.iso.datetime(),
 });
 
 /**
@@ -27,7 +27,7 @@ export const AgentResultMessageSchema = z.object({
   success: z.boolean(),
   error: z.string().optional(),
   duration: z.number().optional(),
-  timestamp: z.string(),
+  timestamp: z.iso.datetime(),
 });
 
 /**
@@ -38,7 +38,7 @@ export const AgentUsageMessageSchema = z.object({
   inputTokens: z.number(),
   outputTokens: z.number(),
   cost: z.number(),
-  timestamp: z.string(),
+  timestamp: z.iso.datetime(),
 });
 
 export type AgentTextMessage = z.infer<typeof AgentTextMessageSchema>;

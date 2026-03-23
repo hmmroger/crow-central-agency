@@ -44,7 +44,7 @@ export async function setupWebSocket(server: FastifyInstance, broadcaster: WsBro
           // Phase 3 will add: permission_response
 
           default:
-            log.warn({ type: (message as { type: string }).type }, "Unhandled message type");
+            log.warn({ messageType: message.type }, "Unhandled message type");
             break;
         }
       } catch (error) {
@@ -55,6 +55,11 @@ export async function setupWebSocket(server: FastifyInstance, broadcaster: WsBro
           message: "Failed to process message",
         });
       }
+    });
+
+    socket.on("error", (error) => {
+      log.error(error, "WebSocket socket error");
+      // close event will follow and handle cleanup via removeClient
     });
 
     socket.on("close", () => {

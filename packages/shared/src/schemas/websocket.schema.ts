@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { AGENT_STATUS } from "../constants/agent-status.js";
+import { PERMISSION_DECISION } from "./permission.schema.js";
+import { AgentConfigSchema } from "./agent.schema.js";
 
 // --- Client → Server messages ---
 
@@ -24,11 +27,11 @@ export const BtwMessageSchema = z.object({
   message: z.string(),
 });
 
-export const PermissionResponseSchema = z.object({
+export const PermissionResponseWsSchema = z.object({
   type: z.literal("permission_response"),
   agentId: z.string(),
   toolUseId: z.string(),
-  behavior: z.enum(["allow", "deny"]),
+  decision: z.enum([PERMISSION_DECISION.ALLOW, PERMISSION_DECISION.DENY]),
   message: z.string().optional(),
 });
 
@@ -37,7 +40,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   UnsubscribeMessageSchema,
   SendMessageSchema,
   BtwMessageSchema,
-  PermissionResponseSchema,
+  PermissionResponseWsSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -45,7 +48,7 @@ export type SubscribeMessage = z.infer<typeof SubscribeMessageSchema>;
 export type UnsubscribeMessage = z.infer<typeof UnsubscribeMessageSchema>;
 export type SendMessage = z.infer<typeof SendMessageSchema>;
 export type BtwMessage = z.infer<typeof BtwMessageSchema>;
-export type PermissionResponse = z.infer<typeof PermissionResponseSchema>;
+export type PermissionResponseWs = z.infer<typeof PermissionResponseWsSchema>;
 
 // --- Server → Client messages ---
 
@@ -75,13 +78,20 @@ export const AgentResultWsMessageSchema = z.object({
 export const AgentStatusWsMessageSchema = z.object({
   type: z.literal("agent_status"),
   agentId: z.string(),
-  status: z.string(),
+  status: z.enum([
+    AGENT_STATUS.IDLE,
+    AGENT_STATUS.STREAMING,
+    AGENT_STATUS.WAITING_PERMISSION,
+    AGENT_STATUS.WAITING_AGENT,
+    AGENT_STATUS.COMPACTING,
+    AGENT_STATUS.ERROR,
+  ]),
 });
 
 export const AgentUpdatedWsMessageSchema = z.object({
   type: z.literal("agent_updated"),
   agentId: z.string(),
-  config: z.record(z.string(), z.unknown()),
+  config: AgentConfigSchema,
 });
 
 export const AgentUsageWsMessageSchema = z.object({
@@ -116,6 +126,19 @@ export const ErrorWsMessageSchema = z.object({
   message: z.string(),
 });
 
+/** Server → Client discriminated union for runtime parsing */
+export const ServerMessageSchema = z.discriminatedUnion("type", [
+  AgentTextWsMessageSchema,
+  AgentActivityWsMessageSchema,
+  AgentResultWsMessageSchema,
+  AgentStatusWsMessageSchema,
+  AgentUpdatedWsMessageSchema,
+  AgentUsageWsMessageSchema,
+  PermissionRequestWsMessageSchema,
+  PermissionCancelledWsMessageSchema,
+  ErrorWsMessageSchema,
+]);
+
 export type AgentTextWsMessage = z.infer<typeof AgentTextWsMessageSchema>;
 export type AgentActivityWsMessage = z.infer<typeof AgentActivityWsMessageSchema>;
 export type AgentResultWsMessage = z.infer<typeof AgentResultWsMessageSchema>;
@@ -125,14 +148,4 @@ export type AgentUsageWsMessage = z.infer<typeof AgentUsageWsMessageSchema>;
 export type PermissionRequestWsMessage = z.infer<typeof PermissionRequestWsMessageSchema>;
 export type PermissionCancelledWsMessage = z.infer<typeof PermissionCancelledWsMessageSchema>;
 export type ErrorWsMessage = z.infer<typeof ErrorWsMessageSchema>;
-
-export type ServerMessage =
-  | AgentTextWsMessage
-  | AgentActivityWsMessage
-  | AgentResultWsMessage
-  | AgentStatusWsMessage
-  | AgentUpdatedWsMessage
-  | AgentUsageWsMessage
-  | PermissionRequestWsMessage
-  | PermissionCancelledWsMessage
-  | ErrorWsMessage;
+export type ServerMessage = z.infer<typeof ServerMessageSchema>;

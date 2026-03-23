@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { AppError } from "../error/app-error.js";
+import { AppErrorCodes } from "../error/app-error.types.js";
 
 /**
  * Validate that a resolved path is within the allowed base directory.
@@ -8,8 +10,9 @@ import path from "node:path";
 export function assertWithinBase(filePath: string, baseDir: string): void {
   const resolved = path.resolve(filePath);
   const resolvedBase = path.resolve(baseDir);
+
   if (!resolved.startsWith(resolvedBase + path.sep) && resolved !== resolvedBase) {
-    throw new Error(`Path traversal detected: ${filePath} is outside ${baseDir}`);
+    throw new AppError(`Path traversal detected`, AppErrorCodes.PathTraversal);
   }
 }
 
@@ -20,6 +23,7 @@ export function assertWithinBase(filePath: string, baseDir: string): void {
 export async function readJsonFile<T>(filePath: string): Promise<T | undefined> {
   try {
     const content = await fs.readFile(filePath, "utf-8");
+
     return JSON.parse(content) as T;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -72,14 +76,8 @@ export async function ensureDir(dirPath: string): Promise<void> {
 
 /**
  * Remove a directory and its contents recursively.
- * Does not throw if the directory does not exist.
+ * Does not throw if the directory does not exist (force: true handles ENOENT).
  */
 export async function removeDir(dirPath: string): Promise<void> {
-  try {
-    await fs.rm(dirPath, { recursive: true, force: true });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      throw error;
-    }
-  }
+  await fs.rm(dirPath, { recursive: true, force: true });
 }

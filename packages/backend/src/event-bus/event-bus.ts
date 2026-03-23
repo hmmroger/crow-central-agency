@@ -17,12 +17,14 @@ export class EventBus<TEvents extends EventMap> {
 
   /** Subscribe to an event */
   on<K extends keyof TEvents>(event: K, listener: EventListener<TEvents[K]>): void {
-    if (!this.listeners.has(event)) {
-      this.listeners.set(event, new Set());
+    let eventListeners = this.listeners.get(event);
+
+    if (!eventListeners) {
+      eventListeners = new Set();
+      this.listeners.set(event, eventListeners);
     }
 
-    const eventListeners = this.listeners.get(event);
-    eventListeners?.add(listener as EventListener<unknown>);
+    eventListeners.add(listener as EventListener<unknown>);
   }
 
   /** Unsubscribe from an event */

@@ -4,6 +4,7 @@ import { SETTING_SOURCE } from "../constants/setting-source.js";
 import { TOOL_MODE } from "../constants/tool-mode.js";
 import { TIME_MODE } from "../constants/time-mode.js";
 import { DAY_OF_WEEK } from "../constants/day-of-week.js";
+import { LoopConfigSchema } from "./loop.schema.js";
 
 /** Default model for new agents */
 export const DEFAULT_MODEL = "claude-sonnet-4-6";
@@ -33,26 +34,6 @@ export const DayOfWeekSchema = z.enum([
 
 /** Zod schema for TimeMode values */
 export const TimeModeSchema = z.enum([TIME_MODE.AT, TIME_MODE.EVERY]);
-
-/**
- * Loop configuration for scheduled prompt delivery.
- *
- * timeMode "at" — trigger at a specific time point:
- *   minute: 5         → tick at XX:05 every hour
- *   hour: 14, min: 30 → tick at 14:30 daily
- *
- * timeMode "every" — trigger at recurring intervals:
- *   minute: 15            → tick every 15 minutes
- *   hour: 1, minute: 30   → tick every 1h 30m
- */
-export const LoopConfigSchema = z.object({
-  enabled: z.boolean().default(false),
-  daysOfWeek: z.array(DayOfWeekSchema).default([]),
-  timeMode: TimeModeSchema.default(TIME_MODE.EVERY),
-  hour: z.number().min(0).max(23).optional(),
-  minute: z.number().min(0).max(59).optional(),
-  prompt: z.string().default(""),
-});
 
 /**
  * Tool configuration for agent
@@ -116,5 +97,4 @@ export const UpdateAgentInputSchema = z.object({
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 export type CreateAgentInput = z.infer<typeof CreateAgentInputSchema>;
 export type UpdateAgentInput = z.infer<typeof UpdateAgentInputSchema>;
-export type LoopConfig = z.infer<typeof LoopConfigSchema>;
 export type ToolConfig = z.infer<typeof ToolConfigSchema>;
