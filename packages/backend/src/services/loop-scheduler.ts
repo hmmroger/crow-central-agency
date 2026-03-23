@@ -1,4 +1,4 @@
-import type { AgentConfig, LoopConfig } from "@crow-central-agency/shared";
+import { TIME_MODE, type AgentConfig, type LoopConfig } from "@crow-central-agency/shared";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { LoopSchedulerEvents } from "./loop-scheduler.types.js";
 import type { AgentRegistry } from "./agent-registry.js";
@@ -67,9 +67,21 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
     });
 
     this.registry.on("agentUpdated", ({ agent }) => {
-      // Seed timestamp to current time so intervals restart from now
-      this.lastTickTime.set(agent.id, Date.now());
-      log.debug({ agentId: agent.id }, "Loop tracking reset after config update");
+      if (!agent.loop.enabled) {
+        this.lastTickTime.delete(agent.id);
+
+        return;
+      }
+
+      if (agent.loop.timeMode === TIME_MODE.EVERY) {
+        // Restart interval countdown from update time
+        this.lastTickTime.set(agent.id, Date.now());
+        log.debug({ agentId: agent.id }, "Loop 'every' tracking reset after config update");
+      } else {
+        // "at" mode — clear de-dup guard so the next matching wall-clock time fires normally
+        this.lastTickTime.delete(agent.id);
+        log.debug({ agentId: agent.id }, "Loop 'at' de-dup guard cleared after config update");
+      }
     });
 
     this.registry.on("agentDeleted", ({ agentId }) => {
