@@ -25,3 +25,9 @@ export const AGENTS_CONFIG_FILENAME = "agents.json";
 
 /** Filename for the orchestrator state file under CROW_SYSTEM_PATH */
 export const ORCHESTRATOR_STATE_FILENAME = "orchestrator-state.json";
+
+/** Subdirectory name under each agent's folder for artifact files */
+export const AGENT_ARTIFACTS_DIR_NAME = "artifacts";
+
+/** Filename for the per-agent instruction file */
+export const AGENT_MD_FILENAME = "AGENT.md";

@@ -284,8 +284,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     });
   }
 
-  /** Cleanup when an agent is deleted */
-  cleanup(agentId: string): void {
+  /** Cleanup when an agent is deleted — triggered by registry agentDeleted event */
+  private cleanup(agentId: string): void {
     this.permissionHandler.cancelAllForAgent(agentId);
     const running = this.runningAgents.get(agentId);
 

@@ -5,7 +5,7 @@ import { assertWithinBase, ensureDir } from "../utils/fs-utils.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
-import { AGENTS_DIR_NAME } from "../config/constants.js";
+import { AGENTS_DIR_NAME, AGENT_ARTIFACTS_DIR_NAME } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "artifact-manager" });
@@ -100,7 +100,7 @@ export class ArtifactManager {
     const agentDir = path.join(this.agentsBaseDir, agentId);
     assertWithinBase(agentDir, this.agentsBaseDir);
 
-    return path.join(agentDir, "artifacts");
+    return path.join(agentDir, AGENT_ARTIFACTS_DIR_NAME);
   }
 
   /** Get the full path to an artifact file with traversal protection */

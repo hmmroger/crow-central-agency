@@ -14,7 +14,7 @@ import type { WsBroadcaster } from "./ws-broadcaster.js";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
-import { AGENTS_DIR_NAME, AGENTS_CONFIG_FILENAME } from "../config/constants.js";
+import { AGENTS_DIR_NAME, AGENTS_CONFIG_FILENAME, AGENT_MD_FILENAME } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 import { generateId } from "../utils/id-utils.js";
 import {
@@ -193,7 +193,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
   /** Get the path to the agent's AGENT.md file */
   private getAgentMdPath(agentId: string): string {
-    return path.join(this.getAgentDir(agentId), "AGENT.md");
+    return path.join(this.getAgentDir(agentId), AGENT_MD_FILENAME);
   }
 
   /** Persist all agent configs to agents.json */
