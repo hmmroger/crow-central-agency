@@ -35,6 +35,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   const [autoApprovedTools, setAutoApprovedTools] = useState<string[]>([]);
   const [availableTools, setAvailableTools] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [loadingAgent, setLoadingAgent] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
 
   // Load existing agent config when editing
@@ -44,24 +45,34 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     }
 
     const loadAgent = async () => {
-      const response = await apiClient.get<AgentConfig>(`/agents/${agentId}`);
+      setLoadingAgent(true);
 
-      if (response.success) {
-        const agent = response.data;
-        setName(agent.name);
-        setDescription(agent.description);
-        setWorkspace(agent.workspace);
-        setPersona(agent.persona);
-        setModel(agent.model);
-        setPermissionMode(agent.permissionMode);
-        setToolMode(agent.toolConfig.mode);
-        setSelectedTools(agent.toolConfig.tools ?? []);
-        setAutoApprovedTools(agent.toolConfig.autoApprovedTools ?? []);
-        setAvailableTools(agent.availableTools ?? []);
+      try {
+        const response = await apiClient.get<AgentConfig>(`/agents/${agentId}`);
+
+        if (response.success) {
+          const agent = response.data;
+          setName(agent.name);
+          setDescription(agent.description);
+          setWorkspace(agent.workspace);
+          setPersona(agent.persona);
+          setModel(agent.model);
+          setPermissionMode(agent.permissionMode);
+          setToolMode(agent.toolConfig.mode);
+          setSelectedTools(agent.toolConfig.tools ?? []);
+          setAutoApprovedTools(agent.toolConfig.autoApprovedTools ?? []);
+          setAvailableTools(agent.availableTools ?? []);
+        } else {
+          setError(response.error.message);
+        }
+      } catch {
+        setError("Failed to load agent");
+      } finally {
+        setLoadingAgent(false);
       }
     };
 
-    loadAgent();
+    void loadAgent();
   }, [agentId]);
 
   /** Save — create or update */
@@ -137,11 +148,24 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     goToDashboard,
   ]);
 
-  /** Toggle a tool in the selected tools list */
+  /** Change tool mode and clear auto-approved tools to prevent stale entries */
+  const handleToolModeChange = useCallback((mode: ToolMode) => {
+    setToolMode(mode);
+    setAutoApprovedTools([]);
+  }, []);
+
+  /** Toggle a tool in the selected tools list. Also removes from auto-approved if deselected. */
   const toggleTool = useCallback((tool: string) => {
-    setSelectedTools((prev) =>
-      prev.includes(tool) ? prev.filter((selectedTool) => selectedTool !== tool) : [...prev, tool]
-    );
+    setSelectedTools((prev) => {
+      const isRemoving = prev.includes(tool);
+      const next = isRemoving ? prev.filter((selectedTool) => selectedTool !== tool) : [...prev, tool];
+
+      if (isRemoving) {
+        setAutoApprovedTools((approved) => approved.filter((approvedTool) => approvedTool !== tool));
+      }
+
+      return next;
+    });
   }, []);
 
   /** Toggle a tool in the auto-approved list */
@@ -154,6 +178,10 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   /** The source of tools for auto-approved selection depends on tool mode */
   const autoApprovedSource = toolMode === TOOL_MODE.RESTRICTED ? selectedTools : availableTools;
 
+  if (loadingAgent) {
+    return <div className="h-full flex items-center justify-center text-text-muted">Loading agent...</div>;
+  }
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-2xl mx-auto p-6">
@@ -161,6 +189,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-xl font-semibold text-text-primary">{isEditing ? "Edit Agent" : "Create Agent"}</h2>
           <button
+            type="button"
             className="px-3 py-1.5 rounded-md text-sm text-text-muted hover:text-text-primary transition-colors"
             onClick={goToDashboard}
           >
@@ -250,12 +279,12 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
             <div className="flex gap-2 mb-3">
               <ToggleButton
                 active={toolMode === TOOL_MODE.UNRESTRICTED}
-                onClick={() => setToolMode(TOOL_MODE.UNRESTRICTED)}
+                onClick={() => handleToolModeChange(TOOL_MODE.UNRESTRICTED)}
                 label="Unrestricted"
               />
               <ToggleButton
                 active={toolMode === TOOL_MODE.RESTRICTED}
-                onClick={() => setToolMode(TOOL_MODE.RESTRICTED)}
+                onClick={() => handleToolModeChange(TOOL_MODE.RESTRICTED)}
                 label="Restricted"
               />
             </div>
@@ -300,6 +329,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           {/* Save */}
           <div className="pt-4 border-t border-border-subtle">
             <button
+              type="button"
               className="px-4 py-2 rounded-md bg-primary text-text-primary font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
               onClick={handleSave}
               disabled={saving || !name.trim() || !workspace.trim()}
@@ -325,13 +355,13 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
 
 /** Toggle button for tool mode selection */
 function ToggleButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+  const activeClass = "bg-primary/20 text-primary border border-primary/30";
+  const inactiveClass = "bg-surface-inset text-text-muted border border-border-subtle hover:text-text-secondary";
+
   return (
     <button
-      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-        active
-          ? "bg-primary/20 text-primary border border-primary/30"
-          : "bg-surface-inset text-text-muted border border-border-subtle hover:text-text-secondary"
-      }`}
+      type="button"
+      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${active ? activeClass : inactiveClass}`}
       onClick={onClick}
     >
       {label}
@@ -341,13 +371,13 @@ function ToggleButton({ active, onClick, label }: { active: boolean; onClick: ()
 
 /** Chip button for tool selection */
 function ChipButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  const activeClass = "bg-primary/15 text-primary border border-primary/25";
+  const inactiveClass = "bg-surface-inset text-text-muted border border-border-subtle hover:text-text-secondary";
+
   return (
     <button
-      className={`px-2 py-1 rounded text-xs font-mono transition-colors ${
-        active
-          ? "bg-primary/15 text-primary border border-primary/25"
-          : "bg-surface-inset text-text-muted border border-border-subtle hover:text-text-secondary"
-      }`}
+      type="button"
+      className={`px-2 py-1 rounded text-xs font-mono transition-colors ${active ? activeClass : inactiveClass}`}
       onClick={onClick}
     >
       {label}
