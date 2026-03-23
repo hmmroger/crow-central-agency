@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
 import {
   PERMISSION_MODE,
+  SETTING_SOURCE,
   TOOL_MODE,
   TIME_MODE,
   DEFAULT_MODEL,
@@ -10,6 +11,7 @@ import {
   type CreateAgentInput,
   type UpdateAgentInput,
   type PermissionMode,
+  type SettingSource,
   type ToolMode,
   type TimeMode,
   type DayOfWeek,
@@ -38,6 +40,11 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   const [persona, setPersona] = useState("");
   const [model, setModel] = useState(DEFAULT_MODEL);
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(PERMISSION_MODE.DEFAULT);
+  const [settingSources, setSettingSources] = useState<SettingSource[]>([
+    SETTING_SOURCE.USER,
+    SETTING_SOURCE.PROJECT,
+    SETTING_SOURCE.LOCAL,
+  ]);
   const [toolMode, setToolMode] = useState<ToolMode>(TOOL_MODE.UNRESTRICTED);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [autoApprovedTools, setAutoApprovedTools] = useState<string[]>([]);
@@ -76,6 +83,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           setPersona(agent.persona);
           setModel(agent.model);
           setPermissionMode(agent.permissionMode);
+          setSettingSources(agent.settingSources);
           setToolMode(agent.toolConfig.mode);
           setSelectedTools(agent.toolConfig.tools ?? []);
           setAutoApprovedTools(agent.toolConfig.autoApprovedTools ?? []);
@@ -123,6 +131,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           persona,
           model,
           permissionMode,
+          settingSources,
           toolConfig: {
             mode: toolMode,
             tools: toolMode === TOOL_MODE.RESTRICTED ? selectedTools : undefined,
@@ -147,6 +156,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           persona: persona || undefined,
           model: model !== DEFAULT_MODEL ? model : undefined,
           permissionMode,
+          settingSources,
           toolConfig: {
             mode: toolMode,
             tools: toolMode === TOOL_MODE.RESTRICTED ? selectedTools : undefined,
@@ -181,6 +191,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     model,
     permissionMode,
     toolMode,
+    settingSources,
     selectedTools,
     autoApprovedTools,
     loopEnabled,
@@ -350,6 +361,30 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
                 <option value={PERMISSION_MODE.DONT_ASK}>Don&apos;t Ask</option>
                 <option value={PERMISSION_MODE.BYPASS_PERMISSIONS}>Bypass Permissions</option>
               </select>
+            </FieldGroup>
+
+            {/* Setting Sources */}
+            <FieldGroup label="Setting Sources">
+              <p className="text-xs text-text-muted mb-2">SDK configuration sources included in queries.</p>
+              <div className="flex gap-3">
+                {([SETTING_SOURCE.USER, SETTING_SOURCE.PROJECT, SETTING_SOURCE.LOCAL] as const).map((source) => (
+                  <label key={source} className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settingSources.includes(source)}
+                      onChange={() => {
+                        setSettingSources((prev) =>
+                          prev.includes(source)
+                            ? prev.filter((existingSource) => existingSource !== source)
+                            : [...prev, source]
+                        );
+                      }}
+                      className="rounded border-border-subtle bg-surface-inset text-primary focus:ring-primary/30"
+                    />
+                    <span className="text-xs text-text-secondary capitalize">{source}</span>
+                  </label>
+                ))}
+              </div>
             </FieldGroup>
 
             {/* Tool Mode */}
