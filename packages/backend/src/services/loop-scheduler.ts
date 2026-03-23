@@ -59,10 +59,11 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
   /** Wire up registry lifecycle events — owns its own listeners */
   private listenToRegistryEvents(): void {
     this.registry.on("agentCreated", ({ agent }) => {
-      if (agent.loop.enabled) {
-        // Seed timestamp so "every" mode counts from creation, not fires immediately
+      if (agent.loop.enabled && agent.loop.timeMode === TIME_MODE.EVERY) {
+        // Seed so interval counts from creation, not fires immediately on first tick.
+        // "at" mode needs no entry — first matching wall-clock time fires normally.
         this.lastTickTime.set(agent.id, Date.now());
-        log.debug({ agentId: agent.id }, "Loop tracking seeded for new agent");
+        log.debug({ agentId: agent.id }, "Loop 'every' tracking seeded for new agent");
       }
     });
 
