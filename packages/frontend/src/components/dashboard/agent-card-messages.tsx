@@ -4,29 +4,36 @@ import { MarkdownRenderer } from "../common/markdown-renderer.js";
 interface AgentCardMessagesProps {
   messages: AgentMessage[];
   streamingText: string;
+  expanded: boolean;
   maxMessages?: number;
 }
 
-const DEFAULT_MAX_MESSAGES = 5;
+const COLLAPSED_MAX_MESSAGES = 5;
+const EXPANDED_MAX_MESSAGES = 20;
 
 /**
- * Compact transcript showing the last N messages in the dashboard card.
+ * Message transcript for dashboard agent cards.
+ * Collapsed: constrained height with line-clamp.
+ * Expanded: taller area, no truncation.
  */
-export function AgentCardMessages({
-  messages,
-  streamingText,
-  maxMessages = DEFAULT_MAX_MESSAGES,
-}: AgentCardMessagesProps) {
-  const recentMessages = messages.slice(-maxMessages);
+export function AgentCardMessages({ messages, streamingText, expanded, maxMessages }: AgentCardMessagesProps) {
+  const limit = maxMessages ?? (expanded ? EXPANDED_MAX_MESSAGES : COLLAPSED_MAX_MESSAGES);
+  const recentMessages = messages.slice(-limit);
 
   if (recentMessages.length === 0 && !streamingText) {
-    return <div className="text-xs text-text-muted italic py-1">No messages yet</div>;
+    return <div className="flex-1 min-h-0 flex items-center text-xs text-text-muted italic">No messages yet</div>;
   }
 
+  const containerClass = expanded
+    ? "space-y-1 text-xs flex-1 min-h-0 overflow-y-auto"
+    : "space-y-0.5 text-xs flex-1 min-h-0 overflow-y-auto";
+
+  const messageClass = expanded ? "" : "line-clamp-2";
+
   return (
-    <div className="space-y-0.5 text-xs max-h-24 overflow-y-auto">
+    <div className={containerClass}>
       {recentMessages.map((message) => (
-        <div key={message.id} className="overflow-hidden line-clamp-2">
+        <div key={message.id} className={`overflow-hidden ${messageClass}`}>
           {message.kind === AGENT_MESSAGE_KIND.TEXT && <MarkdownRenderer content={message.text ?? ""} />}
           {message.kind === AGENT_MESSAGE_KIND.ACTIVITY && (
             <span className="text-text-muted">

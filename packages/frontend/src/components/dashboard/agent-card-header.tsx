@@ -30,34 +30,34 @@ export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: Age
     <div className="flex items-start justify-between">
       <div className="flex-1 min-w-0 cursor-pointer" onClick={() => goToConsole(agent.id)}>
         <div className="flex items-center gap-2">
-          <span className={`shrink-0 w-2 h-2 rounded-full ${STATUS_COLOR_MAP[status]}`} />
+          <span className={`shrink-0 w-2.5 h-2.5 rounded-full ${STATUS_COLOR_MAP[status]}`} />
           <h3 className="text-sm font-semibold text-text-primary truncate">{agent.name}</h3>
         </div>
-        {agent.description && <p className="mt-0.5 ml-4 text-xs text-text-muted truncate">{agent.description}</p>}
+        {agent.description && <p className="mt-0.5 ml-5 text-xs text-text-muted truncate">{agent.description}</p>}
       </div>
 
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0">
         <button
           type="button"
-          className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
+          className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
           onClick={(event) => {
             event.stopPropagation();
             onToggleExpand();
           }}
           title={expanded ? "Collapse" : "Expand"}
         >
-          {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
         <button
           type="button"
-          className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
+          className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
           onClick={(event) => {
             event.stopPropagation();
             goToAgentEditor(agent.id);
           }}
           title="Edit agent"
         >
-          <Settings className="h-3 w-3" />
+          <Settings className="h-4 w-4" />
         </button>
       </div>
     </div>

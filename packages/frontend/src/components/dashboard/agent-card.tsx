@@ -12,7 +12,9 @@ interface AgentCardProps {
 }
 
 /**
- * Rich agent card with mini-console, usage, permissions, and quick-send.
+ * Rich agent card — full control panel always visible.
+ * Collapsed shows everything with truncated messages.
+ * Expanded doubles message area height and removes truncation.
  * Each card owns its own useAgentInteraction(agentId) instance.
  */
 export function AgentCard({ agent }: AgentCardProps) {
@@ -31,33 +33,35 @@ export function AgentCard({ agent }: AgentCardProps) {
   } = useAgentInteraction(agent.id);
 
   return (
-    <div className="flex flex-col gap-2 p-3 rounded-lg bg-surface border border-border-subtle hover:border-border transition-colors">
-      <AgentCardHeader
-        agent={agent}
-        status={status}
-        expanded={expanded}
-        onToggleExpand={() => setExpanded(!expanded)}
-      />
+    <div
+      className={`flex flex-col gap-3 p-4 rounded-lg bg-surface border border-border-subtle hover:border-border transition-colors ${expanded ? "h-96" : "h-48"}`}
+    >
+      <div className="shrink-0">
+        <AgentCardHeader
+          agent={agent}
+          status={status}
+          expanded={expanded}
+          onToggleExpand={() => setExpanded(!expanded)}
+        />
+      </div>
 
-      {/* Meta row — model + usage */}
-      <div className="flex items-center justify-between ml-4">
-        <span className="text-xs font-mono text-text-muted px-1.5 py-0.5 rounded bg-surface-inset">{agent.model}</span>
+      <div className="shrink-0">
         <AgentCardUsage usage={usage} />
       </div>
 
-      {/* Permission indicator */}
-      <AgentCardPermission permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
+      <div className="shrink-0">
+        <AgentCardPermission permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
+      </div>
 
-      {/* Expanded content — mini-console + input */}
-      {expanded && (
-        <div className="space-y-2 pt-1 border-t border-border-subtle">
-          <AgentCardMessages messages={messages} streamingText={streamingText} />
-          <AgentCardInput
-            onSend={(text) => (isStreaming ? injectMessage(text) : sendMessage(text))}
-            isStreaming={isStreaming}
-          />
-        </div>
-      )}
+      {/* Messages — fills remaining space, expand controls truncation */}
+      <AgentCardMessages messages={messages} streamingText={streamingText} expanded={expanded} />
+
+      <div className="shrink-0">
+        <AgentCardInput
+          onSend={(text) => (isStreaming ? injectMessage(text) : sendMessage(text))}
+          isStreaming={isStreaming}
+        />
+      </div>
     </div>
   );
 }
