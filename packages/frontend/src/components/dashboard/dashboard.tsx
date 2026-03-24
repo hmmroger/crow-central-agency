@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
-import { useHeader } from "../../hooks/use-header.js";
+import { HeaderPortal } from "../layout/header-portal.js";
 import { AgentCard } from "./agent-card.js";
 import { DashboardFilter } from "./dashboard-filter.js";
 import { LoadingSkeleton } from "../common/loading-skeleton.js";
@@ -22,21 +22,12 @@ interface DashboardProps {
 export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
   const goToAgentEditor = useAppStore((state) => state.goToAgentEditor);
   const [searchQuery, setSearchQuery] = useState("");
-  const { setTitle, setActions } = useHeader();
   const handleNewAgent = useCallback(() => goToAgentEditor(), [goToAgentEditor]);
-
-  useEffect(() => {
-    setTitle("Agents");
-  }, [setTitle]);
 
   const headerActions = useMemo(
     () => [{ key: "new", label: "New Agent", icon: Plus, onClick: handleNewAgent, isPrimary: true }],
     [handleNewAgent]
   );
-
-  useEffect(() => {
-    setActions(headerActions);
-  }, [setActions, headerActions]);
 
   // Filter agents by search query
   const filteredAgents = useMemo(() => {
@@ -85,6 +76,8 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
 
   return (
     <div className="h-full p-6">
+      <HeaderPortal title="Agents" actions={headerActions} />
+
       {/* Filter bar */}
       <div className="flex items-center justify-end mb-4">
         <DashboardFilter searchQuery={searchQuery} onSearchChange={setSearchQuery} />

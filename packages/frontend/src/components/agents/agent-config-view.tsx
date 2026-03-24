@@ -19,7 +19,7 @@ import {
 } from "@crow-central-agency/shared";
 import { apiClient } from "../../services/api-client.js";
 import { useAppStore } from "../../stores/app-store.js";
-import { useHeader } from "../../hooks/use-header.js";
+import { HeaderPortal } from "../layout/header-portal.js";
 import { LoopConfigPanel } from "./loop-config-panel.js";
 import { AgentMdEditor } from "./agentmd-editor.js";
 import { GenerateModal } from "./generate-modal.js";
@@ -216,11 +216,8 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     }
   }, [agentId, goBack]);
 
-  // Register header content
-  const { setTitle, setActions } = useHeader();
-  useEffect(() => {
-    setTitle(isEditing ? name || "Edit Agent" : "Create Agent");
-  }, [setTitle, isEditing, name]);
+  // Header actions
+  const headerTitle = isEditing ? name || "Edit Agent" : "Create Agent";
 
   const headerActions = useMemo(() => {
     const canSave = !saving && !!name.trim() && !!workspace.trim();
@@ -234,10 +231,6 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
         ]
       : [{ key: "create", label: createLabel, onClick: handleSave, isPrimary: true, disabled: !canSave }];
   }, [isEditing, saving, name, workspace, handleSave, handleDelete]);
-
-  useEffect(() => {
-    setActions(headerActions);
-  }, [setActions, headerActions]);
 
   /** Change tool mode — preserve custom tools (MCP), clear source-list-derived approvals */
   const handleToolModeChange = useCallback(
@@ -294,6 +287,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
 
   return (
     <div className="h-full overflow-y-auto">
+      <HeaderPortal title={headerTitle} actions={headerActions} />
       <div className="max-w-10/12 mx-auto p-6">
         {/* Error */}
         {error && (

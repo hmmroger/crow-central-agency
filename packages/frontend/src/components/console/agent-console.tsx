@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { FolderOpen, Minimize2, Plus } from "lucide-react";
 import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAgentInteraction } from "../../hooks/use-agent-interaction.js";
-import { useHeader } from "../../hooks/use-header.js";
+import { HeaderPortal } from "../layout/header-portal.js";
 import { ConsoleStatusBar } from "./console-status-bar.js";
 import { MessageList } from "./message-list.js";
 import { MessageInput } from "./message-input.js";
@@ -15,7 +15,7 @@ interface AgentConsoleProps {
 
 /**
  * Full agent console view — status bar + message list + input + artifact sidebar.
- * Registers navigation title and actions in the app header via useHeader.
+ * Registers navigation title and actions in the app header via HeaderPortal.
  */
 export function AgentConsole({ agent }: AgentConsoleProps) {
   const [showArtifacts, setShowArtifacts] = useState(false);
@@ -36,12 +36,7 @@ export function AgentConsole({ agent }: AgentConsoleProps) {
     denyPermission,
   } = useAgentInteraction(agent.id);
 
-  const { setTitle, setActions } = useHeader();
   const toggleArtifacts = useCallback(() => setShowArtifacts((prev) => !prev), []);
-
-  useEffect(() => {
-    setTitle(agent.name);
-  }, [setTitle, agent.name]);
 
   const headerActions = useMemo(
     () => [
@@ -52,12 +47,10 @@ export function AgentConsole({ agent }: AgentConsoleProps) {
     [compact, isStreaming, newConversation, toggleArtifacts]
   );
 
-  useEffect(() => {
-    setActions(headerActions);
-  }, [setActions, headerActions]);
-
   return (
     <div className="flex h-full">
+      <HeaderPortal title={agent.name} actions={headerActions} />
+
       {/* Main console area */}
       <div className="flex flex-col flex-1 min-w-0">
         <ConsoleStatusBar agent={agent} status={status} usage={usage} />
