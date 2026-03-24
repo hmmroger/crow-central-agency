@@ -274,9 +274,9 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           <div className="mb-6 p-3 rounded-md bg-error/10 border border-error/20 text-error text-sm">{error}</div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="flex flex-col lg:flex-row gap-8">
           {/* Left column — settings */}
-          <div className="space-y-6">
+          <div className="flex flex-col flex-1 min-w-0 space-y-6">
             {/* Name */}
             <FieldGroup label="Name">
               <input
@@ -504,7 +504,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           </div>
 
           {/* Right column — AGENT.md editor */}
-          <div className="flex flex-col">
+          <div className="flex flex-col flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1.5 shrink-0">
               <label className="text-sm font-medium text-text-secondary">AGENT.md</label>
               <button
