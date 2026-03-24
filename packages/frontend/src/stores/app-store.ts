@@ -42,22 +42,37 @@ export const useAppStore = create<AppState>((set) => ({
   viewStack: [],
 
   goToDashboard: () =>
-    set({
-      currentView: DASHBOARD_VIEW,
-      viewStack: [],
+    set((state) => {
+      if (state.currentView.viewMode === VIEW_MODE.DASHBOARD) {
+        return state;
+      }
+
+      return { currentView: DASHBOARD_VIEW, viewStack: [] };
     }),
 
   goToConsole: (agentId: string) =>
-    set((state) => ({
-      viewStack: [...state.viewStack, state.currentView].slice(-MAX_VIEW_STACK_DEPTH),
-      currentView: { viewMode: VIEW_MODE.CONSOLE, activeAgentId: agentId },
-    })),
+    set((state) => {
+      if (state.currentView.viewMode === VIEW_MODE.CONSOLE && state.currentView.activeAgentId === agentId) {
+        return state;
+      }
+
+      return {
+        viewStack: [...state.viewStack, state.currentView].slice(-MAX_VIEW_STACK_DEPTH),
+        currentView: { viewMode: VIEW_MODE.CONSOLE, activeAgentId: agentId },
+      };
+    }),
 
   goToAgentEditor: (agentId?: string) =>
-    set((state) => ({
-      viewStack: [...state.viewStack, state.currentView].slice(-MAX_VIEW_STACK_DEPTH),
-      currentView: { viewMode: VIEW_MODE.AGENT_EDITOR, activeAgentId: agentId },
-    })),
+    set((state) => {
+      if (state.currentView.viewMode === VIEW_MODE.AGENT_EDITOR && state.currentView.activeAgentId === agentId) {
+        return state;
+      }
+
+      return {
+        viewStack: [...state.viewStack, state.currentView].slice(-MAX_VIEW_STACK_DEPTH),
+        currentView: { viewMode: VIEW_MODE.AGENT_EDITOR, activeAgentId: agentId },
+      };
+    }),
 
   goBack: () =>
     set((state) => {
