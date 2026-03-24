@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Trash2 } from "lucide-react";
 import {
   PERMISSION_MODE,
   SETTING_SOURCE,
@@ -19,6 +19,7 @@ import {
 } from "@crow-central-agency/shared";
 import { apiClient } from "../../services/api-client.js";
 import { useAppStore } from "../../stores/app-store.js";
+import { useHeader } from "../../hooks/use-header.js";
 import { LoopConfigPanel } from "./loop-config-panel.js";
 import { AgentMdEditor } from "./agentmd-editor.js";
 import { GenerateModal } from "./generate-modal.js";
@@ -32,7 +33,7 @@ interface AgentConfigViewProps {
  * Navigated to via view-state, not a modal.
  */
 export function AgentConfigView({ agentId }: AgentConfigViewProps) {
-  const goToDashboard = useAppStore((state) => state.goToDashboard);
+  const goBack = useAppStore((state) => state.goBack);
   const isEditing = agentId !== undefined;
 
   const [name, setName] = useState("");
@@ -172,7 +173,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
         }
       }
 
-      goToDashboard();
+      goBack();
     } catch {
       setError("Failed to save agent");
     } finally {
@@ -198,8 +199,49 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     loopMinute,
     loopPrompt,
     agentMd,
-    goToDashboard,
+    goBack,
   ]);
+
+  /** Delete the agent and return to dashboard */
+  const handleDelete = useCallback(async () => {
+    if (!agentId) {
+      return;
+    }
+
+    try {
+      await apiClient.del(`/agents/${agentId}`);
+      goBack();
+    } catch {
+      setError("Failed to delete agent");
+    }
+  }, [agentId, goBack]);
+
+  // Register header content — nav + actions
+  const headerActions = isEditing
+    ? [
+        { key: "delete", label: "Delete", icon: Trash2, onClick: handleDelete, isDestructive: true },
+        {
+          key: "save",
+          label: saving ? "Saving..." : "Save",
+          onClick: handleSave,
+          isPrimary: true,
+          disabled: saving || !name.trim() || !workspace.trim(),
+        },
+      ]
+    : [
+        {
+          key: "create",
+          label: saving ? "Creating..." : "Create",
+          onClick: handleSave,
+          isPrimary: true,
+          disabled: saving || !name.trim() || !workspace.trim(),
+        },
+      ];
+
+  useHeader({
+    nav: { title: isEditing ? name || "Edit Agent" : "Create Agent" },
+    actions: headerActions,
+  });
 
   /** Change tool mode — preserve custom tools (MCP), clear source-list-derived approvals */
   const handleToolModeChange = useCallback(
@@ -257,18 +299,6 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-10/12 mx-auto p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-xl font-semibold text-text-primary">{isEditing ? "Edit Agent" : "Create Agent"}</h2>
-          <button
-            type="button"
-            className="px-3 py-1.5 rounded-md text-sm text-text-muted hover:text-text-primary transition-colors"
-            onClick={goToDashboard}
-          >
-            Cancel
-          </button>
-        </div>
-
         {/* Error */}
         {error && (
           <div className="mb-6 p-3 rounded-md bg-error/10 border border-error/20 text-error text-sm">{error}</div>
@@ -489,18 +519,6 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
                 onPromptChange={setLoopPrompt}
               />
             </FieldGroup>
-
-            {/* Save */}
-            <div className="pt-4 border-t border-border-subtle">
-              <button
-                type="button"
-                className="px-4 py-2 rounded-md bg-primary text-text-primary font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
-                onClick={handleSave}
-                disabled={saving || !name.trim() || !workspace.trim()}
-              >
-                {saving ? "Saving..." : isEditing ? "Save Changes" : "Create Agent"}
-              </button>
-            </div>
           </div>
 
           {/* Right column — AGENT.md editor */}

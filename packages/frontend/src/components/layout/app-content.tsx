@@ -5,16 +5,15 @@ import { AgentConsole } from "../console/agent-console.js";
 import { useAgents } from "../../hooks/use-agents.js";
 
 /**
- * App content — reads viewMode from app-store and renders the active view.
+ * App content — reads currentView from app-store and renders the active view.
  * View-state-based navigation, no URL router.
  * useAgents is hoisted here so console and dashboard share one fetch/WS listener.
  */
 export function AppContent() {
-  const viewMode = useAppStore((state) => state.viewMode);
-  const activeAgentId = useAppStore((state) => state.activeAgentId);
+  const currentView = useAppStore((state) => state.currentView);
   const { agents, loading, error, refetch } = useAgents();
 
-  switch (viewMode) {
+  switch (currentView.viewMode) {
     case VIEW_MODE.DASHBOARD:
       return (
         <main className="flex-1 overflow-hidden">
@@ -23,9 +22,11 @@ export function AppContent() {
       );
 
     case VIEW_MODE.CONSOLE: {
-      const agent = activeAgentId ? agents.find((agentItem) => agentItem.id === activeAgentId) : undefined;
+      const agent = currentView.activeAgentId
+        ? agents.find((agentItem) => agentItem.id === currentView.activeAgentId)
+        : undefined;
 
-      if (!activeAgentId || !agent) {
+      if (!currentView.activeAgentId || !agent) {
         return (
           <main className="flex-1 overflow-hidden">
             <div className="h-full flex items-center justify-center text-text-muted">
@@ -45,12 +46,12 @@ export function AppContent() {
     case VIEW_MODE.AGENT_EDITOR:
       return (
         <main className="flex-1 overflow-hidden">
-          <AgentConfigView agentId={activeAgentId} />
+          <AgentConfigView agentId={currentView.activeAgentId} />
         </main>
       );
 
     default: {
-      const _exhaustive: never = viewMode;
+      const _exhaustive: never = currentView.viewMode;
 
       return _exhaustive;
     }

@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { FolderOpen, Minimize2, Plus } from "lucide-react";
 import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAgentInteraction } from "../../hooks/use-agent-interaction.js";
-import { AgentConsoleHeader } from "./agent-console-header.js";
+import { useHeader } from "../../hooks/use-header.js";
+import { ConsoleStatusBar } from "./console-status-bar.js";
 import { MessageList } from "./message-list.js";
 import { MessageInput } from "./message-input.js";
 import { PermissionQueue } from "./permission-queue.js";
@@ -12,8 +14,8 @@ interface AgentConsoleProps {
 }
 
 /**
- * Full agent console view — header + permissions + message list + input + artifact sidebar.
- * Uses useAgentInteraction hook for all state and actions.
+ * Full agent console view — status bar + message list + input + artifact sidebar.
+ * Registers navigation title and actions in the app header via useHeader.
  */
 export function AgentConsole({ agent }: AgentConsoleProps) {
   const [showArtifacts, setShowArtifacts] = useState(false);
@@ -34,20 +36,20 @@ export function AgentConsole({ agent }: AgentConsoleProps) {
     denyPermission,
   } = useAgentInteraction(agent.id);
 
+  useHeader({
+    nav: { title: agent.name },
+    actions: [
+      { key: "compact", label: "Compact", icon: Minimize2, onClick: compact, disabled: isStreaming },
+      { key: "new", label: "New", icon: Plus, onClick: newConversation },
+      { key: "artifacts", label: "Artifacts", icon: FolderOpen, onClick: () => setShowArtifacts(!showArtifacts) },
+    ],
+  });
+
   return (
     <div className="flex h-full">
       {/* Main console area */}
       <div className="flex flex-col flex-1 min-w-0">
-        <AgentConsoleHeader
-          agent={agent}
-          status={status}
-          usage={usage}
-          isStreaming={isStreaming}
-          onCompact={compact}
-          onNewSession={newConversation}
-          onToggleArtifacts={() => setShowArtifacts(!showArtifacts)}
-          showingArtifacts={showArtifacts}
-        />
+        <ConsoleStatusBar agent={agent} status={status} usage={usage} />
 
         <MessageList
           messages={messages}

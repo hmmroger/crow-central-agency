@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
+import { useHeader } from "../../hooks/use-header.js";
 import { AgentCard } from "./agent-card.js";
-import { DashboardStatsBar } from "./dashboard-stats-bar.js";
 import { DashboardFilter } from "./dashboard-filter.js";
 import { LoadingSkeleton } from "../common/loading-skeleton.js";
 import { EmptyState } from "../common/empty-state.js";
@@ -22,6 +22,11 @@ interface DashboardProps {
 export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
   const goToAgentEditor = useAppStore((state) => state.goToAgentEditor);
   const [searchQuery, setSearchQuery] = useState("");
+
+  useHeader({
+    nav: { title: "Agents" },
+    actions: [{ key: "new", label: "New Agent", icon: Plus, onClick: () => goToAgentEditor(), isPrimary: true }],
+  });
 
   // Filter agents by search query
   const filteredAgents = useMemo(() => {
@@ -70,27 +75,13 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
 
   return (
     <div className="h-full p-6">
-      {/* Header row — title, stats, filter, new button */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold text-text-primary">Agents</h2>
-          <DashboardStatsBar agents={agents} />
-        </div>
-        <div className="flex items-center gap-3">
-          <DashboardFilter searchQuery={searchQuery} onSearchChange={setSearchQuery} />
-          <button
-            type="button"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
-            onClick={() => goToAgentEditor()}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            New Agent
-          </button>
-        </div>
+      {/* Filter bar */}
+      <div className="flex items-center justify-end mb-4">
+        <DashboardFilter searchQuery={searchQuery} onSearchChange={setSearchQuery} />
       </div>
 
       {/* Agent cards grid */}
-      <div className="p-8 overflow-y-auto h-full">
+      <div className="overflow-y-auto h-full">
         {filteredAgents.length === 0 ? (
           <div className="flex items-center justify-center py-12 text-text-muted text-sm">
             No agents match &quot;{searchQuery}&quot;
