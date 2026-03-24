@@ -30,8 +30,10 @@ export function AppHeader() {
         <span className="text-sm font-semibold tracking-tight text-text-primary">crow</span>
       </button>
 
+      <div className="h-5 w-px bg-border-subtle mx-3 shrink-0" />
+
       {/* Nav — back (framework) + title (view) */}
-      <div className="flex-1 flex items-center gap-2 ml-4 min-w-0">
+      <div className="flex-1 flex items-center gap-2 min-w-0">
         {hasHistory && (
           <button
             type="button"
