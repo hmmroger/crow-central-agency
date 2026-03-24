@@ -216,32 +216,32 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     }
   }, [agentId, goBack]);
 
-  // Register header content — nav + actions
-  const headerActions = isEditing
-    ? [
-        { key: "delete", label: "Delete", icon: Trash2, onClick: handleDelete, isDestructive: true },
-        {
-          key: "save",
-          label: saving ? "Saving..." : "Save",
-          onClick: handleSave,
-          isPrimary: true,
-          disabled: saving || !name.trim() || !workspace.trim(),
-        },
-      ]
-    : [
-        {
-          key: "create",
-          label: saving ? "Creating..." : "Create",
-          onClick: handleSave,
-          isPrimary: true,
-          disabled: saving || !name.trim() || !workspace.trim(),
-        },
-      ];
+  // Register header content
+  const { setTitle, setActions } = useHeader();
 
-  useHeader({
-    nav: { title: isEditing ? name || "Edit Agent" : "Create Agent" },
-    actions: headerActions,
-  });
+  setTitle(isEditing ? name || "Edit Agent" : "Create Agent");
+  setActions(
+    isEditing
+      ? [
+          { key: "delete", label: "Delete", icon: Trash2, onClick: handleDelete, isDestructive: true },
+          {
+            key: "save",
+            label: saving ? "Saving..." : "Save",
+            onClick: handleSave,
+            isPrimary: true,
+            disabled: saving || !name.trim() || !workspace.trim(),
+          },
+        ]
+      : [
+          {
+            key: "create",
+            label: saving ? "Creating..." : "Create",
+            onClick: handleSave,
+            isPrimary: true,
+            disabled: saving || !name.trim() || !workspace.trim(),
+          },
+        ]
+  );
 
   /** Change tool mode — preserve custom tools (MCP), clear source-list-derived approvals */
   const handleToolModeChange = useCallback(

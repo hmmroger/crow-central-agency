@@ -22,11 +22,10 @@ interface DashboardProps {
 export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
   const goToAgentEditor = useAppStore((state) => state.goToAgentEditor);
   const [searchQuery, setSearchQuery] = useState("");
+  const { setTitle, setActions } = useHeader();
 
-  useHeader({
-    nav: { title: "Agents" },
-    actions: [{ key: "new", label: "New Agent", icon: Plus, onClick: () => goToAgentEditor(), isPrimary: true }],
-  });
+  setTitle("Agents");
+  setActions([{ key: "new", label: "New Agent", icon: Plus, onClick: () => goToAgentEditor(), isPrimary: true }]);
 
   // Filter agents by search query
   const filteredAgents = useMemo(() => {

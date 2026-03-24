@@ -36,14 +36,14 @@ export function AgentConsole({ agent }: AgentConsoleProps) {
     denyPermission,
   } = useAgentInteraction(agent.id);
 
-  useHeader({
-    nav: { title: agent.name },
-    actions: [
-      { key: "compact", label: "Compact", icon: Minimize2, onClick: compact, disabled: isStreaming },
-      { key: "new", label: "New", icon: Plus, onClick: newConversation },
-      { key: "artifacts", label: "Artifacts", icon: FolderOpen, onClick: () => setShowArtifacts(!showArtifacts) },
-    ],
-  });
+  const { setTitle, setActions } = useHeader();
+
+  setTitle(agent.name);
+  setActions([
+    { key: "compact", label: "Compact", icon: Minimize2, onClick: compact, disabled: isStreaming },
+    { key: "new", label: "New", icon: Plus, onClick: newConversation },
+    { key: "artifacts", label: "Artifacts", icon: FolderOpen, onClick: () => setShowArtifacts(!showArtifacts) },
+  ]);
 
   return (
     <div className="flex h-full">

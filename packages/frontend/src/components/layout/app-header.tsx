@@ -1,22 +1,22 @@
 import { ArrowLeft, Bird } from "lucide-react";
 import { useAppStore } from "../../stores/app-store.js";
-import { useHeaderSlots } from "../../hooks/use-header.js";
+import { useHeader } from "../../hooks/use-header.js";
 import type { HeaderAction } from "../../providers/header-provider.js";
 
 /**
  * Top action bar with three zones:
  * - Logo: Bird icon + "crow" — click navigates to dashboard
- * - Nav: back button (auto, from view stack) + title (from views via useHeader)
- * - Actions: buttons rendered from structured descriptors (from views via useHeader)
+ * - Nav: back button (auto, from view stack) + title (from views via setTitle)
+ * - Actions: buttons rendered from structured descriptors (from views via setActions)
  *
  * Back button is a framework concern — shown when viewStack has entries.
- * Views only provide title and actions via useHeader().
+ * Views provide title and actions through useHeader().
  */
 export function AppHeader() {
   const goToDashboard = useAppStore((state) => state.goToDashboard);
   const goBack = useAppStore((state) => state.goBack);
   const hasHistory = useAppStore((state) => state.viewStack.length > 0);
-  const { nav, actions } = useHeaderSlots();
+  const { title, actions } = useHeader();
 
   return (
     <header className="flex items-center h-12 px-4 border-b border-border-subtle bg-surface/80 backdrop-blur-sm shrink-0">
@@ -41,11 +41,11 @@ export function AppHeader() {
             <ArrowLeft className="h-3.5 w-3.5" />
           </button>
         )}
-        {nav?.title && <span className="text-sm font-medium text-text-primary truncate">{nav.title}</span>}
+        {title && <span className="text-sm font-medium text-text-primary truncate">{title}</span>}
       </div>
 
       {/* Actions */}
-      {actions && actions.length > 0 && (
+      {actions.length > 0 && (
         <div className="flex items-center gap-1 shrink-0">
           {actions.map((action) => (
             <HeaderActionButton key={action.key} action={action} />
