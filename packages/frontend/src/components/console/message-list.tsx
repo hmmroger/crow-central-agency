@@ -34,7 +34,7 @@ export function MessageList({ messages, streamingText, isStreaming, activeToolUs
 
       {streamingText && (
         <div className="px-4 py-2">
-          <MarkdownRenderer content={streamingText} />
+          <MarkdownRenderer content={streamingText} isStreaming={true} />
         </div>
       )}
 

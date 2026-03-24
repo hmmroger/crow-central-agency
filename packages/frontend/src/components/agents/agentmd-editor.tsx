@@ -31,8 +31,7 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
   /** Track editor container height to show line numbers for all visible lines */
   useEffect(() => {
     const container = editorContainerRef.current;
-
-    if (!container) {
+    if (!container || previewing) {
       return;
     }
 

@@ -57,7 +57,7 @@ export function AgentCardMessages({
 
       {streamingText && (
         <div className="animate-pulse">
-          <MarkdownRenderer content={streamingText} className="text-xs" />
+          <MarkdownRenderer content={streamingText} className="text-xs" isStreaming={true} />
         </div>
       )}
 
