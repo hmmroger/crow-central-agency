@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Settings } from "lucide-react";
+import { Maximize2, Settings } from "lucide-react";
 import { AGENT_STATUS, type AgentConfig, type AgentStatus } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
 import { STATUS_DOT_COLOR, STATUS_TEXT_COLOR, STATUS_LABEL } from "../../utils/agent-status-display.js";
@@ -6,21 +6,20 @@ import { STATUS_DOT_COLOR, STATUS_TEXT_COLOR, STATUS_LABEL } from "../../utils/a
 interface AgentCardHeaderProps {
   agent: AgentConfig;
   status: AgentStatus;
-  expanded: boolean;
   onToggleExpand: () => void;
 }
 
 /**
- * Agent card header — name, status indicator with label, settings, expand/collapse.
+ * Agent card header — name (click to toggle expand/collapse), status indicator, actions.
  */
-export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: AgentCardHeaderProps) {
+export function AgentCardHeader({ agent, status, onToggleExpand }: AgentCardHeaderProps) {
   const goToAgentEditor = useAppStore((state) => state.goToAgentEditor);
   const goToConsole = useAppStore((state) => state.goToConsole);
 
   return (
     <div className="flex items-center justify-between">
-      {/* Name — click to open console */}
-      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => goToConsole(agent.id)}>
+      {/* Name — click to toggle collapse/expand */}
+      <div className="flex-1 min-w-0 cursor-pointer select-none" onClick={onToggleExpand}>
         <h3 className="text-sm font-semibold text-text-primary truncate">{agent.name}</h3>
       </div>
 
@@ -39,22 +38,22 @@ export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: Age
           className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
           onClick={(event) => {
             event.stopPropagation();
-            onToggleExpand();
+            goToAgentEditor(agent.id);
           }}
-          title={expanded ? "Collapse" : "Expand"}
+          title="Edit agent"
         >
-          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          <Settings className="h-4 w-4" />
         </button>
         <button
           type="button"
           className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
           onClick={(event) => {
             event.stopPropagation();
-            goToAgentEditor(agent.id);
+            goToConsole(agent.id);
           }}
-          title="Edit agent"
+          title="Open console"
         >
-          <Settings className="h-4 w-4" />
+          <Maximize2 className="h-4 w-4" />
         </button>
       </div>
     </div>

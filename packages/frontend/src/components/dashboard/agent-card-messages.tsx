@@ -1,5 +1,6 @@
 import { AGENT_MESSAGE_ROLE, type AgentMessage } from "@crow-central-agency/shared";
 import type { ActiveToolUse } from "../../hooks/use-agent-interaction.types.js";
+import { useAutoScroll } from "../../hooks/use-auto-scroll.js";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
 
 interface AgentCardMessagesProps {
@@ -27,13 +28,17 @@ export function AgentCardMessages({
 }: AgentCardMessagesProps) {
   const limit = maxMessages ?? (expanded ? EXPANDED_MAX_MESSAGES : COLLAPSED_MAX_MESSAGES);
   const recentMessages = messages.slice(-limit);
+  const scrollRef = useAutoScroll(`${messages.length}-${streamingText.length}-${activeToolUse?.toolName ?? ""}`);
 
   if (recentMessages.length === 0 && !streamingText) {
     return <div className="flex-1 min-h-0 flex items-center text-xs text-text-muted italic">No messages yet</div>;
   }
 
   return (
-    <div className={`${expanded ? "space-y-1 h-96" : "space-y-0.5 h-40"} text-xs shrink-0 overflow-y-auto px-2.5 py-2`}>
+    <div
+      ref={scrollRef}
+      className={`${expanded ? "space-y-1 h-96" : "space-y-0.5 h-40"} text-xs shrink-0 overflow-y-auto px-2.5 py-2`}
+    >
       {recentMessages.map((message) => (
         <div key={message.id}>
           {message.role === AGENT_MESSAGE_ROLE.USER && (
