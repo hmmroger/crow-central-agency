@@ -218,24 +218,22 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
 
   // Register header content
   const { setTitle, setActions } = useHeader();
-  const canSave = !saving && !!name.trim() && !!workspace.trim();
-  const saveLabel = saving ? "Saving..." : "Save";
-  const createLabel = saving ? "Creating..." : "Create";
-
   useEffect(() => {
     setTitle(isEditing ? name || "Edit Agent" : "Create Agent");
   }, [setTitle, isEditing, name]);
 
-  const headerActions = useMemo(
-    () =>
-      isEditing
-        ? [
-            { key: "delete", label: "Delete", icon: Trash2, onClick: handleDelete, isDestructive: true },
-            { key: "save", label: saveLabel, onClick: handleSave, isPrimary: true, disabled: !canSave },
-          ]
-        : [{ key: "create", label: createLabel, onClick: handleSave, isPrimary: true, disabled: !canSave }],
-    [isEditing, saveLabel, createLabel, canSave, handleSave, handleDelete]
-  );
+  const headerActions = useMemo(() => {
+    const canSave = !saving && !!name.trim() && !!workspace.trim();
+    const saveLabel = saving ? "Saving..." : "Save";
+    const createLabel = saving ? "Creating..." : "Create";
+
+    return isEditing
+      ? [
+          { key: "delete", label: "Delete", icon: Trash2, onClick: handleDelete, isDestructive: true },
+          { key: "save", label: saveLabel, onClick: handleSave, isPrimary: true, disabled: !canSave },
+        ]
+      : [{ key: "create", label: createLabel, onClick: handleSave, isPrimary: true, disabled: !canSave }];
+  }, [isEditing, saving, name, workspace, handleSave, handleDelete]);
 
   useEffect(() => {
     setActions(headerActions);

@@ -29,9 +29,14 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
     setTitle("Agents");
   }, [setTitle]);
 
+  const headerActions = useMemo(
+    () => [{ key: "new", label: "New Agent", icon: Plus, onClick: handleNewAgent, isPrimary: true }],
+    [handleNewAgent]
+  );
+
   useEffect(() => {
-    setActions([{ key: "new", label: "New Agent", icon: Plus, onClick: handleNewAgent, isPrimary: true }]);
-  }, [setActions, handleNewAgent]);
+    setActions(headerActions);
+  }, [setActions, headerActions]);
 
   // Filter agents by search query
   const filteredAgents = useMemo(() => {

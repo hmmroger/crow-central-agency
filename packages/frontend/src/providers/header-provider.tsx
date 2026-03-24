@@ -1,4 +1,4 @@
-import { createContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useMemo, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
 /** A single action button descriptor */
@@ -67,22 +67,17 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
   const [title, setTitleState] = useState("");
   const [actions, setActionsState] = useState<HeaderAction[]>([]);
 
-  const setTitleRef = useRef((newTitle: string) => {
+  const setTitle = useCallback((newTitle: string) => {
     setTitleState((prev) => (prev === newTitle ? prev : newTitle));
-  });
+  }, []);
 
-  const setActionsRef = useRef((newActions: HeaderAction[]) => {
+  const setActions = useCallback((newActions: HeaderAction[]) => {
     setActionsState((prev) => (actionsEqual(prev, newActions) ? prev : newActions));
-  });
+  }, []);
 
   const value = useMemo<HeaderContextValue>(
-    () => ({
-      title,
-      actions,
-      setTitle: setTitleRef.current,
-      setActions: setActionsRef.current,
-    }),
-    [title, actions]
+    () => ({ title, actions, setTitle, setActions }),
+    [title, actions, setTitle, setActions]
   );
 
   return <HeaderContext.Provider value={value}>{children}</HeaderContext.Provider>;
