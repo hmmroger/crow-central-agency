@@ -14,7 +14,6 @@
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
-  /* ── Base & Surface ── */
   /* Deep obsidian with violet undertone — the void */
   --color-base: oklch(0.13 0.02 285);
   /* Slightly lifted matte surface — panels float above the void */
@@ -24,10 +23,10 @@
   /* Inset surface — input fields, code blocks */
   --color-surface-inset: oklch(0.11 0.018 285);
 
-  /* ── Primary / Secondary / Accent ── */
-  /* Electric cyan — primary actions, active states, key readouts */
-  --color-primary: oklch(0.75 0.15 192);
-  /* Soft violet-lavender — secondary actions, tags, metadata */
+  /* primary actions, active states, key readouts */
+  --color-primary: oklch(0.65 0.15 192);
+
+  /* secondary actions, tags, metadata */
   --color-secondary: oklch(0.68 0.12 295);
   --color-secondary-muted: oklch(0.38 0.12 295);
 
