@@ -66,7 +66,7 @@ export function parseToolActivity(toolName: string, toolInput: Record<string, un
       const firstKey = Object.keys(toolInput)[0];
       const firstValue = firstKey ? String(toolInput[firstKey]).slice(0, 50) : "";
 
-      return firstKey ? `${toolName}: ${firstKey}=${firstValue}` : toolName;
+      return firstKey ? `${firstKey}=${firstValue}` : "";
     }
   }
 }

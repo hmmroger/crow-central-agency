@@ -15,8 +15,8 @@ export function AgentMessageView({ message }: AgentMessageProps) {
     case AGENT_MESSAGE_ROLE.USER:
       return (
         <div className="flex justify-end">
-          <div className="max-w-bubble bg-accent/10 border border-accent/20 rounded-xl px-4 py-3">
-            <pre className="text-sm text-text-primary whitespace-pre-wrap font-mono break-words leading-relaxed">
+          <div className="max-w-bubble bg-secondary/20 border border-secondary/30 rounded-lg px-4 py-3">
+            <pre className="text-sm text-text-primary whitespace-pre-wrap font-mono wrap-break-word leading-relaxed">
               {message.content}
             </pre>
           </div>
@@ -25,7 +25,7 @@ export function AgentMessageView({ message }: AgentMessageProps) {
 
     case AGENT_MESSAGE_ROLE.AGENT:
       return (
-        <div className="bg-surface-elevated/40 border border-border-subtle rounded-xl px-4 py-3">
+        <div className="bg-surface-elevated/40 border border-border-subtle rounded-lg px-4 py-3">
           <MarkdownRenderer content={message.content} />
         </div>
       );

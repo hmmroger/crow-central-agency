@@ -42,15 +42,25 @@ export function AgentCardMessages({
       {recentMessages.map((message) => (
         <div key={message.id}>
           {message.role === AGENT_MESSAGE_ROLE.USER && (
-            <MarkdownRenderer content={`**You:** ${message.content}`} className="text-xs text-text-secondary" />
+            <div className="text-xs font-mono leading-relaxed">
+              <span className="text-accent">{"> "}</span>
+              <span className="text-text-secondary">
+                <span>{message.content}</span>
+              </span>
+            </div>
           )}
+
           {message.role === AGENT_MESSAGE_ROLE.AGENT && (
             <MarkdownRenderer content={message.content} className="text-xs text-text-secondary" />
           )}
+
           {message.role === AGENT_MESSAGE_ROLE.SYSTEM && (
-            <span className="text-text-muted">
-              <span className="font-mono">{message.toolName}</span> {message.content}
-            </span>
+            <div className="text-xs font-mono leading-relaxed">
+              <span className="text-text-muted/60">{"~ "}</span>
+              <span className="text-text-muted">
+                <span>{message.toolName}</span> {message.content}
+              </span>
+            </div>
           )}
         </div>
       ))}

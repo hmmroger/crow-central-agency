@@ -43,7 +43,7 @@ export function MessageList({ messages, streamingText, isStreaming, activeToolUs
         ))}
 
         {streamingText && (
-          <div className="bg-surface-elevated/40 border border-border-subtle rounded-xl px-4 py-3">
+          <div className="bg-surface-elevated/40 border border-border-subtle rounded-lg px-4 py-3">
             <MarkdownRenderer content={streamingText} isStreaming={true} />
           </div>
         )}
