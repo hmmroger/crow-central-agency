@@ -25,12 +25,14 @@ export const apiClient = {
     return parseResponse<T>(response);
   },
 
-  /** POST request with JSON body */
+  /** POST request with optional JSON body */
   async post<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
     const response = await fetch(`${BASE_URL}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
+      ...(body !== undefined && {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
     });
 
     return parseResponse<T>(response);
