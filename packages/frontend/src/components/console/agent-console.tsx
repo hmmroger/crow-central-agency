@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FolderOpen, Minimize2, Plus } from "lucide-react";
 import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAgentInteraction } from "../../hooks/use-agent-interaction.js";
@@ -37,13 +37,24 @@ export function AgentConsole({ agent }: AgentConsoleProps) {
   } = useAgentInteraction(agent.id);
 
   const { setTitle, setActions } = useHeader();
+  const toggleArtifacts = useCallback(() => setShowArtifacts((prev) => !prev), []);
 
-  setTitle(agent.name);
-  setActions([
-    { key: "compact", label: "Compact", icon: Minimize2, onClick: compact, disabled: isStreaming },
-    { key: "new", label: "New", icon: Plus, onClick: newConversation },
-    { key: "artifacts", label: "Artifacts", icon: FolderOpen, onClick: () => setShowArtifacts(!showArtifacts) },
-  ]);
+  useEffect(() => {
+    setTitle(agent.name);
+  }, [setTitle, agent.name]);
+
+  const headerActions = useMemo(
+    () => [
+      { key: "compact", label: "Compact", icon: Minimize2, onClick: compact, disabled: isStreaming },
+      { key: "new", label: "New", icon: Plus, onClick: newConversation },
+      { key: "artifacts", label: "Artifacts", icon: FolderOpen, onClick: toggleArtifacts },
+    ],
+    [compact, isStreaming, newConversation, toggleArtifacts]
+  );
+
+  useEffect(() => {
+    setActions(headerActions);
+  }, [setActions, headerActions]);
 
   return (
     <div className="flex h-full">

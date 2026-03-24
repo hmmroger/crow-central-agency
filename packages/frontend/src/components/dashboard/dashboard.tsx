@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
@@ -23,9 +23,15 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
   const goToAgentEditor = useAppStore((state) => state.goToAgentEditor);
   const [searchQuery, setSearchQuery] = useState("");
   const { setTitle, setActions } = useHeader();
+  const handleNewAgent = useCallback(() => goToAgentEditor(), [goToAgentEditor]);
 
-  setTitle("Agents");
-  setActions([{ key: "new", label: "New Agent", icon: Plus, onClick: () => goToAgentEditor(), isPrimary: true }]);
+  useEffect(() => {
+    setTitle("Agents");
+  }, [setTitle]);
+
+  useEffect(() => {
+    setActions([{ key: "new", label: "New Agent", icon: Plus, onClick: handleNewAgent, isPrimary: true }]);
+  }, [setActions, handleNewAgent]);
 
   // Filter agents by search query
   const filteredAgents = useMemo(() => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles, Trash2 } from "lucide-react";
 import {
   PERMISSION_MODE,
@@ -218,30 +218,28 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
 
   // Register header content
   const { setTitle, setActions } = useHeader();
+  const canSave = !saving && !!name.trim() && !!workspace.trim();
+  const saveLabel = saving ? "Saving..." : "Save";
+  const createLabel = saving ? "Creating..." : "Create";
 
-  setTitle(isEditing ? name || "Edit Agent" : "Create Agent");
-  setActions(
-    isEditing
-      ? [
-          { key: "delete", label: "Delete", icon: Trash2, onClick: handleDelete, isDestructive: true },
-          {
-            key: "save",
-            label: saving ? "Saving..." : "Save",
-            onClick: handleSave,
-            isPrimary: true,
-            disabled: saving || !name.trim() || !workspace.trim(),
-          },
-        ]
-      : [
-          {
-            key: "create",
-            label: saving ? "Creating..." : "Create",
-            onClick: handleSave,
-            isPrimary: true,
-            disabled: saving || !name.trim() || !workspace.trim(),
-          },
-        ]
+  useEffect(() => {
+    setTitle(isEditing ? name || "Edit Agent" : "Create Agent");
+  }, [setTitle, isEditing, name]);
+
+  const headerActions = useMemo(
+    () =>
+      isEditing
+        ? [
+            { key: "delete", label: "Delete", icon: Trash2, onClick: handleDelete, isDestructive: true },
+            { key: "save", label: saveLabel, onClick: handleSave, isPrimary: true, disabled: !canSave },
+          ]
+        : [{ key: "create", label: createLabel, onClick: handleSave, isPrimary: true, disabled: !canSave }],
+    [isEditing, saveLabel, createLabel, canSave, handleSave, handleDelete]
   );
+
+  useEffect(() => {
+    setActions(headerActions);
+  }, [setActions, headerActions]);
 
   /** Change tool mode — preserve custom tools (MCP), clear source-list-derived approvals */
   const handleToolModeChange = useCallback(
