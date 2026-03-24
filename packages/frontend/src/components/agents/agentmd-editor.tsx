@@ -108,7 +108,7 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
 
   return (
     <div className="flex flex-col h-full gap-2">
-      <div className="flex items-center justify-between flex-shrink-0">
+      <div className="flex items-center justify-between shrink-0">
         <p className="text-xs text-text-muted">Persistent instructions loaded into every query.</p>
         <div className="flex items-center gap-1">
           <button

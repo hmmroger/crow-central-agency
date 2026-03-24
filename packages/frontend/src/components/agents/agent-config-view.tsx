@@ -256,7 +256,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-10/12 mx-auto p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-xl font-semibold text-text-primary">{isEditing ? "Edit Agent" : "Create Agent"}</h2>
@@ -503,9 +503,9 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
             </div>
           </div>
 
-          {/* Right column — AGENT.md editor, viewport height */}
-          <div className="flex flex-col min-h-96 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]">
-            <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
+          {/* Right column — AGENT.md editor */}
+          <div className="flex flex-col">
+            <div className="flex items-center justify-between mb-1.5 shrink-0">
               <label className="text-sm font-medium text-text-secondary">AGENT.md</label>
               <button
                 type="button"
@@ -516,7 +516,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
                 <Sparkles className="h-3.5 w-3.5" />
               </button>
             </div>
-            <div className="flex-1 min-h-0">
+            <div className="flex-1">
               <AgentMdEditor value={agentMd} onChange={setAgentMd} />
             </div>
           </div>
