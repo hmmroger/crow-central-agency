@@ -42,41 +42,54 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
     );
   }, [agents, searchQuery]);
 
+  const portal = <HeaderPortal title="Agents" actions={headerActions} />;
+
   if (loading) {
-    return <LoadingSkeleton lines={4} />;
+    return (
+      <>
+        {portal}
+        <LoadingSkeleton lines={4} />
+      </>
+    );
   }
 
   if (error) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-4 text-text-muted">
-        <p className="text-lg text-error">{error}</p>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-elevated text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
-          onClick={() => refetch()}
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Retry
-        </button>
-      </div>
+      <>
+        {portal}
+        <div className="h-full flex flex-col items-center justify-center gap-4 text-text-muted">
+          <p className="text-lg text-error">{error}</p>
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-elevated text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
+            onClick={() => refetch()}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Retry
+          </button>
+        </div>
+      </>
     );
   }
 
   if (agents.length === 0) {
     return (
-      <EmptyState
-        message="No agents yet"
-        description="Create your first agent to get started."
-        actionLabel="Create Agent"
-        actionIcon={Plus}
-        onAction={() => goToAgentEditor()}
-      />
+      <>
+        {portal}
+        <EmptyState
+          message="No agents yet"
+          description="Create your first agent to get started."
+          actionLabel="Create Agent"
+          actionIcon={Plus}
+          onAction={() => goToAgentEditor()}
+        />
+      </>
     );
   }
 
   return (
     <div className="h-full p-6">
-      <HeaderPortal title="Agents" actions={headerActions} />
+      {portal}
 
       {/* Filter bar */}
       <div className="flex items-center justify-end mb-4">

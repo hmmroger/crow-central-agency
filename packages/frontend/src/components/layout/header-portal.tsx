@@ -19,11 +19,8 @@ export function HeaderPortal({ title, actions }: HeaderPortalProps) {
 
   useLayoutEffect(() => {
     setTitle(title);
-  }, [setTitle, title]);
-
-  useLayoutEffect(() => {
     setActions(actions ?? []);
-  }, [setActions, actions]);
+  }, [setTitle, title, setActions, actions]);
 
   return null;
 }

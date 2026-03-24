@@ -282,7 +282,12 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   const customOnlyTools = autoApprovedTools.filter((tool) => !autoApprovedSource.includes(tool));
 
   if (loadingAgent) {
-    return <div className="h-full flex items-center justify-center text-text-muted">Loading agent...</div>;
+    return (
+      <>
+        <HeaderPortal title={headerTitle} actions={[]} />
+        <div className="h-full flex items-center justify-center text-text-muted">Loading agent...</div>
+      </>
+    );
   }
 
   return (
