@@ -31,7 +31,11 @@ export function AgentCardMessages({
   const scrollRef = useAutoScroll(`${messages.length}-${streamingText.length}-${activeToolUse?.toolName ?? ""}`);
 
   if (recentMessages.length === 0 && !streamingText) {
-    return <div className="flex-1 min-h-0 flex items-center text-xs text-text-muted italic">No messages yet</div>;
+    return (
+      <div className="flex-1 min-h-0 flex items-center justify-center text-xs text-text-muted italic">
+        No messages yet
+      </div>
+    );
   }
 
   return (

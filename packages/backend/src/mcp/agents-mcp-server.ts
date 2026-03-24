@@ -17,67 +17,61 @@ export function createAgentsMcpServer(
   return createSdkMcpServer({
     name: "crow-agents",
     tools: [
-      tool("list_agents", "List all available agents you can collaborate with.", {}, async () => {
-        const agents = registry
-          .getAll()
-          .filter((agent) => agent.id !== agentId)
-          .map((agent) => `- ${agent.name} (${agent.id}): ${agent.description || "No description"}`);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: agents.length === 0 ? "No other agents available." : `Available agents:\n${agents.join("\n")}`,
-            },
-          ],
-        };
-      }),
-
       tool(
-        "invoke_agent",
-        "Send a task to another agent. The agent will work on it asynchronously and you will be notified when the result is ready.",
-        {
-          targetAgentId: z.string().describe("UUID of the agent to invoke"),
-          task: z.string().describe("Description of the task for the agent to perform"),
-        },
-        async (args) => {
-          try {
-            await orchestrator.invokeInterAgent(agentId, args.targetAgentId, args.task);
-            const targetAgent = registry.get(args.targetAgentId);
-
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: `Task sent to agent "${targetAgent?.name ?? args.targetAgentId}" (${args.targetAgentId}). The agent is working on it and you will be notified when the result is ready.`,
-                },
-              ],
-            };
-          } catch (error) {
-            return {
-              content: [{ type: "text", text: error instanceof Error ? error.message : "Failed to invoke agent" }],
-              isError: true,
-            };
+        "list_agents",
+        "List all registered agents with their IDs, names, and role descriptions. Use this to discover which agents are available for collaboration.",
+        {},
+        async () => {
+          const agents = registry.getAll().filter((agent) => agent.id !== agentId);
+          if (agents.length === 0) {
+            return { content: [{ type: "text", text: "No agents are currently registered." }] };
           }
+
+          const lines = agents.map((agent) => {
+            const parts = [`${agent.name} (ID: ${agent.id})`];
+            if (agent.description) {
+              parts.push(`- ${agent.description}`);
+            }
+
+            return `- ${parts.join(" ")}`;
+          });
+          return {
+            content: [{ type: "text", text: `Available agents:\n${lines.join("\n")}` }],
+          };
         }
       ),
 
       tool(
-        "get_agent_status",
-        "Get the current status of another agent.",
-        { targetAgentId: z.string().describe("UUID of the agent to check") },
+        "invoke_agent",
+        "Delegate a task to another agent. The target agent will work on it asynchronously and write results to its artifacts. You will be notified automatically when the agent finishes.",
+        {
+          agent_id: z
+            .string()
+            .describe("The ID of the target agent to delegate the task to. Use list_agents to find IDs"),
+          task: z
+            .string()
+            .describe(
+              "A clear, self-contained description of what the target agent should do. Include all necessary context since the target agent does not share your conversation history"
+            ),
+        },
         async (args) => {
-          const agent = registry.get(args.targetAgentId);
-
-          if (!agent) {
-            return { content: [{ type: "text", text: `Agent not found: ${args.targetAgentId}` }], isError: true };
+          if (agentId === args.agent_id) {
+            return { content: [{ type: "text", text: "Error: cannot invoke yourself" }], isError: true };
           }
 
-          const state = orchestrator.getState(args.targetAgentId);
+          try {
+            registry.get(args.agent_id);
+          } catch {
+            return { content: [{ type: "text", text: "Error: target agent not found" }], isError: true };
+          }
 
-          return {
-            content: [{ type: "text", text: `Agent "${agent.name}" (${agent.id}): status=${state?.status ?? "idle"}` }],
-          };
+          try {
+            const result = await orchestrator.invokeInterAgent(agentId, args.agent_id, args.task);
+            return { content: [{ type: "text", text: result }] };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to invoke agent";
+            return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+          }
         }
       ),
     ],

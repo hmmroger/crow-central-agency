@@ -3,6 +3,7 @@ import { AGENT_STATUS } from "../constants/agent-status.js";
 import { PERMISSION_DECISION } from "./permission.schema.js";
 import { AgentConfigSchema } from "./agent.schema.js";
 import { AgentMessageSchema } from "./agent-message.schema.js";
+import { CLIENT_MESSAGE_TYPE } from "../constants/message-type.js";
 
 // --- Client → Server messages ---
 
@@ -22,8 +23,8 @@ export const SendMessageSchema = z.object({
   message: z.string(),
 });
 
-export const BtwMessageSchema = z.object({
-  type: z.literal("btw_message"),
+export const InjectMessageSchema = z.object({
+  type: z.literal(CLIENT_MESSAGE_TYPE.INJECT_MESSAGE),
   agentId: z.string(),
   message: z.string(),
 });
@@ -40,7 +41,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   SubscribeMessageSchema,
   UnsubscribeMessageSchema,
   SendMessageSchema,
-  BtwMessageSchema,
+  InjectMessageSchema,
   PermissionResponseWsSchema,
 ]);
 
@@ -48,7 +49,7 @@ export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 export type SubscribeMessage = z.infer<typeof SubscribeMessageSchema>;
 export type UnsubscribeMessage = z.infer<typeof UnsubscribeMessageSchema>;
 export type SendMessage = z.infer<typeof SendMessageSchema>;
-export type BtwMessage = z.infer<typeof BtwMessageSchema>;
+export type InjectMessage = z.infer<typeof InjectMessageSchema>;
 export type PermissionResponseWs = z.infer<typeof PermissionResponseWsSchema>;
 
 // --- Server → Client messages ---

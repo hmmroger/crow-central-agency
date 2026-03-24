@@ -1,6 +1,11 @@
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKUserMessage, CanUseTool, McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
-import { AGENT_STATUS, AgentRuntimeStateSchema, type AgentRuntimeState } from "@crow-central-agency/shared";
+import {
+  AGENT_STATUS,
+  AgentRuntimeStateSchema,
+  type AgentConfig,
+  type AgentRuntimeState,
+} from "@crow-central-agency/shared";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { OrchestratorEvents, RunningAgent, McpServerFactory } from "./agent-orchestrator.types.js";
 import type { AgentRegistry } from "./agent-registry.js";
@@ -108,13 +113,12 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     // Build system prompt: persona + AGENT.md + peer list
-    const agentMd = await this.registry.getAgentMd(agentId);
-    const peerList = this.buildPeerList(agentId);
-    const appendPrompt = [agentConfig.persona, agentMd, peerList].filter(Boolean).join("\n\n");
+    const systemPrompt = await this.buildSystemPrompt(agentId, agentConfig);
 
     // Build SDK options
     const abortController = new AbortController();
     const toolsOption = agentConfig.toolConfig.mode === "restricted" ? agentConfig.toolConfig.tools : undefined;
+    const internalMcpPrefixes = [...this.mcpServerFactories.keys()].map((serverName) => `mcp__${serverName}__`);
 
     // Create query (mcpServers cast will be properly typed when MCP servers are implemented in Phase 5)
     const queryInstance = sdkQuery({
@@ -123,13 +127,14 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         cwd: agentConfig.workspace,
         model: agentConfig.model,
         resume: state.sessionId,
-        systemPrompt: appendPrompt
-          ? { type: "preset" as const, preset: "claude_code" as const, append: appendPrompt }
-          : { type: "preset" as const, preset: "claude_code" as const },
+        systemPrompt: systemPrompt ? { type: "preset", preset: "claude_code", append: systemPrompt } : undefined,
         abortController,
         includePartialMessages: true,
         permissionMode: agentConfig.permissionMode,
-        allowedTools: agentConfig.toolConfig.autoApprovedTools,
+        allowedTools: [
+          ...(agentConfig.toolConfig.autoApprovedTools || []),
+          ...internalMcpPrefixes.map((prefix) => `${prefix}*`),
+        ],
         tools: toolsOption,
         canUseTool: this.buildCanUseTool(agentId),
         settingSources: agentConfig.settingSources,
@@ -137,6 +142,9 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         persistSession: true,
         agentProgressSummaries: true,
         pathToClaudeCodeExecutable: env.CLAUDE_CLI_PATH,
+        toolConfig: {
+          askUserQuestion: { previewFormat: "html" },
+        },
       },
     });
 
@@ -180,7 +188,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
         // 3. Discovered tools → filter internal MCP tools, update registry
         if (event.meta?.discoveredTools && event.meta.discoveredTools.length > 0) {
-          const internalMcpPrefixes = [...this.mcpServerFactories.keys()].map((serverName) => `mcp__${serverName}__`);
           const userFacingTools = event.meta.discoveredTools.filter(
             (tool) => !internalMcpPrefixes.some((prefix) => tool.startsWith(prefix))
           );
@@ -235,8 +242,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
   }
 
-  /** Inject a "btw" message into an active agent stream */
-  async btwMessage(agentId: string, text: string): Promise<void> {
+  /** Inject an user message into an active agent stream */
+  async injectMessage(agentId: string, text: string): Promise<void> {
     const running = this.runningAgents.get(agentId);
 
     if (!running) {
@@ -261,7 +268,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
    * Handle inter-agent invocation: deliver task to target, mark source as waiting.
    * Called from crow-agents MCP tool.
    */
-  async invokeInterAgent(sourceAgentId: string, targetAgentId: string, task: string): Promise<void> {
+  async invokeInterAgent(sourceAgentId: string, targetAgentId: string, task: string): Promise<string> {
     const targetConfig = this.registry.get(targetAgentId);
 
     if (!targetConfig) {
@@ -272,11 +279,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const sourceName = sourceConfig?.name ?? sourceAgentId;
 
     const taskPrompt = [
-      `[Inter-agent request from "${sourceName}" (id: ${sourceAgentId})]`,
+      `[Agent request from "${sourceName}" (${sourceAgentId})]`,
       "",
       task,
       "",
-      "Write any output to your artifacts folder so the requesting agent can retrieve them.",
+      "Please perform this task and write your results to an artifact using the write_artifact tool.",
     ].join("\n");
 
     const targetState = this.ensureState(targetAgentId);
@@ -286,7 +293,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         log.error({ sourceAgentId, targetAgentId, error }, "Failed to deliver inter-agent task");
       });
     } else {
-      await this.btwMessage(targetAgentId, taskPrompt);
+      await this.injectMessage(targetAgentId, taskPrompt);
     }
 
     const sourceState = this.ensureState(sourceAgentId);
@@ -295,6 +302,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     await this.persistState();
 
     log.info({ sourceAgentId, targetAgentId }, "Inter-agent invocation started");
+
+    return `Task sent to agent "${targetConfig.name}" (${targetAgentId}). The agent is working on it and you will be notified when the result is ready.`;
   }
 
   /** Stop an active agent */
@@ -412,7 +421,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         const running = this.runningAgents.get(agentId);
 
         if (running) {
-          await this.btwMessage(agentId, notificationPrompt);
+          await this.injectMessage(agentId, notificationPrompt);
         } else {
           this.sendMessage(agentId, notificationPrompt).catch((error) => {
             log.error({ agentId, error }, "Failed to notify waiting agent");
@@ -467,19 +476,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     return servers;
-  }
-
-  /** Build a peer list string for the system prompt */
-  private buildPeerList(currentAgentId: string): string {
-    const agents = this.registry.getAll().filter((agent) => agent.id !== currentAgentId);
-
-    if (agents.length === 0) {
-      return "";
-    }
-
-    const lines = agents.map((agent) => `- ${agent.name} (${agent.id}): ${agent.description || "No description"}`);
-
-    return `Available peer agents:\n${lines.join("\n")}`;
   }
 
   /** Persist all runtime states to disk */
@@ -580,5 +576,43 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         log.error({ agentId, error }, "Loop tick failed");
       });
     });
+  }
+
+  private async buildSystemPrompt(agentId: string, agent: AgentConfig): Promise<string> {
+    const agentMd = await this.registry.getAgentMd(agentId);
+    const promptParts: string[] = [];
+
+    if (agent.persona) {
+      promptParts.push(agent.persona);
+    }
+
+    const peerAgents = this.registry
+      .getAll()
+      .filter((agent) => agent.id !== agentId)
+      .map((peer) => {
+        const parts = [`Agent ID: ${peer.id}`, `Name: ${peer.name}`];
+        if (peer.description) {
+          parts.push(`Description: ${peer.description}`);
+        }
+
+        return `- ${parts.join(", ")}`;
+      })
+      .join("\n");
+
+    const agentContext = [`\n\n# Agent Context\n\nYour agent ID is: ${agentId}`];
+    if (peerAgents) {
+      agentContext.push(
+        `\nThe following agents are available for collaboration:\n${peerAgents}`,
+        "\nIMPORTANT: When you need another agent's help, you MUST use the invoke_agent tool from the crow-agents MCP server to delegate the task. Do NOT attempt to perform tasks that fall under another agent's responsibility — invoke that agent instead."
+      );
+    }
+
+    promptParts.push(agentContext.join(""));
+
+    if (agentMd) {
+      promptParts.push(`\n\n# AGENT.md\n\n${agentMd}`);
+    }
+
+    return promptParts.join("");
   }
 }

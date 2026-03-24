@@ -13,6 +13,7 @@ import {
   type AgentMessage,
   type AgentStatus,
   type SessionUsage,
+  CLIENT_MESSAGE_TYPE,
 } from "@crow-central-agency/shared";
 import { useWs } from "./use-ws.js";
 import { useWsSubscription } from "./use-ws-subscription.js";
@@ -216,7 +217,7 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
   /** Send a user message — backend creates the AgentMessage and broadcasts agent_message WS */
   const sendMessage = useCallback(
     (text: string) => {
-      send({ type: "send_message", agentId, message: text });
+      send({ type: CLIENT_MESSAGE_TYPE.SEND_MESSAGE, agentId, message: text });
     },
     [send, agentId]
   );
@@ -224,7 +225,7 @@ export function useAgentInteraction(agentId: string): AgentInteractionState {
   /** Inject a btw message while streaming */
   const injectMessage = useCallback(
     (text: string) => {
-      send({ type: "btw_message", agentId, message: text });
+      send({ type: CLIENT_MESSAGE_TYPE.INJECT_MESSAGE, agentId, message: text });
     },
     [send, agentId]
   );

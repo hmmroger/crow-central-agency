@@ -163,7 +163,7 @@ All visual properties must use theme tokens — no hardcoded pixel sizes or raw 
 | `subscribe` | Start receiving updates for an agent |
 | `unsubscribe` | Stop receiving updates |
 | `send_message` | Send a user message to an agent |
-| `btw_message` | Inject a message into an active stream |
+| `inject_message` | Inject a message into an active stream |
 | `permission_response` | Approve, deny, or type something for a tool permission request |
 
 **Server → Client:**

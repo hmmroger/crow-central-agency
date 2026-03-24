@@ -2,6 +2,7 @@ import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod/v4";
 import type { ArtifactManager } from "../services/artifact-manager.js";
+import type { AgentRegistry } from "../services/agent-registry.js";
 
 /**
  * Create the crow-artifacts MCP server for a specific agent.
@@ -9,17 +10,18 @@ import type { ArtifactManager } from "../services/artifact-manager.js";
  */
 export function createArtifactsMcpServer(
   agentId: string,
-  artifactManager: ArtifactManager
+  artifactManager: ArtifactManager,
+  registry: AgentRegistry
 ): McpSdkServerConfigWithInstance {
   return createSdkMcpServer({
     name: "crow-artifacts",
     tools: [
       tool(
         "write_artifact",
-        "Write a file to your artifacts folder. Other agents can read your artifacts.",
+        "Save a file to your own artifacts folder. Other agents can read your artifacts to collaborate. You can only write to your own folder.",
         {
-          filename: z.string().describe("Name of the artifact file"),
-          content: z.string().describe("Content to write"),
+          filename: z.string().describe("Name of the file to create or overwrite, e.g. 'report.md' or 'data.json'"),
+          content: z.string().describe("The full text content to write to the file"),
         },
         async (args) => {
           await artifactManager.writeArtifact(agentId, args.filename, args.content);
@@ -30,51 +32,57 @@ export function createArtifactsMcpServer(
 
       tool(
         "read_artifact",
-        "Read an artifact file from any agent's artifacts folder.",
+        "Read the contents of an artifact file from any agent's folder. Use list_agents to find agent IDs, then list_artifacts to discover filenames.",
         {
-          agentId: z.string().describe("UUID of the agent whose artifact to read"),
-          filename: z.string().describe("Name of the artifact file"),
+          agent_id: z.string().describe("The agent ID who owns the artifact. Use list_agents to find agent IDs"),
+          filename: z.string().describe("The exact filename to read, as returned by list_artifacts"),
         },
         async (args) => {
-          const content = await artifactManager.readArtifact(args.agentId, args.filename);
+          try {
+            registry.get(args.agent_id);
+          } catch {
+            return { content: [{ type: "text", text: "Error: agent not found" }], isError: true };
+          }
 
-          return { content: [{ type: "text", text: content }] };
+          try {
+            const content = await artifactManager.readArtifact(args.agent_id, args.filename);
+            return { content: [{ type: "text", text: content }] };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to read artifact";
+            return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+          }
         }
       ),
 
-      tool("list_artifacts", "List all artifacts in your own artifacts folder.", {}, async () => {
-        const artifacts = await artifactManager.listArtifacts(agentId);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text:
-                artifacts.length === 0
-                  ? "No artifacts found."
-                  : artifacts.map((artifact) => `${artifact.filename} (${artifact.size} bytes)`).join("\n"),
-            },
-          ],
-        };
-      }),
-
       tool(
-        "list_agent_artifacts",
-        "List all artifacts in another agent's artifacts folder.",
-        { agentId: z.string().describe("UUID of the agent whose artifacts to list") },
+        "list_artifacts",
+        "List all artifact files for yourself or another agent. Returns filenames and last modified dates. Omit agent_id to list your own artifacts.",
+        {
+          agent_id: z
+            .string()
+            .optional()
+            .describe("The agent ID whose artifacts to list. Omit to list your own artifacts"),
+        },
         async (args) => {
-          const artifacts = await artifactManager.listArtifacts(args.agentId);
+          const targetId = args.agent_id ?? agentId;
+          if (args.agent_id) {
+            try {
+              registry.get(args.agent_id);
+            } catch {
+              return { content: [{ type: "text", text: "Error: agent not found" }], isError: true };
+            }
+          }
 
+          const artifacts = await artifactManager.listArtifacts(targetId);
+          if (artifacts.length === 0) {
+            return { content: [{ type: "text", text: `No artifacts found for agent ${targetId}.` }] };
+          }
+
+          const lines = artifacts.map(
+            (artifact) => `- ${artifact.filename} (agent: ${artifact.agentId}, modified: ${artifact.updatedAt})`
+          );
           return {
-            content: [
-              {
-                type: "text",
-                text:
-                  artifacts.length === 0
-                    ? "No artifacts found for this agent."
-                    : artifacts.map((artifact) => `${artifact.filename} (${artifact.size} bytes)`).join("\n"),
-              },
-            ],
+            content: [{ type: "text", text: `Artifacts for agent ${targetId}:\n${lines.join("\n")}` }],
           };
         }
       ),

@@ -50,7 +50,9 @@ export async function bootstrap(options: BootstrapOptions) {
   await orchestrator.initialize();
 
   // Register MCP server factories on orchestrator
-  orchestrator.registerMcpServer("crow-artifacts", (agentId) => createArtifactsMcpServer(agentId, artifactManager));
+  orchestrator.registerMcpServer("crow-artifacts", (agentId) =>
+    createArtifactsMcpServer(agentId, artifactManager, registry)
+  );
   orchestrator.registerMcpServer("crow-agents", (agentId) => createAgentsMcpServer(agentId, orchestrator, registry));
 
   // Start loop scheduler

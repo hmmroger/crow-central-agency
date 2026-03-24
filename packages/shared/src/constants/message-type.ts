@@ -5,7 +5,7 @@ export const CLIENT_MESSAGE_TYPE = {
   SUBSCRIBE: "subscribe",
   UNSUBSCRIBE: "unsubscribe",
   SEND_MESSAGE: "send_message",
-  BTW_MESSAGE: "btw_message",
+  INJECT_MESSAGE: "inject_message",
   PERMISSION_RESPONSE: "permission_response",
 } as const;
 

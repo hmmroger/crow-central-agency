@@ -316,11 +316,11 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
 
             {/* Description */}
             <FieldGroup label="Description">
-              <input
-                type="text"
+              <textarea
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
-                placeholder="What does this agent do?"
+                placeholder="Brief description of this agent's role or responsibility"
+                rows={4}
                 className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus"
               />
             </FieldGroup>

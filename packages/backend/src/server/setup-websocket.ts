@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { ClientMessageSchema } from "@crow-central-agency/shared";
+import { CLIENT_MESSAGE_TYPE, ClientMessageSchema } from "@crow-central-agency/shared";
 import type { WsBroadcaster } from "../services/ws-broadcaster.js";
 import type { AgentOrchestrator } from "../services/agent-orchestrator.js";
 import type { PermissionHandler } from "../services/permission-handler.js";
@@ -9,7 +9,7 @@ const log = logger.child({ context: "websocket" });
 
 /**
  * Set up WebSocket endpoint with message routing.
- * Handles subscribe/unsubscribe, send_message, btw_message.
+ * Handles subscribe/unsubscribe, send_message, inject_message.
  */
 export async function setupWebSocket(
   server: FastifyInstance,
@@ -47,7 +47,7 @@ export async function setupWebSocket(
             broadcaster.unsubscribe(socket, message.agentId);
             break;
 
-          case "send_message":
+          case CLIENT_MESSAGE_TYPE.SEND_MESSAGE:
             orchestrator.sendMessage(message.agentId, message.message).catch((error) => {
               log.error({ agentId: message.agentId, error }, "Failed to send message");
               broadcaster.sendTo(socket, {
@@ -59,8 +59,8 @@ export async function setupWebSocket(
             });
             break;
 
-          case "btw_message":
-            orchestrator.btwMessage(message.agentId, message.message).catch((error) => {
+          case CLIENT_MESSAGE_TYPE.INJECT_MESSAGE:
+            orchestrator.injectMessage(message.agentId, message.message).catch((error) => {
               log.error({ agentId: message.agentId, error }, "Failed to inject btw message");
               broadcaster.sendTo(socket, {
                 type: "error",

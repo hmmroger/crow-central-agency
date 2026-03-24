@@ -5,10 +5,15 @@ import { logger } from "../utils/logger.js";
 const log = logger.child({ context: "md-generation" });
 
 const SYSTEM_PROMPTS: Record<string, string> = {
-  [GENERATION_TYPE.PERSONA]:
-    "You are an expert at crafting AI agent personas. Generate a concise, focused persona that defines the agent's behavior, expertise, and communication style. Be specific and actionable. The persona should cover: role, expertise areas, communication style, and key behaviors.",
-  [GENERATION_TYPE.AGENT_MD]:
-    "You are an expert at writing AGENT.md instruction files for AI coding agents. Generate clear, structured markdown instructions that guide an agent's behavior in a development context. Use proper markdown formatting with headings, lists, and code blocks where appropriate.",
+  [GENERATION_TYPE.PERSONA]: `You are a helpful assistant that generates concise agent persona descriptions.
+A persona is a short system prompt addition that defines the agent's identity, tone, and behavior.
+It should be 1-3 sentences that clearly describe who the agent is and how it should respond.
+Write only the persona text, no extra commentary or formatting.`,
+  [GENERATION_TYPE.AGENT_MD]: `You are a helpful assistant that generates agent instruction files in markdown format.
+An AGENT.md file provides persistent context loaded into every agent session.
+It should include relevant instructions, guidelines, and context for the agent to follow.
+Use clear markdown structure with headers and bullet points.
+Write only the markdown content, no extra commentary or wrapping.`,
 };
 
 /**
