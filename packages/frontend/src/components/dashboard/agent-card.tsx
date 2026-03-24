@@ -36,7 +36,12 @@ export function AgentCard({ agent }: AgentCardProps) {
       className={`flex flex-col rounded-lg bg-surface border border-border-subtle hover:border-border transition-colors`}
     >
       <div className="shrink-0 border-b border-border-subtle px-2.5 py-2">
-        <AgentCardHeader agent={agent} status={status} onToggleExpand={() => setExpanded(!expanded)} />
+        <AgentCardHeader
+          agent={agent}
+          status={status}
+          expanded={expanded}
+          onToggleExpand={() => setExpanded(!expanded)}
+        />
       </div>
 
       {/* Messages — fills remaining space, expand controls truncation */}

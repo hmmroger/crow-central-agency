@@ -1,4 +1,4 @@
-import { Maximize2, Settings } from "lucide-react";
+import { ChevronDown, Maximize2, Settings } from "lucide-react";
 import { AGENT_STATUS, type AgentConfig, type AgentStatus } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
 import { STATUS_DOT_COLOR, STATUS_TEXT_COLOR, STATUS_LABEL } from "../../utils/agent-status-display.js";
@@ -6,21 +6,25 @@ import { STATUS_DOT_COLOR, STATUS_TEXT_COLOR, STATUS_LABEL } from "../../utils/a
 interface AgentCardHeaderProps {
   agent: AgentConfig;
   status: AgentStatus;
+  expanded: boolean;
   onToggleExpand: () => void;
 }
 
 /**
  * Agent card header — name (click to toggle expand/collapse), status indicator, actions.
  */
-export function AgentCardHeader({ agent, status, onToggleExpand }: AgentCardHeaderProps) {
+export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: AgentCardHeaderProps) {
   const goToAgentEditor = useAppStore((state) => state.goToAgentEditor);
   const goToConsole = useAppStore((state) => state.goToConsole);
 
   return (
     <div className="flex items-center justify-between">
       {/* Name — click to toggle collapse/expand */}
-      <div className="flex-1 min-w-0 cursor-pointer select-none" onClick={onToggleExpand}>
+      <div className="flex items-center gap-1 flex-1 min-w-0 cursor-pointer select-none" onClick={onToggleExpand}>
         <h3 className="text-sm font-semibold text-text-primary truncate">{agent.name}</h3>
+        <ChevronDown
+          className={`h-3 w-3 shrink-0 text-text-muted transition-transform ${expanded ? "rotate-180" : ""}`}
+        />
       </div>
 
       {/* Status badge */}
