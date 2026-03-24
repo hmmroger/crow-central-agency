@@ -67,6 +67,9 @@
   --spacing-panel: 1.25rem;
   --spacing-card: 1rem;
 
+  /* ── Container widths ── */
+  --width-bubble: 75%;
+
   /* ── Radius ── */
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;

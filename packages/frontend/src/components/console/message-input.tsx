@@ -30,8 +30,11 @@ export function MessageInput({ onSend, onInject, onAbort, isStreaming, disabled 
       return;
     }
 
-    if (isBtw && isStreaming) {
-      const btwContent = normalized.slice(BTW_PREFIX.length).trim();
+    const normalizedText = text.trimStart();
+    const isBtwMessage = normalizedText.startsWith(BTW_PREFIX);
+
+    if (isBtwMessage && isStreaming) {
+      const btwContent = normalizedText.slice(BTW_PREFIX.length).trim();
 
       if (btwContent) {
         onInject(btwContent);
@@ -41,7 +44,7 @@ export function MessageInput({ onSend, onInject, onAbort, isStreaming, disabled 
       onSend(trimmed);
       setText("");
     }
-  }, [text, normalized, isBtw, isStreaming, onSend, onInject]);
+  }, [text, isStreaming, onSend, onInject]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
@@ -69,7 +72,7 @@ export function MessageInput({ onSend, onInject, onAbort, isStreaming, disabled 
         {showAbort ? (
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold shrink-0 bg-error/15 hover:bg-error/25 text-error"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold shrink-0 bg-error/15 hover:bg-error/25 text-error transition-colors"
             onClick={onAbort}
           >
             <Square className="h-3 w-3" />
@@ -81,8 +84,8 @@ export function MessageInput({ onSend, onInject, onAbort, isStreaming, disabled 
             className={[
               "px-4 py-2 rounded-lg text-xs font-semibold shrink-0",
               isBtw && isStreaming
-                ? "bg-warning/15 hover:bg-warning/25 text-warning disabled:opacity-20"
-                : "bg-accent hover:opacity-90 text-text-primary disabled:opacity-20",
+                ? "bg-warning/15 hover:bg-warning/25 text-warning disabled:opacity-20 transition-colors"
+                : "bg-accent hover:opacity-90 text-text-primary disabled:opacity-20 transition-opacity",
             ].join(" ")}
             onClick={handleSubmit}
             disabled={disabled || !text.trim() || !canSend}
