@@ -8,20 +8,27 @@ interface AgentMessageProps {
 
 /**
  * Renders a single committed message in the agent console by role.
+ * User messages are right-aligned bubbles, agent messages are left-aligned bubbles.
  */
 export function AgentMessageView({ message }: AgentMessageProps) {
   switch (message.role) {
     case AGENT_MESSAGE_ROLE.USER:
       return (
-        <div className="px-4 py-2 bg-surface-alt">
-          <MarkdownRenderer content={`**You:** ${message.content}`} />
+        <div className="flex justify-end">
+          <div className="max-w-[75%] bg-accent/10 border border-accent/20 rounded-xl px-4 py-3">
+            <pre className="text-sm text-text-primary whitespace-pre-wrap font-mono break-words leading-relaxed">
+              {message.content}
+            </pre>
+          </div>
         </div>
       );
 
     case AGENT_MESSAGE_ROLE.AGENT:
       return (
-        <div className="px-4 py-2">
-          <MarkdownRenderer content={message.content} />
+        <div>
+          <div className="bg-surface-elevated/40 border border-border-subtle rounded-xl px-4 py-3">
+            <MarkdownRenderer content={message.content} />
+          </div>
         </div>
       );
 

@@ -62,7 +62,9 @@ export function AgentConsole({ agent }: AgentConsoleProps) {
           activeToolUse={activeToolUse}
         />
 
-        <PermissionQueue permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
+        <div className="max-w-3xl mx-auto px-5 shrink-0">
+          <PermissionQueue permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
+        </div>
 
         <MessageInput onSend={sendMessage} onInject={injectMessage} onAbort={abort} isStreaming={isStreaming} />
       </div>

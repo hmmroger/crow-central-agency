@@ -1,6 +1,7 @@
+import { useEffect, useRef } from "react";
+import { Terminal } from "lucide-react";
 import type { AgentMessage } from "@crow-central-agency/shared";
 import type { ActiveToolUse } from "../../hooks/use-agent-interaction.types.js";
-import { useAutoScroll } from "../../hooks/use-auto-scroll.js";
 import { AgentMessageView } from "./agent-message.js";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
 import { StreamingIndicator } from "./streaming-indicator.js";
@@ -14,42 +15,54 @@ interface MessageListProps {
 
 /**
  * Scrollable message area for the agent console.
- * Shows committed messages, streaming text, and active tool indicator.
- * Auto-scrolls to bottom on new messages.
+ * Centered chat layout with auto-scroll to bottom.
  */
 export function MessageList({ messages, streamingText, isStreaming, activeToolUse }: MessageListProps) {
-  const scrollRef = useAutoScroll(`${messages.length}-${streamingText.length}-${activeToolUse?.toolName ?? ""}`);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length, streamingText.length, activeToolUse?.toolName]);
+
+  if (messages.length === 0 && !isStreaming) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">
+          <Terminal size={20} className="text-accent" />
+        </div>
+        <p className="text-text-muted text-sm">Send a message to start the conversation.</p>
+      </div>
+    );
+  }
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto">
-      {messages.length === 0 && !isStreaming && (
-        <div className="h-full flex items-center justify-center text-text-muted text-sm">
-          Send a message to start the conversation
-        </div>
-      )}
+    <div className="flex-1 overflow-y-auto px-5 py-5">
+      <div className="max-w-3xl mx-auto space-y-3">
+        {messages.map((message) => (
+          <AgentMessageView key={message.id} message={message} />
+        ))}
 
-      {messages.map((message) => (
-        <AgentMessageView key={message.id} message={message} />
-      ))}
+        {streamingText && (
+          <div className="bg-surface-elevated/40 border border-border-subtle rounded-xl px-4 py-3">
+            <MarkdownRenderer content={streamingText} isStreaming={true} />
+          </div>
+        )}
 
-      {streamingText && (
-        <div className="px-4 py-2">
-          <MarkdownRenderer content={streamingText} isStreaming={true} />
-        </div>
-      )}
+        {activeToolUse && (
+          <div className="flex items-center gap-2 px-3 py-1 text-xs text-text-muted">
+            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            <span className="font-mono">{activeToolUse.toolName}</span>
+            <span className="truncate">{activeToolUse.description}</span>
+            {activeToolUse.elapsedTimeSeconds !== undefined && (
+              <span className="shrink-0 tabular-nums">{Math.round(activeToolUse.elapsedTimeSeconds)}s</span>
+            )}
+          </div>
+        )}
 
-      {activeToolUse && (
-        <div className="flex items-center gap-2 px-3 py-1 text-xs text-text-muted">
-          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-          <span className="font-mono">{activeToolUse.toolName}</span>
-          <span className="truncate">{activeToolUse.description}</span>
-          {activeToolUse.elapsedTimeSeconds !== undefined && (
-            <span className="shrink-0 tabular-nums">{Math.round(activeToolUse.elapsedTimeSeconds)}s</span>
-          )}
-        </div>
-      )}
+        {isStreaming && !streamingText && !activeToolUse && <StreamingIndicator />}
 
-      {isStreaming && !streamingText && !activeToolUse && <StreamingIndicator />}
+        <div ref={bottomRef} />
+      </div>
     </div>
   );
 }
