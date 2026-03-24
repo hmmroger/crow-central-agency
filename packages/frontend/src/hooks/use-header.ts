@@ -21,7 +21,6 @@ export function useHeader(slots: HeaderSlots): void {
     return () => {
       clearSlots();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- slots object recreated each render; deps managed by caller
   });
 }
 

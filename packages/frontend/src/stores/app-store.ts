@@ -31,12 +31,13 @@ interface AppState {
 }
 
 const DASHBOARD_VIEW: ViewState = { viewMode: VIEW_MODE.DASHBOARD };
+const MAX_VIEW_STACK_DEPTH = 10;
 
 /**
  * App-wide store — navigation state with view stack for back navigation.
  * No real-time agent data here (that's owned by components via WS hooks).
  */
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<AppState>((set) => ({
   currentView: DASHBOARD_VIEW,
   viewStack: [],
 
@@ -47,29 +48,28 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
 
   goToConsole: (agentId: string) =>
-    set({
-      viewStack: [...get().viewStack, get().currentView],
+    set((state) => ({
+      viewStack: [...state.viewStack, state.currentView].slice(-MAX_VIEW_STACK_DEPTH),
       currentView: { viewMode: VIEW_MODE.CONSOLE, activeAgentId: agentId },
-    }),
+    })),
 
   goToAgentEditor: (agentId?: string) =>
-    set({
-      viewStack: [...get().viewStack, get().currentView],
+    set((state) => ({
+      viewStack: [...state.viewStack, state.currentView].slice(-MAX_VIEW_STACK_DEPTH),
       currentView: { viewMode: VIEW_MODE.AGENT_EDITOR, activeAgentId: agentId },
+    })),
+
+  goBack: () =>
+    set((state) => {
+      if (state.viewStack.length === 0) {
+        return { currentView: DASHBOARD_VIEW, viewStack: [] };
+      }
+
+      const previous = state.viewStack[state.viewStack.length - 1];
+
+      return {
+        currentView: previous,
+        viewStack: state.viewStack.slice(0, -1),
+      };
     }),
-
-  goBack: () => {
-    const stack = get().viewStack;
-
-    if (stack.length === 0) {
-      set({ currentView: DASHBOARD_VIEW, viewStack: [] });
-      return;
-    }
-
-    const previous = stack[stack.length - 1];
-    set({
-      currentView: previous,
-      viewStack: stack.slice(0, -1),
-    });
-  },
 }));
