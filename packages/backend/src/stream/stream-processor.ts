@@ -74,6 +74,10 @@ function handleMessage(agentId: string, message: SDKMessage): ProcessedStreamEve
       return undefined;
     }
 
+    case "user":
+    case "auth_status":
+    case "tool_use_summary":
+    case "prompt_suggestion":
     default:
       log.debug({ type: message.type, sessionId: message.session_id }, "Unhandled SDK message received");
       return undefined;
@@ -118,6 +122,18 @@ function handleSystemMessage(
       log.info({ agentId }, "Compact boundary reached");
       break;
     }
+
+    case "local_command_output":
+    case "hook_started":
+    case "hook_progress":
+    case "hook_response":
+    case "task_notification":
+    case "task_started":
+    case "task_progress":
+    case "files_persisted":
+    case "elicitation_complete":
+      log.debug({ agentId, subtype: message.subtype }, "System subtype ignored");
+      break;
   }
 
   return undefined;

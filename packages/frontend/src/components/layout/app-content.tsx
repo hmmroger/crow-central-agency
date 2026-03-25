@@ -28,12 +28,6 @@ export function AppContent() {
     case VIEW_MODE.AGENT_EDITOR:
       view = <AgentConfigView agentId={currentView.activeAgentId} />;
       break;
-
-    default: {
-      const _exhaustive: never = currentView.viewMode;
-
-      return _exhaustive;
-    }
   }
 
   return <main className="flex-1 overflow-hidden">{view}</main>;

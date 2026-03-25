@@ -19,9 +19,17 @@ export default defineConfig(
       "@stylistic": stylistic,
       import: importPlugin,
     },
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
     rules: {
       ...reactHooks.configs.recommended.rules,
       curly: ["error", "all"],
+      "no-case-declarations": "error",
       "padding-line-between-statements": ["error", { blankLine: "always", prev: "block-like", next: "*" }],
       "@typescript-eslint/no-unused-vars": [
         "error",
@@ -32,6 +40,7 @@ export default defineConfig(
       ],
       "@typescript-eslint/no-non-null-assertion": "error",
       "@typescript-eslint/no-import-type-side-effects": "error",
+      "@typescript-eslint/switch-exhaustiveness-check": "error",
       "@typescript-eslint/explicit-member-accessibility": [
         "error",
         {
@@ -70,5 +79,9 @@ export default defineConfig(
       "import/newline-after-import": "error",
       "import/no-duplicates": "error",
     },
+  },
+  {
+    files: ["**/vite.config.ts"],
+    extends: [tseslint.configs.disableTypeChecked],
   }
 );
