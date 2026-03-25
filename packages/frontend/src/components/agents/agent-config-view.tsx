@@ -113,51 +113,55 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     [loopEnabled, loopDays, loopTimeMode, loopHour, loopMinute, loopPrompt]
   );
 
-  /** Save — create or update */
+  /** Save — create or update. Errors are surfaced via mutation.error in the UI. */
   const handleSave = useCallback(async () => {
     const loopConfig = buildLoopConfig();
 
-    if (isEditing) {
-      const input: UpdateAgentInput = {
-        name,
-        description,
-        workspace,
-        persona,
-        model,
-        permissionMode,
-        settingSources,
-        toolConfig: {
-          mode: toolMode,
-          tools: toolMode === TOOL_MODE.RESTRICTED ? selectedTools : undefined,
-          autoApprovedTools: autoApprovedTools.length > 0 ? autoApprovedTools : undefined,
-        },
-        loop: loopConfig,
-        agentMd: agentMd.trim() || undefined,
-      };
+    try {
+      if (isEditing) {
+        const input: UpdateAgentInput = {
+          name,
+          description,
+          workspace,
+          persona,
+          model,
+          permissionMode,
+          settingSources,
+          toolConfig: {
+            mode: toolMode,
+            tools: toolMode === TOOL_MODE.RESTRICTED ? selectedTools : undefined,
+            autoApprovedTools: autoApprovedTools.length > 0 ? autoApprovedTools : undefined,
+          },
+          loop: loopConfig,
+          agentMd: agentMd.trim() || undefined,
+        };
 
-      await updateAgent.mutateAsync(input);
-    } else {
-      const input: CreateAgentInput = {
-        name,
-        workspace,
-        description: description || undefined,
-        persona: persona || undefined,
-        model: model !== DEFAULT_MODEL ? model : undefined,
-        permissionMode,
-        settingSources,
-        toolConfig: {
-          mode: toolMode,
-          tools: toolMode === TOOL_MODE.RESTRICTED ? selectedTools : undefined,
-          autoApprovedTools: autoApprovedTools.length > 0 ? autoApprovedTools : undefined,
-        },
-        loop: loopConfig,
-        agentMd: agentMd.trim() || undefined,
-      };
+        await updateAgent.mutateAsync(input);
+      } else {
+        const input: CreateAgentInput = {
+          name,
+          workspace,
+          description: description || undefined,
+          persona: persona || undefined,
+          model: model !== DEFAULT_MODEL ? model : undefined,
+          permissionMode,
+          settingSources,
+          toolConfig: {
+            mode: toolMode,
+            tools: toolMode === TOOL_MODE.RESTRICTED ? selectedTools : undefined,
+            autoApprovedTools: autoApprovedTools.length > 0 ? autoApprovedTools : undefined,
+          },
+          loop: loopConfig,
+          agentMd: agentMd.trim() || undefined,
+        };
 
-      await createAgent.mutateAsync(input);
+        await createAgent.mutateAsync(input);
+      }
+
+      goBack();
+    } catch {
+      // Error is surfaced via mutation.error in the UI
     }
-
-    goBack();
   }, [
     isEditing,
     name,
@@ -177,14 +181,18 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     goBack,
   ]);
 
-  /** Delete the agent and return to dashboard */
+  /** Delete the agent and return to dashboard. Errors surfaced via mutation.error. */
   const handleDelete = useCallback(async () => {
     if (!agentId) {
       return;
     }
 
-    await deleteFn();
-    goBack();
+    try {
+      await deleteFn();
+      goBack();
+    } catch {
+      // Error is surfaced via mutation.error in the UI
+    }
   }, [agentId, deleteFn, goBack]);
 
   // Header actions

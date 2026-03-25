@@ -10,7 +10,7 @@ import type { ApiError } from "../services/api-client.types.js";
  */
 export function useAgentQuery(agentId: string | undefined) {
   return useQuery<AgentConfig & { agentMd?: string }, ApiError>({
-    queryKey: agentKeys.detail(agentId ?? ""),
+    queryKey: agentId ? agentKeys.detail(agentId) : agentKeys.all,
     queryFn: async () => {
       const response = await apiClient.get<AgentConfig & { agentMd?: string }>(`/agents/${agentId}`);
 

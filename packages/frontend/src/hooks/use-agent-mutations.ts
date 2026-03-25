@@ -50,7 +50,7 @@ export function useDeleteAgent(agentId: string) {
 
   const mutation = useMutation<void, ApiError, void, { previous: AgentConfig[] | undefined }>({
     mutationFn: async () => {
-      const response = await apiClient.del(`/agents/${agentId}`);
+      const response = await apiClient.del<void>(`/agents/${agentId}`);
 
       unwrapResponse(response);
     },
@@ -75,9 +75,11 @@ export function useDeleteAgent(agentId: string) {
   });
 
   /** Wrapped mutate that returns void to match component callback expectations */
+  const { mutateAsync } = mutation;
+
   const deleteFn = useCallback(async () => {
-    await mutation.mutateAsync();
-  }, [mutation]);
+    await mutateAsync();
+  }, [mutateAsync]);
 
   return { ...mutation, deleteFn };
 }
