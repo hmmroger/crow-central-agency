@@ -32,7 +32,9 @@ export function AgentCardMessages({
 
   if (recentMessages.length === 0 && !streamingText) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center text-xs text-text-muted italic">
+      <div
+        className={`${expanded ? "space-y-1 h-96" : "space-y-0.5 h-40"} text-xs shrink-0 min-h-0 flex items-center justify-center text-text-muted italic`}
+      >
         No messages yet
       </div>
     );
