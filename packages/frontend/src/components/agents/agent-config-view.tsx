@@ -286,7 +286,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
       <div className="max-w-10/12 mx-auto p-6">
         {/* Error */}
         {mutationError && (
-          <div className="mb-6 p-3 rounded-md bg-error/10 border border-error/20 text-error text-sm">
+          <div className="mb-6 p-3 rounded-md bg-error/10 border border-error/20 text-error text-sm animate-[fade-slide-up_var(--duration-normal)_var(--ease-out)_both]">
             {mutationError}
           </div>
         )}

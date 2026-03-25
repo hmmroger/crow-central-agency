@@ -18,16 +18,21 @@ export function PermissionQueue({ permissions, onAllow, onDeny }: PermissionQueu
 
   return (
     <div className="space-y-2 px-4 py-2">
-      {permissions.map((permission) => (
-        <PermissionDialog
+      {permissions.map((permission, index) => (
+        <div
           key={permission.toolUseId}
-          toolName={permission.toolName}
-          toolUseId={permission.toolUseId}
-          input={permission.input}
-          decisionReason={permission.decisionReason}
-          onAllow={onAllow}
-          onDeny={onDeny}
-        />
+          className="animate-[fade-slide-up_var(--duration-normal)_var(--ease-out)_both]"
+          style={{ animationDelay: `${index * 50}ms` }}
+        >
+          <PermissionDialog
+            toolName={permission.toolName}
+            toolUseId={permission.toolUseId}
+            input={permission.input}
+            decisionReason={permission.decisionReason}
+            onAllow={onAllow}
+            onDeny={onDeny}
+          />
+        </div>
       ))}
     </div>
   );

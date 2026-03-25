@@ -17,7 +17,7 @@ export function ReconnectBanner({ connectionState }: ReconnectBannerProps) {
   const isReconnecting = connectionState === WS_STATE.RECONNECTING;
 
   return (
-    <div className="flex items-center justify-center gap-2 px-4 py-1.5 bg-warning/10 border-b border-warning/20 text-warning text-xs">
+    <div className="flex items-center justify-center gap-2 px-4 py-1.5 bg-warning/10 border-b border-warning/20 text-warning text-xs animate-[fade-slide-down_var(--duration-normal)_var(--ease-out)_both]">
       {isReconnecting ? (
         <>
           <Wifi className="h-3 w-3 animate-pulse" />

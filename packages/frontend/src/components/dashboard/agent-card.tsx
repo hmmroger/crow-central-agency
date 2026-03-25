@@ -54,7 +54,7 @@ export function AgentCard({ agent }: AgentCardProps) {
       />
 
       {pendingPermissions.length > 0 && (
-        <div className="shrink-0 px-2.5 py-2">
+        <div className="shrink-0 px-2.5 py-2 animate-[fade-in_var(--duration-normal)_var(--ease-out)_both]">
           <AgentCardPermission permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
         </div>
       )}
