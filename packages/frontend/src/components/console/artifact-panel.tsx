@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { FileText, RefreshCw } from "lucide-react";
-import { useAgentArtifacts } from "../../hooks/use-agent-artifacts.js";
+import { useAgentArtifactsQuery } from "../../hooks/use-agent-artifacts-query.js";
 import { ArtifactViewer } from "./artifact-viewer.js";
 
 interface ArtifactPanelProps {
@@ -11,7 +11,10 @@ interface ArtifactPanelProps {
  * Browse artifacts for an agent. Shows file list with click to view content.
  */
 export function ArtifactPanel({ agentId }: ArtifactPanelProps) {
-  const { artifacts, loading, refetch } = useAgentArtifacts(agentId);
+  const { data: artifacts = [], isLoading: loading, refetch } = useAgentArtifactsQuery(agentId);
+  const handleRefetch = useCallback(() => {
+    void refetch();
+  }, [refetch]);
   const [selectedFile, setSelectedFile] = useState<string | undefined>(undefined);
 
   if (selectedFile) {
@@ -26,7 +29,7 @@ export function ArtifactPanel({ agentId }: ArtifactPanelProps) {
         <button
           type="button"
           className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
-          onClick={() => refetch()}
+          onClick={handleRefetch}
           title="Refresh"
         >
           <RefreshCw className="h-3 w-3" />

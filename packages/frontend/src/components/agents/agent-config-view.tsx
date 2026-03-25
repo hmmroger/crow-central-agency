@@ -40,10 +40,13 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   // Query for loading existing agent when editing
   const agentQuery = useAgentQuery(agentId);
 
-  // Mutations
+  // Mutations — destructure mutateAsync for stable useCallback dependencies
   const createAgent = useCreateAgent();
   const updateAgent = useUpdateAgent(agentId ?? "");
   const { deleteFn, isPending: isDeleting } = useDeleteAgent(agentId ?? "");
+
+  const { mutateAsync: createMutateAsync } = createAgent;
+  const { mutateAsync: updateMutateAsync } = updateAgent;
 
   const saveMutation = isEditing ? updateAgent : createAgent;
   const isSaving = saveMutation.isPending;
@@ -136,7 +139,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           agentMd: agentMd.trim() || undefined,
         };
 
-        await updateAgent.mutateAsync(input);
+        await updateMutateAsync(input);
       } else {
         const input: CreateAgentInput = {
           name,
@@ -155,7 +158,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
           agentMd: agentMd.trim() || undefined,
         };
 
-        await createAgent.mutateAsync(input);
+        await createMutateAsync(input);
       }
 
       goBack();
@@ -176,8 +179,8 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     autoApprovedTools,
     agentMd,
     buildLoopConfig,
-    updateAgent,
-    createAgent,
+    updateMutateAsync,
+    createMutateAsync,
     goBack,
   ]);
 

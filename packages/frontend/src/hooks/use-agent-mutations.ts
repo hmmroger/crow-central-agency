@@ -52,7 +52,7 @@ export function useDeleteAgent(agentId: string) {
     mutationFn: async () => {
       const response = await apiClient.del<void>(`/agents/${agentId}`);
 
-      unwrapResponse(response);
+      return unwrapResponse(response);
     },
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: agentKeys.list() });

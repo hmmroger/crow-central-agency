@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { apiClient } from "../../services/api-client.js";
+import { useArtifactContentQuery } from "../../hooks/use-artifact-content-query.js";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
 
 interface ArtifactViewerProps {
@@ -13,30 +12,8 @@ interface ArtifactViewerProps {
  * View artifact file content in a slide-over panel.
  */
 export function ArtifactViewer({ agentId, filename, onClose }: ArtifactViewerProps) {
-  const [content, setContent] = useState<string | undefined>(undefined);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadContent = async () => {
-      setLoading(true);
-
-      try {
-        const response = await apiClient.get<{ filename: string; content: string }>(
-          `/agents/${agentId}/artifacts/${encodeURIComponent(filename)}`
-        );
-
-        if (response.success) {
-          setContent(response.data.content);
-        }
-      } catch {
-        setContent("Failed to load artifact content");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadContent();
-  }, [agentId, filename]);
+  const { data, isLoading: loading } = useArtifactContentQuery(agentId, filename);
+  const content = data?.content;
 
   return (
     <div className="flex flex-col h-full border-l border-border-subtle bg-surface">
