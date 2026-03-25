@@ -9,7 +9,6 @@ import {
   DEFAULT_MODEL,
   CLAUDE_CODE_MODEL_OPTIONS,
   DEFAULT_AVAILABLE_TOOLS,
-  type AgentConfig,
   type CreateAgentInput,
   type UpdateAgentInput,
   type PermissionMode,
@@ -18,8 +17,9 @@ import {
   type TimeMode,
   type DayOfWeek,
 } from "@crow-central-agency/shared";
-import { apiClient } from "../../services/api-client.js";
 import { useAppStore } from "../../stores/app-store.js";
+import { useAgentQuery } from "../../hooks/use-agent-query.js";
+import { useCreateAgent, useUpdateAgent, useDeleteAgent } from "../../hooks/use-agent-mutations.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { LoopConfigPanel } from "./loop-config-panel.js";
 import { AgentMdEditor } from "./agentmd-editor.js";
@@ -37,6 +37,19 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   const goBack = useAppStore((state) => state.goBack);
   const isEditing = agentId !== undefined;
 
+  // Query for loading existing agent when editing
+  const agentQuery = useAgentQuery(agentId);
+
+  // Mutations
+  const createAgent = useCreateAgent();
+  const updateAgent = useUpdateAgent(agentId ?? "");
+  const { deleteFn, isPending: isDeleting } = useDeleteAgent(agentId ?? "");
+
+  const saveMutation = isEditing ? updateAgent : createAgent;
+  const isSaving = saveMutation.isPending;
+  const mutationError = saveMutation.error?.message ?? agentQuery.error?.message;
+
+  // Form state
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [workspace, setWorkspace] = useState("");
@@ -54,135 +67,99 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   const [loopHour, setLoopHour] = useState<number | undefined>(undefined);
   const [loopMinute, setLoopMinute] = useState<number | undefined>(undefined);
   const [loopPrompt, setLoopPrompt] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [loadingAgent, setLoadingAgent] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
   const [agentMd, setAgentMd] = useState("");
   const [customToolInput, setCustomToolInput] = useState("");
   const customToolInputRef = useRef<HTMLInputElement>(null);
   const [generateModalType, setGenerateModalType] = useState<"persona" | "agentmd" | undefined>(undefined);
 
-  // Load existing agent config when editing
+  // Populate form fields when query data arrives
   useEffect(() => {
-    if (!agentId) {
+    const agent = agentQuery.data;
+
+    if (!agent) {
       return;
     }
 
-    const loadAgent = async () => {
-      setLoadingAgent(true);
+    setName(agent.name);
+    setDescription(agent.description);
+    setWorkspace(agent.workspace);
+    setPersona(agent.persona);
+    setModel(agent.model);
+    setPermissionMode(agent.permissionMode);
+    setSettingSources(agent.settingSources);
+    setToolMode(agent.toolConfig.mode);
+    setSelectedTools(agent.toolConfig.tools ?? []);
+    setAutoApprovedTools(agent.toolConfig.autoApprovedTools ?? []);
+    setAvailableTools(agent.availableTools ?? [...DEFAULT_AVAILABLE_TOOLS]);
+    setLoopEnabled(agent.loop.enabled);
+    setLoopDays(agent.loop.daysOfWeek);
+    setLoopTimeMode(agent.loop.timeMode);
+    setLoopHour(agent.loop.hour);
+    setLoopMinute(agent.loop.minute);
+    setLoopPrompt(agent.loop.prompt);
+    setAgentMd(agent.agentMd ?? "");
+  }, [agentQuery.data]);
 
-      try {
-        const response = await apiClient.get<AgentConfig & { agentMd?: string }>(`/agents/${agentId}`);
-
-        if (response.success) {
-          const agent = response.data;
-          setName(agent.name);
-          setDescription(agent.description);
-          setWorkspace(agent.workspace);
-          setPersona(agent.persona);
-          setModel(agent.model);
-          setPermissionMode(agent.permissionMode);
-          setSettingSources(agent.settingSources);
-          setToolMode(agent.toolConfig.mode);
-          setSelectedTools(agent.toolConfig.tools ?? []);
-          setAutoApprovedTools(agent.toolConfig.autoApprovedTools ?? []);
-          setAvailableTools(agent.availableTools ?? [...DEFAULT_AVAILABLE_TOOLS]);
-          setLoopEnabled(agent.loop.enabled);
-          setLoopDays(agent.loop.daysOfWeek);
-          setLoopTimeMode(agent.loop.timeMode);
-          setLoopHour(agent.loop.hour);
-          setLoopMinute(agent.loop.minute);
-          setLoopPrompt(agent.loop.prompt);
-          setAgentMd(agent.agentMd ?? "");
-        } else {
-          setError(response.error.message);
-        }
-      } catch {
-        setError("Failed to load agent");
-      } finally {
-        setLoadingAgent(false);
-      }
-    };
-
-    void loadAgent();
-  }, [agentId]);
+  /** Build the input payload from current form state */
+  const buildLoopConfig = useCallback(
+    () => ({
+      enabled: loopEnabled,
+      daysOfWeek: loopDays,
+      timeMode: loopTimeMode,
+      hour: loopHour,
+      minute: loopMinute,
+      prompt: loopPrompt,
+    }),
+    [loopEnabled, loopDays, loopTimeMode, loopHour, loopMinute, loopPrompt]
+  );
 
   /** Save — create or update */
   const handleSave = useCallback(async () => {
-    setSaving(true);
-    setError(undefined);
+    const loopConfig = buildLoopConfig();
 
-    try {
-      const loopConfig = {
-        enabled: loopEnabled,
-        daysOfWeek: loopDays,
-        timeMode: loopTimeMode,
-        hour: loopHour,
-        minute: loopMinute,
-        prompt: loopPrompt,
+    if (isEditing) {
+      const input: UpdateAgentInput = {
+        name,
+        description,
+        workspace,
+        persona,
+        model,
+        permissionMode,
+        settingSources,
+        toolConfig: {
+          mode: toolMode,
+          tools: toolMode === TOOL_MODE.RESTRICTED ? selectedTools : undefined,
+          autoApprovedTools: autoApprovedTools.length > 0 ? autoApprovedTools : undefined,
+        },
+        loop: loopConfig,
+        agentMd: agentMd.trim() || undefined,
       };
 
-      if (isEditing) {
-        const input: UpdateAgentInput = {
-          name,
-          description,
-          workspace,
-          persona,
-          model,
-          permissionMode,
-          settingSources,
-          toolConfig: {
-            mode: toolMode,
-            tools: toolMode === TOOL_MODE.RESTRICTED ? selectedTools : undefined,
-            autoApprovedTools: autoApprovedTools.length > 0 ? autoApprovedTools : undefined,
-          },
-          loop: loopConfig,
-          agentMd: agentMd.trim() || undefined,
-        };
+      await updateAgent.mutateAsync(input);
+    } else {
+      const input: CreateAgentInput = {
+        name,
+        workspace,
+        description: description || undefined,
+        persona: persona || undefined,
+        model: model !== DEFAULT_MODEL ? model : undefined,
+        permissionMode,
+        settingSources,
+        toolConfig: {
+          mode: toolMode,
+          tools: toolMode === TOOL_MODE.RESTRICTED ? selectedTools : undefined,
+          autoApprovedTools: autoApprovedTools.length > 0 ? autoApprovedTools : undefined,
+        },
+        loop: loopConfig,
+        agentMd: agentMd.trim() || undefined,
+      };
 
-        const response = await apiClient.patch(`/agents/${agentId}`, input);
-
-        if (!response.success) {
-          setError(response.error.message);
-
-          return;
-        }
-      } else {
-        const input: CreateAgentInput = {
-          name,
-          workspace,
-          description: description || undefined,
-          persona: persona || undefined,
-          model: model !== DEFAULT_MODEL ? model : undefined,
-          permissionMode,
-          settingSources,
-          toolConfig: {
-            mode: toolMode,
-            tools: toolMode === TOOL_MODE.RESTRICTED ? selectedTools : undefined,
-            autoApprovedTools: autoApprovedTools.length > 0 ? autoApprovedTools : undefined,
-          },
-          loop: loopConfig,
-          agentMd: agentMd.trim() || undefined,
-        };
-
-        const response = await apiClient.post("/agents", input);
-
-        if (!response.success) {
-          setError(response.error.message);
-
-          return;
-        }
-      }
-
-      goBack();
-    } catch {
-      setError("Failed to save agent");
-    } finally {
-      setSaving(false);
+      await createAgent.mutateAsync(input);
     }
+
+    goBack();
   }, [
     isEditing,
-    agentId,
     name,
     description,
     workspace,
@@ -193,13 +170,10 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     settingSources,
     selectedTools,
     autoApprovedTools,
-    loopEnabled,
-    loopDays,
-    loopTimeMode,
-    loopHour,
-    loopMinute,
-    loopPrompt,
     agentMd,
+    buildLoopConfig,
+    updateAgent,
+    createAgent,
     goBack,
   ]);
 
@@ -209,29 +183,32 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
       return;
     }
 
-    try {
-      await apiClient.del(`/agents/${agentId}`);
-      goBack();
-    } catch {
-      setError("Failed to delete agent");
-    }
-  }, [agentId, goBack]);
+    await deleteFn();
+    goBack();
+  }, [agentId, deleteFn, goBack]);
 
   // Header actions
   const headerTitle = isEditing ? name || "Edit Agent" : "Create Agent";
 
   const headerActions = useMemo(() => {
-    const canSave = !saving && !!name.trim() && !!workspace.trim();
-    const saveLabel = saving ? "Saving..." : "Save";
-    const createLabel = saving ? "Creating..." : "Create";
+    const canSave = !isSaving && !!name.trim() && !!workspace.trim();
+    const saveLabel = isSaving ? "Saving..." : "Save";
+    const createLabel = isSaving ? "Creating..." : "Create";
 
     return isEditing
       ? [
-          { key: "delete", label: "Delete", icon: Trash2, onClick: handleDelete, isDestructive: true },
+          {
+            key: "delete",
+            label: isDeleting ? "Deleting..." : "Delete",
+            icon: Trash2,
+            onClick: handleDelete,
+            isDestructive: true,
+            disabled: isDeleting,
+          },
           { key: "save", label: saveLabel, onClick: handleSave, isPrimary: true, disabled: !canSave },
         ]
       : [{ key: "create", label: createLabel, onClick: handleSave, isPrimary: true, disabled: !canSave }];
-  }, [isEditing, saving, name, workspace, handleSave, handleDelete]);
+  }, [isEditing, isSaving, isDeleting, name, workspace, handleSave, handleDelete]);
 
   /** Change tool mode — preserve custom tools (MCP), clear source-list-derived approvals */
   const handleToolModeChange = useCallback(
@@ -282,7 +259,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   /** Custom tools added by user that aren't in the standard source list */
   const customOnlyTools = autoApprovedTools.filter((tool) => !autoApprovedSource.includes(tool));
 
-  if (loadingAgent) {
+  if (agentQuery.isLoading) {
     return (
       <>
         <HeaderPortal title={headerTitle} actions={[]} />
@@ -296,8 +273,10 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
       <HeaderPortal title={headerTitle} actions={headerActions} />
       <div className="max-w-10/12 mx-auto p-6">
         {/* Error */}
-        {error && (
-          <div className="mb-6 p-3 rounded-md bg-error/10 border border-error/20 text-error text-sm">{error}</div>
+        {mutationError && (
+          <div className="mb-6 p-3 rounded-md bg-error/10 border border-error/20 text-error text-sm">
+            {mutationError}
+          </div>
         )}
 
         <div className="flex flex-col lg:flex-row gap-8">
