@@ -5,9 +5,6 @@ import type {
   McpSdkServerConfigWithInstance,
   HookEvent,
   HookCallbackMatcher,
-  SubagentStartHookInput,
-  SubagentStopHookInput,
-  PreToolUseHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_STATUS,
@@ -504,8 +501,9 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
           hooks: [
             async (input) => {
               try {
-                const subagentInput = input as SubagentStartHookInput;
-                broadcastActivity(`Subagent started: ${subagentInput.agent_type}`, "Agent");
+                if (input.hook_event_name === "SubagentStart") {
+                  broadcastActivity(`Subagent started: ${input.agent_type}`, "Agent");
+                }
               } catch (error) {
                 log.warn({ agentId, error }, "SubagentStart hook broadcast failed");
               }
@@ -520,8 +518,9 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
           hooks: [
             async (input) => {
               try {
-                const subagentInput = input as SubagentStopHookInput;
-                broadcastActivity(`Subagent completed: ${subagentInput.agent_type}`, "Agent");
+                if (input.hook_event_name === "SubagentStop") {
+                  broadcastActivity(`Subagent completed: ${input.agent_type}`, "Agent");
+                }
               } catch (error) {
                 log.warn({ agentId, error }, "SubagentStop hook broadcast failed");
               }
@@ -536,17 +535,14 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
           hooks: [
             async (input) => {
               try {
-                // Only broadcast for subagent tool use (has agent_id)
-                if (!("agent_id" in input) || !input.agent_id) {
-                  return { continue: true };
+                // Only broadcast for subagent tool use (has agent_id on the input)
+                if (input.hook_event_name === "PreToolUse" && input.agent_id) {
+                  const description = parseToolActivity(
+                    input.tool_name,
+                    (input.tool_input ?? {}) as Record<string, unknown>
+                  );
+                  broadcastActivity(`Subagent: ${description}`, input.tool_name);
                 }
-
-                const preToolInput = input as PreToolUseHookInput;
-                const description = parseToolActivity(
-                  preToolInput.tool_name,
-                  (preToolInput.tool_input ?? {}) as Record<string, unknown>
-                );
-                broadcastActivity(`Subagent: ${description}`, preToolInput.tool_name);
               } catch (error) {
                 log.warn({ agentId, error }, "PreToolUse hook broadcast failed");
               }
