@@ -1,9 +1,10 @@
 import { useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CLIENT_MESSAGE_TYPE, PERMISSION_DECISION } from "@crow-central-agency/shared";
 import { useWs } from "./use-ws.js";
-import { apiClient } from "../services/api-client.js";
+import { apiClient, unwrapResponse } from "../services/api-client.js";
 import { agentKeys } from "../services/query-keys.js";
+import type { ApiError } from "../services/api-client.types.js";
 
 /** Options for useAgentActions */
 export interface UseAgentActionsOptions {
@@ -20,11 +21,11 @@ export interface AgentActions {
   /** Inject a btw message while streaming */
   injectMessage: (text: string) => void;
   /** Stop the agent */
-  abort: () => Promise<void>;
+  abort: () => void;
   /** Start a new conversation — invalidates messages and state caches */
-  newConversation: () => Promise<void>;
+  newConversation: () => void;
   /** Trigger manual compaction */
-  compact: () => Promise<void>;
+  compact: () => void;
   /** Allow a pending permission request */
   allowPermission: (toolUseId: string) => void;
   /** Deny a pending permission request (optionally with a text message for the agent) */
@@ -33,8 +34,7 @@ export interface AgentActions {
 
 /**
  * Action callbacks for agent interaction.
- * Pure actions — no state. Uses WS for real-time commands, REST for lifecycle operations.
- * Invalidates React Query caches where needed (e.g. newConversation).
+ * WS sends for real-time commands, useMutation for REST lifecycle operations.
  *
  * @param agentId - The agent to act on
  * @param options - Callbacks for coordinating with local stream state
@@ -61,21 +61,35 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
   );
 
   /** Stop the agent */
-  const abort = useCallback(async () => {
-    await apiClient.post(`/agents/${agentId}/stop`);
-  }, [agentId]);
+  const abortMutation = useMutation<void, ApiError>({
+    mutationFn: async () => {
+      const response = await apiClient.post<void>(`/agents/${agentId}/stop`);
+
+      return unwrapResponse(response);
+    },
+  });
 
   /** Start a new conversation — clears ephemeral state and invalidates query caches */
-  const newConversation = useCallback(async () => {
-    await apiClient.post(`/agents/${agentId}/session/new`);
-    resetStreamState();
-    await queryClient.invalidateQueries({ queryKey: agentKeys.detail(agentId) });
-  }, [agentId, queryClient, resetStreamState]);
+  const newConversationMutation = useMutation<void, ApiError>({
+    mutationFn: async () => {
+      const response = await apiClient.post<void>(`/agents/${agentId}/session/new`);
+
+      return unwrapResponse(response);
+    },
+    onSuccess: () => {
+      resetStreamState();
+      void queryClient.invalidateQueries({ queryKey: agentKeys.detail(agentId) });
+    },
+  });
 
   /** Trigger manual compaction */
-  const compact = useCallback(async () => {
-    await apiClient.post(`/agents/${agentId}/session/compact`);
-  }, [agentId]);
+  const compactMutation = useMutation<void, ApiError>({
+    mutationFn: async () => {
+      const response = await apiClient.post<void>(`/agents/${agentId}/session/compact`);
+
+      return unwrapResponse(response);
+    },
+  });
 
   /** Allow a pending permission request */
   const allowPermission = useCallback(
@@ -100,6 +114,10 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
     },
     [send, agentId, removePendingPermission]
   );
+
+  const abort = useCallback(() => abortMutation.mutate(), [abortMutation]);
+  const newConversation = useCallback(() => newConversationMutation.mutate(), [newConversationMutation]);
+  const compact = useCallback(() => compactMutation.mutate(), [compactMutation]);
 
   return { sendMessage, injectMessage, abort, newConversation, compact, allowPermission, denyPermission };
 }
