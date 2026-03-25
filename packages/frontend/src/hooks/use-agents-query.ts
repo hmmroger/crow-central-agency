@@ -1,44 +1,31 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AgentUpdatedWsMessageSchema, AgentStatusWsMessageSchema, type AgentConfig } from "@crow-central-agency/shared";
-import { apiClient } from "../services/api-client.js";
+import { apiClient, unwrapResponse } from "../services/api-client.js";
+import { agentKeys } from "../services/query-keys.js";
 import { useWs } from "./use-ws.js";
+import type { ApiQueryError } from "../services/query-client.types.js";
 
 /**
- * Fetch the agent list via REST on mount, then listen for WS updates
- * (agent_updated, agent_status) to keep the list current.
+ * Fetch agent list via React Query, kept fresh by WS events.
+ * Uses staleTime: Infinity because WS `agent_updated` events
+ * update the query cache directly — no background refetch needed.
  */
-export function useAgents() {
-  const [agents, setAgents] = useState<AgentConfig[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | undefined>(undefined);
+export function useAgentsQuery() {
+  const queryClient = useQueryClient();
   const { onMessage } = useWs();
 
-  /** Fetch agent list from REST API */
-  const fetchAgents = useCallback(async () => {
-    setLoading(true);
-    setError(undefined);
-
-    try {
+  const query = useQuery<AgentConfig[], ApiQueryError>({
+    queryKey: agentKeys.list(),
+    queryFn: async () => {
       const response = await apiClient.get<AgentConfig[]>("/agents");
 
-      if (response.success) {
-        setAgents(response.data);
-      } else {
-        setError(response.error.message);
-      }
-    } catch {
-      setError("Failed to reach server");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return unwrapResponse(response);
+    },
+    staleTime: Infinity,
+  });
 
-  // Initial fetch
-  useEffect(() => {
-    fetchAgents();
-  }, [fetchAgents]);
-
-  // Listen for WS updates to keep list current
+  // WS listener updates cache directly instead of triggering refetch
   useEffect(() => {
     const unregister = onMessage((raw) => {
       // Handle agent_updated — full config refresh
@@ -47,7 +34,11 @@ export function useAgents() {
       if (updatedResult.success) {
         const { agentId, config } = updatedResult.data;
 
-        setAgents((prev) => {
+        queryClient.setQueryData<AgentConfig[]>(agentKeys.list(), (prev) => {
+          if (!prev) {
+            return [config];
+          }
+
           const index = prev.findIndex((agent) => agent.id === agentId);
 
           if (index >= 0) {
@@ -69,12 +60,11 @@ export function useAgents() {
 
       if (statusResult.success) {
         // Status tracking will be implemented in Phase 2 with runtime state
-        // For now, just acknowledge the message type is handled
       }
     });
 
     return unregister;
-  }, [onMessage]);
+  }, [onMessage, queryClient]);
 
-  return { agents, loading, error, refetch: fetchAgents };
+  return query;
 }

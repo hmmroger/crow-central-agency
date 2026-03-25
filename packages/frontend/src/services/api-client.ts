@@ -1,4 +1,5 @@
 import type { ApiResponse } from "./api-client.types.js";
+import type { ApiQueryError } from "./query-client.types.js";
 
 const BASE_URL = "/api";
 
@@ -11,6 +12,24 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
   }
 
   return response.json() as Promise<ApiResponse<T>>;
+}
+
+/**
+ * REST API client for communicating with the backend.
+ * All methods return typed ApiResponse wrappers.
+ */
+/**
+ * Unwrap an ApiResponse for use with React Query.
+ * Returns data on success, throws ApiQueryError on failure.
+ */
+export function unwrapResponse<T>(response: ApiResponse<T>): T {
+  if (response.success) {
+    return response.data;
+  }
+
+  const error: ApiQueryError = response.error;
+
+  throw error;
 }
 
 /**

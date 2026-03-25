@@ -1,3 +1,5 @@
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "./services/query-client.js";
 import { WsProvider } from "./providers/ws-provider.js";
 import { HeaderProvider } from "./providers/header-provider.js";
 import { ErrorBoundary } from "./components/common/error-boundary.js";
@@ -10,13 +12,15 @@ import { AppContent } from "./components/layout/app-content.js";
 export function App() {
   return (
     <ErrorBoundary>
-      <WsProvider>
-        <HeaderProvider>
-          <AppLayout>
-            <AppContent />
-          </AppLayout>
-        </HeaderProvider>
-      </WsProvider>
+      <QueryClientProvider client={queryClient}>
+        <WsProvider>
+          <HeaderProvider>
+            <AppLayout>
+              <AppContent />
+            </AppLayout>
+          </HeaderProvider>
+        </WsProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }
