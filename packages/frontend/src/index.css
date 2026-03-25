@@ -102,15 +102,38 @@
   --duration-fast: 150ms;
   --duration-normal: 200ms;
   --duration-slow: 300ms;
+  /* Deliberately override Tailwind v4 defaults with snappier spring-feel
+     curves for a distinctive command-center motion personality. All
+     ease-out/ease-in/ease-in-out utilities use these curves globally. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
-  /* ── Animation keyframes ── */
+  /* ── Animation shorthand tokens + keyframes ── */
   --animate-fade-in: fade-in var(--duration-normal) var(--ease-out) both;
   --animate-fade-slide-up: fade-slide-up var(--duration-normal) var(--ease-out) both;
   --animate-fade-slide-down: fade-slide-down var(--duration-normal) var(--ease-out) both;
   --animate-scale-in: scale-in var(--duration-normal) var(--ease-out) both;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes fade-slide-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fade-slide-down {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -337,53 +360,6 @@
     & .mermaid-container {
       @apply my-3 flex justify-center overflow-x-auto rounded-md border border-border bg-surface p-4;
     }
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   Animation Keyframes
-   GPU-composited (transform + opacity only) for performance.
-   ═══════════════════════════════════════════════════════════════ */
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes fade-slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fade-slide-down {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
   }
 }
 

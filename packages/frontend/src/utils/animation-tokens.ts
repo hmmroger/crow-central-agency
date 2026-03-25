@@ -13,7 +13,7 @@ export const DURATION = {
 
 /** Cubic-bezier easing curves matching CSS --ease-* tokens */
 export const EASING = {
-  OUT: [0.16, 1, 0.3, 1] as const,
-  IN: [0.55, 0, 1, 0.45] as const,
-  IN_OUT: [0.65, 0, 0.35, 1] as const,
-};
+  OUT: [0.16, 1, 0.3, 1],
+  IN: [0.55, 0, 1, 0.45],
+  IN_OUT: [0.65, 0, 0.35, 1],
+} as const;
