@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { MdGenerationService } from "../services/md-generation-service.js";
 import { GENERATION_TYPE, type GenerationType } from "../services/md-generation-service.types.js";
 import { AppError } from "../error/app-error.js";
-import { AppErrorCodes } from "../error/app-error.types.js";
+import { APP_ERROR_CODES } from "../error/app-error.types.js";
 
 const VALID_TYPES = new Set<string>(Object.values(GENERATION_TYPE));
 
@@ -20,11 +20,11 @@ export async function registerGenerationRoutes(server: FastifyInstance, generati
     const { type, prompt, context } = request.body ?? {};
 
     if (!type || !VALID_TYPES.has(type)) {
-      throw new AppError(`Invalid type — must be one of: ${[...VALID_TYPES].join(", ")}`, AppErrorCodes.Validation);
+      throw new AppError(`Invalid type — must be one of: ${[...VALID_TYPES].join(", ")}`, APP_ERROR_CODES.VALIDATION);
     }
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      throw new AppError("Prompt is required", AppErrorCodes.Validation);
+      throw new AppError("Prompt is required", APP_ERROR_CODES.VALIDATION);
     }
 
     const content = await generationService.generate({

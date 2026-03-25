@@ -4,7 +4,7 @@ import type { AgentRegistry } from "../services/agent-registry.js";
 import type { AgentOrchestrator } from "../services/agent-orchestrator.js";
 import type { SessionManager } from "../services/session-manager.js";
 import { AppError } from "../error/app-error.js";
-import { AppErrorCodes } from "../error/app-error.types.js";
+import { APP_ERROR_CODES } from "../error/app-error.types.js";
 import { logger } from "../utils/logger.js";
 
 const uuidParamSchema = z.uuid();
@@ -14,7 +14,7 @@ function validateUuidParam(id: string): string {
   const result = uuidParamSchema.safeParse(id);
 
   if (!result.success) {
-    throw new AppError("Invalid agent id", AppErrorCodes.Validation);
+    throw new AppError("Invalid agent id", APP_ERROR_CODES.VALIDATION);
   }
 
   return result.data;
@@ -23,7 +23,7 @@ function validateUuidParam(id: string): string {
 /** Wrap ZodError into AppError for consistent error responses */
 function wrapZodError(error: unknown): never {
   if (error instanceof ZodError) {
-    throw new AppError("Invalid input", AppErrorCodes.Validation);
+    throw new AppError("Invalid input", APP_ERROR_CODES.VALIDATION);
   }
 
   throw error;
@@ -51,7 +51,7 @@ export async function registerAgentRoutes(
     const agent = registry.get(agentId);
 
     if (!agent) {
-      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
+      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
     }
 
     const agentMd = await registry.getAgentMd(agentId);
@@ -99,7 +99,7 @@ export async function registerAgentRoutes(
     const { message } = request.body;
 
     if (!message || typeof message !== "string") {
-      throw new AppError("Message is required", AppErrorCodes.Validation);
+      throw new AppError("Message is required", APP_ERROR_CODES.VALIDATION);
     }
 
     // Fire-and-forget — response is streamed via WS
@@ -125,7 +125,7 @@ export async function registerAgentRoutes(
     const agent = registry.get(agentId);
 
     if (!agent) {
-      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
+      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
     }
 
     const state = orchestrator.getState(agentId);
@@ -159,7 +159,7 @@ export async function registerAgentRoutes(
     const state = orchestrator.getState(agentId);
 
     if (!state?.sessionId) {
-      throw new AppError("No active session", AppErrorCodes.SessionNotFound);
+      throw new AppError("No active session", APP_ERROR_CODES.SESSION_NOT_FOUND);
     }
 
     const sessionIdBeforeCompact = state.sessionId;
@@ -189,7 +189,7 @@ export async function registerAgentRoutes(
     const agent = registry.get(agentId);
 
     if (!agent) {
-      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
+      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
     }
 
     const sessions = await sessionManager.listSessions(agent.workspace);

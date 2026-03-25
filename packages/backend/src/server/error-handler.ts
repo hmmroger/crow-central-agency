@@ -1,26 +1,26 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { AppError } from "../error/app-error.js";
-import { AppErrorCodes, type AppErrorCode } from "../error/app-error.types.js";
+import { APP_ERROR_CODES, type AppErrorCode } from "../error/app-error.types.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "error-handler" });
 
 /** Map AppErrorCode → HTTP status code */
 const HTTP_STATUS_MAP: Record<AppErrorCode, number> = {
-  [AppErrorCodes.Unknown]: 500,
-  [AppErrorCodes.NotFound]: 404,
-  [AppErrorCodes.Validation]: 400,
-  [AppErrorCodes.AgentNotFound]: 404,
-  [AppErrorCodes.AgentBusy]: 409,
-  [AppErrorCodes.AgentNotRunning]: 409,
-  [AppErrorCodes.SessionNotFound]: 404,
-  [AppErrorCodes.PermissionTimeout]: 408,
-  [AppErrorCodes.PermissionDenied]: 403,
-  [AppErrorCodes.ArtifactNotFound]: 404,
-  [AppErrorCodes.PathTraversal]: 400,
-  [AppErrorCodes.McpError]: 502,
-  [AppErrorCodes.SdkError]: 502,
-  [AppErrorCodes.WsError]: 500,
+  [APP_ERROR_CODES.UNKNOWN]: 500,
+  [APP_ERROR_CODES.NOT_FOUND]: 404,
+  [APP_ERROR_CODES.VALIDATION]: 400,
+  [APP_ERROR_CODES.AGENT_NOT_FOUND]: 404,
+  [APP_ERROR_CODES.AGENT_BUSY]: 409,
+  [APP_ERROR_CODES.AGENT_NOT_RUNNING]: 409,
+  [APP_ERROR_CODES.SESSION_NOT_FOUND]: 404,
+  [APP_ERROR_CODES.PERMISSION_TIMEOUT]: 408,
+  [APP_ERROR_CODES.PERMISSION_DENIED]: 403,
+  [APP_ERROR_CODES.ARTIFACT_NOT_FOUND]: 404,
+  [APP_ERROR_CODES.PATH_TRAVERSAL]: 400,
+  [APP_ERROR_CODES.MCP_ERROR]: 502,
+  [APP_ERROR_CODES.SDK_ERROR]: 502,
+  [APP_ERROR_CODES.WS_ERROR]: 500,
 };
 
 /**
@@ -54,7 +54,7 @@ export function registerErrorHandler(server: FastifyInstance): void {
     return reply.status(500).send({
       success: false,
       error: {
-        code: AppErrorCodes.Unknown,
+        code: APP_ERROR_CODES.UNKNOWN,
         message: "Internal server error",
       },
     });

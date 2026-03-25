@@ -12,7 +12,7 @@ import { EventBus } from "../event-bus/event-bus.js";
 import type { AgentRegistryEvents } from "./agent-registry.types.js";
 import type { WsBroadcaster } from "./ws-broadcaster.js";
 import { AppError } from "../error/app-error.js";
-import { AppErrorCodes } from "../error/app-error.types.js";
+import { APP_ERROR_CODES } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
 import { AGENTS_DIR_NAME, AGENTS_CONFIG_FILENAME, AGENT_MD_FILENAME } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
@@ -117,7 +117,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     const existing = this.agents.get(agentId);
 
     if (!existing) {
-      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
+      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
     }
 
     const validated = UpdateAgentInputSchema.parse(input);
@@ -156,7 +156,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     const existing = this.agents.get(agentId);
 
     if (!existing) {
-      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
+      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
     }
 
     // Persist JSON first — orphaned folder is recoverable; orphaned JSON entry is not
@@ -175,7 +175,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   /** Read the agent's AGENT.md file. Returns undefined if not found. */
   public async getAgentMd(agentId: string): Promise<string | undefined> {
     if (!this.agents.has(agentId)) {
-      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
+      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
     }
 
     const mdPath = this.getAgentMdPath(agentId);
@@ -186,7 +186,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   /** Write the agent's AGENT.md file */
   public async setAgentMd(agentId: string, content: string): Promise<void> {
     if (!this.agents.has(agentId)) {
-      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
+      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
     }
 
     const mdPath = this.getAgentMdPath(agentId);

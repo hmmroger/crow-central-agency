@@ -34,7 +34,6 @@ const OPENAI = OPENAI_BASE_URL
 export const env = {
   NODE_ENV,
   IS_DEV,
-  // Logging
   LOG_LEVEL: getOptional("LOG_LEVEL") ?? (IS_DEV ? "debug" : "info"),
   HOST: getOptional("HOST") ?? "localhost",
   PORT: getOptionalNumber("PORT") ?? 3030,

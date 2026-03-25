@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { AppError } from "../error/app-error.js";
-import { AppErrorCodes } from "../error/app-error.types.js";
+import { APP_ERROR_CODES } from "../error/app-error.types.js";
 
 /**
  * Validate that a resolved path is within the allowed base directory.
@@ -12,7 +12,7 @@ export function assertWithinBase(filePath: string, baseDir: string): void {
   const resolvedBase = path.resolve(baseDir);
 
   if (!resolved.startsWith(resolvedBase + path.sep) && resolved !== resolvedBase) {
-    throw new AppError(`Path traversal detected`, AppErrorCodes.PathTraversal);
+    throw new AppError(`Path traversal detected`, APP_ERROR_CODES.PATH_TRAVERSAL);
   }
 }
 

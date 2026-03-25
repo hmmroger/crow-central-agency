@@ -24,7 +24,7 @@ import { processStream } from "../stream/stream-processor.js";
 import { parseToolActivity } from "../stream/tool-activity-parser.js";
 import crypto from "node:crypto";
 import { AppError } from "../error/app-error.js";
-import { AppErrorCodes } from "../error/app-error.types.js";
+import { APP_ERROR_CODES } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
 import {
   DEFAULT_PERMISSION_DENY_MESSAGE,
@@ -110,13 +110,13 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const agentConfig = this.registry.get(agentId);
 
     if (!agentConfig) {
-      throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
+      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
     }
 
     const state = this.ensureState(agentId);
 
     if (state.status !== AGENT_STATUS.IDLE && state.status !== AGENT_STATUS.ERROR) {
-      throw new AppError(`Agent ${agentId} is busy (status: ${state.status})`, AppErrorCodes.AgentBusy);
+      throw new AppError(`Agent ${agentId} is busy (status: ${state.status})`, APP_ERROR_CODES.AGENT_BUSY);
     }
 
     // Build system prompt: persona + AGENT.md + peer list
@@ -250,7 +250,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const running = this.runningAgents.get(agentId);
 
     if (!running) {
-      throw new AppError(`Agent ${agentId} is not streaming`, AppErrorCodes.AgentNotRunning);
+      throw new AppError(`Agent ${agentId} is not streaming`, APP_ERROR_CODES.AGENT_NOT_RUNNING);
     }
 
     await running.query.streamInput(
@@ -275,7 +275,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const targetConfig = this.registry.get(targetAgentId);
 
     if (!targetConfig) {
-      throw new AppError(`Target agent not found: ${targetAgentId}`, AppErrorCodes.AgentNotFound);
+      throw new AppError(`Target agent not found: ${targetAgentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
     }
 
     const sourceConfig = this.registry.get(sourceAgentId);
@@ -314,7 +314,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const running = this.runningAgents.get(agentId);
 
     if (!running) {
-      throw new AppError(`Agent ${agentId} is not streaming`, AppErrorCodes.AgentNotRunning);
+      throw new AppError(`Agent ${agentId} is not streaming`, APP_ERROR_CODES.AGENT_NOT_RUNNING);
     }
 
     this.permissionHandler.cancelAllForAgent(agentId);
@@ -641,7 +641,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   private listenToLoopScheduler(): void {
     this.loopScheduler.on("loopTick", ({ agentId, prompt }) => {
       this.sendMessage(agentId, prompt).catch((error) => {
-        if (error instanceof AppError && error.errorCode === AppErrorCodes.AgentBusy) {
+        if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.AGENT_BUSY) {
           log.debug({ agentId }, "Loop tick skipped — agent is busy");
 
           return;

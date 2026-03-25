@@ -3,7 +3,7 @@ import path from "node:path";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { assertWithinBase, ensureDir } from "../utils/fs-utils.js";
 import { AppError } from "../error/app-error.js";
-import { AppErrorCodes } from "../error/app-error.types.js";
+import { APP_ERROR_CODES } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
 import { AGENTS_DIR_NAME, AGENT_ARTIFACTS_DIR_NAME } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
@@ -64,7 +64,7 @@ export class ArtifactManager {
       return await fs.readFile(filePath, "utf-8");
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        throw new AppError(`Artifact not found: ${filename}`, AppErrorCodes.ArtifactNotFound);
+        throw new AppError(`Artifact not found: ${filename}`, APP_ERROR_CODES.ARTIFACT_NOT_FOUND);
       }
 
       throw error;

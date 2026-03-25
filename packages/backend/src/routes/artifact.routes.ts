@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ArtifactManager } from "../services/artifact-manager.js";
 import { AppError } from "../error/app-error.js";
-import { AppErrorCodes } from "../error/app-error.types.js";
+import { APP_ERROR_CODES } from "../error/app-error.types.js";
 
 const uuidParamSchema = z.uuid();
 
@@ -15,7 +15,7 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
     const parseResult = uuidParamSchema.safeParse(request.params.id);
 
     if (!parseResult.success) {
-      throw new AppError("Invalid agent id", AppErrorCodes.Validation);
+      throw new AppError("Invalid agent id", APP_ERROR_CODES.VALIDATION);
     }
 
     const artifacts = await artifactManager.listArtifacts(parseResult.data);
@@ -28,7 +28,7 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
     const parseResult = uuidParamSchema.safeParse(request.params.id);
 
     if (!parseResult.success) {
-      throw new AppError("Invalid agent id", AppErrorCodes.Validation);
+      throw new AppError("Invalid agent id", APP_ERROR_CODES.VALIDATION);
     }
 
     const content = await artifactManager.readArtifact(parseResult.data, request.params.filename);
