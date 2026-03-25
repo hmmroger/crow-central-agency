@@ -3,7 +3,7 @@ import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAgentInteraction } from "../../hooks/use-agent-interaction.js";
 import { AgentCardHeader } from "./agent-card-header.js";
 import { AgentCardMessages } from "./agent-card-messages.js";
-import { AgentCardInput } from "./agent-card-input.js";
+import { MessageInput } from "../common/message-input.js";
 import { AgentCardPermission } from "./agent-card-permission.js";
 
 interface AgentCardProps {
@@ -27,6 +27,7 @@ export function AgentCard({ agent }: AgentCardProps) {
     activeToolUse,
     sendMessage,
     injectMessage,
+    abort,
     allowPermission,
     denyPermission,
   } = useAgentInteraction(agent.id);
@@ -59,9 +60,12 @@ export function AgentCard({ agent }: AgentCardProps) {
       )}
 
       <div className="shrink-0 border-t border-border-subtle px-2.5 py-2">
-        <AgentCardInput
-          onSend={(text) => (isStreaming ? injectMessage(text) : sendMessage(text))}
+        <MessageInput
+          onSend={sendMessage}
+          onInject={injectMessage}
+          onAbort={abort}
           isStreaming={isStreaming}
+          variant="compact"
         />
       </div>
     </div>

@@ -5,7 +5,7 @@ import { useAgentInteraction } from "../../hooks/use-agent-interaction.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { ConsoleStatusBar } from "./console-status-bar.js";
 import { MessageList } from "./message-list.js";
-import { MessageInput } from "./message-input.js";
+import { MessageInput } from "../common/message-input.js";
 import { PermissionQueue } from "./permission-queue.js";
 import { ArtifactPanel } from "./artifact-panel.js";
 
