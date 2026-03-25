@@ -203,18 +203,13 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
           }
         }
 
-        // 5. Per-turn usage accumulation
-        if (event.meta?.usage) {
-          state.sessionUsage.inputTokens += event.meta.usage.inputTokens;
-          state.sessionUsage.outputTokens += event.meta.usage.outputTokens;
-        }
-
-        // 6. Result → update session usage with final totals
         if (event.meta?.result) {
           const resultInfo = event.meta.result;
+          const inputTokens = (state.sessionUsage.inputTokens += resultInfo.inputTokens);
+          const outputTokens = (state.sessionUsage.outputTokens += resultInfo.outputTokens);
           state.sessionUsage = {
-            inputTokens: state.sessionUsage.inputTokens,
-            outputTokens: state.sessionUsage.outputTokens,
+            inputTokens,
+            outputTokens,
             totalCostUsd: resultInfo.totalCostUsd,
             contextUsed: resultInfo.contextUsed ?? state.sessionUsage.contextUsed,
             contextTotal: resultInfo.contextTotal ?? state.sessionUsage.contextTotal,

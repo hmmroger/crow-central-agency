@@ -1,7 +1,7 @@
 import type { SDKMessage, Query, SessionMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { ServerMessage } from "@crow-central-agency/shared";
 import { parseToolActivity } from "./tool-activity-parser.js";
-import type { ProcessedStreamEvent, StreamEventMeta, StreamResultInfo } from "./stream-processor.types.js";
+import type { ProcessedStreamEvent, StreamResultInfo } from "./stream-processor.types.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "stream-processor" });
@@ -23,14 +23,9 @@ export async function* processStream(agentId: string, queryStream: Query): Async
 
   try {
     for await (const message of queryStream) {
-      const partial = handleMessage(agentId, message, pendingWsMessages);
-
-      if (pendingWsMessages.length > 0 || partial.sessionMessage || partial.meta) {
-        yield {
-          wsMessages: pendingWsMessages.splice(0),
-          sessionMessage: partial.sessionMessage,
-          meta: partial.meta,
-        };
+      const processedEvent = handleMessage(agentId, message);
+      if (processedEvent) {
+        yield processedEvent;
       }
     }
   } catch (error) {
@@ -48,98 +43,91 @@ export async function* processStream(agentId: string, queryStream: Query): Async
         },
       },
     };
-  } finally {
-    if (pendingWsMessages.length > 0) {
-      yield { wsMessages: pendingWsMessages.splice(0) };
-    }
   }
 }
 
-/** Partial result from processing a single SDK message */
-interface MessagePartial {
-  sessionMessage?: SessionMessage;
-  meta?: StreamEventMeta;
-}
-
 /** Process a single SDK message — returns extracted data, pushes WS messages to pending array */
-function handleMessage(agentId: string, message: SDKMessage, pendingWsMessages: ServerMessage[]): MessagePartial {
+function handleMessage(agentId: string, message: SDKMessage): ProcessedStreamEvent | undefined {
   switch (message.type) {
     case "system":
-      return handleSystemMessage(agentId, message, pendingWsMessages);
+      return handleSystemMessage(agentId, message);
 
     case "stream_event":
-      handleStreamEvent(agentId, message, pendingWsMessages);
-      return {};
+      return handleStreamEvent(agentId, message);
 
     case "assistant":
       return handleAssistantMessage(message);
 
     case "result":
-      return handleResultMessage(agentId, message, pendingWsMessages);
+      return handleResultMessage(agentId, message);
 
     case "tool_progress":
-      return handleToolProgress(agentId, message, pendingWsMessages);
+      return handleToolProgress(agentId, message);
 
     case "rate_limit_event": {
-      const rateMsg = message as SDKMessage & { rate_limit_info?: unknown };
-      log.warn({ agentId, rateLimit: rateMsg.rate_limit_info }, "Rate limit event");
-      return {};
+      if (message.rate_limit_info.status === "rejected") {
+        log.warn({ agentId, rateLimit: message.rate_limit_info }, "Rate limited.");
+      } else {
+        log.info({ agentId, rateLimit: message.rate_limit_info }, "Rate limit info changed.");
+      }
+
+      return undefined;
     }
 
     default:
-      return {};
+      log.debug({ type: message.type, sessionId: message.session_id }, "Unhandled SDK message received");
+      return undefined;
   }
 }
 
 /** Handle system messages (init, status, compact_boundary) */
 function handleSystemMessage(
   agentId: string,
-  message: SDKMessage & { type: "system" },
-  pendingWsMessages: ServerMessage[]
-): MessagePartial {
-  if (!("subtype" in message)) {
-    return {};
+  message: SDKMessage & { type: "system" }
+): ProcessedStreamEvent | undefined {
+  if (!message.subtype) {
+    return undefined;
   }
+
+  log.debug({ type: message.type, subtype: message.subtype, sessionId: message.session_id }, "handleSystemMessage");
 
   switch (message.subtype) {
     case "init": {
-      const initMsg = message as SDKMessage & { type: "system"; subtype: "init"; session_id: string; tools: string[] };
-      log.info({ agentId, sessionId: initMsg.session_id, tools: initMsg.tools.length }, "Session initialized");
+      log.info({ agentId, sessionId: message.session_id, tools: message.tools.length }, "Session initialized");
       return {
+        wsMessages: [],
         meta: {
-          sessionId: initMsg.session_id,
-          discoveredTools: initMsg.tools,
+          sessionId: message.session_id,
+          discoveredTools: message.tools,
         },
       };
     }
 
     case "status": {
-      const statusMsg = message as SDKMessage & { type: "system"; subtype: "status"; status: string | null };
-
-      if (statusMsg.status === "compacting") {
-        pendingWsMessages.push({ type: "agent_status", agentId, status: "compacting" });
-        return { meta: { status: "compacting" } };
+      if (message.status === "compacting") {
+        return {
+          wsMessages: [{ type: "agent_status", agentId, status: "compacting" }],
+          meta: { status: "compacting" },
+        };
       }
 
-      return {};
+      break;
     }
 
     case "compact_boundary": {
       log.info({ agentId }, "Compact boundary reached");
-      return {};
+      break;
     }
-
-    default:
-      return {};
   }
+
+  return undefined;
 }
 
 /** Handle stream events (text deltas, tool use) */
 function handleStreamEvent(
   agentId: string,
-  message: SDKMessage & { type: "stream_event" },
-  pendingWsMessages: ServerMessage[]
-): void {
+  message: SDKMessage & { type: "stream_event" }
+): ProcessedStreamEvent | undefined {
   const event = (
     message as {
       event: {
@@ -151,10 +139,14 @@ function handleStreamEvent(
     }
   ).event;
 
+  log.debug({ type: message.type, eventType: event.type, sessionId: message.session_id }, "handleStreamEvent");
+
   switch (event.type) {
     case "content_block_delta": {
       if (event.delta?.type === "text_delta" && event.delta.text) {
-        pendingWsMessages.push({ type: "agent_text", agentId, text: event.delta.text });
+        return {
+          wsMessages: [{ type: "agent_text", agentId, text: event.delta.text }],
+        };
       }
 
       break;
@@ -165,108 +157,74 @@ function handleStreamEvent(
         const toolName = event.content_block.name;
         const toolInput = (event.content_block.input ?? {}) as Record<string, unknown>;
         const description = parseToolActivity(toolName, toolInput);
-
-        pendingWsMessages.push({
-          type: "agent_activity",
-          agentId,
-          toolName,
-          description,
-        });
+        return {
+          wsMessages: [
+            {
+              type: "agent_activity",
+              agentId,
+              toolName,
+              description,
+            },
+          ],
+        };
       }
 
       break;
     }
-
-    default:
-      break;
   }
+
+  return undefined;
 }
 
 /**
  * Handle complete assistant message — convert to SessionMessage for cache persistence.
  * Also extracts per-turn usage for meta.
  */
-function handleAssistantMessage(message: SDKMessage & { type: "assistant" }): MessagePartial {
-  const assistantMsg = message as SDKMessage & {
-    type: "assistant";
-    uuid: string;
-    session_id: string;
-    message: unknown;
-    parent_tool_use_id: string | null;
-  };
+function handleAssistantMessage(message: SDKMessage & { type: "assistant" }): ProcessedStreamEvent | undefined {
+  log.debug({ type: message.type, sessionId: message.session_id }, "handleAssistantMessage");
 
   // Convert SDKAssistantMessage → SessionMessage (nearly identical shapes)
   const sessionMessage: SessionMessage = {
     type: "assistant",
-    uuid: assistantMsg.uuid,
-    session_id: assistantMsg.session_id,
-    message: assistantMsg.message,
+    uuid: message.uuid,
+    session_id: message.session_id,
+    message: message.message,
     parent_tool_use_id: null,
   };
 
-  // Extract per-turn usage
-  const usage = (assistantMsg.message as { usage?: { input_tokens?: number; output_tokens?: number } })?.usage;
-  const meta: StreamEventMeta | undefined = usage
-    ? { usage: { inputTokens: usage.input_tokens ?? 0, outputTokens: usage.output_tokens ?? 0 } }
-    : undefined;
-
-  return { sessionMessage, meta };
+  return { wsMessages: [], sessionMessage };
 }
 
 /** Handle tool progress — surface tool execution status */
 function handleToolProgress(
   agentId: string,
-  message: SDKMessage & { type: "tool_progress" },
-  pendingWsMessages: ServerMessage[]
-): MessagePartial {
-  const progressMsg = message as SDKMessage & {
-    type: "tool_progress";
-    tool_name: string;
-    elapsed_time_seconds: number;
+  message: SDKMessage & { type: "tool_progress" }
+): ProcessedStreamEvent | undefined {
+  log.debug({ type: message.type, sessionId: message.session_id }, "handleToolProgress");
+  return {
+    wsMessages: [
+      {
+        type: "agent_tool_progress",
+        agentId,
+        toolName: message.tool_name,
+        elapsedTimeSeconds: message.elapsed_time_seconds,
+      },
+    ],
   };
-
-  pendingWsMessages.push({
-    type: "agent_tool_progress",
-    agentId,
-    toolName: progressMsg.tool_name,
-    elapsedTimeSeconds: progressMsg.elapsed_time_seconds,
-  });
-
-  return {};
 }
 
 /** Handle result messages (success/error) */
 function handleResultMessage(
   agentId: string,
-  message: SDKMessage & { type: "result" },
-  pendingWsMessages: ServerMessage[]
-): MessagePartial {
-  const resultMsg = message as SDKMessage & {
-    type: "result";
-    subtype: string;
-    total_cost_usd: number;
-    duration_ms: number;
-    usage: { input_tokens: number; output_tokens: number };
-    modelUsage?: Record<
-      string,
-      {
-        contextWindow: number;
-        inputTokens: number;
-        outputTokens: number;
-        cacheReadInputTokens: number;
-        cacheCreationInputTokens: number;
-      }
-    >;
-    is_error: boolean;
-  };
-
+  message: SDKMessage & { type: "result" }
+): ProcessedStreamEvent | undefined {
+  log.debug({ type: message.type, sessionId: message.session_id }, "handleResultMessage");
   // Extract context window info
   let contextUsed: number | undefined;
   let contextTotal: number | undefined;
 
-  if (resultMsg.modelUsage) {
-    const modelEntries = Object.values(resultMsg.modelUsage);
-
+  if (message.modelUsage) {
+    const modelEntries = Object.values(message.modelUsage);
     if (modelEntries.length > 0) {
       const modelInfo = modelEntries[0];
       contextTotal = modelInfo.contextWindow;
@@ -279,34 +237,35 @@ function handleResultMessage(
   }
 
   const resultInfo: StreamResultInfo = {
-    success: !resultMsg.is_error,
-    subtype: resultMsg.subtype,
-    totalCostUsd: resultMsg.total_cost_usd,
-    durationMs: resultMsg.duration_ms,
-    inputTokens: resultMsg.usage.input_tokens,
-    outputTokens: resultMsg.usage.output_tokens,
+    success: !message.is_error,
+    subtype: message.subtype,
+    totalCostUsd: message.total_cost_usd,
+    durationMs: message.duration_ms,
+    inputTokens: message.usage.input_tokens,
+    outputTokens: message.usage.output_tokens,
     contextUsed,
     contextTotal,
   };
 
   // Emit result + usage WS messages
-  pendingWsMessages.push({
-    type: "agent_result",
-    agentId,
-    subtype: resultMsg.subtype,
-    totalCostUsd: resultMsg.total_cost_usd,
-    durationMs: resultMsg.duration_ms,
-  });
+  const wsMessages: ServerMessage[] = [
+    {
+      type: "agent_result",
+      agentId,
+      subtype: message.subtype,
+      totalCostUsd: message.total_cost_usd,
+      durationMs: message.duration_ms,
+    },
+    {
+      type: "agent_usage",
+      agentId,
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+      totalCostUsd: message.total_cost_usd,
+      contextUsed: contextUsed ?? 0,
+      contextTotal: contextTotal ?? 0,
+    },
+  ];
 
-  pendingWsMessages.push({
-    type: "agent_usage",
-    agentId,
-    inputTokens: resultMsg.usage.input_tokens,
-    outputTokens: resultMsg.usage.output_tokens,
-    totalCostUsd: resultMsg.total_cost_usd,
-    contextUsed: contextUsed ?? 0,
-    contextTotal: contextTotal ?? 0,
-  });
-
-  return { meta: { result: resultInfo } };
+  return { wsMessages, meta: { result: resultInfo } };
 }
