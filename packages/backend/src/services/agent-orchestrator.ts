@@ -1,5 +1,12 @@
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
-import type { SDKUserMessage, CanUseTool, McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  SDKUserMessage,
+  CanUseTool,
+  McpSdkServerConfigWithInstance,
+  HookInput,
+  HookEvent,
+  HookCallbackMatcher,
+} from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_STATUS,
   AgentRuntimeStateSchema,
@@ -15,6 +22,7 @@ import type { ArtifactManager } from "./artifact-manager.js";
 import type { LoopScheduler } from "./loop-scheduler.js";
 import type { SessionManager } from "./session-manager.js";
 import { processStream } from "../stream/stream-processor.js";
+import { parseToolActivity } from "../stream/tool-activity-parser.js";
 import crypto from "node:crypto";
 import { AppError } from "../error/app-error.js";
 import { AppErrorCodes } from "../error/app-error.types.js";
@@ -145,6 +153,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         toolConfig: {
           askUserQuestion: { previewFormat: "html" },
         },
+        hooks: this.buildSdkHooks(agentId),
       },
     });
 
@@ -471,6 +480,66 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     return servers;
+  }
+
+  /**
+   * Build SDK hooks to capture subagent lifecycle events.
+   * Broadcasts agent_activity WS messages when subagents start, stop, or use tools.
+   */
+  private buildSdkHooks(agentId: string): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
+    const broadcastActivity = (description: string, toolName: string) => {
+      this.broadcaster.broadcast(agentId, {
+        type: "agent_activity",
+        agentId,
+        toolName,
+        description,
+      });
+    };
+
+    return {
+      SubagentStart: [
+        {
+          hooks: [
+            async (input: HookInput) => {
+              const agentType = (input as { agent_type?: string }).agent_type ?? "unknown";
+              broadcastActivity(`Subagent started: ${agentType}`, "Agent");
+              return { continue: true };
+            },
+          ],
+        },
+      ],
+      SubagentStop: [
+        {
+          hooks: [
+            async (input: HookInput) => {
+              const agentType = (input as { agent_type?: string }).agent_type ?? "unknown";
+              broadcastActivity(`Subagent completed: ${agentType}`, "Agent");
+              return { continue: true };
+            },
+          ],
+        },
+      ],
+      PreToolUse: [
+        {
+          hooks: [
+            async (input: HookInput) => {
+              // Only broadcast for subagent tool use (has agent_id)
+              if (!("agent_id" in input) || !input.agent_id) {
+                return { continue: true };
+              }
+
+              const toolInput = input as { tool_name: string; tool_input: unknown };
+              const description = parseToolActivity(
+                toolInput.tool_name,
+                (toolInput.tool_input ?? {}) as Record<string, unknown>
+              );
+              broadcastActivity(`Subagent: ${description}`, toolInput.tool_name);
+              return { continue: true };
+            },
+          ],
+        },
+      ],
+    };
   }
 
   /** Persist all runtime states to disk */
