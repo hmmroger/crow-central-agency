@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { FolderOpen, Minimize2, Plus } from "lucide-react";
 import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAgentInteraction } from "../../hooks/use-agent-interaction.js";
+import { DURATION, EASING } from "../../utils/animation-tokens.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { ConsoleStatusBar } from "./console-status-bar.js";
 import { MessageList } from "./message-list.js";
@@ -70,11 +72,21 @@ export function AgentConsole({ agent }: AgentConsoleProps) {
       </div>
 
       {/* Artifact sidebar */}
-      {showArtifacts && (
-        <div className="w-72 shrink-0">
-          <ArtifactPanel agentId={agent.id} />
-        </div>
-      )}
+      <AnimatePresence>
+        {showArtifacts && (
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: "18rem", opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: DURATION.NORMAL, ease: EASING.OUT }}
+            className="shrink-0 overflow-hidden"
+          >
+            <div className="w-72">
+              <ArtifactPanel agentId={agent.id} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
