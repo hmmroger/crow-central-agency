@@ -459,7 +459,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       this.setStatus(agentId, AGENT_STATUS.STREAMING);
 
       if (result.behavior === "allow") {
-        return { behavior: "allow" as const, updatedInput: result.updatedInput, toolUseID: options.toolUseID };
+        return { behavior: "allow" as const, updatedInput: result.updatedInput || input, toolUseID: options.toolUseID };
       }
 
       return {
