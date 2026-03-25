@@ -30,10 +30,16 @@ export function AgentCardMessages({
   const recentMessages = messages.slice(-limit);
   const scrollRef = useAutoScroll(`${messages.length}-${streamingText.length}-${activeToolUse?.toolName ?? ""}`);
 
+  const heightStyle = {
+    height: expanded ? "24rem" : "10rem",
+    transition: "height var(--duration-normal) var(--ease-in-out)",
+  };
+
   if (recentMessages.length === 0 && !streamingText) {
     return (
       <div
-        className={`${expanded ? "space-y-1 h-96" : "space-y-0.5 h-40"} text-xs shrink-0 min-h-0 flex items-center justify-center text-text-muted italic`}
+        style={heightStyle}
+        className={`${expanded ? "space-y-1" : "space-y-0.5"} text-xs shrink-0 min-h-0 flex items-center justify-center text-text-muted italic`}
       >
         No messages yet
       </div>
@@ -43,7 +49,8 @@ export function AgentCardMessages({
   return (
     <div
       ref={scrollRef}
-      className={`${expanded ? "space-y-1 h-96" : "space-y-0.5 h-40"} text-xs shrink-0 overflow-y-auto px-2.5 py-2`}
+      style={heightStyle}
+      className={`${expanded ? "space-y-1" : "space-y-0.5"} text-xs shrink-0 overflow-y-auto px-2.5 py-2`}
     >
       {recentMessages.map((message) => (
         <div key={message.id}>

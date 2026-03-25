@@ -104,9 +104,13 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {filteredAgents.map((agent) => (
-              <div>
-                <AgentCard key={agent.id} agent={agent} />
+            {filteredAgents.map((agent, index) => (
+              <div
+                key={agent.id}
+                className="animate-[fade-slide-up_var(--duration-normal)_var(--ease-out)_both]"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <AgentCard agent={agent} />
               </div>
             ))}
           </div>
