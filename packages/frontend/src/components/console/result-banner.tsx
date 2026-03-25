@@ -13,7 +13,9 @@ export function ResultBanner({ subtype, costUsd, durationMs }: ResultBannerProps
   const textClass = isSuccess ? "text-success" : "text-error";
 
   return (
-    <div className={`flex items-center gap-3 px-3 py-1.5 rounded text-xs border ${bgClass}`}>
+    <div
+      className={`flex items-center gap-3 px-3 py-1.5 rounded text-xs border ${bgClass} animate-[fade-slide-up_var(--duration-normal)_var(--ease-out)_both]`}
+    >
       <span className={textClass}>{isSuccess ? "Completed" : subtype}</span>
 
       {costUsd !== undefined && <span className="text-text-muted">${costUsd.toFixed(4)}</span>}
