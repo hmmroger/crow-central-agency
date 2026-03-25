@@ -77,8 +77,9 @@ export function MessageInput({
         {isStreaming ? (
           <button
             type="button"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-error/15 text-error text-xs font-medium hover:bg-error/25 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-error/15 text-error text-xs font-medium hover:bg-error/25 transition-colors disabled:opacity-30"
             onClick={onAbort}
+            disabled={disabled}
           >
             <Square className="h-3 w-3" />
             Stop
@@ -114,8 +115,9 @@ export function MessageInput({
         {isStreaming ? (
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold shrink-0 bg-error/15 hover:bg-error/25 text-error transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold shrink-0 bg-error/15 hover:bg-error/25 text-error transition-colors disabled:opacity-30"
             onClick={onAbort}
+            disabled={disabled}
           >
             <Square className="h-3 w-3" />
             Stop
