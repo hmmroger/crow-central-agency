@@ -3,6 +3,7 @@ import {
   AGENT_STATUS,
   AgentTextWsMessageSchema,
   AgentActivityWsMessageSchema,
+  AgentMessageWsMessageSchema,
   AgentResultWsMessageSchema,
   AgentStatusWsMessageSchema,
   AgentToolProgressWsMessageSchema,
@@ -24,6 +25,8 @@ export interface AgentStreamState {
   pendingPermissions: PendingPermissionRequest[];
   /** Remove a permission by toolUseId (for optimistic updates on allow/deny) */
   removePendingPermission: (toolUseId: string) => void;
+  /** Reset all ephemeral state (for new conversation) */
+  resetStreamState: () => void;
 }
 
 /**
@@ -44,6 +47,16 @@ export function useAgentStreamState(agentId: string): AgentStreamState {
 
     if (textParsed.success) {
       setStreamingText((prev) => prev + textParsed.data.text);
+
+      return;
+    }
+
+    // Committed message — clear streaming display buffer
+    const messageParsed = AgentMessageWsMessageSchema.safeParse(data);
+
+    if (messageParsed.success) {
+      setStreamingText("");
+      setActiveToolUse(undefined);
 
       return;
     }
@@ -133,5 +146,12 @@ export function useAgentStreamState(agentId: string): AgentStreamState {
     setPendingPermissions((prev) => prev.filter((perm) => perm.toolUseId !== toolUseId));
   }, []);
 
-  return { streamingText, activeToolUse, lastResult, pendingPermissions, removePendingPermission };
+  const resetStreamState = useCallback(() => {
+    setStreamingText("");
+    setActiveToolUse(undefined);
+    setLastResult(undefined);
+    setPendingPermissions([]);
+  }, []);
+
+  return { streamingText, activeToolUse, lastResult, pendingPermissions, removePendingPermission, resetStreamState };
 }

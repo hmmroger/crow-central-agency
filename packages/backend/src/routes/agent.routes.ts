@@ -3,6 +3,7 @@ import { z, ZodError } from "zod";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { AgentOrchestrator } from "../services/agent-orchestrator.js";
 import type { SessionManager } from "../services/session-manager.js";
+import { AGENT_STATUS, type AgentRuntimeState } from "@crow-central-agency/shared";
 import { AppError } from "../error/app-error.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
 import { logger } from "../utils/logger.js";
@@ -202,6 +203,12 @@ export async function registerAgentRoutes(
     const agentId = validateUuidParam(request.params.id);
     const state = orchestrator.getState(agentId);
 
-    return { success: true, data: state ?? { agentId, status: "idle" } };
+    const defaultState: AgentRuntimeState = {
+      agentId,
+      status: AGENT_STATUS.IDLE,
+      sessionUsage: { inputTokens: 0, outputTokens: 0, totalCostUsd: 0, contextUsed: 0, contextTotal: 0 },
+    };
+
+    return { success: true, data: state ?? defaultState };
   });
 }

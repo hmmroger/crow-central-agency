@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CLIENT_MESSAGE_TYPE } from "@crow-central-agency/shared";
+import { CLIENT_MESSAGE_TYPE, PERMISSION_DECISION } from "@crow-central-agency/shared";
 import { useWs } from "./use-ws.js";
 import { apiClient } from "../services/api-client.js";
 import { agentKeys } from "../services/query-keys.js";
@@ -9,6 +9,8 @@ import { agentKeys } from "../services/query-keys.js";
 export interface UseAgentActionsOptions {
   /** Callback to optimistically remove a permission from local stream state */
   removePendingPermission: (toolUseId: string) => void;
+  /** Reset all ephemeral stream state (for new conversation) */
+  resetStreamState: () => void;
 }
 
 /** Return type of useAgentActions */
@@ -40,7 +42,7 @@ export interface AgentActions {
 export function useAgentActions(agentId: string, options: UseAgentActionsOptions): AgentActions {
   const { send } = useWs();
   const queryClient = useQueryClient();
-  const { removePendingPermission } = options;
+  const { removePendingPermission, resetStreamState } = options;
 
   /** Send a user message — backend creates the AgentMessage and broadcasts agent_message WS */
   const sendMessage = useCallback(
@@ -63,11 +65,12 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
     await apiClient.post(`/agents/${agentId}/stop`);
   }, [agentId]);
 
-  /** Start a new conversation — invalidates query caches so they refetch clean state */
+  /** Start a new conversation — clears ephemeral state and invalidates query caches */
   const newConversation = useCallback(async () => {
     await apiClient.post(`/agents/${agentId}/session/new`);
+    resetStreamState();
     await queryClient.invalidateQueries({ queryKey: agentKeys.detail(agentId) });
-  }, [agentId, queryClient]);
+  }, [agentId, queryClient, resetStreamState]);
 
   /** Trigger manual compaction */
   const compact = useCallback(async () => {
@@ -77,7 +80,7 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
   /** Allow a pending permission request */
   const allowPermission = useCallback(
     (toolUseId: string) => {
-      send({ type: CLIENT_MESSAGE_TYPE.PERMISSION_RESPONSE, agentId, toolUseId, decision: "allow" });
+      send({ type: CLIENT_MESSAGE_TYPE.PERMISSION_RESPONSE, agentId, toolUseId, decision: PERMISSION_DECISION.ALLOW });
       removePendingPermission(toolUseId);
     },
     [send, agentId, removePendingPermission]
@@ -86,7 +89,13 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
   /** Deny a pending permission request (optionally with a text message for the agent) */
   const denyPermission = useCallback(
     (toolUseId: string, message?: string) => {
-      send({ type: CLIENT_MESSAGE_TYPE.PERMISSION_RESPONSE, agentId, toolUseId, decision: "deny", message });
+      send({
+        type: CLIENT_MESSAGE_TYPE.PERMISSION_RESPONSE,
+        agentId,
+        toolUseId,
+        decision: PERMISSION_DECISION.DENY,
+        message,
+      });
       removePendingPermission(toolUseId);
     },
     [send, agentId, removePendingPermission]

@@ -24,9 +24,11 @@ export function AgentCard({ agent }: AgentCardProps) {
   const { data: messages = [] } = useAgentMessagesQuery(agent.id);
   const { data: agentState } = useAgentStateQuery(agent.id);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
-  const { streamingText, activeToolUse, pendingPermissions, removePendingPermission } = useAgentStreamState(agent.id);
+  const { streamingText, activeToolUse, pendingPermissions, removePendingPermission, resetStreamState } =
+    useAgentStreamState(agent.id);
   const { sendMessage, injectMessage, abort, allowPermission, denyPermission } = useAgentActions(agent.id, {
     removePendingPermission,
+    resetStreamState,
   });
   const isStreaming = status === AGENT_STATUS.STREAMING;
 
