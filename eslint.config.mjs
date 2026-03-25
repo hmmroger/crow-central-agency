@@ -21,6 +21,7 @@ export default defineConfig(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      curly: ["error", "all"],
       "padding-line-between-statements": ["error", { blankLine: "always", prev: "block-like", next: "*" }],
       "@typescript-eslint/no-unused-vars": [
         "error",
@@ -31,10 +32,15 @@ export default defineConfig(
       ],
       "@typescript-eslint/no-non-null-assertion": "error",
       "@typescript-eslint/no-import-type-side-effects": "error",
-      "react-hooks/set-state-in-effect": ["off"],
-      "react-hooks/refs": ["off"],
-      "@stylistic/multiline-comment-style": ["error", "separate-lines"],
-      curly: ["error", "all"],
+      "@typescript-eslint/explicit-member-accessibility": [
+        "error",
+        {
+          accessibility: "explicit",
+          overrides: {
+            constructors: "no-public",
+          },
+        },
+      ],
       "@typescript-eslint/member-ordering": [
         "error",
         {
@@ -53,10 +59,13 @@ export default defineConfig(
         "error",
         {
           prefer: "type-imports",
-          fixStyle: "separate-type-imports", // Or "inline-type-imports"
+          fixStyle: "separate-type-imports",
           disallowTypeAnnotations: true,
         },
       ],
+      "react-hooks/set-state-in-effect": ["off"],
+      "react-hooks/refs": ["off"],
+      "@stylistic/multiline-comment-style": ["error", "separate-lines"],
       "import/first": "error",
       "import/newline-after-import": "error",
       "import/no-duplicates": "error",
