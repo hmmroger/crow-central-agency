@@ -97,7 +97,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
         }, 2000);
       })
       .catch(() => {
-        // Clipboard API not available — ignore
+        console.warn("Clipboard not available.");
       });
   }, []);
 
