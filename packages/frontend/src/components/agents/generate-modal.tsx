@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { apiClient } from "../../services/api-client.js";
+import { useGenerateMutation } from "../../hooks/use-generate-mutation.js";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
 
 type GenerationType = "persona" | "agentmd";
@@ -25,10 +25,12 @@ const TYPE_LABELS: Record<GenerationType, string> = {
  */
 export function GenerateModal({ type, context, onApply, onClose }: GenerateModalProps) {
   const [prompt, setPrompt] = useState("");
-  const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<string | undefined>(undefined);
-  const [error, setError] = useState<string | undefined>(undefined);
+  const generateMutation = useGenerateMutation();
   const promptRef = useRef<HTMLTextAreaElement>(null);
+
+  const generating = generateMutation.isPending;
+  const error = generateMutation.error?.message;
 
   // Focus prompt input on mount
   useEffect(() => {
@@ -43,27 +45,18 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
       return;
     }
 
-    setGenerating(true);
-    setError(undefined);
-
     try {
-      const response = await apiClient.post<{ content: string }>("/generate", {
+      const result = await generateMutation.mutateAsync({
         type,
         prompt: trimmedPrompt,
         context,
       });
 
-      if (response.success) {
-        setPreview(response.data.content);
-      } else {
-        setError(response.error.message);
-      }
+      setPreview(result.content);
     } catch {
-      setError("Generation failed. The AI service may not be available.");
-    } finally {
-      setGenerating(false);
+      // Error is surfaced via mutation.error in the UI
     }
-  }, [prompt, type, context]);
+  }, [prompt, type, context, generateMutation]);
 
   /** Apply preview content and close */
   const handleApply = useCallback(() => {
