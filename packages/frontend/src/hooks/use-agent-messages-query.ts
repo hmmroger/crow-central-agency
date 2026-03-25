@@ -26,10 +26,6 @@ export function useAgentMessagesQuery(agentId: string) {
   });
 
   useWsSubscription(agentId, (data) => {
-    if (data.type !== "agent_message") {
-      return;
-    }
-
     const parsed = AgentMessageWsMessageSchema.safeParse(data);
 
     if (parsed.success) {
