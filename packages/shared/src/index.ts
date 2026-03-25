@@ -1,4 +1,3 @@
-// Constants
 export { AGENT_STATUS, type AgentStatus } from "./constants/agent-status.js";
 export { PERMISSION_MODE, type PermissionMode } from "./constants/permission-mode.js";
 export { SETTING_SOURCE, DEFAULT_SETTING_SOURCES, type SettingSource } from "./constants/setting-source.js";
@@ -12,8 +11,8 @@ export {
 export { TIME_MODE, type TimeMode } from "./constants/time-mode.js";
 export { DAY_OF_WEEK, type DayOfWeek } from "./constants/day-of-week.js";
 export { AGENT_MESSAGE_ROLE, type AgentMessageRole } from "./constants/agent-message-role.js";
+export { CLAUDE_CODE_MODEL_OPTIONS } from "./constants/model-options.js";
 
-// Schemas — Agent
 export {
   DEFAULT_MODEL,
   AgentConfigSchema,
@@ -28,10 +27,8 @@ export {
   type ToolConfig,
 } from "./schemas/agent.schema.js";
 
-// Schemas — Loop (single source of truth, used by AgentConfigSchema internally)
 export { LoopConfigSchema, DayOfWeekSchema, TimeModeSchema, type LoopConfig } from "./schemas/loop.schema.js";
 
-// Schemas — API Response
 export {
   createApiSuccessSchema,
   ApiErrorSchema,
@@ -40,7 +37,6 @@ export {
   type ApiResponse,
 } from "./schemas/api-response.schema.js";
 
-// Schemas — Agent Runtime State
 export {
   SessionUsageSchema,
   AgentRuntimeStateSchema,
@@ -48,7 +44,6 @@ export {
   type AgentRuntimeState,
 } from "./schemas/agent-runtime-state.schema.js";
 
-// Schemas — WebSocket (transport-level, with type discriminators)
 export {
   ClientMessageSchema,
   ServerMessageSchema,
@@ -88,7 +83,6 @@ export {
   type ServerMessage,
 } from "./schemas/websocket.schema.js";
 
-// Schemas — Permission
 export {
   PERMISSION_DECISION,
   PermissionRequestSchema,
@@ -98,8 +92,5 @@ export {
   type PermissionResponseData,
 } from "./schemas/permission.schema.js";
 
-// Schemas — Agent Message
 export { AgentMessageSchema, type AgentMessage } from "./schemas/agent-message.schema.js";
-
-// Schemas — Artifact
 export { ArtifactMetadataSchema, type ArtifactMetadata } from "./schemas/artifact.schema.js";

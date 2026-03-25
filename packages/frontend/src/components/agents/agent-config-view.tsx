@@ -7,6 +7,7 @@ import {
   TOOL_MODE,
   TIME_MODE,
   DEFAULT_MODEL,
+  CLAUDE_CODE_MODEL_OPTIONS,
   DEFAULT_AVAILABLE_TOOLS,
   type AgentConfig,
   type CreateAgentInput,
@@ -338,13 +339,17 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
 
             {/* Model */}
             <FieldGroup label="Model">
-              <input
-                type="text"
+              <select
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
-                placeholder={DEFAULT_MODEL}
-                className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
-              />
+                className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm font-mono focus:outline-none focus:border-border-focus"
+              >
+                {CLAUDE_CODE_MODEL_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </FieldGroup>
 
             {/* Persona */}
