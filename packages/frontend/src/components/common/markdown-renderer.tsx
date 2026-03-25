@@ -43,22 +43,29 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
       return;
     }
 
-    const mermaidContainers = container.querySelectorAll(".mermaid-container[data-mermaid]:not([data-rendered])");
-    if (!mermaidContainers.length) {
+    const hasPendingMermaid = container.querySelectorAll(".mermaid-container:not([data-rendered])").length;
+    if (!hasPendingMermaid) {
       setRenderedHtml(html);
       return;
     }
 
+    const mermaidContainers = container.querySelectorAll(".mermaid-container");
     const renderDiagrams = async () => {
       await Promise.all(
         Array.from(mermaidContainers).map(async (el, index) => {
-          const source = decodeURIComponent(el.getAttribute("data-mermaid") || "");
-          if (source) {
+          const source = el.textContent || "";
+          const isRendered = !!el.getAttribute("data-rendered");
+          if (source && !isRendered) {
             try {
+              const mermaidId = `mermaid-${Date.now()}-${index}`;
               el.setAttribute("data-rendered", "true");
-              const { svg } = await mermaid.render(`mermaid-${Date.now()}-${index}`, source, el);
-              el.innerHTML = sanitizeSvg(svg);
-              el.className = "mermaid-container";
+              const { svg } = await mermaid.render(mermaidId, source);
+              const currentContainers = containerRef.current?.querySelectorAll(".mermaid-container");
+              if (currentContainers && currentContainers.length > index) {
+                const postEl = currentContainers[index];
+                postEl.innerHTML = sanitizeSvg(svg);
+                postEl.setAttribute("data-rendered", "true");
+              }
             } catch (error) {
               el.setAttribute("data-rendered", "true");
               el.innerHTML = `<pre class="text-xs text-error">Mermaid Error: ${error}</pre>`;
@@ -67,7 +74,9 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
         })
       );
 
-      setRenderedHtml(container.innerHTML);
+      if (containerRef.current) {
+        setRenderedHtml(containerRef.current?.innerHTML);
+      }
     };
 
     renderDiagrams();

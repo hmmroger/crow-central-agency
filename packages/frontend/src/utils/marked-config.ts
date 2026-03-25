@@ -7,8 +7,7 @@ const mermaidExtension: TokenizerAndRendererExtension = {
   renderer(token) {
     // Only customize rendering for mermaid code blocks
     if (token.lang === "mermaid") {
-      const encoded = encodeURIComponent(token.text);
-      return `<div class="mermaid-container" data-mermaid="${encoded}"></div>`;
+      return `<div class="mermaid-container">${token.text}</div>`;
     }
 
     // Fall back to default renderer for other code blocks

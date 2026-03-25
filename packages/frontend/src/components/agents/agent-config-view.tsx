@@ -524,7 +524,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
                 <Sparkles className="h-3.5 w-3.5" />
               </button>
             </div>
-            <div className="flex-1 max-h-1/2">
+            <div className="flex-1 max-h-96">
               <AgentMdEditor value={agentMd} onChange={setAgentMd} />
             </div>
           </div>

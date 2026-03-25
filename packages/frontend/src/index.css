@@ -319,6 +319,10 @@
       border-top: 1px solid var(--color-border);
       margin: 1em 0;
     }
+
+    & .mermaid-container {
+      @apply my-3 flex justify-center overflow-x-auto rounded-md border border-border bg-surface p-4;
+    }
   }
 }
 
