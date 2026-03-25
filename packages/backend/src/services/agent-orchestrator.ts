@@ -3,9 +3,11 @@ import type {
   SDKUserMessage,
   CanUseTool,
   McpSdkServerConfigWithInstance,
-  HookInput,
   HookEvent,
   HookCallbackMatcher,
+  SubagentStartHookInput,
+  SubagentStopHookInput,
+  PreToolUseHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_STATUS,
@@ -500,9 +502,14 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       SubagentStart: [
         {
           hooks: [
-            async (input: HookInput) => {
-              const agentType = (input as { agent_type?: string }).agent_type ?? "unknown";
-              broadcastActivity(`Subagent started: ${agentType}`, "Agent");
+            async (input) => {
+              try {
+                const subagentInput = input as SubagentStartHookInput;
+                broadcastActivity(`Subagent started: ${subagentInput.agent_type}`, "Agent");
+              } catch (error) {
+                log.warn({ agentId, error }, "SubagentStart hook broadcast failed");
+              }
+
               return { continue: true };
             },
           ],
@@ -511,9 +518,14 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       SubagentStop: [
         {
           hooks: [
-            async (input: HookInput) => {
-              const agentType = (input as { agent_type?: string }).agent_type ?? "unknown";
-              broadcastActivity(`Subagent completed: ${agentType}`, "Agent");
+            async (input) => {
+              try {
+                const subagentInput = input as SubagentStopHookInput;
+                broadcastActivity(`Subagent completed: ${subagentInput.agent_type}`, "Agent");
+              } catch (error) {
+                log.warn({ agentId, error }, "SubagentStop hook broadcast failed");
+              }
+
               return { continue: true };
             },
           ],
@@ -522,18 +534,23 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       PreToolUse: [
         {
           hooks: [
-            async (input: HookInput) => {
-              // Only broadcast for subagent tool use (has agent_id)
-              if (!("agent_id" in input) || !input.agent_id) {
-                return { continue: true };
+            async (input) => {
+              try {
+                // Only broadcast for subagent tool use (has agent_id)
+                if (!("agent_id" in input) || !input.agent_id) {
+                  return { continue: true };
+                }
+
+                const preToolInput = input as PreToolUseHookInput;
+                const description = parseToolActivity(
+                  preToolInput.tool_name,
+                  (preToolInput.tool_input ?? {}) as Record<string, unknown>
+                );
+                broadcastActivity(`Subagent: ${description}`, preToolInput.tool_name);
+              } catch (error) {
+                log.warn({ agentId, error }, "PreToolUse hook broadcast failed");
               }
 
-              const toolInput = input as { tool_name: string; tool_input: unknown };
-              const description = parseToolActivity(
-                toolInput.tool_name,
-                (toolInput.tool_input ?? {}) as Record<string, unknown>
-              );
-              broadcastActivity(`Subagent: ${description}`, toolInput.tool_name);
               return { continue: true };
             },
           ],
