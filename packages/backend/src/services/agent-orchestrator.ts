@@ -537,10 +537,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
               try {
                 // Only broadcast for subagent tool use (has agent_id on the input)
                 if (input.hook_event_name === "PreToolUse" && input.agent_id) {
-                  const description = parseToolActivity(
-                    input.tool_name,
-                    (input.tool_input ?? {}) as Record<string, unknown>
-                  );
+                  const description = parseToolActivity(input.tool_name, input.tool_input);
                   broadcastActivity(`Subagent: ${description}`, input.tool_name);
                 }
               } catch (error) {

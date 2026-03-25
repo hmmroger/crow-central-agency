@@ -1,10 +1,16 @@
 import { SUBAGENT_TOOL_NAME } from "@crow-central-agency/shared";
 
+/** Type guard — returns true when value is a non-null, non-array object */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /**
  * Extracts a human-readable description from a tool name and its input.
  * Used to build agent_activity WS messages from SDK stream events.
  */
-export function parseToolActivity(toolName: string, toolInput: Record<string, unknown>): string {
+export function parseToolActivity(toolName: string, rawInput: unknown): string {
+  const toolInput: Record<string, unknown> = isRecord(rawInput) ? rawInput : {};
   switch (toolName) {
     case "Read":
       return `Reading ${toolInput.file_path ?? "file"}`;

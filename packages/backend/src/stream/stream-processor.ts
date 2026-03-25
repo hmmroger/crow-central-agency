@@ -155,8 +155,7 @@ function handleStreamEvent(
     case "content_block_start": {
       if (event.content_block?.type === "tool_use" && event.content_block.name) {
         const toolName = event.content_block.name;
-        const toolInput = (event.content_block.input ?? {}) as Record<string, unknown>;
-        const description = parseToolActivity(toolName, toolInput);
+        const description = parseToolActivity(toolName, event.content_block.input);
         return {
           wsMessages: [
             {
