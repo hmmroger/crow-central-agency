@@ -1,6 +1,9 @@
 import { useState } from "react";
-import type { AgentConfig } from "@crow-central-agency/shared";
-import { useAgentInteraction } from "../../hooks/use-agent-interaction.js";
+import { AGENT_STATUS, type AgentConfig } from "@crow-central-agency/shared";
+import { useAgentMessagesQuery } from "../../hooks/use-agent-messages-query.js";
+import { useAgentStateQuery } from "../../hooks/use-agent-state-query.js";
+import { useAgentStreamState } from "../../hooks/use-agent-stream-state.js";
+import { useAgentActions } from "../../hooks/use-agent-actions.js";
 import { AgentCardHeader } from "./agent-card-header.js";
 import { AgentCardMessages } from "./agent-card-messages.js";
 import { MessageInput } from "../common/message-input.js";
@@ -14,23 +17,18 @@ interface AgentCardProps {
  * Rich agent card — full control panel always visible.
  * Collapsed shows everything with truncated messages.
  * Expanded doubles message area height and removes truncation.
- * Each card owns its own useAgentInteraction(agentId) instance.
+ * Each card composes query hooks for its own agent data.
  */
 export function AgentCard({ agent }: AgentCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const {
-    messages,
-    streamingText,
-    isStreaming,
-    status,
-    pendingPermissions,
-    activeToolUse,
-    sendMessage,
-    injectMessage,
-    abort,
-    allowPermission,
-    denyPermission,
-  } = useAgentInteraction(agent.id);
+  const { data: messages = [] } = useAgentMessagesQuery(agent.id);
+  const { data: agentState } = useAgentStateQuery(agent.id);
+  const status = agentState?.status ?? AGENT_STATUS.IDLE;
+  const { streamingText, activeToolUse, pendingPermissions, removePendingPermission } = useAgentStreamState(agent.id);
+  const { sendMessage, injectMessage, abort, allowPermission, denyPermission } = useAgentActions(agent.id, {
+    removePendingPermission,
+  });
+  const isStreaming = status === AGENT_STATUS.STREAMING;
 
   return (
     <div

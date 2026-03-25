@@ -10,7 +10,7 @@ import {
   PermissionCancelledWsMessageSchema,
 } from "@crow-central-agency/shared";
 import { useWsSubscription } from "./use-ws-subscription.js";
-import type { PendingPermissionRequest, QueryResult, ActiveToolUse } from "./use-agent-interaction.types.js";
+import type { PendingPermissionRequest, QueryResult, ActiveToolUse } from "./agent-interaction.types.js";
 
 /** Return type of useAgentStreamState */
 export interface AgentStreamState {

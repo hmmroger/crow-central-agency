@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Terminal } from "lucide-react";
 import type { AgentMessage } from "@crow-central-agency/shared";
-import type { ActiveToolUse } from "../../hooks/use-agent-interaction.types.js";
+import type { ActiveToolUse } from "../../hooks/agent-interaction.types.js";
 import { AgentMessageView } from "./agent-message.js";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
 import { StreamingIndicator } from "./streaming-indicator.js";

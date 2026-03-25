@@ -1,5 +1,5 @@
 import { AGENT_MESSAGE_ROLE, type AgentMessage } from "@crow-central-agency/shared";
-import type { ActiveToolUse } from "../../hooks/use-agent-interaction.types.js";
+import type { ActiveToolUse } from "../../hooks/agent-interaction.types.js";
 import { useAutoScroll } from "../../hooks/use-auto-scroll.js";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
 

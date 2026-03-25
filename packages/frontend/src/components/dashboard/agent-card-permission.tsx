@@ -1,4 +1,4 @@
-import type { PendingPermissionRequest } from "../../hooks/use-agent-interaction.types.js";
+import type { PendingPermissionRequest } from "../../hooks/agent-interaction.types.js";
 
 interface AgentCardPermissionProps {
   permissions: PendingPermissionRequest[];

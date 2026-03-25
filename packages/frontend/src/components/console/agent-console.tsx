@@ -1,8 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FolderOpen, Minimize2, Plus } from "lucide-react";
-import { useAgentInteraction } from "../../hooks/use-agent-interaction.js";
+import { AGENT_STATUS } from "@crow-central-agency/shared";
 import { useAgentsQuery } from "../../hooks/use-agents-query.js";
+import { useAgentMessagesQuery } from "../../hooks/use-agent-messages-query.js";
+import { useAgentStateQuery } from "../../hooks/use-agent-state-query.js";
+import { useAgentStreamState } from "../../hooks/use-agent-stream-state.js";
+import { useAgentActions } from "../../hooks/use-agent-actions.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { ConsoleStatusBar } from "./console-status-bar.js";
 import { MessageList } from "./message-list.js";
@@ -16,28 +20,26 @@ interface AgentConsoleProps {
 
 /**
  * Full agent console view — status bar + message list + input + artifact sidebar.
- * Owns its agent data via useAgentsQuery. Registers navigation title and actions via HeaderPortal.
+ * Composes query hooks for data, stream state for ephemeral WS state, and actions for commands.
  */
 export function AgentConsole({ agentId }: AgentConsoleProps) {
   const { data: agents = [], isLoading } = useAgentsQuery();
   const agent = agents.find((item) => item.id === agentId);
+  const { data: messages = [] } = useAgentMessagesQuery(agentId);
+  const { data: agentState } = useAgentStateQuery(agentId);
+  const status = agentState?.status ?? AGENT_STATUS.IDLE;
+  const usage = agentState?.sessionUsage ?? {
+    inputTokens: 0,
+    outputTokens: 0,
+    totalCostUsd: 0,
+    contextUsed: 0,
+    contextTotal: 0,
+  };
+  const { streamingText, activeToolUse, pendingPermissions, removePendingPermission } = useAgentStreamState(agentId);
+  const { sendMessage, injectMessage, abort, newConversation, compact, allowPermission, denyPermission } =
+    useAgentActions(agentId, { removePendingPermission });
+  const isStreaming = status === AGENT_STATUS.STREAMING;
   const [showArtifacts, setShowArtifacts] = useState(false);
-  const {
-    messages,
-    streamingText,
-    isStreaming,
-    status,
-    usage,
-    pendingPermissions,
-    activeToolUse,
-    sendMessage,
-    injectMessage,
-    abort,
-    newConversation,
-    compact,
-    allowPermission,
-    denyPermission,
-  } = useAgentInteraction(agentId);
 
   const toggleArtifacts = useCallback(() => setShowArtifacts((prev) => !prev), []);
 
