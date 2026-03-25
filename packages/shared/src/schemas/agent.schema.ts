@@ -4,9 +4,10 @@ import { SETTING_SOURCE, DEFAULT_SETTING_SOURCES } from "../constants/setting-so
 import { TOOL_MODE } from "../constants/tool-mode.js";
 import { TIME_MODE } from "../constants/time-mode.js";
 import { LoopConfigSchema } from "./loop.schema.js";
+import { CLAUDE_CODE_MODEL_OPTIONS } from "../constants/model-options.js";
 
-/** Default model for new agents */
-export const DEFAULT_MODEL = "claude-sonnet-4-6";
+/** Default model for new agents — derived from the first entry in CLAUDE_CODE_MODEL_OPTIONS */
+export const DEFAULT_MODEL = CLAUDE_CODE_MODEL_OPTIONS[0].value;
 
 /** Zod schema for PermissionMode values */
 export const PermissionModeSchema = z.enum([

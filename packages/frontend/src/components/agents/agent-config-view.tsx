@@ -41,7 +41,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
   const [description, setDescription] = useState("");
   const [workspace, setWorkspace] = useState("");
   const [persona, setPersona] = useState("");
-  const [model, setModel] = useState(DEFAULT_MODEL);
+  const [model, setModel] = useState<string>(DEFAULT_MODEL);
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(PERMISSION_MODE.DEFAULT);
   const [settingSources, setSettingSources] = useState<SettingSource[]>([...DEFAULT_SETTING_SOURCES]);
   const [toolMode, setToolMode] = useState<ToolMode>(TOOL_MODE.UNRESTRICTED);
@@ -342,7 +342,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
               <select
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
-                className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm font-mono focus:outline-none focus:border-border-focus"
+                className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm focus:outline-none focus:border-border-focus"
               >
                 {CLAUDE_CODE_MODEL_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
