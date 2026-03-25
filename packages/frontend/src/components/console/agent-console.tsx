@@ -4,7 +4,7 @@ import { FolderOpen, Minimize2, Plus } from "lucide-react";
 import { AGENT_STATUS } from "@crow-central-agency/shared";
 import { useAgentsQuery } from "../../hooks/use-agents-query.js";
 import { useAgentMessagesQuery } from "../../hooks/use-agent-messages-query.js";
-import { useAgentStateQuery } from "../../hooks/use-agent-state-query.js";
+import { useAgentStateQuery, DEFAULT_SESSION_USAGE } from "../../hooks/use-agent-state-query.js";
 import { useAgentStreamState } from "../../hooks/use-agent-stream-state.js";
 import { useAgentActions } from "../../hooks/use-agent-actions.js";
 import { HeaderPortal } from "../layout/header-portal.js";
@@ -28,13 +28,7 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
   const { data: messages = [] } = useAgentMessagesQuery(agentId);
   const { data: agentState } = useAgentStateQuery(agentId);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
-  const usage = agentState?.sessionUsage ?? {
-    inputTokens: 0,
-    outputTokens: 0,
-    totalCostUsd: 0,
-    contextUsed: 0,
-    contextTotal: 0,
-  };
+  const usage = agentState?.sessionUsage ?? DEFAULT_SESSION_USAGE;
   const { streamingText, activeToolUse, pendingPermissions, removePendingPermission } = useAgentStreamState(agentId);
   const { sendMessage, injectMessage, abort, newConversation, compact, allowPermission, denyPermission } =
     useAgentActions(agentId, { removePendingPermission });

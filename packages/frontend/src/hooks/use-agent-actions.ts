@@ -77,7 +77,7 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
   /** Allow a pending permission request */
   const allowPermission = useCallback(
     (toolUseId: string) => {
-      send({ type: "permission_response", agentId, toolUseId, decision: "allow" });
+      send({ type: CLIENT_MESSAGE_TYPE.PERMISSION_RESPONSE, agentId, toolUseId, decision: "allow" });
       removePendingPermission(toolUseId);
     },
     [send, agentId, removePendingPermission]
@@ -86,7 +86,7 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
   /** Deny a pending permission request (optionally with a text message for the agent) */
   const denyPermission = useCallback(
     (toolUseId: string, message?: string) => {
-      send({ type: "permission_response", agentId, toolUseId, decision: "deny", message });
+      send({ type: CLIENT_MESSAGE_TYPE.PERMISSION_RESPONSE, agentId, toolUseId, decision: "deny", message });
       removePendingPermission(toolUseId);
     },
     [send, agentId, removePendingPermission]

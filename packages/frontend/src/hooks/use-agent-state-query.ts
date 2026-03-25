@@ -4,23 +4,27 @@ import {
   AgentStatusWsMessageSchema,
   AgentUsageWsMessageSchema,
   type AgentRuntimeState,
+  type SessionUsage,
 } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../services/api-client.js";
 import { agentKeys } from "../services/query-keys.js";
 import { useWsSubscription } from "./use-ws-subscription.js";
 import type { ApiError } from "../services/api-client.types.js";
 
+/** Default session usage — zero values for all fields */
+export const DEFAULT_SESSION_USAGE: SessionUsage = {
+  inputTokens: 0,
+  outputTokens: 0,
+  totalCostUsd: 0,
+  contextUsed: 0,
+  contextTotal: 0,
+};
+
 /** Default state when no backend state exists yet */
 const DEFAULT_STATE: AgentRuntimeState = {
   agentId: "",
   status: AGENT_STATUS.IDLE,
-  sessionUsage: {
-    inputTokens: 0,
-    outputTokens: 0,
-    totalCostUsd: 0,
-    contextUsed: 0,
-    contextTotal: 0,
-  },
+  sessionUsage: DEFAULT_SESSION_USAGE,
 };
 
 /**
