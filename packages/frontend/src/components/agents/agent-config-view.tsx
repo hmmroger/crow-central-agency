@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import { Sparkles, Trash2 } from "lucide-react";
 import {
   PERMISSION_MODE,
@@ -531,24 +532,26 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
         </div>
 
         {/* Generate Modal */}
-        {generateModalType && (
-          <GenerateModal
-            type={generateModalType}
-            context={
-              generateModalType === "agentmd"
-                ? [description, persona].filter(Boolean).join("\n") || undefined
-                : description || undefined
-            }
-            onApply={(content) => {
-              if (generateModalType === "persona") {
-                setPersona(content);
-              } else {
-                setAgentMd(content);
+        <AnimatePresence>
+          {generateModalType && (
+            <GenerateModal
+              type={generateModalType}
+              context={
+                generateModalType === "agentmd"
+                  ? [description, persona].filter(Boolean).join("\n") || undefined
+                  : description || undefined
               }
-            }}
-            onClose={() => setGenerateModalType(undefined)}
-          />
-        )}
+              onApply={(content) => {
+                if (generateModalType === "persona") {
+                  setPersona(content);
+                } else {
+                  setAgentMd(content);
+                }
+              }}
+              onClose={() => setGenerateModalType(undefined)}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
