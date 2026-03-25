@@ -67,6 +67,9 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
 
       return unwrapResponse(response);
     },
+    onError: (error) => {
+      console.error(`[abort] failed for agent ${agentId}:`, error.message);
+    },
   });
 
   /** Start a new conversation — clears ephemeral state and invalidates query caches */
@@ -80,6 +83,9 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
       resetStreamState();
       void queryClient.invalidateQueries({ queryKey: agentKeys.detail(agentId) });
     },
+    onError: (error) => {
+      console.error(`[newConversation] failed for agent ${agentId}:`, error.message);
+    },
   });
 
   /** Trigger manual compaction */
@@ -88,6 +94,9 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
       const response = await apiClient.post<void>(`/agents/${agentId}/session/compact`);
 
       return unwrapResponse(response);
+    },
+    onError: (error) => {
+      console.error(`[compact] failed for agent ${agentId}:`, error.message);
     },
   });
 
@@ -115,9 +124,13 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
     [send, agentId, removePendingPermission]
   );
 
-  const abort = useCallback(() => abortMutation.mutate(), [abortMutation]);
-  const newConversation = useCallback(() => newConversationMutation.mutate(), [newConversationMutation]);
-  const compact = useCallback(() => compactMutation.mutate(), [compactMutation]);
+  const { mutate: abortMutate } = abortMutation;
+  const { mutate: newConversationMutate } = newConversationMutation;
+  const { mutate: compactMutate } = compactMutation;
+
+  const abort = useCallback(() => abortMutate(), [abortMutate]);
+  const newConversation = useCallback(() => newConversationMutate(), [newConversationMutate]);
+  const compact = useCallback(() => compactMutate(), [compactMutate]);
 
   return { sendMessage, injectMessage, abort, newConversation, compact, allowPermission, denyPermission };
 }
