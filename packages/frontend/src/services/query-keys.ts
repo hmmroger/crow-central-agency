@@ -11,6 +11,10 @@ export const agentKeys = {
   list: () => [...agentKeys.all, "list"] as const,
   /** Single agent detail */
   detail: (agentId: string) => [...agentKeys.all, "detail", agentId] as const,
+  /** Messages for an agent session */
+  messages: (agentId: string) => [...agentKeys.all, "detail", agentId, "messages"] as const,
+  /** Agent runtime state (status, usage) */
+  state: (agentId: string) => [...agentKeys.all, "detail", agentId, "state"] as const,
   /** Artifacts for an agent */
   artifacts: (agentId: string) => [...agentKeys.all, "detail", agentId, "artifacts"] as const,
   /** Single artifact content */
