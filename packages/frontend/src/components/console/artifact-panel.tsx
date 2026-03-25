@@ -11,7 +11,7 @@ interface ArtifactPanelProps {
  * Browse artifacts for an agent. Shows file list with click to view content.
  */
 export function ArtifactPanel({ agentId }: ArtifactPanelProps) {
-  const { data: artifacts = [], isLoading: loading, refetch } = useAgentArtifactsQuery(agentId);
+  const { data: artifacts = [], isLoading: loading, isError, refetch } = useAgentArtifactsQuery(agentId);
   const handleRefetch = useCallback(() => {
     void refetch();
   }, [refetch]);
@@ -40,7 +40,11 @@ export function ArtifactPanel({ agentId }: ArtifactPanelProps) {
       <div className="flex-1 overflow-y-auto">
         {loading && <div className="p-3 text-xs text-text-muted">Loading...</div>}
 
-        {!loading && artifacts.length === 0 && <div className="p-3 text-xs text-text-muted italic">No artifacts</div>}
+        {!loading && isError && <div className="p-3 text-xs text-error">Failed to load artifacts</div>}
+
+        {!loading && !isError && artifacts.length === 0 && (
+          <div className="p-3 text-xs text-text-muted italic">No artifacts</div>
+        )}
 
         {artifacts.map((artifact) => (
           <button

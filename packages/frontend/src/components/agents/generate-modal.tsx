@@ -27,6 +27,7 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
   const [prompt, setPrompt] = useState("");
   const [preview, setPreview] = useState<string | undefined>(undefined);
   const generateMutation = useGenerateMutation();
+  const { mutateAsync: generateAsync } = generateMutation;
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
   const generating = generateMutation.isPending;
@@ -45,8 +46,10 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
       return;
     }
 
+    setPreview(undefined);
+
     try {
-      const result = await generateMutation.mutateAsync({
+      const result = await generateAsync({
         type,
         prompt: trimmedPrompt,
         context,
@@ -56,7 +59,7 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
     } catch {
       // Error is surfaced via mutation.error in the UI
     }
-  }, [prompt, type, context, generateMutation]);
+  }, [prompt, type, context, generateAsync]);
 
   /** Apply preview content and close */
   const handleApply = useCallback(() => {

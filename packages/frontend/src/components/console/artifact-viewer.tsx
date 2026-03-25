@@ -12,7 +12,7 @@ interface ArtifactViewerProps {
  * View artifact file content in a slide-over panel.
  */
 export function ArtifactViewer({ agentId, filename, onClose }: ArtifactViewerProps) {
-  const { data, isLoading: loading } = useArtifactContentQuery(agentId, filename);
+  const { data, isLoading: loading, isError } = useArtifactContentQuery(agentId, filename);
   const content = data?.content;
 
   return (
@@ -33,6 +33,8 @@ export function ArtifactViewer({ agentId, filename, onClose }: ArtifactViewerPro
       <div className="flex-1 overflow-auto p-3">
         {loading ? (
           <span className="text-sm text-text-muted">Loading...</span>
+        ) : isError ? (
+          <span className="text-sm text-error">Failed to load artifact content.</span>
         ) : filename.endsWith(".md") ? (
           <MarkdownRenderer content={content ?? ""} />
         ) : (
