@@ -61,6 +61,27 @@ export function MessageInput({
   );
 
   const placeholder = isStreaming ? "Inject a message..." : "Send a message...";
+  const action = isStreaming ? (
+    <button
+      type="button"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-error/15 text-error text-xs font-medium hover:bg-error/25 transition-colors disabled:opacity-30"
+      onClick={onAbort}
+      disabled={disabled}
+    >
+      <Square className="h-3 w-3" />
+      Stop
+    </button>
+  ) : (
+    <button
+      type="button"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/20 text-primary text-xs font-medium hover:bg-primary/30 transition-colors disabled:opacity-30"
+      onClick={handleSubmit}
+      disabled={disabled || !text.trim()}
+    >
+      <Send className="h-3 w-3" />
+      Send
+    </button>
+  );
 
   if (variant === "compact") {
     return (
@@ -74,34 +95,14 @@ export function MessageInput({
           disabled={disabled}
           className="flex-1 px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-xs placeholder:text-text-muted focus:outline-none focus:border-border-focus"
         />
-        {isStreaming ? (
-          <button
-            type="button"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-error/15 text-error text-xs font-medium hover:bg-error/25 transition-colors disabled:opacity-30"
-            onClick={onAbort}
-            disabled={disabled}
-          >
-            <Square className="h-3 w-3" />
-            Stop
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/20 text-primary text-xs font-medium hover:bg-primary/30 transition-colors disabled:opacity-30"
-            onClick={handleSubmit}
-            disabled={disabled || !text.trim()}
-          >
-            <Send className="h-3.5 w-3.5" />
-            Send
-          </button>
-        )}
+        {action}
       </div>
     );
   }
 
   return (
     <div className="px-5 pb-5 pt-2 shrink-0">
-      <div className="max-w-3xl mx-auto flex gap-2 items-end bg-surface/70 backdrop-blur-md border border-border-subtle rounded-lg p-2 focus-within:border-border-focus">
+      <div className="max-w-3xl mx-auto flex gap-2 items-center bg-surface/70 backdrop-blur-md border border-border-subtle rounded-lg p-2 focus-within:border-border-focus">
         <textarea
           value={text}
           onChange={(event) => setText(event.target.value)}
@@ -111,27 +112,7 @@ export function MessageInput({
           rows={1}
           className="flex-1 bg-transparent px-2 py-2 text-text-primary text-sm font-mono resize-none outline-none placeholder:text-text-muted"
         />
-
-        {isStreaming ? (
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold shrink-0 bg-error/15 hover:bg-error/25 text-error transition-colors disabled:opacity-30"
-            onClick={onAbort}
-            disabled={disabled}
-          >
-            <Square className="h-3 w-3" />
-            Stop
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="px-4 py-2 rounded-lg text-xs font-semibold shrink-0 bg-primary text-text-primary hover:opacity-90 disabled:opacity-20 transition-opacity"
-            onClick={handleSubmit}
-            disabled={disabled || !text.trim()}
-          >
-            Send
-          </button>
-        )}
+        {action}
       </div>
       <p className="max-w-3xl mx-auto text-2xs text-text-muted/60 mt-1.5 text-center font-mono">
         Enter to send &middot; Shift+Enter for new line
