@@ -13,7 +13,7 @@ export class WsBroadcaster {
   private clientSubscriptions = new WeakMap<WebSocket, Set<string>>();
 
   /** Subscribe a client to an agent's messages */
-  subscribe(ws: WebSocket, agentId: string): void {
+  public subscribe(ws: WebSocket, agentId: string): void {
     if (!this.subscriptions.has(agentId)) {
       this.subscriptions.set(agentId, new Set());
     }
@@ -32,7 +32,7 @@ export class WsBroadcaster {
   }
 
   /** Unsubscribe a client from an agent's messages */
-  unsubscribe(ws: WebSocket, agentId: string): void {
+  public unsubscribe(ws: WebSocket, agentId: string): void {
     this.subscriptions.get(agentId)?.delete(ws);
     this.clientSubscriptions.get(ws)?.delete(agentId);
 
@@ -40,7 +40,7 @@ export class WsBroadcaster {
   }
 
   /** Remove a client from all subscriptions (on disconnect) */
-  removeClient(ws: WebSocket): void {
+  public removeClient(ws: WebSocket): void {
     const agentIds = this.clientSubscriptions.get(ws);
 
     if (agentIds) {
@@ -53,7 +53,7 @@ export class WsBroadcaster {
   }
 
   /** Remove all subscriptions for an agent (on agent deletion) */
-  removeAgent(agentId: string): void {
+  public removeAgent(agentId: string): void {
     const clients = this.subscriptions.get(agentId);
 
     if (clients) {
@@ -66,7 +66,7 @@ export class WsBroadcaster {
   }
 
   /** Broadcast a message to all clients subscribed to an agent */
-  broadcast(agentId: string, message: ServerMessage): void {
+  public broadcast(agentId: string, message: ServerMessage): void {
     const clients = this.subscriptions.get(agentId);
 
     if (!clients || clients.size === 0) {
@@ -91,14 +91,14 @@ export class WsBroadcaster {
   }
 
   /** Send a message directly to a specific client */
-  sendTo(ws: WebSocket, message: ServerMessage): void {
+  public sendTo(ws: WebSocket, message: ServerMessage): void {
     if (ws.readyState === ws.OPEN) {
       ws.send(JSON.stringify(message));
     }
   }
 
   /** Get the number of subscribers for an agent */
-  getSubscriberCount(agentId: string): number {
+  public getSubscriberCount(agentId: string): number {
     return this.subscriptions.get(agentId)?.size ?? 0;
   }
 }

@@ -16,7 +16,7 @@ export class EventBus<TEvents extends EventMap> {
   private listeners = new Map<keyof TEvents, Set<EventListener<unknown>>>();
 
   /** Subscribe to an event */
-  on<K extends keyof TEvents>(event: K, listener: EventListener<TEvents[K]>): void {
+  public on<K extends keyof TEvents>(event: K, listener: EventListener<TEvents[K]>): void {
     let eventListeners = this.listeners.get(event);
 
     if (!eventListeners) {
@@ -28,7 +28,7 @@ export class EventBus<TEvents extends EventMap> {
   }
 
   /** Unsubscribe from an event */
-  off<K extends keyof TEvents>(event: K, listener: EventListener<TEvents[K]>): void {
+  public off<K extends keyof TEvents>(event: K, listener: EventListener<TEvents[K]>): void {
     this.listeners.get(event)?.delete(listener as EventListener<unknown>);
   }
 
@@ -43,7 +43,7 @@ export class EventBus<TEvents extends EventMap> {
   }
 
   /** Remove all listeners for a specific event, or all events if no event specified */
-  removeAllListeners(event?: keyof TEvents): void {
+  public removeAllListeners(event?: keyof TEvents): void {
     if (event) {
       this.listeners.delete(event);
     } else {

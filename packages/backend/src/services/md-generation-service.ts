@@ -28,7 +28,7 @@ export class MdGenerationService {
   ) {}
 
   /** Generate text based on type, user prompt, and optional context */
-  async generate(input: GenerateTextInput): Promise<string> {
+  public async generate(input: GenerateTextInput): Promise<string> {
     const systemPrompt = SYSTEM_PROMPTS[input.type];
     const userPrompt = input.context ? `${input.prompt}\n\nContext:\n${input.context}` : input.prompt;
 

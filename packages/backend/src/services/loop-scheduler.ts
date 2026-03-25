@@ -34,7 +34,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
   }
 
   /** Start the scheduler — checks every minute */
-  start(): void {
+  public start(): void {
     if (this.checkInterval) {
       return;
     }
@@ -47,7 +47,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
   }
 
   /** Stop the scheduler */
-  stop(): void {
+  public stop(): void {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = undefined;

@@ -46,7 +46,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   }
 
   /** Load all agent configs from agents.json on startup, validating each against schema */
-  async initialize(): Promise<void> {
+  public async initialize(): Promise<void> {
     await ensureDir(this.agentsBaseDir);
     const data = await readJsonFile<unknown[]>(this.agentsFilePath);
 
@@ -69,17 +69,17 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   }
 
   /** Get all agent configs */
-  getAll(): AgentConfig[] {
+  public getAll(): AgentConfig[] {
     return Array.from(this.agents.values());
   }
 
   /** Get a single agent config by ID */
-  get(agentId: string): AgentConfig | undefined {
+  public get(agentId: string): AgentConfig | undefined {
     return this.agents.get(agentId);
   }
 
   /** Create a new agent */
-  async create(input: CreateAgentInput): Promise<AgentConfig> {
+  public async create(input: CreateAgentInput): Promise<AgentConfig> {
     const validated = CreateAgentInputSchema.parse(input);
     const { agentMd, ...configFields } = validated;
     const now = new Date().toISOString();
@@ -113,7 +113,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   }
 
   /** Update an existing agent */
-  async update(agentId: string, input: UpdateAgentInput): Promise<AgentConfig> {
+  public async update(agentId: string, input: UpdateAgentInput): Promise<AgentConfig> {
     const existing = this.agents.get(agentId);
 
     if (!existing) {
@@ -152,7 +152,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   }
 
   /** Delete an agent and its folder */
-  async delete(agentId: string): Promise<void> {
+  public async delete(agentId: string): Promise<void> {
     const existing = this.agents.get(agentId);
 
     if (!existing) {
@@ -173,7 +173,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   }
 
   /** Read the agent's AGENT.md file. Returns undefined if not found. */
-  async getAgentMd(agentId: string): Promise<string | undefined> {
+  public async getAgentMd(agentId: string): Promise<string | undefined> {
     if (!this.agents.has(agentId)) {
       throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
     }
@@ -184,7 +184,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   }
 
   /** Write the agent's AGENT.md file */
-  async setAgentMd(agentId: string, content: string): Promise<void> {
+  public async setAgentMd(agentId: string, content: string): Promise<void> {
     if (!this.agents.has(agentId)) {
       throw new AppError(`Agent not found: ${agentId}`, AppErrorCodes.AgentNotFound);
     }

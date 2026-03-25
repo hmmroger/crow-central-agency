@@ -22,7 +22,7 @@ export class ArtifactManager {
   }
 
   /** List all artifacts for an agent */
-  async listArtifacts(agentId: string): Promise<ArtifactMetadata[]> {
+  public async listArtifacts(agentId: string): Promise<ArtifactMetadata[]> {
     const artifactsDir = this.getArtifactsDir(agentId);
 
     try {
@@ -57,7 +57,7 @@ export class ArtifactManager {
   }
 
   /** Read an artifact file content */
-  async readArtifact(agentId: string, filename: string): Promise<string> {
+  public async readArtifact(agentId: string, filename: string): Promise<string> {
     const filePath = this.getArtifactPath(agentId, filename);
 
     try {
@@ -72,7 +72,7 @@ export class ArtifactManager {
   }
 
   /** Write an artifact file */
-  async writeArtifact(agentId: string, filename: string, content: string): Promise<void> {
+  public async writeArtifact(agentId: string, filename: string, content: string): Promise<void> {
     const artifactsDir = this.getArtifactsDir(agentId);
     await ensureDir(artifactsDir);
 
@@ -83,7 +83,7 @@ export class ArtifactManager {
   }
 
   /** Get the most recent artifact for an agent (by modification time) */
-  async getMostRecentArtifact(agentId: string): Promise<ArtifactMetadata | undefined> {
+  public async getMostRecentArtifact(agentId: string): Promise<ArtifactMetadata | undefined> {
     const artifacts = await this.listArtifacts(agentId);
 
     if (artifacts.length === 0) {

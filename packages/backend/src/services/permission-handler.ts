@@ -20,7 +20,7 @@ export class PermissionHandler {
    * subscribers and returns a promise that resolves when the user responds
    * or times out (auto-deny after 2 minutes).
    */
-  async requestPermission(
+  public async requestPermission(
     agentId: string,
     toolName: string,
     input: Record<string, unknown>,
@@ -62,7 +62,7 @@ export class PermissionHandler {
    * Resolve a pending permission request with a user decision.
    * Called when a permission_response WS message is received.
    */
-  resolvePermission(toolUseId: string, behavior: "allow" | "deny", message?: string): void {
+  public resolvePermission(toolUseId: string, behavior: "allow" | "deny", message?: string): void {
     const pendingRequest = this.pending.get(toolUseId);
 
     if (!pendingRequest) {
@@ -87,7 +87,7 @@ export class PermissionHandler {
    * Cancel a pending permission request (on timeout or agent stop).
    * Auto-denies with a reason message.
    */
-  cancelPermission(toolUseId: string, reason: string): void {
+  public cancelPermission(toolUseId: string, reason: string): void {
     const pendingRequest = this.pending.get(toolUseId);
 
     if (!pendingRequest) {
@@ -115,7 +115,7 @@ export class PermissionHandler {
   }
 
   /** Cancel all pending permissions for an agent (on stop/cleanup) */
-  cancelAllForAgent(agentId: string): void {
+  public cancelAllForAgent(agentId: string): void {
     for (const [toolUseId, pendingRequest] of this.pending) {
       if (pendingRequest.agentId === agentId) {
         this.cancelPermission(toolUseId, "Agent stopped");
@@ -124,7 +124,7 @@ export class PermissionHandler {
   }
 
   /** Check if there are any pending permissions for an agent */
-  hasPendingForAgent(agentId: string): boolean {
+  public hasPendingForAgent(agentId: string): boolean {
     for (const pendingRequest of this.pending.values()) {
       if (pendingRequest.agentId === agentId) {
         return true;

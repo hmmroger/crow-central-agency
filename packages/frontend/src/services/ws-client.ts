@@ -23,7 +23,7 @@ export class WsClient {
   }
 
   /** Connect to the WebSocket server */
-  connect(): void {
+  public connect(): void {
     if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
       return;
     }
@@ -66,7 +66,7 @@ export class WsClient {
   }
 
   /** Disconnect and stop reconnecting */
-  disconnect(): void {
+  public disconnect(): void {
     this.intentionalDisconnect = true;
     this.clearReconnectTimer();
     this.ws?.close();
@@ -76,40 +76,40 @@ export class WsClient {
   }
 
   /** Send a typed message to the server */
-  send(message: Record<string, unknown>): void {
+  public send(message: Record<string, unknown>): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     }
   }
 
   /** Subscribe to an agent's messages */
-  subscribe(agentId: string): void {
+  public subscribe(agentId: string): void {
     this.subscriptions.add(agentId);
     this.send({ type: "subscribe", agentId });
   }
 
   /** Unsubscribe from an agent's messages */
-  unsubscribe(agentId: string): void {
+  public unsubscribe(agentId: string): void {
     this.subscriptions.delete(agentId);
     this.send({ type: "unsubscribe", agentId });
   }
 
   /** Register a handler for incoming messages */
-  onMessage(handler: WsMessageHandler): () => void {
+  public onMessage(handler: WsMessageHandler): () => void {
     this.messageHandlers.add(handler);
 
     return () => this.messageHandlers.delete(handler);
   }
 
   /** Register a handler for connection state changes */
-  onStateChange(handler: (state: WsState) => void): () => void {
+  public onStateChange(handler: (state: WsState) => void): () => void {
     this.stateChangeHandlers.add(handler);
 
     return () => this.stateChangeHandlers.delete(handler);
   }
 
   /** Get the current connection state */
-  getState(): WsState {
+  public getState(): WsState {
     return this.state;
   }
 

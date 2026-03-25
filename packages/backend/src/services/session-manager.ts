@@ -22,7 +22,7 @@ export class SessionManager {
    * Load messages for a session — cache-first, falls back to SDK.
    * Returns AgentMessage[] — the public API never exposes SessionMessage.
    */
-  async loadMessages(sessionId: string, cwd: string): Promise<AgentMessage[]> {
+  public async loadMessages(sessionId: string, cwd: string): Promise<AgentMessage[]> {
     const cached = this.messageCache.get(sessionId);
 
     if (cached) {
@@ -46,7 +46,7 @@ export class SessionManager {
    * @param message - SDK SessionMessage (user or assistant)
    * @returns The AgentMessage[] created from this SessionMessage — canonical source for WS broadcast
    */
-  addMessage(sessionId: string, message: SessionMessage): AgentMessage[] {
+  public addMessage(sessionId: string, message: SessionMessage): AgentMessage[] {
     let cached = this.messageCache.get(sessionId);
 
     if (!cached) {
@@ -62,17 +62,17 @@ export class SessionManager {
   }
 
   /** Get session info from SDK (not cached — lightweight call) */
-  async getInfo(sessionId: string, cwd: string): Promise<SDKSessionInfo | undefined> {
+  public async getInfo(sessionId: string, cwd: string): Promise<SDKSessionInfo | undefined> {
     return getSessionInfo(sessionId, { dir: cwd });
   }
 
   /** List all sessions for a workspace */
-  async listSessions(cwd: string): Promise<SDKSessionInfo[]> {
+  public async listSessions(cwd: string): Promise<SDKSessionInfo[]> {
     return listSessions({ dir: cwd });
   }
 
   /** Invalidate cache for a session — called after compact or new session */
-  invalidateCache(sessionId: string): void {
+  public invalidateCache(sessionId: string): void {
     this.messageCache.delete(sessionId);
     log.debug({ sessionId }, "Cache invalidated");
   }

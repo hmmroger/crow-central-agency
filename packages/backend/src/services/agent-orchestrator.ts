@@ -63,7 +63,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   }
 
   /** Load persisted runtime states and run startup recovery */
-  async initialize(): Promise<void> {
+  public async initialize(): Promise<void> {
     const saved = await readJsonFile<unknown[]>(this.stateFilePath);
 
     if (saved) {
@@ -87,18 +87,18 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   }
 
   /** Register a factory that creates per-agent MCP server instances */
-  registerMcpServer(name: string, factory: McpServerFactory): void {
+  public registerMcpServer(name: string, factory: McpServerFactory): void {
     this.mcpServerFactories.set(name, factory);
     log.info({ name }, "MCP server factory registered");
   }
 
   /** Get runtime state for an agent */
-  getState(agentId: string): AgentRuntimeState | undefined {
+  public getState(agentId: string): AgentRuntimeState | undefined {
     return this.runtimeStates.get(agentId);
   }
 
   /** Get all runtime states */
-  getAllStates(): AgentRuntimeState[] {
+  public getAllStates(): AgentRuntimeState[] {
     return Array.from(this.runtimeStates.values());
   }
 
@@ -106,7 +106,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
    * Send a message to an agent — creates an SDK query and processes the stream.
    * The agent must be idle.
    */
-  async sendMessage(agentId: string, message: string): Promise<void> {
+  public async sendMessage(agentId: string, message: string): Promise<void> {
     const agentConfig = this.registry.get(agentId);
 
     if (!agentConfig) {
@@ -246,7 +246,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   }
 
   /** Inject an user message into an active agent stream */
-  async injectMessage(agentId: string, text: string): Promise<void> {
+  public async injectMessage(agentId: string, text: string): Promise<void> {
     const running = this.runningAgents.get(agentId);
 
     if (!running) {
@@ -271,7 +271,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
    * Handle inter-agent invocation: deliver task to target, mark source as waiting.
    * Called from crow-agents MCP tool.
    */
-  async invokeInterAgent(sourceAgentId: string, targetAgentId: string, task: string): Promise<string> {
+  public async invokeInterAgent(sourceAgentId: string, targetAgentId: string, task: string): Promise<string> {
     const targetConfig = this.registry.get(targetAgentId);
 
     if (!targetConfig) {
@@ -310,7 +310,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   }
 
   /** Stop an active agent */
-  async stopAgent(agentId: string): Promise<void> {
+  public async stopAgent(agentId: string): Promise<void> {
     const running = this.runningAgents.get(agentId);
 
     if (!running) {
@@ -324,7 +324,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   }
 
   /** Start a new session for an agent (clears current session) */
-  newSession(agentId: string): void {
+  public newSession(agentId: string): void {
     const state = this.ensureState(agentId);
     state.sessionId = undefined;
     state.sessionUsage = {
