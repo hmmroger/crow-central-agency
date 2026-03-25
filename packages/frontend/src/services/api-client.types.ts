@@ -1,3 +1,9 @@
+/** Error shape returned by the backend API */
+export interface ApiError {
+  code: string;
+  message: string;
+}
+
 /** Standard API response wrapper */
 export interface ApiSuccessResponse<T> {
   success: true;
@@ -6,10 +12,7 @@ export interface ApiSuccessResponse<T> {
 
 export interface ApiErrorResponse {
   success: false;
-  error: {
-    code: string;
-    message: string;
-  };
+  error: ApiError;
 }
 
 export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;

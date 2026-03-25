@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useAppStore, VIEW_MODE } from "../../stores/app-store.js";
 import { Dashboard } from "../dashboard/dashboard.js";
 import { AgentConfigView } from "../agents/agent-config-view.js";
@@ -12,12 +13,15 @@ import { useAgentsQuery } from "../../hooks/use-agents-query.js";
 export function AppContent() {
   const currentView = useAppStore((state) => state.currentView);
   const { data: agents = [], isLoading: loading, error, refetch } = useAgentsQuery();
+  const handleRefetch = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
   switch (currentView.viewMode) {
     case VIEW_MODE.DASHBOARD:
       return (
         <main className="flex-1 overflow-hidden">
-          <Dashboard agents={agents} loading={loading} error={error?.message} refetch={refetch} />
+          <Dashboard agents={agents} loading={loading} error={error?.message} refetch={handleRefetch} />
         </main>
       );
 
