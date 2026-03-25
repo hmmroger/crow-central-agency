@@ -26,12 +26,9 @@ const TYPE_LABELS: Record<GenerationType, string> = {
 export function GenerateModal({ type, context, onApply, onClose }: GenerateModalProps) {
   const [prompt, setPrompt] = useState("");
   const [preview, setPreview] = useState<string | undefined>(undefined);
-  const generateMutation = useGenerateMutation();
-  const { mutateAsync: generateAsync } = generateMutation;
+  const { mutateAsync: generateAsync, isPending: generating, error: mutationError } = useGenerateMutation();
+  const error = mutationError?.message;
   const promptRef = useRef<HTMLTextAreaElement>(null);
-
-  const generating = generateMutation.isPending;
-  const error = generateMutation.error?.message;
 
   // Focus prompt input on mount
   useEffect(() => {

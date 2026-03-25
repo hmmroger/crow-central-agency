@@ -40,7 +40,9 @@ export function ArtifactPanel({ agentId }: ArtifactPanelProps) {
       <div className="flex-1 overflow-y-auto">
         {loading && <div className="p-3 text-xs text-text-muted">Loading...</div>}
 
-        {!loading && isError && <div className="p-3 text-xs text-error">Failed to load artifacts</div>}
+        {!loading && isError && (
+          <div className="p-3 text-xs text-error">Failed to load artifacts. Use the refresh button to retry.</div>
+        )}
 
         {!loading && !isError && artifacts.length === 0 && (
           <div className="p-3 text-xs text-text-muted italic">No artifacts</div>
