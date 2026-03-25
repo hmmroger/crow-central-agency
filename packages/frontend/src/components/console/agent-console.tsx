@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FolderOpen, Minimize2, Plus } from "lucide-react";
-import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAgentInteraction } from "../../hooks/use-agent-interaction.js";
+import { useAgentsQuery } from "../../hooks/use-agents-query.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { ConsoleStatusBar } from "./console-status-bar.js";
 import { MessageList } from "./message-list.js";
@@ -11,14 +11,16 @@ import { PermissionQueue } from "./permission-queue.js";
 import { ArtifactPanel } from "./artifact-panel.js";
 
 interface AgentConsoleProps {
-  agent: AgentConfig;
+  agentId: string;
 }
 
 /**
  * Full agent console view — status bar + message list + input + artifact sidebar.
- * Registers navigation title and actions in the app header via HeaderPortal.
+ * Owns its agent data via useAgentsQuery. Registers navigation title and actions via HeaderPortal.
  */
-export function AgentConsole({ agent }: AgentConsoleProps) {
+export function AgentConsole({ agentId }: AgentConsoleProps) {
+  const { data: agents = [], isLoading } = useAgentsQuery();
+  const agent = agents.find((item) => item.id === agentId);
   const [showArtifacts, setShowArtifacts] = useState(false);
   const {
     messages,
@@ -35,7 +37,7 @@ export function AgentConsole({ agent }: AgentConsoleProps) {
     compact,
     allowPermission,
     denyPermission,
-  } = useAgentInteraction(agent.id);
+  } = useAgentInteraction(agentId);
 
   const toggleArtifacts = useCallback(() => setShowArtifacts((prev) => !prev), []);
 
@@ -47,6 +49,14 @@ export function AgentConsole({ agent }: AgentConsoleProps) {
     ],
     [compact, isStreaming, newConversation, toggleArtifacts]
   );
+
+  if (isLoading || !agent) {
+    return (
+      <div className="h-full flex items-center justify-center text-text-muted">
+        {isLoading ? "Loading..." : "Agent not found"}
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full">

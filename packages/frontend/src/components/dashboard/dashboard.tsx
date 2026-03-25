@@ -1,25 +1,19 @@
 import { useCallback, useMemo, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
-import type { AgentConfig } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
+import { useAgentsQuery } from "../../hooks/use-agents-query.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { AgentCard } from "./agent-card.js";
 import { DashboardFilter } from "./dashboard-filter.js";
 import { LoadingSkeleton } from "../common/loading-skeleton.js";
 import { EmptyState } from "../common/empty-state.js";
 
-interface DashboardProps {
-  agents: AgentConfig[];
-  loading: boolean;
-  error?: string;
-  refetch: () => void;
-}
-
 /**
  * Dashboard — agent cards grid with stats bar, search filter, and empty state.
- * Receives agent data from AppContent (single useAgents() call).
+ * Owns its agent list query via useAgentsQuery.
  */
-export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
+export function Dashboard() {
+  const { data: agents = [], isLoading: loading, error, refetch } = useAgentsQuery();
   const goToAgentEditor = useAppStore((state) => state.goToAgentEditor);
   const [searchQuery, setSearchQuery] = useState("");
   const handleNewAgent = useCallback(() => goToAgentEditor(), [goToAgentEditor]);
@@ -58,7 +52,7 @@ export function Dashboard({ agents, loading, error, refetch }: DashboardProps) {
       <>
         {portal}
         <div className="h-full flex flex-col items-center justify-center gap-4 text-text-muted">
-          <p className="text-lg text-error">{error}</p>
+          <p className="text-lg text-error">{error.message}</p>
           <button
             type="button"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-elevated text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
