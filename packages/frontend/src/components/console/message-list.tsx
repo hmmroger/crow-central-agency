@@ -39,9 +39,7 @@ export function MessageList({ messages, streamingText, isStreaming, activeToolUs
     <div className="flex-1 overflow-y-auto px-5 py-5">
       <div className="max-w-3xl mx-auto space-y-3">
         {messages.map((message) => (
-          <div key={message.id} className="animate-[fade-in_var(--duration-fast)_var(--ease-out)_both]">
-            <AgentMessageView message={message} />
-          </div>
+          <AgentMessageView message={message} />
         ))}
 
         {streamingText && (

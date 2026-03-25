@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useGenerateMutation } from "../../hooks/use-generate-mutation.js";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
-import { DURATION, EASING } from "../../utils/animation-tokens.js";
 
 type GenerationType = "persona" | "agentmd";
 
@@ -72,20 +70,8 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
   const label = TYPE_LABELS[type];
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: DURATION.NORMAL, ease: EASING.OUT }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-base/80 backdrop-blur-sm"
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        transition={{ duration: DURATION.NORMAL, ease: EASING.OUT }}
-        className="w-full max-w-2xl mx-4 rounded-lg bg-surface border border-border-subtle shadow-xl"
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-base/80 backdrop-blur-sm">
+      <div className="w-full max-w-2xl mx-4 rounded-lg bg-surface border border-border-subtle shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
           <h3 className="text-sm font-semibold text-text-primary">Generate {label}</h3>
@@ -162,7 +148,7 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
             {generating ? "Generating..." : hasPreview ? "Re-generate" : "Generate"}
           </button>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }
