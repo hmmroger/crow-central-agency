@@ -7,8 +7,9 @@ import type { HeaderAction } from "../../providers/header-provider.js";
  * - Logo: Bird icon + "crow" (branding, no navigation)
  * - Title: set by views via HeaderPortal
  *
- * Actions and navigation have been removed — actions live in per-view ActionBars,
- * navigation is handled by the sidebar.
+ * Navigation has been removed (logo is branding only, no back button).
+ * Actions are still rendered here temporarily and will be moved to per-view
+ * ActionBars in Phase 2.
  */
 export function AppHeader() {
   const { title, actions } = useHeader();

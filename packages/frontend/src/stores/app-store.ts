@@ -46,8 +46,8 @@ export const useAppStore = create<AppState>((set) => ({
 
       return {
         viewMode: mode,
-        // Clear selectedAgentId when switching to AGENTS via sidebar
-        selectedAgentId: mode === VIEW_MODE.AGENTS ? undefined : state.selectedAgentId,
+        // Always clear selection on sidebar switch; goToAgentConsole sets it explicitly
+        selectedAgentId: undefined,
         editorAgentId: undefined,
       };
     }),
@@ -76,7 +76,7 @@ export const useAppStore = create<AppState>((set) => ({
         return state;
       }
 
-      return { viewMode: VIEW_MODE.DASHBOARD, editorAgentId: undefined };
+      return { viewMode: VIEW_MODE.DASHBOARD, selectedAgentId: undefined, editorAgentId: undefined };
     }),
 
   goToAgentConsole: (agentId: string) =>
