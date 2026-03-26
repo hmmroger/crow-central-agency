@@ -17,6 +17,8 @@ interface ConfirmDialogOptions {
   destructive?: boolean;
   /** Called when the user confirms — if async, dialog stays open until resolved */
   onConfirm: () => void | Promise<void>;
+  /** Called when the dialog is dismissed without confirming (Escape, backdrop, Cancel button) */
+  onClose?: () => void;
 }
 
 /**
@@ -43,6 +45,7 @@ export function useConfirmDialog() {
           destructive: options.destructive,
           onConfirm: options.onConfirm,
         },
+        onClose: options.onClose,
         role: "alertdialog",
         ariaDescribedBy: "confirmation-dialog-desc",
         className: "w-96",
