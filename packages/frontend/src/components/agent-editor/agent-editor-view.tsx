@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Sparkles, Trash2 } from "lucide-react";
+import { Sparkles, Trash2, X } from "lucide-react";
 import { DEFAULT_MODEL, TOOL_MODE, type CreateAgentInput, type UpdateAgentInput } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
 import { useAgentQuery } from "../../hooks/use-agent-query.js";
@@ -147,23 +147,33 @@ export function AgentEditorView({ agentId }: AgentEditorViewProps) {
     <div className="flex flex-col h-full">
       <HeaderPortal title={headerTitle} />
 
-      {/* Action buttons */}
-      <div className="flex items-center justify-end gap-1 px-6 pt-4 pb-2 shrink-0">
-        {isEditing && (
+      {/* Action bar — save/delete (left), cancel (right) */}
+      <div className="flex items-center justify-between px-6 pt-4 pb-2 shrink-0">
+        <div className="flex items-center gap-1">
+          {isEditing && (
+            <ActionBarButton
+              icon={Trash2}
+              label={isDeleting ? "Deleting..." : "Delete"}
+              onClick={handleDelete}
+              disabled={isDeleting}
+              isDestructive
+            />
+          )}
           <ActionBarButton
-            icon={Trash2}
-            label={isDeleting ? "Deleting..." : "Delete"}
-            onClick={handleDelete}
-            disabled={isDeleting}
-            isDestructive
+            label={isEditing ? (isSaving ? "Saving..." : "Save") : isSaving ? "Creating..." : "Create"}
+            onClick={handleSave}
+            disabled={!canSave}
+            isPrimary
           />
-        )}
-        <ActionBarButton
-          label={isEditing ? (isSaving ? "Saving..." : "Save") : isSaving ? "Creating..." : "Create"}
-          onClick={handleSave}
-          disabled={!canSave}
-          isPrimary
-        />
+        </div>
+        <button
+          type="button"
+          className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
+          onClick={goToDashboard}
+          title="Cancel"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto py-6 px-12">
