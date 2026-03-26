@@ -169,7 +169,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       for await (const event of processStream(agentId, queryInstance)) {
         // 1. Broadcast real-time WS messages (streaming text, activity hints, status)
         for (const wsMsg of event.wsMessages) {
-          this.broadcaster.broadcast(agentId, wsMsg);
+          this.broadcaster.broadcast(wsMsg);
         }
 
         // 2. Capture sessionId from init → add user message as SessionMessage
@@ -187,7 +187,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
             const userMessages = this.sessionManager.addMessage(event.meta.sessionId, userSessionMsg);
 
             for (const msg of userMessages) {
-              this.broadcaster.broadcast(agentId, { type: "agent_message", agentId, message: msg });
+              this.broadcaster.broadcast({ type: "agent_message", agentId, message: msg });
             }
 
             userMessageAdded = true;
@@ -207,7 +207,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
           const agentMessages = this.sessionManager.addMessage(state.sessionId, event.sessionMessage);
 
           for (const msg of agentMessages) {
-            this.broadcaster.broadcast(agentId, { type: "agent_message", agentId, message: msg });
+            this.broadcaster.broadcast({ type: "agent_message", agentId, message: msg });
           }
         }
 
@@ -384,7 +384,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const state = this.ensureState(agentId);
     state.status = status;
 
-    this.broadcaster.broadcast(agentId, {
+    this.broadcaster.broadcast({
       type: "agent_status",
       agentId,
       status,
@@ -487,7 +487,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
    */
   private buildSdkHooks(agentId: string): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
     const broadcastActivity = (description: string, toolName: string) => {
-      this.broadcaster.broadcast(agentId, {
+      this.broadcaster.broadcast({
         type: "agent_activity",
         agentId,
         toolName,

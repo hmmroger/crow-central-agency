@@ -25,7 +25,7 @@ export class WsBroadcaster {
   }
 
   /** Broadcast a message to all connected clients */
-  public broadcast(_agentId: string, message: ServerMessage): void {
+  public broadcast(message: ServerMessage): void {
     if (this.clients.size === 0) {
       return;
     }

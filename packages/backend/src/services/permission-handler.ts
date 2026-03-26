@@ -44,8 +44,8 @@ export class PermissionHandler {
 
       this.pending.set(toolUseId, pendingRequest);
 
-      // Broadcast request directly to WS subscribers
-      this.broadcaster.broadcast(agentId, {
+      // Broadcast request to all connected clients
+      this.broadcaster.broadcast({
         type: "permission_request",
         agentId,
         toolUseId,
@@ -97,8 +97,8 @@ export class PermissionHandler {
     clearTimeout(pendingRequest.timeout);
     this.pending.delete(toolUseId);
 
-    // Broadcast cancellation directly to WS subscribers
-    this.broadcaster.broadcast(pendingRequest.agentId, {
+    // Broadcast cancellation to all connected clients
+    this.broadcaster.broadcast({
       type: "permission_cancelled",
       agentId: pendingRequest.agentId,
       toolUseId,
