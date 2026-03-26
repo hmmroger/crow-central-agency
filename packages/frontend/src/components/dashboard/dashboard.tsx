@@ -2,7 +2,7 @@ import { Plus, RefreshCw } from "lucide-react";
 import { useAppStore } from "../../stores/app-store.js";
 import { useAgentsQuery } from "../../hooks/use-agents-query.js";
 import { HeaderPortal } from "../layout/header-portal.js";
-import { ActionBarButton } from "../layout/action-bar.js";
+import { ActionBarButton } from "../common/action-bar-button.js";
 import { AgentCard } from "./agent-card.js";
 import { LoadingSkeleton } from "../common/loading-skeleton.js";
 import { EmptyState } from "../common/empty-state.js";

@@ -6,7 +6,7 @@ import { useConfirmDialog } from "../../hooks/use-confirm-dialog.js";
 import { useAgentQuery } from "../../hooks/use-agent-query.js";
 import { useCreateAgent, useUpdateAgent, useDeleteAgent } from "../../hooks/use-agent-mutations.js";
 import { HeaderPortal } from "../layout/header-portal.js";
-import { ActionBarButton } from "../layout/action-bar.js";
+import { ActionBarButton } from "../common/action-bar-button.js";
 import { useAgentEditorForm } from "./use-agent-editor-form.js";
 import { BasicInfoSection } from "./basic-info-section.js";
 import { PermissionModeSection } from "./permission-mode-section.js";

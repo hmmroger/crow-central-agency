@@ -9,7 +9,7 @@ import { useAgentStateQuery, DEFAULT_SESSION_USAGE } from "../../hooks/use-agent
 import { useAgentStreamState } from "../../hooks/use-agent-stream-state.js";
 import { useAgentActions } from "../../hooks/use-agent-actions.js";
 import { HeaderPortal } from "../layout/header-portal.js";
-import { ActionBar, ActionBarButton } from "../layout/action-bar.js";
+import { ActionBarButton } from "../common/action-bar-button.js";
 import { MessageList } from "./message-list.js";
 import { MessageInput } from "../common/message-input.js";
 import { PermissionQueue } from "./permission-queue.js";
@@ -52,37 +52,27 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
     <div className="flex flex-col h-full">
       <HeaderPortal title={agent.name} />
 
-      {/* Action bar — status (left) + actions (right) */}
-      <ActionBar
-        left={
-          <>
-            <span className="inline-flex items-center gap-1">
-              <span
-                className={cn(
-                  "shrink-0 w-1.5 h-1.5 rounded-full",
-                  STATUS_DOT_COLOR[status],
-                  status === AGENT_STATUS.STREAMING && "animate-pulse"
-                )}
-              />
-              {STATUS_LABEL[status]}
-            </span>
-            <span className="font-mono">{agent.model}</span>
-            {usage.totalCostUsd > 0 && <span>${usage.totalCostUsd.toFixed(4)}</span>}
-            {usage.contextTotal > 0 && (
-              <span>
-                {Math.round(usage.contextUsed / 1000)}k / {Math.round(usage.contextTotal / 1000)}k
-              </span>
+      <div className="flex gap-3 items-center justify-end text-sm text-text-muted">
+        <span className="inline-flex items-center gap-1">
+          <span
+            className={cn(
+              "shrink-0 w-1.5 h-1.5 rounded-full",
+              STATUS_DOT_COLOR[status],
+              status === AGENT_STATUS.STREAMING && "animate-pulse"
             )}
-          </>
-        }
-        right={
-          <>
-            <ActionBarButton icon={Minimize2} label="Compact" onClick={compact} disabled={isStreaming} />
-            <ActionBarButton icon={Plus} label="New" onClick={newConversation} />
-            <ActionBarButton icon={FolderOpen} label="Artifacts" onClick={toggleArtifacts} />
-          </>
-        }
-      />
+          />
+          {STATUS_LABEL[status]}
+        </span>
+        {usage.totalCostUsd > 0 && <span>${usage.totalCostUsd.toFixed(4)}</span>}
+        {usage.contextTotal > 0 && (
+          <span>
+            {Math.round(usage.contextUsed / 1000)}k / {Math.round(usage.contextTotal / 1000)}k
+          </span>
+        )}
+        <ActionBarButton icon={Minimize2} label="Compact" onClick={compact} disabled={isStreaming} />
+        <ActionBarButton icon={Plus} label="New" onClick={newConversation} />
+        <ActionBarButton icon={FolderOpen} label="Artifacts" onClick={toggleArtifacts} />
+      </div>
 
       {/* Main console area */}
       <div className="flex flex-1 min-h-0">
