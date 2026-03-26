@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import { useCallback, useState } from "react";
 import { ChevronDown, Minimize2, Plus } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -97,7 +98,7 @@ function AgentSidePanelContent({ agentId }: AgentSidePanelContentProps) {
           {/* Status beacon with glow ring */}
           <span className="relative flex items-center justify-center">
             <span className={cn("w-2 h-2 rounded-full", STATUS_DOT_COLOR[status], isStreaming && "animate-pulse")} />
-            <span className={cn("absolute inset-0 rounded-full opacity-40 blur-[3px]", STATUS_DOT_COLOR[status])} />
+            <span className={cn("absolute inset-0 rounded-full opacity-40 blur-sm", STATUS_DOT_COLOR[status])} />
           </span>
           <span className={cn("font-mono text-2xs font-medium tracking-wide", STATUS_TEXT_COLOR[status])}>
             {STATUS_LABEL[status]}
@@ -179,7 +180,7 @@ function MetricWell({ label, value, suffix }: MetricWellProps) {
 }
 
 interface ControlButtonProps {
-  icon: typeof Minimize2;
+  icon: ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
   disabled?: boolean;
