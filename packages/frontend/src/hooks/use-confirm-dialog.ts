@@ -15,8 +15,8 @@ interface ConfirmDialogOptions {
   cancelLabel?: string;
   /** When true, styles the confirm button as destructive */
   destructive?: boolean;
-  /** Called when the user confirms */
-  onConfirm: () => void;
+  /** Called when the user confirms — if async, dialog stays open until resolved */
+  onConfirm: () => void | Promise<void>;
 }
 
 /**

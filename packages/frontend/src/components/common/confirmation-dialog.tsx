@@ -1,7 +1,11 @@
 /**
  * Reusable confirmation dialog content for the modal dialog framework.
  * Rendered inside ModalDialogRenderer — onClose is injected automatically.
+ * Supports async onConfirm — dialog stays open until the callback resolves.
  */
+
+import { useState } from "react";
+import { cn } from "../../utils/cn.js";
 
 interface ConfirmationDialogProps {
   /** Body text explaining what will happen */
@@ -12,8 +16,8 @@ interface ConfirmationDialogProps {
   cancelLabel?: string;
   /** When true, styles the confirm button as destructive */
   destructive?: boolean;
-  /** Called when the user confirms */
-  onConfirm: () => void;
+  /** Called when the user confirms — if async, dialog stays open until resolved */
+  onConfirm: () => void | Promise<void>;
   /** Injected by ModalDialogRenderer */
   onClose: () => void;
 }
@@ -26,14 +30,19 @@ export function ConfirmationDialog({
   onConfirm,
   onClose,
 }: ConfirmationDialogProps) {
-  const handleConfirm = () => {
-    onConfirm();
-    onClose();
-  };
+  const [isPending, setIsPending] = useState(false);
 
-  const confirmClass = destructive
-    ? "bg-error/15 text-error border border-error/25 hover:bg-error/25"
-    : "bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25";
+  const handleConfirm = async () => {
+    setIsPending(true);
+
+    try {
+      await onConfirm();
+      onClose();
+    } catch {
+      // Error handling is the caller's responsibility — just re-enable the button
+      setIsPending(false);
+    }
+  };
 
   return (
     <div className="p-4 space-y-4">
@@ -45,15 +54,22 @@ export function ConfirmationDialog({
           type="button"
           className="px-3 py-1.5 rounded-md text-sm text-text-muted border border-border-subtle hover:text-text-secondary transition-colors"
           onClick={onClose}
+          disabled={isPending}
         >
           {cancelLabel}
         </button>
         <button
           type="button"
-          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${confirmClass}`}
-          onClick={handleConfirm}
+          className={cn(
+            "px-3 py-1.5 rounded-md text-sm font-medium transition-colors disabled:opacity-40",
+            destructive
+              ? "bg-error/15 text-error border border-error/25 hover:bg-error/25"
+              : "bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25"
+          )}
+          onClick={() => void handleConfirm()}
+          disabled={isPending}
         >
-          {confirmLabel}
+          {isPending ? "..." : confirmLabel}
         </button>
       </div>
     </div>
