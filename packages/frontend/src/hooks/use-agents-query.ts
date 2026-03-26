@@ -23,6 +23,7 @@ export function useAgentsQuery() {
       return unwrapResponse(response);
     },
     staleTime: Infinity,
+    refetchOnMount: "always",
   });
 
   // WS listener updates cache directly instead of triggering refetch

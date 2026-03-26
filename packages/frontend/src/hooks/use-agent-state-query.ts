@@ -45,6 +45,7 @@ export function useAgentStateQuery(agentId: string) {
       return unwrapResponse(response);
     },
     staleTime: Infinity,
+    refetchOnMount: "always",
   });
 
   useWsSubscription(agentId, (data) => {
@@ -55,7 +56,7 @@ export function useAgentStateQuery(agentId: string) {
         ...(prev ?? { ...DEFAULT_STATE, agentId }),
         status: statusParsed.data.status,
       }));
-
+      void queryClient.invalidateQueries({ queryKey: agentKeys.messages(agentId) });
       return;
     }
 
