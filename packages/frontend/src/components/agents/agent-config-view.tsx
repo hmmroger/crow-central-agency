@@ -21,6 +21,7 @@ import { useAppStore } from "../../stores/app-store.js";
 import { useAgentQuery } from "../../hooks/use-agent-query.js";
 import { useCreateAgent, useUpdateAgent, useDeleteAgent } from "../../hooks/use-agent-mutations.js";
 import { HeaderPortal } from "../layout/header-portal.js";
+import { ActionBarButton } from "../layout/action-bar.js";
 import { LoopConfigPanel } from "./loop-config-panel.js";
 import { AgentMdEditor } from "./agentmd-editor.js";
 import { GenerateModal } from "./generate-modal.js";
@@ -264,26 +265,22 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
       <HeaderPortal title={headerTitle} />
 
       {/* Inline action buttons */}
-      <div className="flex items-center justify-end gap-2 px-6 pt-4 pb-2 shrink-0">
+      <div className="flex items-center justify-end gap-1 px-6 pt-4 pb-2 shrink-0">
         {isEditing && (
-          <button
-            type="button"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium text-error hover:bg-error/10 transition-colors disabled:opacity-40"
+          <ActionBarButton
+            icon={Trash2}
+            label={isDeleting ? "Deleting..." : "Delete"}
             onClick={handleDelete}
             disabled={isDeleting}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            {isDeleting ? "Deleting..." : "Delete"}
-          </button>
+            isDestructive
+          />
         )}
-        <button
-          type="button"
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-primary text-text-primary hover:opacity-90 transition-colors disabled:opacity-40"
+        <ActionBarButton
+          label={isEditing ? (isSaving ? "Saving..." : "Save") : isSaving ? "Creating..." : "Create"}
           onClick={handleSave}
           disabled={!canSave}
-        >
-          {isEditing ? (isSaving ? "Saving..." : "Save") : isSaving ? "Creating..." : "Create"}
-        </button>
+          isPrimary
+        />
       </div>
       <div className="flex-1 overflow-y-auto max-w-10/12 mx-auto p-6">
         {/* Error */}
