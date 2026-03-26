@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AGENT_STATUS } from "@crow-central-agency/shared";
 import { cn } from "../../utils/cn.js";
 import { useAppStore } from "../../stores/app-store.js";
-import { useAgentsQuery } from "../../hooks/use-agents-query.js";
 import { useAgentStateQuery, DEFAULT_SESSION_USAGE } from "../../hooks/use-agent-state-query.js";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { agentKeys } from "../../services/query-keys.js";
@@ -41,8 +40,6 @@ interface AgentSidePanelContentProps {
  */
 function AgentSidePanelContent({ agentId }: AgentSidePanelContentProps) {
   const queryClient = useQueryClient();
-  const { data: agents = [] } = useAgentsQuery();
-  const agent = agents.find((item) => item.id === agentId);
   const { data: agentState } = useAgentStateQuery(agentId);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
   const usage = agentState?.sessionUsage ?? DEFAULT_SESSION_USAGE;
@@ -81,16 +78,6 @@ function AgentSidePanelContent({ agentId }: AgentSidePanelContentProps) {
 
   return (
     <div className="flex flex-col h-full px-3 pb-3 gap-4 animate-[fade-in_var(--duration-normal)_var(--ease-out)_both]">
-      {/* ── Agent callsign ── */}
-      {agent && (
-        <div className="space-y-1">
-          <h3 className="font-mono text-xs font-semibold text-primary truncate tracking-wide">{agent.name}</h3>
-          {agent.description && (
-            <p className="text-3xs text-text-muted leading-relaxed line-clamp-2">{agent.description}</p>
-          )}
-        </div>
-      )}
-
       {/* ── Status readout — recessed gauge ── */}
       <div className="rounded-md bg-surface-inset border border-border-subtle/30 px-3 py-2.5">
         <GaugeLabel>Status</GaugeLabel>
