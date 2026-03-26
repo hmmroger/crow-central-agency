@@ -10,14 +10,17 @@ interface AgentCommandPillProps {
 }
 
 /**
- * Small square pill in the agent command strip — shows abbreviated name,
- * selected state (primary border), and active indicator (accent dot).
- * Each pill owns its own status query for the indicator.
+ * Square pill in the agent command strip.
+ *
+ * Visual states (can overlap):
+ * - Default: subtle border, muted text
+ * - Selected: primary border + text, left indicator line
+ * - Streaming/active: accent border + text, dot at upper-right
  */
 export function AgentCommandPill({ agent, isSelected, onClick }: AgentCommandPillProps) {
   const { data: agentState } = useAgentStateQuery(agent.id);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
-  const isActive =
+  const isStreaming =
     status === AGENT_STATUS.STREAMING ||
     status === AGENT_STATUS.WAITING_PERMISSION ||
     status === AGENT_STATUS.WAITING_AGENT ||
@@ -28,19 +31,24 @@ export function AgentCommandPill({ agent, isSelected, onClick }: AgentCommandPil
     <button
       type="button"
       className={cn(
-        "relative flex items-center justify-center w-11 h-11 rounded-lg font-mono text-2xs font-semibold transition-colors",
-        isSelected
-          ? "border-2 border-primary bg-surface-elevated text-primary"
-          : "border border-border-subtle bg-surface text-text-muted hover:border-border hover:text-text-primary"
+        "relative flex items-center justify-center w-9 h-9 rounded-xs font-mono text-3xs border transition-colors",
+        isStreaming
+          ? "border-accent text-accent"
+          : isSelected
+            ? "border-primary text-primary bg-primary/15"
+            : "border-border-subtle text-text-muted hover:text-text-primary hover:border-border"
       )}
       onClick={onClick}
       title={agent.name}
     >
+      {/* Left selection indicator */}
+      {isSelected && <span className="absolute left-0 inset-y-1 w-0.5 rounded-full bg-primary" />}
+
       {abbreviation}
 
-      {/* Active indicator dot — shown for streaming, waiting, compacting */}
-      {isActive && (
-        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent border-2 border-surface animate-pulse" />
+      {/* Streaming dot — upper-right corner */}
+      {isStreaming && (
+        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-accent border-2 border-base" />
       )}
     </button>
   );

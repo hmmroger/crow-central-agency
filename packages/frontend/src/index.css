@@ -30,8 +30,8 @@
   --color-secondary: oklch(0.68 0.12 295);
   --color-secondary-muted: oklch(0.38 0.12 295);
 
-  --color-accent: oklch(0.5 0.2 340);
-  --color-accent-hover: oklch(0.7 0.2 340);
+  --color-accent: oklch(0.58 0.11 31.757);
+  --color-accent-hover: oklch(0.78 0.11 31.757);
 
   /* ── Border ── */
   --color-border: oklch(0.28 0.02 285);
@@ -55,6 +55,7 @@
   --color-glow-accent: oklch(0.45 0.12 340);
 
   /* ── Typography scale ── */
+  --text-3xs: 0.65rem;
   --text-2xs: 0.75rem;
   --text-xs: 0.8125rem;
   --text-sm: 0.875rem;

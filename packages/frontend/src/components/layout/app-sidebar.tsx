@@ -17,7 +17,7 @@ export function AppSidebar() {
   const setViewMode = useAppStore((state) => state.setViewMode);
 
   return (
-    <nav className="flex flex-col items-center gap-1 w-12 pt-3 shrink-0 border-r border-border-subtle bg-surface">
+    <nav className="flex flex-col items-center gap-8 w-14 pt-10 shrink-0 border-r border-border-subtle/20 bg-surface">
       {SIDEBAR_ITEMS.map(({ mode, icon: Icon, label }) => {
         const isActive = viewMode === mode;
 
@@ -26,15 +26,15 @@ export function AppSidebar() {
             key={mode}
             type="button"
             className={cn(
-              "flex items-center justify-center w-9 h-9 rounded-lg transition-colors",
+              "flex items-center justify-center w-9 h-9 rounded-md transition-colors",
               isActive
-                ? "text-primary bg-primary/10"
+                ? "text-primary bg-primary/20"
                 : "text-text-muted hover:text-text-primary hover:bg-surface-elevated"
             )}
             onClick={() => setViewMode(mode)}
             title={label}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-6 w-6" />
           </button>
         );
       })}

@@ -9,7 +9,7 @@ export function AppHeader() {
   const { title } = useHeader();
 
   return (
-    <header className="flex items-center h-12 px-4 border-b border-border-subtle bg-surface/80 backdrop-blur-sm shrink-0">
+    <header className="flex items-center h-12 px-4 border-b border-border-subtle/20 bg-surface/80 backdrop-blur-sm shrink-0">
       {/* Logo — branding only */}
       <div className="flex items-center gap-2 shrink-0">
         <Bird className="h-5 w-5 text-primary" />
