@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { AppHeader } from "./app-header.js";
 import { AppSidebar } from "./app-sidebar.js";
+import { SidePanel } from "./side-panel.js";
 import { ReconnectBanner } from "../common/reconnect-banner.js";
 import { useWs } from "../../hooks/use-ws.js";
 
@@ -21,6 +22,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="flex flex-1 overflow-hidden">
         <AppSidebar />
         {children}
+        <SidePanel />
       </div>
     </div>
   );

@@ -9,6 +9,13 @@ export const VIEW_MODE = {
 
 export type ViewMode = (typeof VIEW_MODE)[keyof typeof VIEW_MODE];
 
+/** Default side panel width in pixels */
+const DEFAULT_SIDE_PANEL_WIDTH = 280;
+/** Minimum side panel width in pixels */
+export const SIDE_PANEL_MIN_WIDTH = 220;
+/** Maximum side panel width in pixels */
+export const SIDE_PANEL_MAX_WIDTH = 480;
+
 interface AppState {
   /** Current view mode — controlled by sidebar (DASHBOARD, AGENTS) or programmatic navigation (AGENT_EDITOR) */
   viewMode: ViewMode;
@@ -16,6 +23,10 @@ interface AppState {
   selectedAgentId?: string;
   /** Agent being edited in the editor view — undefined means "create new" */
   editorAgentId?: string;
+  /** Whether the right side panel is open */
+  sidePanelOpen: boolean;
+  /** Current width of the side panel in pixels */
+  sidePanelWidth: number;
   /** Switch view mode via sidebar. Switching to AGENTS clears selectedAgentId */
   setViewMode: (mode: ViewMode) => void;
   /** Select an agent in the Agents view to show its console */
@@ -26,6 +37,10 @@ interface AppState {
   goToDashboard: () => void;
   /** Navigate to agents view with a specific agent selected */
   goToAgentConsole: (agentId: string) => void;
+  /** Toggle side panel open/closed */
+  toggleSidePanel: () => void;
+  /** Set side panel width (for resize) */
+  setSidePanelWidth: (width: number) => void;
 }
 
 /**
@@ -37,6 +52,8 @@ export const useAppStore = create<AppState>((set) => ({
   viewMode: VIEW_MODE.DASHBOARD,
   selectedAgentId: undefined,
   editorAgentId: undefined,
+  sidePanelOpen: true,
+  sidePanelWidth: DEFAULT_SIDE_PANEL_WIDTH,
 
   setViewMode: (mode: ViewMode) =>
     set((state) => {
@@ -81,4 +98,8 @@ export const useAppStore = create<AppState>((set) => ({
 
   goToAgentConsole: (agentId: string) =>
     set({ viewMode: VIEW_MODE.AGENTS, selectedAgentId: agentId, editorAgentId: undefined }),
+
+  toggleSidePanel: () => set((state) => ({ sidePanelOpen: !state.sidePanelOpen })),
+
+  setSidePanelWidth: (width: number) => set({ sidePanelWidth: width }),
 }));
