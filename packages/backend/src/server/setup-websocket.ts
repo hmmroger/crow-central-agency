@@ -9,7 +9,8 @@ const log = logger.child({ context: "websocket" });
 
 /**
  * Set up WebSocket endpoint with message routing.
- * Handles subscribe/unsubscribe, send_message, inject_message.
+ * Handles send_message, inject_message, permission_response.
+ * No subscribe/unsubscribe — server broadcasts all messages to all connected clients.
  */
 export async function setupWebSocket(
   server: FastifyInstance,
@@ -19,6 +20,7 @@ export async function setupWebSocket(
 ) {
   server.get("/ws", { websocket: true }, (socket) => {
     log.debug("WebSocket client connected");
+    broadcaster.addClient(socket);
 
     socket.on("message", (raw) => {
       try {
@@ -39,14 +41,6 @@ export async function setupWebSocket(
         const message = result.data;
 
         switch (message.type) {
-          case "subscribe":
-            broadcaster.subscribe(socket, message.agentId);
-            break;
-
-          case "unsubscribe":
-            broadcaster.unsubscribe(socket, message.agentId);
-            break;
-
           case CLIENT_MESSAGE_TYPE.SEND_MESSAGE:
             orchestrator.sendMessage(message.agentId, message.message).catch((error) => {
               log.error({ agentId: message.agentId, error }, "Failed to send message");

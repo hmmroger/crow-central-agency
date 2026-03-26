@@ -169,7 +169,6 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
     log.info({ agentId, name: existing.name }, "Agent deleted");
     this.emit("agentDeleted", { agentId });
-    this.broadcaster.removeAgent(agentId);
   }
 
   /** Read the agent's AGENT.md file. Returns undefined if not found. */

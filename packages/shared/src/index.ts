@@ -47,8 +47,6 @@ export {
 export {
   ClientMessageSchema,
   ServerMessageSchema,
-  SubscribeMessageSchema,
-  UnsubscribeMessageSchema,
   SendMessageSchema,
   InjectMessageSchema,
   PermissionResponseWsSchema,
@@ -62,8 +60,6 @@ export {
   PermissionCancelledWsMessageSchema,
   ErrorWsMessageSchema,
   type ClientMessage,
-  type SubscribeMessage,
-  type UnsubscribeMessage,
   type SendMessage,
   type InjectMessage,
   type PermissionResponseWs,

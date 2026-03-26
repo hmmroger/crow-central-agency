@@ -4,15 +4,15 @@ const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
 
 /**
- * WebSocket client with auto-reconnect and subscription management.
- * Maintains subscriptions across reconnects.
+ * WebSocket client with auto-reconnect.
+ * No subscription management — server broadcasts all agent messages to connected clients.
+ * Client-side handlers filter by agentId.
  */
 export class WsClient {
   private ws: WebSocket | undefined;
   private state: WsState = WS_STATE.DISCONNECTED;
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-  private subscriptions = new Set<string>();
   private messageHandlers = new Set<WsMessageHandler>();
   private stateChangeHandlers = new Set<(state: WsState) => void>();
   private intentionalDisconnect = false;
@@ -35,7 +35,6 @@ export class WsClient {
     this.ws.onopen = () => {
       this.reconnectAttempt = 0;
       this.setState(WS_STATE.CONNECTED);
-      this.resubscribeAll();
     };
 
     this.ws.onmessage = (event) => {
@@ -82,18 +81,6 @@ export class WsClient {
     }
   }
 
-  /** Subscribe to an agent's messages */
-  public subscribe(agentId: string): void {
-    this.subscriptions.add(agentId);
-    this.send({ type: "subscribe", agentId });
-  }
-
-  /** Unsubscribe from an agent's messages */
-  public unsubscribe(agentId: string): void {
-    this.subscriptions.delete(agentId);
-    this.send({ type: "unsubscribe", agentId });
-  }
-
   /** Register a handler for incoming messages */
   public onMessage(handler: WsMessageHandler): () => void {
     this.messageHandlers.add(handler);
@@ -111,13 +98,6 @@ export class WsClient {
   /** Get the current connection state */
   public getState(): WsState {
     return this.state;
-  }
-
-  /** Re-subscribe all tracked subscriptions after reconnect */
-  private resubscribeAll(): void {
-    for (const agentId of this.subscriptions) {
-      this.send({ type: "subscribe", agentId });
-    }
   }
 
   /** Schedule a reconnect with exponential backoff */

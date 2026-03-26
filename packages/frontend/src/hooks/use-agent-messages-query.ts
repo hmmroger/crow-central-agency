@@ -23,6 +23,7 @@ export function useAgentMessagesQuery(agentId: string) {
       return unwrapResponse(response);
     },
     staleTime: Infinity,
+    refetchOnMount: "always",
   });
 
   useWsSubscription(agentId, (data) => {

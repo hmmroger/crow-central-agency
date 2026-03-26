@@ -2,8 +2,6 @@
  * WebSocket message types — Client → Server
  */
 export const CLIENT_MESSAGE_TYPE = {
-  SUBSCRIBE: "subscribe",
-  UNSUBSCRIBE: "unsubscribe",
   SEND_MESSAGE: "send_message",
   INJECT_MESSAGE: "inject_message",
   PERMISSION_RESPONSE: "permission_response",

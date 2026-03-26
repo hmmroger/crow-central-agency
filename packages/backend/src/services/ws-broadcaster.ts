@@ -5,78 +5,35 @@ import { logger } from "../utils/logger.js";
 const log = logger.child({ context: "ws-broadcaster" });
 
 /**
- * WebSocket pub/sub broadcaster.
- * Maps agentId → Set<WebSocket> for targeted message delivery.
+ * WebSocket broadcaster — sends messages to all connected clients.
+ * No per-agent subscription filtering; all connected clients receive all messages.
+ * Client-side handlers filter by agentId.
  */
 export class WsBroadcaster {
-  private subscriptions = new Map<string, Set<WebSocket>>();
-  private clientSubscriptions = new WeakMap<WebSocket, Set<string>>();
+  private clients = new Set<WebSocket>();
 
-  /** Subscribe a client to an agent's messages */
-  public subscribe(ws: WebSocket, agentId: string): void {
-    if (!this.subscriptions.has(agentId)) {
-      this.subscriptions.set(agentId, new Set());
-    }
-
-    const agentSubs = this.subscriptions.get(agentId);
-    agentSubs?.add(ws);
-
-    if (!this.clientSubscriptions.has(ws)) {
-      this.clientSubscriptions.set(ws, new Set());
-    }
-
-    const clientSubs = this.clientSubscriptions.get(ws);
-    clientSubs?.add(agentId);
-
-    log.debug({ agentId }, "Client subscribed");
+  /** Register a client on connect */
+  public addClient(ws: WebSocket): void {
+    this.clients.add(ws);
+    log.debug("Client added");
   }
 
-  /** Unsubscribe a client from an agent's messages */
-  public unsubscribe(ws: WebSocket, agentId: string): void {
-    this.subscriptions.get(agentId)?.delete(ws);
-    this.clientSubscriptions.get(ws)?.delete(agentId);
-
-    log.debug({ agentId }, "Client unsubscribed");
-  }
-
-  /** Remove a client from all subscriptions (on disconnect) */
+  /** Remove a client on disconnect */
   public removeClient(ws: WebSocket): void {
-    const agentIds = this.clientSubscriptions.get(ws);
-
-    if (agentIds) {
-      for (const agentId of agentIds) {
-        this.subscriptions.get(agentId)?.delete(ws);
-      }
-    }
-
-    this.clientSubscriptions.delete(ws);
+    this.clients.delete(ws);
+    log.debug("Client removed");
   }
 
-  /** Remove all subscriptions for an agent (on agent deletion) */
-  public removeAgent(agentId: string): void {
-    const clients = this.subscriptions.get(agentId);
-
-    if (clients) {
-      for (const ws of clients) {
-        this.clientSubscriptions.get(ws)?.delete(agentId);
-      }
-    }
-
-    this.subscriptions.delete(agentId);
-  }
-
-  /** Broadcast a message to all clients subscribed to an agent */
-  public broadcast(agentId: string, message: ServerMessage): void {
-    const clients = this.subscriptions.get(agentId);
-
-    if (!clients || clients.size === 0) {
+  /** Broadcast a message to all connected clients */
+  public broadcast(_agentId: string, message: ServerMessage): void {
+    if (this.clients.size === 0) {
       return;
     }
 
     const payload = JSON.stringify(message);
     const staleClients: WebSocket[] = [];
 
-    for (const ws of clients) {
+    for (const ws of this.clients) {
       if (ws.readyState === ws.OPEN) {
         ws.send(payload);
       } else if (ws.readyState !== ws.CONNECTING) {
@@ -97,8 +54,8 @@ export class WsBroadcaster {
     }
   }
 
-  /** Get the number of subscribers for an agent */
-  public getSubscriberCount(agentId: string): number {
-    return this.subscriptions.get(agentId)?.size ?? 0;
+  /** Get the number of connected clients */
+  public getClientCount(): number {
+    return this.clients.size;
   }
 }

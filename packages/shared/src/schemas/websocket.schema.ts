@@ -7,16 +7,6 @@ import { CLIENT_MESSAGE_TYPE } from "../constants/message-type.js";
 
 // --- Client → Server messages ---
 
-export const SubscribeMessageSchema = z.object({
-  type: z.literal("subscribe"),
-  agentId: z.string(),
-});
-
-export const UnsubscribeMessageSchema = z.object({
-  type: z.literal("unsubscribe"),
-  agentId: z.string(),
-});
-
 export const SendMessageSchema = z.object({
   type: z.literal("send_message"),
   agentId: z.string(),
@@ -38,16 +28,12 @@ export const PermissionResponseWsSchema = z.object({
 });
 
 export const ClientMessageSchema = z.discriminatedUnion("type", [
-  SubscribeMessageSchema,
-  UnsubscribeMessageSchema,
   SendMessageSchema,
   InjectMessageSchema,
   PermissionResponseWsSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
-export type SubscribeMessage = z.infer<typeof SubscribeMessageSchema>;
-export type UnsubscribeMessage = z.infer<typeof UnsubscribeMessageSchema>;
 export type SendMessage = z.infer<typeof SendMessageSchema>;
 export type InjectMessage = z.infer<typeof InjectMessageSchema>;
 export type PermissionResponseWs = z.infer<typeof PermissionResponseWsSchema>;
