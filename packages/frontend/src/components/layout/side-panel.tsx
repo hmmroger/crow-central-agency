@@ -37,7 +37,7 @@ export function SidePanel() {
       {!sidePanelOpen && (
         <button
           type="button"
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-l-md bg-surface-elevated border border-r-0 border-primary/20 text-primary/70 hover:text-primary hover:bg-primary/10 hover:border-primary/40 transition-colors"
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-l-md bg-surface-elevated/75 border border-r-0 border-secondary/20 text-secondary/70 hover:text-secondary hover:bg-secondary/10 hover:border-secondary/40 transition-colors"
           onClick={toggleSidePanel}
           title="Open side panel"
         >
