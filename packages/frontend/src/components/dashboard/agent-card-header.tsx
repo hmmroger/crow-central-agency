@@ -14,8 +14,8 @@ interface AgentCardHeaderProps {
  * Agent card header — name (click to toggle expand/collapse), status indicator, actions.
  */
 export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: AgentCardHeaderProps) {
-  const goToAgentEditor = useAppStore((state) => state.goToAgentEditor);
-  const goToConsole = useAppStore((state) => state.goToConsole);
+  const openAgentEditor = useAppStore((state) => state.openAgentEditor);
+  const goToAgentConsole = useAppStore((state) => state.goToAgentConsole);
 
   return (
     <div className="flex items-center justify-between">
@@ -42,7 +42,7 @@ export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: Age
           className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
           onClick={(event) => {
             event.stopPropagation();
-            goToAgentEditor(agent.id);
+            openAgentEditor(agent.id);
           }}
           title="Edit agent"
         >
@@ -53,7 +53,7 @@ export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: Age
           className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
           onClick={(event) => {
             event.stopPropagation();
-            goToConsole(agent.id);
+            goToAgentConsole(agent.id);
           }}
           title="Open console"
         >

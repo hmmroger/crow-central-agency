@@ -34,7 +34,7 @@ interface AgentConfigViewProps {
  * Navigated to via view-state, not a modal.
  */
 export function AgentConfigView({ agentId }: AgentConfigViewProps) {
-  const goBack = useAppStore((state) => state.goBack);
+  const goToDashboard = useAppStore((state) => state.goToDashboard);
   const isEditing = agentId !== undefined;
 
   // Query for loading existing agent when editing
@@ -161,7 +161,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
         await createMutateAsync(input);
       }
 
-      goBack();
+      goToDashboard();
     } catch {
       // Error is surfaced via mutation.error in the UI
     }
@@ -181,7 +181,7 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
     buildLoopConfig,
     updateMutateAsync,
     createMutateAsync,
-    goBack,
+    goToDashboard,
   ]);
 
   /** Delete the agent and return to dashboard. Errors surfaced via mutation.error. */
@@ -192,11 +192,11 @@ export function AgentConfigView({ agentId }: AgentConfigViewProps) {
 
     try {
       await deleteFn();
-      goBack();
+      goToDashboard();
     } catch {
       // Error is surfaced via mutation.error in the UI
     }
-  }, [agentId, deleteFn, goBack]);
+  }, [agentId, deleteFn, goToDashboard]);
 
   // Header actions
   const headerTitle = isEditing ? name || "Edit Agent" : "Create Agent";

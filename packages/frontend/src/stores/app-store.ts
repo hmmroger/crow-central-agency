@@ -1,90 +1,84 @@
 import { create } from "zustand";
 
-/** View modes for the app — view-state-based navigation, no URL router */
+/** View modes for the app — flat navigation via sidebar, no view stack */
 export const VIEW_MODE = {
   DASHBOARD: "dashboard",
-  CONSOLE: "console",
+  AGENTS: "agents",
   AGENT_EDITOR: "agent-editor",
 } as const;
 
 export type ViewMode = (typeof VIEW_MODE)[keyof typeof VIEW_MODE];
 
-/** A snapshot of view state — used for current view and history stack */
-export interface ViewState {
-  viewMode: ViewMode;
-  activeAgentId?: string;
-}
-
 interface AppState {
-  /** The active view */
-  currentView: ViewState;
-  /** History stack of previous views (not including current) — enables back navigation */
-  viewStack: ViewState[];
-  /** Navigate to dashboard — clears stack (home) */
+  /** Current view mode — controlled by sidebar (DASHBOARD, AGENTS) or programmatic navigation (AGENT_EDITOR) */
+  viewMode: ViewMode;
+  /** Selected agent in the Agents view — determines which console is shown */
+  selectedAgentId?: string;
+  /** Agent being edited in the editor view — undefined means "create new" */
+  editorAgentId?: string;
+  /** Switch view mode via sidebar. Switching to AGENTS clears selectedAgentId */
+  setViewMode: (mode: ViewMode) => void;
+  /** Select an agent in the Agents view to show its console */
+  selectAgent: (agentId: string) => void;
+  /** Open the agent editor — set viewMode to AGENT_EDITOR and store which agent to edit */
+  openAgentEditor: (agentId?: string) => void;
+  /** Navigate to dashboard */
   goToDashboard: () => void;
-  /** Navigate to agent console — pushes current view to stack */
-  goToConsole: (agentId: string) => void;
-  /** Navigate to agent editor (create or edit) — pushes current view to stack */
-  goToAgentEditor: (agentId?: string) => void;
-  /** Go back to previous view — pops stack */
-  goBack: () => void;
+  /** Navigate to agents view with a specific agent selected */
+  goToAgentConsole: (agentId: string) => void;
 }
-
-const DASHBOARD_VIEW: ViewState = { viewMode: VIEW_MODE.DASHBOARD };
-const MAX_VIEW_STACK_DEPTH = 10;
 
 /**
- * App-wide store — navigation state with view stack for back navigation.
- * No real-time agent data here (that's owned by components via WS hooks).
+ * App-wide store — flat navigation state.
+ * Sidebar controls viewMode (DASHBOARD / AGENTS). Agent editor is a full view.
+ * No view stack — sidebar switching is flat, editor always returns to dashboard.
  */
 export const useAppStore = create<AppState>((set) => ({
-  currentView: DASHBOARD_VIEW,
-  viewStack: [],
+  viewMode: VIEW_MODE.DASHBOARD,
+  selectedAgentId: undefined,
+  editorAgentId: undefined,
+
+  setViewMode: (mode: ViewMode) =>
+    set((state) => {
+      if (state.viewMode === mode) {
+        return state;
+      }
+
+      return {
+        viewMode: mode,
+        // Clear selectedAgentId when switching to AGENTS via sidebar
+        selectedAgentId: mode === VIEW_MODE.AGENTS ? undefined : state.selectedAgentId,
+        editorAgentId: undefined,
+      };
+    }),
+
+  selectAgent: (agentId: string) =>
+    set((state) => {
+      if (state.selectedAgentId === agentId) {
+        return state;
+      }
+
+      return { selectedAgentId: agentId };
+    }),
+
+  openAgentEditor: (agentId?: string) =>
+    set((state) => {
+      if (state.viewMode === VIEW_MODE.AGENT_EDITOR && state.editorAgentId === agentId) {
+        return state;
+      }
+
+      return { viewMode: VIEW_MODE.AGENT_EDITOR, editorAgentId: agentId };
+    }),
 
   goToDashboard: () =>
     set((state) => {
-      if (state.currentView.viewMode === VIEW_MODE.DASHBOARD) {
+      if (state.viewMode === VIEW_MODE.DASHBOARD) {
         return state;
       }
 
-      return { currentView: DASHBOARD_VIEW, viewStack: [] };
+      return { viewMode: VIEW_MODE.DASHBOARD, editorAgentId: undefined };
     }),
 
-  goToConsole: (agentId: string) =>
-    set((state) => {
-      if (state.currentView.viewMode === VIEW_MODE.CONSOLE && state.currentView.activeAgentId === agentId) {
-        return state;
-      }
-
-      return {
-        viewStack: [...state.viewStack, state.currentView].slice(-MAX_VIEW_STACK_DEPTH),
-        currentView: { viewMode: VIEW_MODE.CONSOLE, activeAgentId: agentId },
-      };
-    }),
-
-  goToAgentEditor: (agentId?: string) =>
-    set((state) => {
-      if (state.currentView.viewMode === VIEW_MODE.AGENT_EDITOR && state.currentView.activeAgentId === agentId) {
-        return state;
-      }
-
-      return {
-        viewStack: [...state.viewStack, state.currentView].slice(-MAX_VIEW_STACK_DEPTH),
-        currentView: { viewMode: VIEW_MODE.AGENT_EDITOR, activeAgentId: agentId },
-      };
-    }),
-
-  goBack: () =>
-    set((state) => {
-      if (state.viewStack.length === 0) {
-        return { currentView: DASHBOARD_VIEW, viewStack: [] };
-      }
-
-      const previous = state.viewStack[state.viewStack.length - 1];
-
-      return {
-        currentView: previous,
-        viewStack: state.viewStack.slice(0, -1),
-      };
-    }),
+  goToAgentConsole: (agentId: string) =>
+    set({ viewMode: VIEW_MODE.AGENTS, selectedAgentId: agentId, editorAgentId: undefined }),
 }));

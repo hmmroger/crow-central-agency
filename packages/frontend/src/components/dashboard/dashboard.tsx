@@ -14,9 +14,9 @@ import { EmptyState } from "../common/empty-state.js";
  */
 export function Dashboard() {
   const { data: agents = [], isLoading: loading, error, refetch } = useAgentsQuery();
-  const goToAgentEditor = useAppStore((state) => state.goToAgentEditor);
+  const openAgentEditor = useAppStore((state) => state.openAgentEditor);
   const [searchQuery, setSearchQuery] = useState("");
-  const handleNewAgent = useCallback(() => goToAgentEditor(), [goToAgentEditor]);
+  const handleNewAgent = useCallback(() => openAgentEditor(), [openAgentEditor]);
 
   const headerActions = useMemo(
     () => [{ key: "new", label: "New Agent", icon: Plus, onClick: handleNewAgent, isPrimary: true }],
@@ -75,7 +75,7 @@ export function Dashboard() {
           description="Create your first agent to get started."
           actionLabel="Create Agent"
           actionIcon={Plus}
-          onAction={() => goToAgentEditor()}
+          onAction={() => openAgentEditor()}
         />
       </>
     );

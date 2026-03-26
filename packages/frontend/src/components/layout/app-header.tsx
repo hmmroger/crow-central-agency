@@ -1,52 +1,34 @@
-import { ArrowLeft, Bird } from "lucide-react";
-import { useAppStore } from "../../stores/app-store.js";
+import { Bird } from "lucide-react";
 import { useHeader } from "../../hooks/use-header.js";
 import type { HeaderAction } from "../../providers/header-provider.js";
 
 /**
- * Top action bar with three zones:
- * - Logo: Bird icon + "crow" — click navigates to dashboard
- * - Nav: back button (auto, from view stack) + title (from views via setTitle)
- * - Actions: buttons rendered from structured descriptors (from views via setActions)
+ * Top bar with two zones:
+ * - Logo: Bird icon + "crow" (branding, no navigation)
+ * - Title: set by views via HeaderPortal
  *
- * Back button is a framework concern — shown when viewStack has entries.
- * Views provide title and actions through useHeader().
+ * Actions and navigation have been removed — actions live in per-view ActionBars,
+ * navigation is handled by the sidebar.
  */
 export function AppHeader() {
-  const goToDashboard = useAppStore((state) => state.goToDashboard);
-  const goBack = useAppStore((state) => state.goBack);
-  const hasHistory = useAppStore((state) => state.viewStack.length > 0);
   const { title, actions } = useHeader();
 
   return (
     <header className="flex items-center h-12 px-4 border-b border-border-subtle bg-surface/80 backdrop-blur-sm shrink-0">
-      {/* Logo — click to go home */}
-      <button
-        type="button"
-        className="flex items-center gap-2 shrink-0 hover:opacity-80 transition-opacity"
-        onClick={goToDashboard}
-      >
+      {/* Logo — branding only */}
+      <div className="flex items-center gap-2 shrink-0">
         <Bird className="h-5 w-5 text-primary" />
         <span className="text-sm font-semibold tracking-tight text-text-primary">crow</span>
-      </button>
+      </div>
 
       <div className="h-5 w-px bg-border-subtle mx-3 shrink-0" />
 
-      {/* Nav — back (framework) + title (view) */}
-      <div className="flex-1 flex items-center gap-2 min-w-0">
-        {hasHistory && (
-          <button
-            type="button"
-            className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors shrink-0"
-            onClick={goBack}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-          </button>
-        )}
+      {/* Title — set by views via HeaderPortal */}
+      <div className="flex-1 min-w-0">
         {title && <span className="text-sm font-medium text-text-primary truncate">{title}</span>}
       </div>
 
-      {/* Actions */}
+      {/* Actions — temporarily kept until Phase 2 removes them */}
       {actions.length > 0 && (
         <div className="flex items-center gap-1 shrink-0">
           {actions.map((action) => (
