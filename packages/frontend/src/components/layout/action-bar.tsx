@@ -54,9 +54,11 @@ export function ActionBarButton({
       type="button"
       className={cn(
         "flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors disabled:opacity-40",
-        isDestructive && "text-error hover:bg-error/10",
-        isPrimary && "bg-primary text-text-primary hover:opacity-90",
-        !isDestructive && !isPrimary && "text-text-muted hover:text-text-primary hover:bg-surface-elevated"
+        isDestructive
+          ? "text-error hover:bg-error/10"
+          : isPrimary
+            ? "bg-primary text-text-primary hover:opacity-90"
+            : "text-text-muted hover:text-text-primary hover:bg-surface-elevated"
       )}
       onClick={onClick}
       disabled={disabled}

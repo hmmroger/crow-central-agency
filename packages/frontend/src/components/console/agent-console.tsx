@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FolderOpen, Minimize2, Plus } from "lucide-react";
 import { AGENT_STATUS } from "@crow-central-agency/shared";
+import { cn } from "../../utils/cn.js";
 import { useAgentsQuery } from "../../hooks/use-agents-query.js";
 import { useAgentMessagesQuery } from "../../hooks/use-agent-messages-query.js";
 import { useAgentStateQuery, DEFAULT_SESSION_USAGE } from "../../hooks/use-agent-state-query.js";
@@ -57,7 +58,11 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
           <>
             <span className="inline-flex items-center gap-1">
               <span
-                className={`shrink-0 w-1.5 h-1.5 rounded-full ${STATUS_DOT_COLOR[status]} ${status === AGENT_STATUS.STREAMING ? "animate-pulse" : ""}`}
+                className={cn(
+                  "shrink-0 w-1.5 h-1.5 rounded-full",
+                  STATUS_DOT_COLOR[status],
+                  status === AGENT_STATUS.STREAMING && "animate-pulse"
+                )}
               />
               {STATUS_LABEL[status]}
             </span>
