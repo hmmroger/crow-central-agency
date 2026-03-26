@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import { useAppStore, VIEW_MODE } from "../../stores/app-store.js";
 import { Dashboard } from "../dashboard/dashboard.js";
-import { AgentConfigView } from "../agents/agent-config-view.js";
+import { AgentEditorView } from "../agent-editor/agent-editor-view.js";
 import { AgentsView } from "../agents/agents-view.js";
 
 /**
@@ -23,7 +23,7 @@ export function AppContent() {
       break;
 
     case VIEW_MODE.AGENT_EDITOR:
-      view = <AgentConfigView agentId={editorAgentId} />;
+      view = <AgentEditorView agentId={editorAgentId} />;
       break;
   }
 
