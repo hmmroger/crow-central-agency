@@ -132,6 +132,17 @@ export function AgentEditorView({ agentId }: AgentEditorViewProps) {
     );
   }
 
+  if (isEditing && agentQuery.isError) {
+    return (
+      <>
+        <HeaderPortal title="Edit Agent" />
+        <div className="h-full flex items-center justify-center text-error text-sm">
+          Failed to load agent: {agentQuery.error.message}
+        </div>
+      </>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       <HeaderPortal title={headerTitle} />

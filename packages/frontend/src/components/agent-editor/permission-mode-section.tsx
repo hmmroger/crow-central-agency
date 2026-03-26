@@ -1,4 +1,4 @@
-import { PERMISSION_MODE, type PermissionMode } from "@crow-central-agency/shared";
+import { PERMISSION_MODE, PermissionModeSchema, type PermissionMode } from "@crow-central-agency/shared";
 import { FieldGroup } from "./field-group.js";
 
 interface PermissionModeSectionProps {
@@ -12,7 +12,13 @@ export function PermissionModeSection({ permissionMode, onPermissionModeChange }
     <FieldGroup label="Permission Mode">
       <select
         value={permissionMode}
-        onChange={(event) => onPermissionModeChange(event.target.value as PermissionMode)}
+        onChange={(event) => {
+          const result = PermissionModeSchema.safeParse(event.target.value);
+
+          if (result.success) {
+            onPermissionModeChange(result.data);
+          }
+        }}
         className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-primary text-sm focus:outline-none focus:border-border-focus"
       >
         <option value={PERMISSION_MODE.DEFAULT}>Default</option>

@@ -1,4 +1,14 @@
-import type { DayOfWeek, PermissionMode, SettingSource, TimeMode, ToolMode } from "@crow-central-agency/shared";
+import type {
+  AgentConfig,
+  DayOfWeek,
+  PermissionMode,
+  SettingSource,
+  TimeMode,
+  ToolMode,
+} from "@crow-central-agency/shared";
+
+/** Agent data as returned by the detail query (config + optional agentMd) */
+export type AgentDetailData = AgentConfig & { agentMd?: string };
 
 /** Form state for the agent editor — all editable fields */
 export interface AgentEditorFormState {

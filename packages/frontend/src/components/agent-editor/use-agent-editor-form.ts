@@ -6,14 +6,13 @@ import {
   PERMISSION_MODE,
   TOOL_MODE,
   TIME_MODE,
-  type AgentConfig,
   type DayOfWeek,
   type PermissionMode,
   type SettingSource,
   type TimeMode,
   type ToolMode,
 } from "@crow-central-agency/shared";
-import type { AgentEditorFormState } from "./agent-editor.types.js";
+import type { AgentDetailData, AgentEditorFormState } from "./agent-editor.types.js";
 
 /** Default form state for a new agent */
 const DEFAULT_FORM_STATE: AgentEditorFormState = {
@@ -36,9 +35,6 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   loopPrompt: "",
   agentMd: "",
 };
-
-/** Agent data as returned by the detail query (config + optional agentMd) */
-export type AgentDetailData = AgentConfig & { agentMd?: string };
 
 /** Build form state from an existing agent config */
 function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
@@ -83,6 +79,7 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     arraysEqual(formA.settingSources, formB.settingSources) &&
     arraysEqual(formA.selectedTools, formB.selectedTools) &&
     arraysEqual(formA.autoApprovedTools, formB.autoApprovedTools) &&
+    arraysEqual(formA.availableTools, formB.availableTools) &&
     arraysEqual(formA.loopDays, formB.loopDays)
   );
 }
