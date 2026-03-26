@@ -123,7 +123,7 @@ export function AgentEditorView({ agentId }: AgentEditorViewProps) {
   const headerTitle = isEditing ? form.name || "Edit Agent" : "Create Agent";
   const canSave = !isSaving && !!form.name.trim() && !!form.workspace.trim() && (isEditing ? isDirty : true);
 
-  if (agentQuery.isLoading) {
+  if (isEditing && agentQuery.isLoading) {
     return (
       <>
         <HeaderPortal title={headerTitle} />

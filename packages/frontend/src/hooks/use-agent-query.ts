@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import type { AgentConfig } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../services/api-client.js";
 import { agentKeys } from "../services/query-keys.js";
 import type { ApiError } from "../services/api-client.types.js";
-import type { AgentDetailData } from "../components/agent-editor/agent-editor.types.js";
+
+/** Agent data as returned by the detail query (config + optional agentMd) */
+export type AgentDetailData = AgentConfig & { agentMd?: string };
 
 /**
  * Fetch a single agent config for editing.
