@@ -74,6 +74,7 @@ export default defineConfig(
       ],
       "react-hooks/set-state-in-effect": ["off"],
       "react-hooks/refs": ["off"],
+      "react-hooks/exhaustive-deps": "error",
       "@stylistic/multiline-comment-style": ["error", "separate-lines"],
       "import/first": "error",
       "import/newline-after-import": "error",
