@@ -8,7 +8,7 @@ import { useAgentStateQuery, DEFAULT_SESSION_USAGE } from "../../hooks/use-agent
 import { useAgentStreamState } from "../../hooks/use-agent-stream-state.js";
 import { useAgentActions } from "../../hooks/use-agent-actions.js";
 import { HeaderPortal } from "../layout/header-portal.js";
-import { ActionBar } from "../layout/action-bar.js";
+import { ActionBar, ActionBarButton } from "../layout/action-bar.js";
 import { MessageList } from "./message-list.js";
 import { MessageInput } from "../common/message-input.js";
 import { PermissionQueue } from "./permission-queue.js";
@@ -114,31 +114,5 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
         </AnimatePresence>
       </div>
     </div>
-  );
-}
-
-/** Small action button for the console action bar */
-function ActionBarButton({
-  icon: Icon,
-  label,
-  onClick,
-  disabled,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors disabled:opacity-40"
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-    >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-    </button>
   );
 }

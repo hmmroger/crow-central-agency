@@ -3,7 +3,7 @@ import { Plus, RefreshCw } from "lucide-react";
 import { useAppStore } from "../../stores/app-store.js";
 import { useAgentsQuery } from "../../hooks/use-agents-query.js";
 import { HeaderPortal } from "../layout/header-portal.js";
-import { ActionBar } from "../layout/action-bar.js";
+import { ActionBar, ActionBarButton } from "../layout/action-bar.js";
 import { AgentCard } from "./agent-card.js";
 import { DashboardFilter } from "./dashboard-filter.js";
 import { LoadingSkeleton } from "../common/loading-skeleton.js";
@@ -42,16 +42,7 @@ export function Dashboard() {
           </span>
         ) : undefined
       }
-      right={
-        <button
-          type="button"
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-primary text-text-primary hover:opacity-90 transition-colors"
-          onClick={() => openAgentEditor()}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          New Agent
-        </button>
-      }
+      right={<ActionBarButton icon={Plus} label="New Agent" onClick={() => openAgentEditor()} isPrimary />}
     />
   );
 

@@ -1,6 +1,7 @@
 import { AGENT_STATUS, type AgentConfig } from "@crow-central-agency/shared";
 import { useAgentStateQuery } from "../../hooks/use-agent-state-query.js";
 import { getAgentAbbreviation } from "../../utils/agent-abbreviation.js";
+import { cn } from "../../utils/cn.js";
 
 interface AgentCommandPillProps {
   agent: AgentConfig;
@@ -10,8 +11,8 @@ interface AgentCommandPillProps {
 
 /**
  * Small square pill in the agent command strip — shows abbreviated name,
- * selected state (primary border), and streaming indicator (accent dot).
- * Each pill owns its own status query for the streaming indicator.
+ * selected state (primary border), and active indicator (accent dot).
+ * Each pill owns its own status query for the indicator.
  */
 export function AgentCommandPill({ agent, isSelected, onClick }: AgentCommandPillProps) {
   const { data: agentState } = useAgentStateQuery(agent.id);
@@ -26,11 +27,12 @@ export function AgentCommandPill({ agent, isSelected, onClick }: AgentCommandPil
   return (
     <button
       type="button"
-      className={`relative flex items-center justify-center w-11 h-11 rounded-lg font-mono text-2xs font-semibold transition-colors ${
+      className={cn(
+        "relative flex items-center justify-center w-11 h-11 rounded-lg font-mono text-2xs font-semibold transition-colors",
         isSelected
           ? "border-2 border-primary bg-surface-elevated text-primary"
           : "border border-border-subtle bg-surface text-text-muted hover:border-border hover:text-text-primary"
-      }`}
+      )}
       onClick={onClick}
       title={agent.name}
     >

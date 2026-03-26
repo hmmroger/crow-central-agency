@@ -1,5 +1,6 @@
 import { Bot, LayoutDashboard } from "lucide-react";
 import { useAppStore, VIEW_MODE, type ViewMode } from "../../stores/app-store.js";
+import { cn } from "../../utils/cn.js";
 
 /** Sidebar navigation items — icon + target view mode */
 const SIDEBAR_ITEMS: { mode: ViewMode; icon: typeof LayoutDashboard; label: string }[] = [
@@ -24,11 +25,12 @@ export function AppSidebar() {
           <button
             key={mode}
             type="button"
-            className={`flex items-center justify-center w-9 h-9 rounded-lg transition-colors ${
+            className={cn(
+              "flex items-center justify-center w-9 h-9 rounded-lg transition-colors",
               isActive
                 ? "text-primary bg-primary/10"
                 : "text-text-muted hover:text-text-primary hover:bg-surface-elevated"
-            }`}
+            )}
             onClick={() => setViewMode(mode)}
             title={label}
           >
