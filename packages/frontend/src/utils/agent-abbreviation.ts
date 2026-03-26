@@ -17,6 +17,11 @@ export function getAgentAbbreviation(name: string): string {
   if (words.length === 1) {
     const word = words[0];
     const first = word[0].toUpperCase();
+
+    if (word.length === 1) {
+      return first;
+    }
+
     const last = word[word.length - 1].toUpperCase();
 
     return `${first}-${last}`;

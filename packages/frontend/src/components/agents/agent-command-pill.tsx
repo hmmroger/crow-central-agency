@@ -16,7 +16,11 @@ interface AgentCommandPillProps {
 export function AgentCommandPill({ agent, isSelected, onClick }: AgentCommandPillProps) {
   const { data: agentState } = useAgentStateQuery(agent.id);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
-  const isStreaming = status === AGENT_STATUS.STREAMING;
+  const isActive =
+    status === AGENT_STATUS.STREAMING ||
+    status === AGENT_STATUS.WAITING_PERMISSION ||
+    status === AGENT_STATUS.WAITING_AGENT ||
+    status === AGENT_STATUS.COMPACTING;
   const abbreviation = getAgentAbbreviation(agent.name);
 
   return (
@@ -32,8 +36,8 @@ export function AgentCommandPill({ agent, isSelected, onClick }: AgentCommandPil
     >
       {abbreviation}
 
-      {/* Streaming indicator dot */}
-      {isStreaming && (
+      {/* Active indicator dot — shown for streaming, waiting, compacting */}
+      {isActive && (
         <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent border-2 border-surface animate-pulse" />
       )}
     </button>
