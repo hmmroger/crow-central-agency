@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { Sparkles, Trash2, X } from "lucide-react";
 import { DEFAULT_MODEL, TOOL_MODE, type CreateAgentInput, type UpdateAgentInput } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
+import { useConfirmDialog } from "../../hooks/use-confirm-dialog.js";
 import { useAgentQuery } from "../../hooks/use-agent-query.js";
 import { useCreateAgent, useUpdateAgent, useDeleteAgent } from "../../hooks/use-agent-mutations.js";
 import { HeaderPortal } from "../layout/header-portal.js";
@@ -27,6 +28,7 @@ interface AgentEditorViewProps {
  */
 export function AgentEditorView({ agentId }: AgentEditorViewProps) {
   const goToDashboard = useAppStore((state) => state.goToDashboard);
+  const confirm = useConfirmDialog();
   const isEditing = agentId !== undefined;
 
   // Query for loading existing agent when editing
@@ -106,19 +108,43 @@ export function AgentEditorView({ agentId }: AgentEditorViewProps) {
     }
   }, [form, isEditing, updateMutateAsync, createMutateAsync, goToDashboard]);
 
-  /** Delete the agent and return to dashboard */
-  const handleDelete = useCallback(async () => {
+  /** Delete the agent after confirmation */
+  const handleDelete = useCallback(() => {
     if (!agentId) {
       return;
     }
 
-    try {
-      await deleteFn();
+    confirm({
+      title: "Delete Agent",
+      message: "This will permanently delete the agent and all its data. This action cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteFn();
+          goToDashboard();
+        } catch {
+          // Error is surfaced via mutation.error in the UI
+        }
+      },
+    });
+  }, [agentId, confirm, deleteFn, goToDashboard]);
+
+  /** Cancel — confirm if there are unsaved changes */
+  const handleCancel = useCallback(() => {
+    if (!isDirty) {
       goToDashboard();
-    } catch {
-      // Error is surfaced via mutation.error in the UI
+      return;
     }
-  }, [agentId, deleteFn, goToDashboard]);
+
+    confirm({
+      title: "Discard Changes",
+      message: "You have unsaved changes. Are you sure you want to discard them?",
+      confirmLabel: "Discard",
+      destructive: true,
+      onConfirm: goToDashboard,
+    });
+  }, [isDirty, confirm, goToDashboard]);
 
   const headerTitle = isEditing ? form.name || "Edit Agent" : "Create Agent";
   const canSave = !isSaving && !!form.name.trim() && !!form.workspace.trim() && (isEditing ? isDirty : true);
@@ -169,7 +195,7 @@ export function AgentEditorView({ agentId }: AgentEditorViewProps) {
         <button
           type="button"
           className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
-          onClick={goToDashboard}
+          onClick={handleCancel}
           title="Cancel"
         >
           <X className="h-4 w-4" />
