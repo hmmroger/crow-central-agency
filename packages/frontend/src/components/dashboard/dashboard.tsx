@@ -1,27 +1,22 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { useAppStore } from "../../stores/app-store.js";
 import { useAgentsQuery } from "../../hooks/use-agents-query.js";
 import { HeaderPortal } from "../layout/header-portal.js";
+import { ActionBar } from "../layout/action-bar.js";
 import { AgentCard } from "./agent-card.js";
 import { DashboardFilter } from "./dashboard-filter.js";
 import { LoadingSkeleton } from "../common/loading-skeleton.js";
 import { EmptyState } from "../common/empty-state.js";
 
 /**
- * Dashboard — agent cards grid with stats bar, search filter, and empty state.
+ * Dashboard — agent cards grid with action bar, search filter, and empty state.
  * Owns its agent list query via useAgentsQuery.
  */
 export function Dashboard() {
   const { data: agents = [], isLoading: loading, error, refetch } = useAgentsQuery();
   const openAgentEditor = useAppStore((state) => state.openAgentEditor);
   const [searchQuery, setSearchQuery] = useState("");
-  const handleNewAgent = useCallback(() => openAgentEditor(), [openAgentEditor]);
-
-  const headerActions = useMemo(
-    () => [{ key: "new", label: "New Agent", icon: Plus, onClick: handleNewAgent, isPrimary: true }],
-    [handleNewAgent]
-  );
 
   // Filter agents by search query
   const filteredAgents = useMemo(() => {
@@ -36,12 +31,35 @@ export function Dashboard() {
     );
   }, [agents, searchQuery]);
 
-  const portal = <HeaderPortal title="Agents" actions={headerActions} />;
+  const portal = <HeaderPortal title="Dashboard" />;
+
+  const actionBar = (
+    <ActionBar
+      left={
+        agents.length > 0 ? (
+          <span>
+            {agents.length} agent{agents.length !== 1 ? "s" : ""}
+          </span>
+        ) : undefined
+      }
+      right={
+        <button
+          type="button"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-primary text-text-primary hover:opacity-90 transition-colors"
+          onClick={() => openAgentEditor()}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          New Agent
+        </button>
+      }
+    />
+  );
 
   if (loading) {
     return (
       <>
         {portal}
+        {actionBar}
         <LoadingSkeleton lines={4} />
       </>
     );
@@ -51,6 +69,7 @@ export function Dashboard() {
     return (
       <>
         {portal}
+        {actionBar}
         <div className="h-full flex flex-col items-center justify-center gap-4 text-text-muted">
           <p className="text-lg text-error">{error.message}</p>
           <button
@@ -70,6 +89,7 @@ export function Dashboard() {
     return (
       <>
         {portal}
+        {actionBar}
         <EmptyState
           message="No agents yet"
           description="Create your first agent to get started."
@@ -82,16 +102,17 @@ export function Dashboard() {
   }
 
   return (
-    <div className="h-full p-6">
+    <div className="flex flex-col h-full">
       {portal}
+      {actionBar}
 
       {/* Filter bar */}
-      <div className="flex items-center justify-end mb-4">
+      <div className="flex items-center justify-end px-6 pt-4 pb-2">
         <DashboardFilter searchQuery={searchQuery} onSearchChange={setSearchQuery} />
       </div>
 
       {/* Agent cards grid */}
-      <div className="overflow-y-auto h-full">
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
         {filteredAgents.length === 0 ? (
           <div className="flex items-center justify-center py-12 text-text-muted text-sm">
             No agents match &quot;{searchQuery}&quot;

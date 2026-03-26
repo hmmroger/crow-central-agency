@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FolderOpen, Minimize2, Plus } from "lucide-react";
 import { AGENT_STATUS } from "@crow-central-agency/shared";
@@ -8,18 +8,19 @@ import { useAgentStateQuery, DEFAULT_SESSION_USAGE } from "../../hooks/use-agent
 import { useAgentStreamState } from "../../hooks/use-agent-stream-state.js";
 import { useAgentActions } from "../../hooks/use-agent-actions.js";
 import { HeaderPortal } from "../layout/header-portal.js";
-import { ConsoleStatusBar } from "./console-status-bar.js";
+import { ActionBar } from "../layout/action-bar.js";
 import { MessageList } from "./message-list.js";
 import { MessageInput } from "../common/message-input.js";
 import { PermissionQueue } from "./permission-queue.js";
 import { ArtifactPanel } from "./artifact-panel.js";
+import { STATUS_DOT_COLOR, STATUS_LABEL } from "../../utils/agent-status-display.js";
 
 interface AgentConsoleProps {
   agentId: string;
 }
 
 /**
- * Full agent console view — status bar + message list + input + artifact sidebar.
+ * Full agent console view — action bar + message list + input + artifact sidebar.
  * Composes query hooks for data, stream state for ephemeral WS state, and actions for commands.
  */
 export function AgentConsole({ agentId }: AgentConsoleProps) {
@@ -38,15 +39,6 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
 
   const toggleArtifacts = useCallback(() => setShowArtifacts((prev) => !prev), []);
 
-  const headerActions = useMemo(
-    () => [
-      { key: "compact", label: "Compact", icon: Minimize2, onClick: compact, disabled: isStreaming },
-      { key: "new", label: "New", icon: Plus, onClick: newConversation },
-      { key: "artifacts", label: "Artifacts", icon: FolderOpen, onClick: toggleArtifacts },
-    ],
-    [compact, isStreaming, newConversation, toggleArtifacts]
-  );
-
   if (isLoading || !agent) {
     return (
       <div className="h-full flex items-center justify-center text-text-muted">
@@ -56,43 +48,97 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
   }
 
   return (
-    <div className="flex h-full">
-      <HeaderPortal title={agent.name} actions={headerActions} />
+    <div className="flex flex-col h-full">
+      <HeaderPortal title={agent.name} />
+
+      {/* Action bar — status (left) + actions (right) */}
+      <ActionBar
+        left={
+          <>
+            <span className="inline-flex items-center gap-1">
+              <span
+                className={`shrink-0 w-1.5 h-1.5 rounded-full ${STATUS_DOT_COLOR[status]} ${status === AGENT_STATUS.STREAMING ? "animate-pulse" : ""}`}
+              />
+              {STATUS_LABEL[status]}
+            </span>
+            <span className="font-mono">{agent.model}</span>
+            {usage.totalCostUsd > 0 && <span>${usage.totalCostUsd.toFixed(4)}</span>}
+            {usage.contextTotal > 0 && (
+              <span>
+                {Math.round(usage.contextUsed / 1000)}k / {Math.round(usage.contextTotal / 1000)}k
+              </span>
+            )}
+          </>
+        }
+        right={
+          <>
+            <ActionBarButton icon={Minimize2} label="Compact" onClick={compact} disabled={isStreaming} />
+            <ActionBarButton icon={Plus} label="New" onClick={newConversation} />
+            <ActionBarButton icon={FolderOpen} label="Artifacts" onClick={toggleArtifacts} />
+          </>
+        }
+      />
 
       {/* Main console area */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <ConsoleStatusBar agent={agent} status={status} usage={usage} />
+      <div className="flex flex-1 min-h-0">
+        <div className="flex flex-col flex-1 min-w-0">
+          <MessageList
+            messages={messages}
+            streamingText={streamingText}
+            isStreaming={isStreaming}
+            activeToolUse={activeToolUse}
+          />
 
-        <MessageList
-          messages={messages}
-          streamingText={streamingText}
-          isStreaming={isStreaming}
-          activeToolUse={activeToolUse}
-        />
+          <div className="max-w-3xl mx-auto px-5 shrink-0">
+            <PermissionQueue permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
+          </div>
 
-        <div className="max-w-3xl mx-auto px-5 shrink-0">
-          <PermissionQueue permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
+          <MessageInput onSend={sendMessage} onInject={injectMessage} onAbort={abort} isStreaming={isStreaming} />
         </div>
 
-        <MessageInput onSend={sendMessage} onInject={injectMessage} onAbort={abort} isStreaming={isStreaming} />
+        {/* Artifact sidebar */}
+        <AnimatePresence>
+          {showArtifacts && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: "18rem", opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="shrink-0 overflow-hidden"
+            >
+              <div className="w-72">
+                <ArtifactPanel agentId={agent.id} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-
-      {/* Artifact sidebar */}
-      <AnimatePresence>
-        {showArtifacts && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: "18rem", opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="shrink-0 overflow-hidden"
-          >
-            <div className="w-72">
-              <ArtifactPanel agentId={agent.id} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
+  );
+}
+
+/** Small action button for the console action bar */
+function ActionBarButton({
+  icon: Icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors disabled:opacity-40"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
   );
 }
