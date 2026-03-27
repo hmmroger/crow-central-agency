@@ -662,7 +662,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
     const peerAgents = this.registry
       .getAll()
-      .filter((agent) => agent.id !== agentId)
+      .filter((peer) => peer.id !== agentId)
       .map((peer) => {
         const parts = [`Agent ID: ${peer.id}`, `Name: ${peer.name}`];
         if (peer.description) {
@@ -674,10 +674,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       .join("\n");
 
     const agentContext = [`\n\n# Agent Context\n\nYour agent ID is: ${agentId}`];
+
     if (peerAgents) {
       agentContext.push(
         `\nThe following agents are available for collaboration:\n${peerAgents}`,
-        "\nIMPORTANT: When you need another agent's help, you MUST use the invoke_agent tool from the crow-agents MCP server to delegate the task. Do NOT attempt to perform tasks that fall under another agent's responsibility — invoke that agent instead."
+        "\nIf a task does not fall explicitly within your own scope, check whether a peer agent is better suited and use the invoke_agent tool from the crow-agents MCP server to delegate. Do NOT attempt to perform tasks that fall under another agent's responsibility — invoke that agent instead."
       );
     }
 
