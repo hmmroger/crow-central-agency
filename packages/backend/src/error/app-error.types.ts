@@ -8,6 +8,7 @@ export const APP_ERROR_CODES = {
   VALIDATION: "validation",
   AGENT_NOT_FOUND: "agent_not_found",
   AGENT_BUSY: "agent_busy",
+  AGENT_IMMUTABLE: "agent_immutable",
   AGENT_NOT_RUNNING: "agent_not_running",
   SESSION_NOT_FOUND: "session_not_found",
   PERMISSION_TIMEOUT: "permission_timeout",

@@ -26,6 +26,7 @@ import {
   removeDir,
   assertWithinBase,
 } from "../utils/fs-utils.js";
+import { CROW_SYSTEM_AGENT_ID, getCrowAgent } from "../agents/crow-agent.js";
 
 const log = logger.child({ context: "agent-registry" });
 
@@ -48,6 +49,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   /** Load all agent configs from agents.json on startup, validating each against schema */
   public async initialize(): Promise<void> {
     await ensureDir(this.agentsBaseDir);
+    this.agents.set(CROW_SYSTEM_AGENT_ID, getCrowAgent());
 
     try {
       const data = await readJsonFile<unknown[]>(this.agentsFilePath);
@@ -128,9 +130,10 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     return agent;
   }
 
-  /** Update an existing agent */
+  /** Update an existing agent — system agents cannot be updated */
   public async updateAgent(agentId: string, input: UpdateAgentInput): Promise<AgentConfig> {
     const existing = this.getAgent(agentId);
+    this.assertMutable(existing);
 
     const validated = UpdateAgentInputSchema.parse(input);
     const { agentMd, ...configFields } = validated;
@@ -163,9 +166,10 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     return updated;
   }
 
-  /** Delete an agent and its folder */
+  /** Delete an agent and its folder — system agents cannot be deleted */
   public async deleteAgent(agentId: string): Promise<void> {
     const existing = this.getAgent(agentId);
+    this.assertMutable(existing);
 
     // Persist JSON first — orphaned folder is recoverable; orphaned JSON entry is not
     this.agents.delete(agentId);
@@ -195,13 +199,21 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     }
   }
 
-  /** Write the agent's AGENT.md file */
+  /** Write the agent's AGENT.md file — system agents cannot be modified */
   public async setAgentMd(agentId: string, content: string): Promise<void> {
-    this.getAgent(agentId);
+    const agent = this.getAgent(agentId);
+    this.assertMutable(agent);
     const mdPath = this.getAgentMdPath(agentId);
     await writeTextFile(mdPath, content);
 
-    log.info({ agentId }, "AGENT.md updated");
+    log.info({ agentId, name: agent.name }, "AGENT.md updated");
+  }
+
+  /** Throw if the agent is a system agent and cannot be modified */
+  private assertMutable(agent: AgentConfig): void {
+    if (agent.isSystemAgent) {
+      throw new AppError(`System agent "${agent.name}" cannot be modified`, APP_ERROR_CODES.AGENT_IMMUTABLE);
+    }
   }
 
   /** Get the agent's folder path with traversal protection */
@@ -217,9 +229,9 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     return path.join(this.getAgentDir(agentId), AGENT_MD_FILENAME);
   }
 
-  /** Persist all agent configs to agents.json */
+  /** Persist all user-created agent configs to agents.json — excludes system agents */
   private async persist(): Promise<void> {
-    const data = Array.from(this.agents.values());
+    const data = Array.from(this.agents.values()).filter((agent) => !agent.isSystemAgent);
     await writeJsonFile(this.agentsFilePath, data);
   }
 }

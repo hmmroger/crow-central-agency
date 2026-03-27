@@ -45,6 +45,8 @@ export const AgentConfigSchema = z.object({
   availableTools: z.array(z.string()).optional(),
   toolConfig: ToolConfigSchema.default({ mode: TOOL_MODE.UNRESTRICTED }),
   loop: LoopConfigSchema.default({ enabled: false, daysOfWeek: [], timeMode: TIME_MODE.EVERY, prompt: "" }),
+  /** System agents are built-in and cannot be edited, deleted, or persisted */
+  isSystemAgent: z.boolean().default(false),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });
