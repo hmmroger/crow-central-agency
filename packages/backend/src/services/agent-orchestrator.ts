@@ -8,10 +8,11 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_STATUS,
-  AgentRuntimeStateSchema,
+  CrowStateSchema,
   type AgentConfig,
   type AgentRuntimeState,
   type AgentStatus,
+  type CrowState,
 } from "@crow-central-agency/shared";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { OrchestratorEvents, RunningAgent, McpServerFactory } from "./agent-orchestrator.types.js";
@@ -139,6 +140,9 @@ const INTER_AGENT_COMPLETED_NORESULTS_PROMPT: MessageTemplate = {
   keys: ["completedAgentId", "completedAgentName"],
 };
 
+/** Current version of the persisted CrowState format */
+const CROW_STATE_VERSION = 1;
+
 const log = logger.child({ context: "orchestrator" });
 
 /**
@@ -177,22 +181,18 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     try {
-      const saved = await readJsonFile<unknown[]>(this.stateFilePath);
+      const raw = await readJsonFile<unknown>(this.stateFilePath);
+      const result = CrowStateSchema.safeParse(raw);
 
-      for (const raw of saved) {
-        const result = AgentRuntimeStateSchema.safeParse(raw);
-
-        if (result.success) {
-          this.runtimeStates.set(result.data.agentId, result.data);
-        } else {
-          log.warn(
-            { id: (raw as { agentId?: unknown }).agentId, issues: result.error.issues },
-            "Skipping invalid runtime state on load"
-          );
+      if (result.success) {
+        for (const agentState of result.data.agentStates ?? []) {
+          this.runtimeStates.set(agentState.agentId, agentState);
         }
-      }
 
-      log.info({ count: this.runtimeStates.size }, "Loaded persisted runtime states");
+        log.info({ version: result.data.version, count: this.runtimeStates.size }, "Loaded persisted runtime states");
+      } else {
+        log.warn({ issues: result.error.issues }, "Invalid orchestrator state file — starting fresh");
+      }
     } catch (error) {
       if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
         log.info("No persisted runtime states found — starting fresh");
@@ -688,8 +688,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
   /** Persist all runtime states to disk */
   private async persistState(): Promise<void> {
-    const states = Array.from(this.runtimeStates.values());
-    await writeJsonFile(this.stateFilePath, states);
+    const crowState: CrowState = {
+      version: CROW_STATE_VERSION,
+      agentStates: Array.from(this.runtimeStates.values()),
+    };
+    await writeJsonFile(this.stateFilePath, crowState);
   }
 
   /** Startup recovery — resume agents based on their persisted status */

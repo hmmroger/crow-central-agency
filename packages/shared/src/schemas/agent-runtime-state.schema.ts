@@ -14,7 +14,6 @@ export const SessionUsageSchema = z.object({
 
 /**
  * Agent runtime state — maintained by the orchestrator per agent.
- * Persisted to orchestrator-state.json for restart recovery.
  */
 export const AgentRuntimeStateSchema = z.object({
   agentId: z.string(),
@@ -29,16 +28,19 @@ export const AgentRuntimeStateSchema = z.object({
     ])
     .default(AGENT_STATUS.IDLE),
   sessionId: z.string().optional(),
-  sessionUsage: SessionUsageSchema.default({
-    inputTokens: 0,
-    outputTokens: 0,
-    totalCostUsd: 0,
-    contextUsed: 0,
-    contextTotal: 0,
-  }),
+  sessionUsage: SessionUsageSchema,
   waitingForAgentId: z.string().optional(),
   lastError: z.string().optional(),
 });
 
+/**
+ * Persisted to orchestrator-state.json for restart recovery.
+ */
+export const CrowStateSchema = z.object({
+  version: z.number(),
+  agentStates: z.array(AgentRuntimeStateSchema).optional(),
+});
+
 export type SessionUsage = z.infer<typeof SessionUsageSchema>;
 export type AgentRuntimeState = z.infer<typeof AgentRuntimeStateSchema>;
+export type CrowState = z.infer<typeof CrowStateSchema>;
