@@ -7,8 +7,8 @@ import {
 } from "@crow-central-agency/shared";
 import { env } from "../config/env.js";
 
-/** Well-known UUID for the Crow system agent */
-export const CROW_SYSTEM_AGENT_ID = "00000000-0000-0000-0000-000000000001";
+/** Well-known ID for the Crow system agent */
+export const CROW_SYSTEM_AGENT_ID = "__super_crow__";
 
 const CROW_SYSTEM_AGENT_NAME = "Crow";
 const CROW_SYSTEM_AGENT_PERSONA = [""];

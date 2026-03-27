@@ -30,6 +30,9 @@ import { CROW_SYSTEM_AGENT_ID, getCrowAgent } from "../agents/crow-agent.js";
 
 const log = logger.child({ context: "agent-registry" });
 
+/** Known system agent IDs — authoritative source for persist, load, and route validation */
+export const SYSTEM_AGENT_IDS = new Set([CROW_SYSTEM_AGENT_ID]);
+
 /**
  * Agent registry — CRUD for agent configs with file persistence.
  * All configs stored in a single agents.json file.
@@ -37,8 +40,6 @@ const log = logger.child({ context: "agent-registry" });
  */
 export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   private agents = new Map<string, AgentConfig>();
-  /** IDs of built-in system agents — used to guard persist and load */
-  private readonly systemAgentIds = new Set<string>();
   private readonly agentsFilePath: string;
   private readonly agentsBaseDir: string;
 
@@ -52,10 +53,8 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   public async initialize(): Promise<void> {
     await ensureDir(this.agentsBaseDir);
 
-    // Register built-in system agents and track their IDs
-    const crowAgent = getCrowAgent();
-    this.agents.set(CROW_SYSTEM_AGENT_ID, crowAgent);
-    this.systemAgentIds.add(CROW_SYSTEM_AGENT_ID);
+    // Register built-in system agents
+    this.agents.set(CROW_SYSTEM_AGENT_ID, getCrowAgent());
 
     try {
       const data = await readJsonFile<unknown[]>(this.agentsFilePath);
@@ -65,7 +64,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
         if (result.success) {
           // Skip persisted entries that collide with a system agent ID
-          if (this.systemAgentIds.has(result.data.id)) {
+          if (SYSTEM_AGENT_IDS.has(result.data.id)) {
             log.warn({ id: result.data.id }, "Skipping persisted entry that conflicts with a system agent ID");
 
             continue;
@@ -244,7 +243,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
   /** Persist all user-created agent configs to agents.json — excludes system agents by known ID */
   private async persist(): Promise<void> {
-    const data = Array.from(this.agents.values()).filter((agent) => !this.systemAgentIds.has(agent.id));
+    const data = Array.from(this.agents.values()).filter((agent) => !SYSTEM_AGENT_IDS.has(agent.id));
     await writeJsonFile(this.agentsFilePath, data);
   }
 }

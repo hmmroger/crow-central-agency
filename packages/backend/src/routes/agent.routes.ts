@@ -7,11 +7,16 @@ import { AGENT_STATUS, type AgentRuntimeState } from "@crow-central-agency/share
 import { AppError } from "../error/app-error.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
 import { logger } from "../utils/logger.js";
+import { SYSTEM_AGENT_IDS } from "../services/agent-registry.js";
 
 const uuidParamSchema = z.uuid();
 
-/** Validate that a route param is a valid UUID */
-function validateUuidParam(id: string): string {
+/** Validate that a route param is a valid UUID or a known system agent ID */
+function validateAgentIdParam(id: string): string {
+  if (SYSTEM_AGENT_IDS.has(id)) {
+    return id;
+  }
+
   const result = uuidParamSchema.safeParse(id);
 
   if (!result.success) {
@@ -48,7 +53,7 @@ export async function registerAgentRoutes(
 
   /** Get a single agent by ID, including AGENT.md content */
   server.get<{ Params: { id: string } }>("/api/agents/:id", async (request) => {
-    const agentId = validateUuidParam(request.params.id);
+    const agentId = validateAgentIdParam(request.params.id);
     const agent = registry.getAgent(agentId);
     const agentMd = await registry.getAgentMd(agentId);
 
@@ -68,7 +73,7 @@ export async function registerAgentRoutes(
 
   /** Update an existing agent */
   server.patch<{ Params: { id: string }; Body: unknown }>("/api/agents/:id", async (request) => {
-    const agentId = validateUuidParam(request.params.id);
+    const agentId = validateAgentIdParam(request.params.id);
 
     try {
       const agent = await registry.updateAgent(agentId, request.body as Parameters<typeof registry.updateAgent>[1]);
@@ -81,7 +86,7 @@ export async function registerAgentRoutes(
 
   /** Delete an agent */
   server.delete<{ Params: { id: string } }>("/api/agents/:id", async (request) => {
-    const agentId = validateUuidParam(request.params.id);
+    const agentId = validateAgentIdParam(request.params.id);
     await registry.deleteAgent(agentId);
 
     return { success: true, data: { deleted: true } };
@@ -91,7 +96,7 @@ export async function registerAgentRoutes(
 
   /** Send a message to an agent (REST alternative to WS send_message) */
   server.post<{ Params: { id: string }; Body: { message: string } }>("/api/agents/:id/send", async (request) => {
-    const agentId = validateUuidParam(request.params.id);
+    const agentId = validateAgentIdParam(request.params.id);
     const { message } = request.body;
 
     if (!message || typeof message !== "string") {
@@ -109,7 +114,7 @@ export async function registerAgentRoutes(
 
   /** Stop an active agent */
   server.post<{ Params: { id: string } }>("/api/agents/:id/stop", async (request) => {
-    const agentId = validateUuidParam(request.params.id);
+    const agentId = validateAgentIdParam(request.params.id);
     await orchestrator.stopAgent(agentId);
 
     return { success: true, data: { stopped: true } };
@@ -117,7 +122,7 @@ export async function registerAgentRoutes(
 
   /** Get messages for an agent's current session */
   server.get<{ Params: { id: string } }>("/api/agents/:id/messages", async (request) => {
-    const agentId = validateUuidParam(request.params.id);
+    const agentId = validateAgentIdParam(request.params.id);
     const agent = registry.getAgent(agentId);
     const state = orchestrator.getState(agentId);
 
@@ -132,7 +137,7 @@ export async function registerAgentRoutes(
 
   /** Start a new session for an agent */
   server.post<{ Params: { id: string } }>("/api/agents/:id/session/new", async (request) => {
-    const agentId = validateUuidParam(request.params.id);
+    const agentId = validateAgentIdParam(request.params.id);
     const state = orchestrator.getState(agentId);
 
     if (state?.sessionId) {
@@ -146,7 +151,7 @@ export async function registerAgentRoutes(
 
   /** Trigger manual compaction for an agent's session (fire-and-forget, like /send) */
   server.post<{ Params: { id: string } }>("/api/agents/:id/session/compact", async (request) => {
-    const agentId = validateUuidParam(request.params.id);
+    const agentId = validateAgentIdParam(request.params.id);
     const state = orchestrator.getState(agentId);
 
     if (!state?.sessionId) {
@@ -176,7 +181,7 @@ export async function registerAgentRoutes(
 
   /** List sessions for an agent */
   server.get<{ Params: { id: string } }>("/api/agents/:id/sessions", async (request) => {
-    const agentId = validateUuidParam(request.params.id);
+    const agentId = validateAgentIdParam(request.params.id);
     const agent = registry.getAgent(agentId);
     const sessions = await sessionManager.listSessions(agent.workspace);
 
@@ -185,7 +190,7 @@ export async function registerAgentRoutes(
 
   /** Get runtime state for an agent */
   server.get<{ Params: { id: string } }>("/api/agents/:id/state", async (request) => {
-    const agentId = validateUuidParam(request.params.id);
+    const agentId = validateAgentIdParam(request.params.id);
     const state = orchestrator.getState(agentId);
 
     const defaultState: AgentRuntimeState = {
