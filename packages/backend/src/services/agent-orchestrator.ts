@@ -114,11 +114,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
    */
   public async sendMessage(agentId: string, message: string): Promise<void> {
     const agentConfig = this.registry.getAgent(agentId);
-
-    if (!agentConfig) {
-      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
-    }
-
     const state = this.ensureState(agentId);
 
     if (state.status !== AGENT_STATUS.IDLE && state.status !== AGENT_STATUS.ERROR) {
@@ -279,13 +274,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
    */
   public async invokeInterAgent(sourceAgentId: string, targetAgentId: string, task: string): Promise<string> {
     const targetConfig = this.registry.getAgent(targetAgentId);
-
-    if (!targetConfig) {
-      throw new AppError(`Target agent not found: ${targetAgentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
-    }
-
     const sourceConfig = this.registry.getAgent(sourceAgentId);
-    const sourceName = sourceConfig?.name ?? sourceAgentId;
+    const sourceName = sourceConfig.name;
 
     const taskPrompt = [
       `[Agent request from "${sourceName}" (${sourceAgentId})]`,
@@ -407,7 +397,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
       state.waitingForAgentId = undefined;
       const targetConfig = this.registry.getAgent(completedAgentId);
-      const targetName = targetConfig?.name ?? completedAgentId;
+      const targetName = targetConfig.name;
 
       const notifyWithArtifact = async () => {
         let notificationPrompt: string;
@@ -569,9 +559,9 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const agentsToResume: string[] = [];
 
     for (const [agentId, state] of this.runtimeStates) {
-      const agentConfig = this.registry.getAgent(agentId);
-
-      if (!agentConfig) {
+      try {
+        this.registry.getAgent(agentId);
+      } catch {
         log.warn({ agentId }, "Orphaned runtime state — agent no longer exists, cleaning up");
         this.runtimeStates.delete(agentId);
 

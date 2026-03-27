@@ -50,11 +50,6 @@ export async function registerAgentRoutes(
   server.get<{ Params: { id: string } }>("/api/agents/:id", async (request) => {
     const agentId = validateUuidParam(request.params.id);
     const agent = registry.getAgent(agentId);
-
-    if (!agent) {
-      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
-    }
-
     const agentMd = await registry.getAgentMd(agentId);
 
     return { success: true, data: { ...agent, agentMd: agentMd ?? "" } };
@@ -124,11 +119,6 @@ export async function registerAgentRoutes(
   server.get<{ Params: { id: string } }>("/api/agents/:id/messages", async (request) => {
     const agentId = validateUuidParam(request.params.id);
     const agent = registry.getAgent(agentId);
-
-    if (!agent) {
-      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
-    }
-
     const state = orchestrator.getState(agentId);
 
     if (!state?.sessionId) {
@@ -188,11 +178,6 @@ export async function registerAgentRoutes(
   server.get<{ Params: { id: string } }>("/api/agents/:id/sessions", async (request) => {
     const agentId = validateUuidParam(request.params.id);
     const agent = registry.getAgent(agentId);
-
-    if (!agent) {
-      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
-    }
-
     const sessions = await sessionManager.listSessions(agent.workspace);
 
     return { success: true, data: sessions };

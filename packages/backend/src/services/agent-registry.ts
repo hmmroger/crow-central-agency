@@ -80,9 +80,18 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     return Array.from(this.agents.values());
   }
 
-  /** Get a single agent config by ID */
-  public getAgent(agentId: string): AgentConfig | undefined {
-    return this.agents.get(agentId);
+  /**
+   * Get a single agent config by ID.
+   * @throws AppError with AGENT_NOT_FOUND if the agent does not exist.
+   */
+  public getAgent(agentId: string): AgentConfig {
+    const agent = this.agents.get(agentId);
+
+    if (!agent) {
+      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
+    }
+
+    return agent;
   }
 
   /** Create a new agent */
@@ -121,11 +130,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
   /** Update an existing agent */
   public async updateAgent(agentId: string, input: UpdateAgentInput): Promise<AgentConfig> {
-    const existing = this.agents.get(agentId);
-
-    if (!existing) {
-      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
-    }
+    const existing = this.getAgent(agentId);
 
     const validated = UpdateAgentInputSchema.parse(input);
     const { agentMd, ...configFields } = validated;
@@ -160,11 +165,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
   /** Delete an agent and its folder */
   public async deleteAgent(agentId: string): Promise<void> {
-    const existing = this.agents.get(agentId);
-
-    if (!existing) {
-      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
-    }
+    const existing = this.getAgent(agentId);
 
     // Persist JSON first — orphaned folder is recoverable; orphaned JSON entry is not
     this.agents.delete(agentId);
@@ -178,12 +179,9 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     this.emit("agentDeleted", { agentId });
   }
 
-  /** Read the agent's AGENT.md file. Returns undefined if not found. */
+  /** Read the agent's AGENT.md file. Returns undefined if the file does not exist. */
   public async getAgentMd(agentId: string): Promise<string | undefined> {
-    if (!this.agents.has(agentId)) {
-      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
-    }
-
+    this.getAgent(agentId);
     const mdPath = this.getAgentMdPath(agentId);
 
     try {
@@ -199,10 +197,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
   /** Write the agent's AGENT.md file */
   public async setAgentMd(agentId: string, content: string): Promise<void> {
-    if (!this.agents.has(agentId)) {
-      throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
-    }
-
+    this.getAgent(agentId);
     const mdPath = this.getAgentMdPath(agentId);
     await writeTextFile(mdPath, content);
 
