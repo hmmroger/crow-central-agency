@@ -15,31 +15,27 @@ function getOptionalNumber(key: string, defaultValue?: number): number | undefin
   return process.env[key] ? parseInt(process.env[key], 10) : defaultValue;
 }
 
-const NODE_ENV = getOptional("NODE_ENV") ?? "development";
-const IS_DEV = NODE_ENV === "development";
-const CORS_ORIGINS = getOptional("CORS_ORIGINS") ?? "http://localhost:5101";
-const CROW_SYSTEM_PATH = getOptional("CROW_SYSTEM_PATH") ?? ".crow";
-const STATIC_PATH = getOptional("STATIC_PATH") ?? DEFAULT_STATIC_DIR;
-const CLAUDE_CLI_PATH = getOptional("CLAUDE_CLI_PATH");
-
-const OPENAI_BASE_URL = getOptional("OPENAI_BASE_URL");
-const OPENAI = OPENAI_BASE_URL
+const nodeEnv = getOptional("NODE_ENV") ?? "development";
+const isDev = nodeEnv === "development";
+const corsOrigins = getOptional("CORS_ORIGINS") ?? "http://localhost:5101";
+const openAIApiKey = getOptional("OPENAI_API_KEY");
+const openAI = openAIApiKey
   ? {
-      baseURL: OPENAI_BASE_URL,
-      apiKey: getOptional("OPENAI_API_KEY"),
+      baseUrl: getOptional("OPENAI_BASE_URL"),
+      apiKey: openAIApiKey,
       model: getOptional("OPENAI_MODEL"),
     }
   : undefined;
 
 export const env = {
-  NODE_ENV,
-  IS_DEV,
-  LOG_LEVEL: getOptional("LOG_LEVEL") ?? (IS_DEV ? "debug" : "info"),
+  NODE_ENV: nodeEnv,
+  IS_DEV: isDev,
+  LOG_LEVEL: getOptional("LOG_LEVEL") ?? (isDev ? "debug" : "info"),
   HOST: getOptional("HOST") ?? "localhost",
   PORT: getOptionalNumber("PORT") ?? 3030,
-  CORS_ORIGINS: CORS_ORIGINS.split(",").map((origin) => origin.trim()),
-  CROW_SYSTEM_PATH: path.resolve(CROW_SYSTEM_PATH),
-  STATIC_PATH: path.resolve(STATIC_PATH),
-  CLAUDE_CLI_PATH,
-  OPENAI,
+  CORS_ORIGINS: corsOrigins.split(",").map((origin) => origin.trim()),
+  CROW_SYSTEM_PATH: path.resolve(getOptional("CROW_SYSTEM_PATH") ?? ".crow"),
+  STATIC_PATH: path.resolve(getOptional("STATIC_PATH") ?? DEFAULT_STATIC_DIR),
+  CLAUDE_CLI_PATH: getOptional("CLAUDE_CLI_PATH"),
+  OPENAI: openAI,
 } as const;

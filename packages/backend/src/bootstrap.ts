@@ -62,8 +62,8 @@ export async function bootstrap(options: BootstrapOptions) {
   let generationService: MdGenerationService | undefined;
 
   if (env.OPENAI) {
-    const openaiProvider = new OpenAIProvider({ baseURL: env.OPENAI.baseURL, apiKey: env.OPENAI.apiKey });
-    generationService = new MdGenerationService(openaiProvider, env.OPENAI.model ?? "gpt-4o");
+    const openaiProvider = new OpenAIProvider({ baseUrl: env.OPENAI.baseUrl, apiKey: env.OPENAI.apiKey });
+    generationService = new MdGenerationService(openaiProvider, env.OPENAI.model ?? "gpt-5-mini");
     logger.info("Generation service initialized");
   }
 

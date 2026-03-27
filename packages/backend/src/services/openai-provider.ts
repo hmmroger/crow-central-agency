@@ -18,7 +18,7 @@ export class OpenAIProvider {
 
   constructor(config: OpenAIProviderConfig) {
     this.client = new OpenAI({
-      baseURL: config.baseURL,
+      baseURL: config.baseUrl,
       apiKey: config.apiKey ?? DEFAULT_API_KEY,
     });
   }

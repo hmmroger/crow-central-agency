@@ -72,8 +72,8 @@ export interface StreamEvent {
 }
 
 export interface OpenAIProviderConfig {
-  baseURL: string;
-  apiKey?: string;
+  baseUrl?: string;
+  apiKey: string;
 }
 
 export interface TextGenerationOptions {
