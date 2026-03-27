@@ -3,6 +3,11 @@ import path from "node:path";
 import { AppError } from "../error/app-error.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
 
+/** Type guard for Node.js filesystem errors with an error code */
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
+}
+
 /**
  * Validate that a resolved path is within the allowed base directory.
  * Prevents path traversal attacks.
@@ -26,7 +31,7 @@ export async function readJsonFile<T>(filePath: string): Promise<T> {
 
     return JSON.parse(content) as T;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+    if (isErrnoException(error) && error.code === "ENOENT") {
       throw new AppError(`File not found: ${filePath}`, APP_ERROR_CODES.NOT_FOUND);
     }
 
@@ -51,7 +56,7 @@ export async function readTextFile(filePath: string): Promise<string> {
   try {
     return await fs.readFile(filePath, "utf-8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+    if (isErrnoException(error) && error.code === "ENOENT") {
       throw new AppError(`File not found: ${filePath}`, APP_ERROR_CODES.NOT_FOUND);
     }
 
