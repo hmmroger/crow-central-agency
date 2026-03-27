@@ -20,6 +20,9 @@ export interface ChatMessage {
 
   tokenUsage?: OpenAI.Completions.CompletionUsage;
 
+  isHidden?: boolean;
+  isToolNudgePrompt?: boolean;
+
   timestamp: number;
 }
 

@@ -34,6 +34,59 @@ import {
 import { logger } from "../utils/logger.js";
 import { readJsonFile, writeJsonFile } from "../utils/fs-utils.js";
 import path from "node:path";
+import type { MessageTemplate } from "../utils/message-template.types.js";
+import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
+import { CROW_SYSTEM_AGENT_ID } from "../agents/crow-agent.js";
+
+const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
+  role: "system",
+  content: [
+    { content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your agent name is: {agentName}", ""] },
+    { content: ["## Core persona", "", "{persona}", ""], keys: ["persona"] },
+    {
+      content: [
+        "## Agent Context",
+        "",
+        "Avoid speculation and never fabricate data or sources. Be transparent if you do not have enough information.",
+        "The current date is {currentDate}",
+        "The current time is {currentTime}.",
+      ],
+    },
+    {
+      content: [
+        "The following agents are available for collaboration with the `invoke_agent` tool from the crow-agents MCP server:",
+        "{peerAgents}",
+        "If a task does not fall explicitly within your own scope, check whether a peer agent is better suited and use the `invoke_agent` tool from the crow-agents MCP server to delegate.",
+        "Do NOT attempt to perform tasks that fall under another agent's responsibility — invoke that agent instead.",
+      ],
+      keys: ["peerAgents"],
+    },
+    {
+      content: ["## AGENT.md", "", "{agentMd}"],
+      keys: ["agentMd"],
+    },
+  ],
+  keys: ["currentDate", "currentTime", "agentId", "agentName", "persona", "peerAgents", "agentMd"],
+};
+
+const CROW_SYSTEM_PROMPT: MessageTemplate = {
+  role: "system",
+  content: [
+    { content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your agent name is: {agentName}", ""] },
+    { content: ["## Core persona", "", "{persona}", ""], keys: ["persona"] },
+    {
+      content: ["## Agent Context", "", "The current date is {currentDate}", "The current time is {currentTime}."],
+    },
+    {
+      content: [
+        "The following agents are available for task delegation with the `invoke_agent` tool from the crow-agents MCP server:",
+        "{peerAgents}",
+      ],
+      keys: ["peerAgents"],
+    },
+  ],
+  keys: ["currentDate", "currentTime", "agentId", "agentName", "persona", "peerAgents"],
+};
 
 const log = logger.child({ context: "orchestrator" });
 
@@ -122,6 +175,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
     // Build system prompt: persona + AGENT.md + peer list
     const systemPrompt = await this.buildSystemPrompt(agentId, agentConfig);
+    const systemPromptOption = systemPrompt
+      ? agentConfig.isReplaceSystemPrompt
+        ? systemPrompt
+        : { type: "preset" as const, preset: "claude_code" as const, append: systemPrompt }
+      : undefined;
 
     // Build SDK options
     const abortController = new AbortController();
@@ -135,7 +193,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         cwd: agentConfig.workspace,
         model: agentConfig.model,
         resume: state.sessionId,
-        systemPrompt: systemPrompt ? { type: "preset", preset: "claude_code", append: systemPrompt } : undefined,
+        systemPrompt: systemPromptOption,
         abortController,
         includePartialMessages: true,
         permissionMode: agentConfig.permissionMode,
@@ -658,12 +716,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
   private async buildSystemPrompt(agentId: string, agent: AgentConfig): Promise<string> {
     const agentMd = await this.registry.getAgentMd(agentId);
-    const promptParts: string[] = [];
-
-    if (agent.persona) {
-      promptParts.push(agent.persona);
-    }
-
     const peerAgents = this.registry
       .getAllAgents()
       .filter((peer) => peer.id !== agentId)
@@ -677,21 +729,17 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       })
       .join("\n");
 
-    const agentContext = [`\n\n# Agent Context\n\nYour agent ID is: ${agentId}`];
+    const content = createMessageContentFromTemplate(
+      agentId === CROW_SYSTEM_AGENT_ID ? CROW_SYSTEM_PROMPT : DEFAULT_SYSTEM_PROMPT,
+      getDefaultPromptContext({
+        agentId: agent.id,
+        agentName: agent.name,
+        persona: agent.persona || undefined,
+        peerAgents: peerAgents || undefined,
+        agentMd: agentMd || undefined,
+      })
+    );
 
-    if (peerAgents) {
-      agentContext.push(
-        `\nThe following agents are available for collaboration:\n${peerAgents}`,
-        "\nIf a task does not fall explicitly within your own scope, check whether a peer agent is better suited and use the invoke_agent tool from the crow-agents MCP server to delegate. Do NOT attempt to perform tasks that fall under another agent's responsibility — invoke that agent instead."
-      );
-    }
-
-    promptParts.push(agentContext.join(""));
-
-    if (agentMd) {
-      promptParts.push(`\n\n# AGENT.md\n\n${agentMd}`);
-    }
-
-    return promptParts.join("");
+    return content ?? "";
   }
 }

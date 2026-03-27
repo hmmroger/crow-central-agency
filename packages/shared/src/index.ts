@@ -8,15 +8,9 @@ export {
   type ClientMessageType,
   type ServerMessageType,
 } from "./constants/message-type.js";
-export { TIME_MODE, type TimeMode } from "./constants/time-mode.js";
 export { DAY_OF_WEEK, type DayOfWeek } from "./constants/day-of-week.js";
 export { AGENT_MESSAGE_ROLE, type AgentMessageRole } from "./constants/agent-message-role.js";
-export {
-  CLAUDE_SONNET_MODEL,
-  CLAUDE_OPUS_MODEL,
-  CLAUDE_HAIKU_MODEL,
-  CLAUDE_CODE_MODEL_OPTIONS,
-} from "./constants/model-options.js";
+export { CLAUDE_MODELS, CLAUDE_CODE_MODEL_OPTIONS } from "./constants/model-options.js";
 
 export {
   DEFAULT_MODEL,
@@ -32,7 +26,14 @@ export {
   type ToolConfig,
 } from "./schemas/agent.schema.js";
 
-export { LoopConfigSchema, DayOfWeekSchema, TimeModeSchema, type LoopConfig } from "./schemas/loop.schema.js";
+export {
+  LoopConfigSchema,
+  DayOfWeekSchema,
+  TimeModeSchema,
+  type TimeModeType,
+  TIME_MODE,
+  type LoopConfig,
+} from "./schemas/loop.schema.js";
 
 export {
   createApiSuccessSchema,

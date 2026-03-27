@@ -2,7 +2,6 @@ import { z } from "zod";
 import { PERMISSION_MODE } from "../constants/permission-mode.js";
 import { SETTING_SOURCE, DEFAULT_SETTING_SOURCES } from "../constants/setting-source.js";
 import { TOOL_MODE } from "../constants/tool-mode.js";
-import { TIME_MODE } from "../constants/time-mode.js";
 import { LoopConfigSchema } from "./loop.schema.js";
 import { CLAUDE_CODE_MODEL_OPTIONS } from "../constants/model-options.js";
 
@@ -35,18 +34,19 @@ export const ToolConfigSchema = z.object({
  */
 export const AgentConfigSchema = z.object({
   id: z.uuid(),
-  name: z.string().min(1).max(50),
-  description: z.string().default(""),
+  name: z.string().min(1).max(64),
+  description: z.string().optional(),
   workspace: z.string(),
-  persona: z.string().default(""),
+  persona: z.string().optional(),
   model: z.string().default(DEFAULT_MODEL),
   permissionMode: PermissionModeSchema.default(PERMISSION_MODE.DEFAULT),
   settingSources: z.array(SettingSourceSchema).default([...DEFAULT_SETTING_SOURCES]),
   availableTools: z.array(z.string()).optional(),
   toolConfig: ToolConfigSchema.default({ mode: TOOL_MODE.UNRESTRICTED }),
-  loop: LoopConfigSchema.default({ enabled: false, daysOfWeek: [], timeMode: TIME_MODE.EVERY, prompt: "" }),
+  loop: LoopConfigSchema.optional(),
+  isReplaceSystemPrompt: z.boolean().optional(),
   /** System agents are built-in and cannot be edited, deleted, or persisted */
-  isSystemAgent: z.boolean().default(false),
+  isSystemAgent: z.boolean().optional(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });

@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { DAY_OF_WEEK } from "../constants/day-of-week.js";
-import { TIME_MODE } from "../constants/time-mode.js";
 
 /** Zod schema for DayOfWeek values */
 export const DayOfWeekSchema = z.enum([
@@ -14,7 +13,9 @@ export const DayOfWeekSchema = z.enum([
 ]);
 
 /** Zod schema for TimeMode values */
-export const TimeModeSchema = z.enum([TIME_MODE.AT, TIME_MODE.EVERY]);
+export const TimeModeSchema = z.enum(["AT", "EVERY"]);
+export type TimeModeType = z.infer<typeof TimeModeSchema>;
+export const TIME_MODE = TimeModeSchema.enum;
 
 /**
  * Loop configuration schema — single source of truth.
@@ -36,7 +37,7 @@ export const LoopConfigSchema = z.object({
   timeMode: TimeModeSchema.default(TIME_MODE.EVERY),
   hour: z.number().min(0).max(23).optional(),
   minute: z.number().min(0).max(59).optional(),
-  prompt: z.string().default(""),
+  prompt: z.string(),
 });
 
 export type LoopConfig = z.infer<typeof LoopConfigSchema>;

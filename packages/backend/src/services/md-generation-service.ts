@@ -1,4 +1,4 @@
-import type { OpenAIProvider } from "./openai-provider.js";
+import type { OpenAIProvider } from "../model-providers/openai-provider.js";
 import { GENERATION_TYPE, type GenerateTextInput } from "./md-generation-service.types.js";
 import { logger } from "../utils/logger.js";
 

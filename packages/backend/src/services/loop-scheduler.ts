@@ -59,7 +59,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
   /** Wire up registry lifecycle events — owns its own listeners */
   private listenToRegistryEvents(): void {
     this.registry.on("agentCreated", ({ agent }) => {
-      if (agent.loop.enabled && agent.loop.timeMode === TIME_MODE.EVERY) {
+      if (agent.loop?.enabled && agent.loop.timeMode === TIME_MODE.EVERY) {
         // Seed so interval counts from creation, not fires immediately on first tick.
         // "at" mode needs no entry — first matching wall-clock time fires normally.
         this.lastTickTime.set(agent.id, Date.now());
@@ -68,9 +68,8 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
     });
 
     this.registry.on("agentUpdated", ({ agent }) => {
-      if (!agent.loop.enabled) {
+      if (!agent.loop?.enabled) {
         this.lastTickTime.delete(agent.id);
-
         return;
       }
 
@@ -94,9 +93,8 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
   /** Check all agents and fire ticks for those whose loop is due */
   private checkAllAgents(): void {
     const now = new Date();
-
     for (const agent of this.registry.getAllAgents()) {
-      if (!agent.loop.enabled || !agent.loop.prompt) {
+      if (!agent.loop?.enabled || !agent.loop.prompt) {
         continue;
       }
 
@@ -121,6 +119,9 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
   /** Determine if an agent's loop should fire now */
   private shouldTick(agent: AgentConfig, now: Date): boolean {
     const loop = agent.loop;
+    if (!loop) {
+      return false;
+    }
 
     // Check day of week
     if (loop.daysOfWeek.length > 0) {
@@ -132,7 +133,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
       }
     }
 
-    if (loop.timeMode === "at") {
+    if (loop.timeMode === TIME_MODE.AT) {
       return this.shouldTickAt(agent.id, loop, now);
     }
 

@@ -145,7 +145,12 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   /** Update an existing agent — system agents cannot be updated */
   public async updateAgent(agentId: string, input: UpdateAgentInput): Promise<AgentConfig> {
     const existing = this.getAgent(agentId);
-    this.assertMutable(existing);
+    try {
+      this.assertMutable(existing);
+    } catch {
+      // Ignore update to system agent, this is normal
+      return existing;
+    }
 
     const validated = UpdateAgentInputSchema.parse(input);
     const { agentMd, ...configFields } = validated;

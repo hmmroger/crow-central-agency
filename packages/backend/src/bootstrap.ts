@@ -14,7 +14,7 @@ import { registerArtifactRoutes } from "./routes/artifact.routes.js";
 import { createArtifactsMcpServer } from "./mcp/artifacts-mcp-server.js";
 import { createAgentsMcpServer } from "./mcp/agents-mcp-server.js";
 import { LoopScheduler } from "./services/loop-scheduler.js";
-import { OpenAIProvider } from "./services/openai-provider.js";
+import { OpenAIProvider } from "./model-providers/openai-provider.js";
 import { MdGenerationService } from "./services/md-generation-service.js";
 import { registerGenerationRoutes } from "./routes/generation.routes.js";
 
