@@ -76,17 +76,17 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   }
 
   /** Get all agent configs */
-  public getAll(): AgentConfig[] {
+  public getAllAgents(): AgentConfig[] {
     return Array.from(this.agents.values());
   }
 
   /** Get a single agent config by ID */
-  public get(agentId: string): AgentConfig | undefined {
+  public getAgent(agentId: string): AgentConfig | undefined {
     return this.agents.get(agentId);
   }
 
   /** Create a new agent */
-  public async create(input: CreateAgentInput): Promise<AgentConfig> {
+  public async createAgent(input: CreateAgentInput): Promise<AgentConfig> {
     const validated = CreateAgentInputSchema.parse(input);
     const { agentMd, ...configFields } = validated;
     const now = new Date().toISOString();
@@ -120,7 +120,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   }
 
   /** Update an existing agent */
-  public async update(agentId: string, input: UpdateAgentInput): Promise<AgentConfig> {
+  public async updateAgent(agentId: string, input: UpdateAgentInput): Promise<AgentConfig> {
     const existing = this.agents.get(agentId);
 
     if (!existing) {
@@ -159,7 +159,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   }
 
   /** Delete an agent and its folder */
-  public async delete(agentId: string): Promise<void> {
+  public async deleteAgent(agentId: string): Promise<void> {
     const existing = this.agents.get(agentId);
 
     if (!existing) {

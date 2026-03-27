@@ -95,7 +95,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
   private checkAllAgents(): void {
     const now = new Date();
 
-    for (const agent of this.registry.getAll()) {
+    for (const agent of this.registry.getAllAgents()) {
       if (!agent.loop.enabled || !agent.loop.prompt) {
         continue;
       }

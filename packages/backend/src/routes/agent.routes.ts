@@ -41,7 +41,7 @@ export async function registerAgentRoutes(
 ) {
   /** List all agents */
   server.get("/api/agents", async () => {
-    const agents = registry.getAll();
+    const agents = registry.getAllAgents();
 
     return { success: true, data: agents };
   });
@@ -49,7 +49,7 @@ export async function registerAgentRoutes(
   /** Get a single agent by ID, including AGENT.md content */
   server.get<{ Params: { id: string } }>("/api/agents/:id", async (request) => {
     const agentId = validateUuidParam(request.params.id);
-    const agent = registry.get(agentId);
+    const agent = registry.getAgent(agentId);
 
     if (!agent) {
       throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
@@ -63,7 +63,7 @@ export async function registerAgentRoutes(
   /** Create a new agent */
   server.post<{ Body: unknown }>("/api/agents", async (request) => {
     try {
-      const agent = await registry.create(request.body as Parameters<typeof registry.create>[0]);
+      const agent = await registry.createAgent(request.body as Parameters<typeof registry.createAgent>[0]);
 
       return { success: true, data: agent };
     } catch (error) {
@@ -76,7 +76,7 @@ export async function registerAgentRoutes(
     const agentId = validateUuidParam(request.params.id);
 
     try {
-      const agent = await registry.update(agentId, request.body as Parameters<typeof registry.update>[1]);
+      const agent = await registry.updateAgent(agentId, request.body as Parameters<typeof registry.updateAgent>[1]);
 
       return { success: true, data: agent };
     } catch (error) {
@@ -87,7 +87,7 @@ export async function registerAgentRoutes(
   /** Delete an agent */
   server.delete<{ Params: { id: string } }>("/api/agents/:id", async (request) => {
     const agentId = validateUuidParam(request.params.id);
-    await registry.delete(agentId);
+    await registry.deleteAgent(agentId);
 
     return { success: true, data: { deleted: true } };
   });
@@ -123,7 +123,7 @@ export async function registerAgentRoutes(
   /** Get messages for an agent's current session */
   server.get<{ Params: { id: string } }>("/api/agents/:id/messages", async (request) => {
     const agentId = validateUuidParam(request.params.id);
-    const agent = registry.get(agentId);
+    const agent = registry.getAgent(agentId);
 
     if (!agent) {
       throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
@@ -187,7 +187,7 @@ export async function registerAgentRoutes(
   /** List sessions for an agent */
   server.get<{ Params: { id: string } }>("/api/agents/:id/sessions", async (request) => {
     const agentId = validateUuidParam(request.params.id);
-    const agent = registry.get(agentId);
+    const agent = registry.getAgent(agentId);
 
     if (!agent) {
       throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);

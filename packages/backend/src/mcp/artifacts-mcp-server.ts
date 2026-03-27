@@ -39,7 +39,7 @@ export function createArtifactsMcpServer(
         },
         async (args) => {
           try {
-            registry.get(args.agent_id);
+            registry.getAgent(args.agent_id);
           } catch {
             return { content: [{ type: "text", text: "Error: agent not found" }], isError: true };
           }
@@ -67,7 +67,7 @@ export function createArtifactsMcpServer(
           const targetId = args.agent_id ?? agentId;
           if (args.agent_id) {
             try {
-              registry.get(args.agent_id);
+              registry.getAgent(args.agent_id);
             } catch {
               return { content: [{ type: "text", text: "Error: agent not found" }], isError: true };
             }

@@ -22,7 +22,7 @@ export function createAgentsMcpServer(
         "List all registered agents with their IDs, names, and role descriptions. Use this to discover which agents are available for collaboration.",
         {},
         async () => {
-          const agents = registry.getAll().filter((agent) => agent.id !== agentId);
+          const agents = registry.getAllAgents().filter((agent) => agent.id !== agentId);
           if (agents.length === 0) {
             return { content: [{ type: "text", text: "No agents are currently registered." }] };
           }
@@ -60,7 +60,7 @@ export function createAgentsMcpServer(
           }
 
           try {
-            registry.get(args.agent_id);
+            registry.getAgent(args.agent_id);
           } catch {
             return { content: [{ type: "text", text: "Error: target agent not found" }], isError: true };
           }

@@ -113,7 +113,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
    * The agent must be idle.
    */
   public async sendMessage(agentId: string, message: string): Promise<void> {
-    const agentConfig = this.registry.get(agentId);
+    const agentConfig = this.registry.getAgent(agentId);
 
     if (!agentConfig) {
       throw new AppError(`Agent not found: ${agentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
@@ -205,7 +205,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
           const userFacingTools = event.meta.discoveredTools.filter(
             (tool) => !internalMcpPrefixes.some((prefix) => tool.startsWith(prefix))
           );
-          await this.registry.update(agentId, { availableTools: userFacingTools });
+          await this.registry.updateAgent(agentId, { availableTools: userFacingTools });
         }
 
         // 4. Complete assistant turn → session manager transforms, stores, returns canonical messages
@@ -278,13 +278,13 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
    * Called from crow-agents MCP tool.
    */
   public async invokeInterAgent(sourceAgentId: string, targetAgentId: string, task: string): Promise<string> {
-    const targetConfig = this.registry.get(targetAgentId);
+    const targetConfig = this.registry.getAgent(targetAgentId);
 
     if (!targetConfig) {
       throw new AppError(`Target agent not found: ${targetAgentId}`, APP_ERROR_CODES.AGENT_NOT_FOUND);
     }
 
-    const sourceConfig = this.registry.get(sourceAgentId);
+    const sourceConfig = this.registry.getAgent(sourceAgentId);
     const sourceName = sourceConfig?.name ?? sourceAgentId;
 
     const taskPrompt = [
@@ -406,7 +406,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       }
 
       state.waitingForAgentId = undefined;
-      const targetConfig = this.registry.get(completedAgentId);
+      const targetConfig = this.registry.getAgent(completedAgentId);
       const targetName = targetConfig?.name ?? completedAgentId;
 
       const notifyWithArtifact = async () => {
@@ -569,7 +569,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const agentsToResume: string[] = [];
 
     for (const [agentId, state] of this.runtimeStates) {
-      const agentConfig = this.registry.get(agentId);
+      const agentConfig = this.registry.getAgent(agentId);
 
       if (!agentConfig) {
         log.warn({ agentId }, "Orphaned runtime state — agent no longer exists, cleaning up");
@@ -667,7 +667,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     const peerAgents = this.registry
-      .getAll()
+      .getAllAgents()
       .filter((peer) => peer.id !== agentId)
       .map((peer) => {
         const parts = [`Agent ID: ${peer.id}`, `Name: ${peer.name}`];
