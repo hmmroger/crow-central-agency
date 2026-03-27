@@ -396,8 +396,16 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       }
 
       state.waitingForAgentId = undefined;
-      const targetConfig = this.registry.getAgent(completedAgentId);
-      const targetName = targetConfig.name;
+
+      let targetName: string;
+
+      try {
+        targetName = this.registry.getAgent(completedAgentId).name;
+      } catch {
+        log.warn({ completedAgentId }, "Completed agent no longer exists — skipping notification");
+
+        continue;
+      }
 
       const notifyWithArtifact = async () => {
         let notificationPrompt: string;
