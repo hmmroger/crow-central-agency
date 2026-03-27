@@ -58,6 +58,13 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
         const result = AgentConfigSchema.safeParse(raw);
 
         if (result.success) {
+          // Skip persisted entries that collide with a system agent ID
+          if (this.agents.get(result.data.id)?.isSystemAgent) {
+            log.warn({ id: result.data.id }, "Skipping persisted entry that conflicts with a system agent ID");
+
+            continue;
+          }
+
           this.agents.set(result.data.id, result.data);
         } else {
           log.warn(
