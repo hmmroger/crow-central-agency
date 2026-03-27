@@ -18,16 +18,16 @@ export function assertWithinBase(filePath: string, baseDir: string): void {
 
 /**
  * Read a JSON file and parse its contents.
- * Returns undefined if the file does not exist.
+ * @throws AppError with NOT_FOUND code if the file does not exist.
  */
-export async function readJsonFile<T>(filePath: string): Promise<T | undefined> {
+export async function readJsonFile<T>(filePath: string): Promise<T> {
   try {
     const content = await fs.readFile(filePath, "utf-8");
 
     return JSON.parse(content) as T;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return undefined;
+      throw new AppError(`File not found: ${filePath}`, APP_ERROR_CODES.NOT_FOUND);
     }
 
     throw error;
@@ -44,14 +44,15 @@ export async function writeJsonFile(filePath: string, data: unknown): Promise<vo
 }
 
 /**
- * Read a text file. Returns undefined if the file does not exist.
+ * Read a text file.
+ * @throws AppError with NOT_FOUND code if the file does not exist.
  */
-export async function readTextFile(filePath: string): Promise<string | undefined> {
+export async function readTextFile(filePath: string): Promise<string> {
   try {
     return await fs.readFile(filePath, "utf-8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return undefined;
+      throw new AppError(`File not found: ${filePath}`, APP_ERROR_CODES.NOT_FOUND);
     }
 
     throw error;

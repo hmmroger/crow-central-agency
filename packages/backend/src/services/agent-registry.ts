@@ -48,9 +48,10 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   /** Load all agent configs from agents.json on startup, validating each against schema */
   public async initialize(): Promise<void> {
     await ensureDir(this.agentsBaseDir);
-    const data = await readJsonFile<unknown[]>(this.agentsFilePath);
 
-    if (data) {
+    try {
+      const data = await readJsonFile<unknown[]>(this.agentsFilePath);
+
       for (const raw of data) {
         const result = AgentConfigSchema.safeParse(raw);
 
@@ -62,6 +63,12 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
             "Skipping invalid agent config on load"
           );
         }
+      }
+    } catch (error) {
+      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
+        log.info("No agents.json found — starting with empty registry");
+      } else {
+        throw error;
       }
     }
 
@@ -179,7 +186,15 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
     const mdPath = this.getAgentMdPath(agentId);
 
-    return readTextFile(mdPath);
+    try {
+      return await readTextFile(mdPath);
+    } catch (error) {
+      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
+        return undefined;
+      }
+
+      throw error;
+    }
   }
 
   /** Write the agent's AGENT.md file */

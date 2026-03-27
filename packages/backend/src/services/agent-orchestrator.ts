@@ -64,9 +64,9 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
   /** Load persisted runtime states and run startup recovery */
   public async initialize(): Promise<void> {
-    const saved = await readJsonFile<unknown[]>(this.stateFilePath);
+    try {
+      const saved = await readJsonFile<unknown[]>(this.stateFilePath);
 
-    if (saved) {
       for (const raw of saved) {
         const result = AgentRuntimeStateSchema.safeParse(raw);
 
@@ -81,6 +81,12 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       }
 
       log.info({ count: this.runtimeStates.size }, "Loaded persisted runtime states");
+    } catch (error) {
+      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
+        log.info("No persisted runtime states found — starting fresh");
+      } else {
+        throw error;
+      }
     }
 
     await this.runStartupRecovery();
