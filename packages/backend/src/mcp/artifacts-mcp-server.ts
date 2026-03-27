@@ -4,6 +4,10 @@ import { z } from "zod/v4";
 import type { ArtifactManager } from "../services/artifact-manager.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 
+export const ARTIFACTS_MCP_WRITE_ARTIFACT_TOOL_NAME = "write_artifact";
+export const ARTIFACTS_MCP_READ_ARTIFACT_TOOL_NAME = "read_artifact";
+export const ARTIFACTS_MCP_LIST_ARTIFACTS_TOOL_NAME = "list_artifacts";
+
 /**
  * Create the crow-artifacts MCP server for a specific agent.
  * Provides tools for writing, reading, and listing artifacts.
@@ -17,7 +21,7 @@ export function createArtifactsMcpServer(
     name: "crow-artifacts",
     tools: [
       tool(
-        "write_artifact",
+        ARTIFACTS_MCP_WRITE_ARTIFACT_TOOL_NAME,
         "Save a file to your own artifacts folder. Other agents can read your artifacts to collaborate. You can only write to your own folder.",
         {
           filename: z.string().describe("Name of the file to create or overwrite, e.g. 'report.md' or 'data.json'"),
@@ -31,7 +35,7 @@ export function createArtifactsMcpServer(
       ),
 
       tool(
-        "read_artifact",
+        ARTIFACTS_MCP_READ_ARTIFACT_TOOL_NAME,
         "Read the contents of an artifact file from any agent's folder. Use list_agents to find agent IDs, then list_artifacts to discover filenames.",
         {
           agent_id: z.string().describe("The agent ID who owns the artifact. Use list_agents to find agent IDs"),
@@ -55,7 +59,7 @@ export function createArtifactsMcpServer(
       ),
 
       tool(
-        "list_artifacts",
+        ARTIFACTS_MCP_LIST_ARTIFACTS_TOOL_NAME,
         "List all artifact files for yourself or another agent. Returns filenames and last modified dates. Omit agent_id to list your own artifacts.",
         {
           agent_id: z

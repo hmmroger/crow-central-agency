@@ -144,7 +144,7 @@ export async function registerAgentRoutes(
       sessionManager.invalidateCache(state.sessionId);
     }
 
-    orchestrator.newSession(agentId);
+    await orchestrator.newSession(agentId);
 
     return { success: true, data: { newSession: true } };
   });

@@ -11,6 +11,7 @@ import {
   AgentRuntimeStateSchema,
   type AgentConfig,
   type AgentRuntimeState,
+  type AgentStatus,
 } from "@crow-central-agency/shared";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { OrchestratorEvents, RunningAgent, McpServerFactory } from "./agent-orchestrator.types.js";
@@ -30,16 +31,23 @@ import {
   DEFAULT_PERMISSION_DENY_MESSAGE,
   ARTIFACT_TIMESTAMP_WINDOW_MS,
   ORCHESTRATOR_STATE_FILENAME,
+  ORCHESTRATOR_STATE_BACKUP_FILENAME,
 } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
-import { readJsonFile, writeJsonFile } from "../utils/fs-utils.js";
+import { readJsonFile, writeJsonFile, copyFileIfExists } from "../utils/fs-utils.js";
 import path from "node:path";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
 import { CROW_SYSTEM_AGENT_ID } from "../agents/crow-agent.js";
+import { MessageRoles } from "../model-providers/openai-provider.types.js";
+import {
+  ARTIFACTS_MCP_READ_ARTIFACT_TOOL_NAME,
+  ARTIFACTS_MCP_WRITE_ARTIFACT_TOOL_NAME,
+} from "../mcp/artifacts-mcp-server.js";
+import { AGENTS_MCP_INVOKE_AGENT_TOOL_NAME } from "../mcp/agents-mcp-server.js";
 
 const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
-  role: "system",
+  role: MessageRoles.system,
   content: [
     { content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your agent name is: {agentName}", ""] },
     { content: ["## Core persona", "", "{persona}", ""], keys: ["persona"] },
@@ -54,9 +62,9 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
     },
     {
       content: [
-        "The following agents are available for collaboration with the `invoke_agent` tool from the crow-agents MCP server:",
+        `The following agents are available for collaboration with the "${AGENTS_MCP_INVOKE_AGENT_TOOL_NAME}" tool from the crow-agents MCP server:`,
         "{peerAgents}",
-        "If a task does not fall explicitly within your own scope, check whether a peer agent is better suited and use the `invoke_agent` tool from the crow-agents MCP server to delegate.",
+        `If a task does not fall explicitly within your own scope, check whether a peer agent is better suited and use the "${AGENTS_MCP_INVOKE_AGENT_TOOL_NAME}" tool from the crow-agents MCP server to delegate.`,
         "Do NOT attempt to perform tasks that fall under another agent's responsibility — invoke that agent instead.",
       ],
       keys: ["peerAgents"],
@@ -70,7 +78,7 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
 };
 
 const CROW_SYSTEM_PROMPT: MessageTemplate = {
-  role: "system",
+  role: MessageRoles.system,
   content: [
     { content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your agent name is: {agentName}", ""] },
     { content: ["## Core persona", "", "{persona}", ""], keys: ["persona"] },
@@ -79,13 +87,56 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
     },
     {
       content: [
-        "The following agents are available for task delegation with the `invoke_agent` tool from the crow-agents MCP server:",
+        `The following agents are available for task delegation with the "${AGENTS_MCP_INVOKE_AGENT_TOOL_NAME}" tool from the crow-agents MCP server:`,
         "{peerAgents}",
       ],
       keys: ["peerAgents"],
     },
   ],
   keys: ["currentDate", "currentTime", "agentId", "agentName", "persona", "peerAgents"],
+};
+
+const INTER_AGENT_INVOKE_PROMPT: MessageTemplate = {
+  role: MessageRoles.user,
+  content: [
+    {
+      content: [
+        `[Agent request from "{agentName}" ({agentId})]`,
+        "",
+        "{task}",
+        "",
+        `Please perform this task and write your results to an artifact using the "${ARTIFACTS_MCP_WRITE_ARTIFACT_TOOL_NAME}" tool.`,
+      ],
+    },
+  ],
+  keys: ["agentName", "agentId", "task"],
+};
+
+const INTER_AGENT_COMPLETED_PROMPT: MessageTemplate = {
+  role: MessageRoles.user,
+  content: [
+    {
+      content: [
+        `[Inter-agent response: Agent "{completedAgentName}" ({completedAgentId}) has completed your requested task]`,
+        "",
+        `Result artifact: "{artifactFilename}"`,
+        `Use ${ARTIFACTS_MCP_READ_ARTIFACT_TOOL_NAME}(agentId: "{completedAgentId}", filename: "{artifactFilename}") to retrieve the result.`,
+      ],
+    },
+  ],
+  keys: ["completedAgentId", "completedAgentName", "artifactFilename"],
+};
+
+const INTER_AGENT_COMPLETED_NORESULTS_PROMPT: MessageTemplate = {
+  role: MessageRoles.user,
+  content: [
+    {
+      content: [
+        `[Inter-agent response: Agent "{completedAgentName}" ({completedAgentId}) has completed your requested task, but did not produce a response artifact.]`,
+      ],
+    },
+  ],
+  keys: ["completedAgentId", "completedAgentName"],
 };
 
 const log = logger.child({ context: "orchestrator" });
@@ -100,6 +151,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   private runtimeStates = new Map<string, AgentRuntimeState>();
   private mcpServerFactories = new Map<string, McpServerFactory>();
   private readonly stateFilePath: string;
+  private readonly backupFilePath: string;
 
   constructor(
     private readonly registry: AgentRegistry,
@@ -111,12 +163,19 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   ) {
     super();
     this.stateFilePath = path.join(env.CROW_SYSTEM_PATH, ORCHESTRATOR_STATE_FILENAME);
+    this.backupFilePath = path.join(env.CROW_SYSTEM_PATH, ORCHESTRATOR_STATE_BACKUP_FILENAME);
     this.listenToRegistryEvents();
     this.listenToLoopScheduler();
   }
 
   /** Load persisted runtime states and run startup recovery */
   public async initialize(): Promise<void> {
+    // Back up previous state before recovery mutates it
+    const backedUp = await copyFileIfExists(this.stateFilePath, this.backupFilePath);
+    if (backedUp) {
+      log.debug({ backup: this.backupFilePath }, "Backed up orchestrator state before recovery");
+    }
+
     try {
       const saved = await readJsonFile<unknown[]>(this.stateFilePath);
 
@@ -173,7 +232,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       throw new AppError(`Agent ${agentId} is busy (status: ${state.status})`, APP_ERROR_CODES.AGENT_BUSY);
     }
 
-    // Build system prompt: persona + AGENT.md + peer list
     const systemPrompt = await this.buildSystemPrompt(agentId, agentConfig);
     const systemPromptOption = systemPrompt
       ? agentConfig.isReplaceSystemPrompt
@@ -217,7 +275,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
     // Track running agent
     this.runningAgents.set(agentId, { query: queryInstance, abortController });
-    this.setStatus(agentId, AGENT_STATUS.STREAMING);
+    this.updateAgentStatus(agentId, AGENT_STATUS.STREAMING);
 
     // Process stream via async generator
     let userMessageAdded = false;
@@ -288,19 +346,17 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
       if (streamSuccess) {
         state.lastError = undefined;
-        this.setStatus(agentId, AGENT_STATUS.IDLE);
-        this.notifyWaitingAgents(agentId);
+        this.updateAgentStatus(agentId, AGENT_STATUS.IDLE);
       } else {
         state.lastError = streamErrorSubtype ?? "Stream ended without result event";
-        this.setStatus(agentId, AGENT_STATUS.ERROR);
+        this.updateAgentStatus(agentId, AGENT_STATUS.ERROR);
       }
     } catch (error) {
       state.lastError = error instanceof Error ? error.message : "Unknown error";
-      this.setStatus(agentId, AGENT_STATUS.ERROR);
+      this.updateAgentStatus(agentId, AGENT_STATUS.ERROR);
       log.error({ agentId, error }, "Query execution failed");
     } finally {
       this.runningAgents.delete(agentId);
-      await this.persistState();
     }
   }
 
@@ -335,31 +391,37 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const sourceConfig = this.registry.getAgent(sourceAgentId);
     const sourceName = sourceConfig.name;
 
-    const taskPrompt = [
-      `[Agent request from "${sourceName}" (${sourceAgentId})]`,
-      "",
-      task,
-      "",
-      "Please perform this task and write your results to an artifact using the write_artifact tool.",
-    ].join("\n");
+    const taskPrompt = createMessageContentFromTemplate(
+      INTER_AGENT_INVOKE_PROMPT,
+      getDefaultPromptContext({
+        agentId: sourceAgentId,
+        agentName: sourceName,
+        task,
+      })
+    );
 
     const targetState = this.ensureState(targetAgentId);
-
-    if (targetState.status === AGENT_STATUS.IDLE || targetState.status === AGENT_STATUS.ERROR) {
-      this.sendMessage(targetAgentId, taskPrompt).catch((error) => {
-        log.error({ sourceAgentId, targetAgentId, error }, "Failed to deliver inter-agent task");
-      });
-    } else {
-      await this.injectMessage(targetAgentId, taskPrompt);
+    try {
+      if (targetState.status === AGENT_STATUS.IDLE || targetState.status === AGENT_STATUS.ERROR) {
+        await this.sendMessage(targetAgentId, taskPrompt);
+      } else {
+        await this.injectMessage(targetAgentId, taskPrompt);
+      }
+    } catch (error) {
+      log.error(
+        { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name, error },
+        "Failed to deliver inter-agent task"
+      );
     }
 
     const sourceState = this.ensureState(sourceAgentId);
     sourceState.waitingForAgentId = targetAgentId;
-    this.setStatus(sourceAgentId, AGENT_STATUS.WAITING_AGENT);
-    await this.persistState();
+    this.updateAgentStatus(sourceAgentId, AGENT_STATUS.WAITING_AGENT);
 
-    log.info({ sourceAgentId, targetAgentId }, "Inter-agent invocation started");
-
+    log.info(
+      { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name },
+      "Inter-agent invocation started"
+    );
     return `Task sent to agent "${targetConfig.name}" (${targetAgentId}). The agent is working on it and you will be notified when the result is ready.`;
   }
 
@@ -378,7 +440,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   }
 
   /** Start a new session for an agent (clears current session) */
-  public newSession(agentId: string): void {
+  public async newSession(agentId: string): Promise<void> {
     const state = this.ensureState(agentId);
     state.sessionId = undefined;
     state.sessionUsage = {
@@ -389,13 +451,15 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       contextTotal: 0,
     };
 
-    this.persistState().catch((error) => {
+    try {
+      await this.persistState();
+    } catch (error) {
       log.error({ agentId, error }, "Failed to persist state after newSession");
-    });
+    }
   }
 
   /** Cleanup when an agent is deleted — triggered by registry agentDeleted event */
-  private cleanup(agentId: string): void {
+  private async cleanup(agentId: string): Promise<void> {
     this.permissionHandler.cancelAllForAgent(agentId);
     const running = this.runningAgents.get(agentId);
 
@@ -406,9 +470,12 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     this.runtimeStates.delete(agentId);
-    this.persistState().catch((error) => {
+
+    try {
+      await this.persistState();
+    } catch (error) {
       log.error({ agentId, error }, "Failed to persist state after cleanup");
-    });
+    }
   }
 
   /** Ensure a runtime state exists for the given agent */
@@ -434,9 +501,20 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   }
 
   /** Set agent status — broadcasts to WS clients and emits lifecycle event */
-  private setStatus(agentId: string, status: AgentRuntimeState["status"]): void {
+  private async updateAgentStatus(agentId: string, status: AgentStatus): Promise<void> {
     const state = this.ensureState(agentId);
+    if (state.status === status) {
+      return;
+    }
+
     state.status = status;
+    log.info({ agentId, status }, "Agent status changed.");
+    await this.persistState();
+
+    // status changed handlers
+    if (status === AGENT_STATUS.IDLE) {
+      await this.notifyWaitingAgents(agentId);
+    }
 
     this.broadcaster.broadcast({
       type: "agent_status",
@@ -447,58 +525,52 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   }
 
   /** Notify agents that were waiting for the given agent to complete */
-  private notifyWaitingAgents(completedAgentId: string): void {
+  private async notifyWaitingAgents(completedAgentId: string): Promise<void> {
     for (const [agentId, state] of this.runtimeStates) {
       if (state.waitingForAgentId !== completedAgentId) {
         continue;
       }
 
+      const waitingAgentId = agentId;
       state.waitingForAgentId = undefined;
-
       let targetName: string;
 
       try {
         targetName = this.registry.getAgent(completedAgentId).name;
       } catch {
-        log.warn({ completedAgentId }, "Completed agent no longer exists — skipping notification");
-
+        log.warn(
+          { agentId: completedAgentId, waitingAgentId },
+          "Completed agent no longer exists — skipping notification"
+        );
         continue;
       }
 
-      const notifyWithArtifact = async () => {
-        let notificationPrompt: string;
+      try {
         const recentArtifact = await this.artifactManager.getMostRecentArtifact(completedAgentId);
         const isRecent =
           recentArtifact !== undefined &&
           Date.now() - new Date(recentArtifact.updatedAt).getTime() <= ARTIFACT_TIMESTAMP_WINDOW_MS;
 
-        if (isRecent && recentArtifact) {
-          notificationPrompt = [
-            `[Inter-agent response: Agent "${targetName}" has completed your requested task]`,
-            "",
-            `Result artifact: "${recentArtifact.filename}"`,
-            `Use read_artifact(agentId: "${completedAgentId}", filename: "${recentArtifact.filename}") to retrieve the result.`,
-          ].join("\n");
-        } else {
-          notificationPrompt = `[Inter-agent response: Agent "${targetName}" has completed your requested task, but did not produce a response artifact.]`;
-        }
+        const notificationPrompt = createMessageContentFromTemplate(
+          isRecent && recentArtifact ? INTER_AGENT_COMPLETED_PROMPT : INTER_AGENT_COMPLETED_NORESULTS_PROMPT,
+          getDefaultPromptContext({
+            completedAgentId,
+            completedAgentName: targetName,
+            artifactFilename: recentArtifact?.filename,
+          })
+        );
 
-        const running = this.runningAgents.get(agentId);
-
+        const running = this.runningAgents.get(waitingAgentId);
         if (running) {
-          await this.injectMessage(agentId, notificationPrompt);
+          await this.injectMessage(waitingAgentId, notificationPrompt);
         } else {
-          this.sendMessage(agentId, notificationPrompt).catch((error) => {
-            log.error({ agentId, error }, "Failed to notify waiting agent");
-          });
+          await this.sendMessage(waitingAgentId, notificationPrompt);
         }
-      };
 
-      notifyWithArtifact().catch((error) => {
-        log.error({ agentId, completedAgentId, error }, "Failed to notify waiting agent with artifact check");
-      });
-
-      log.info({ waitingAgentId: agentId, completedAgentId }, "Notifying waiting agent");
+        log.info({ agentId: completedAgentId, waitingAgentId }, "Notifying waiting agent");
+      } catch (error) {
+        log.error({ agentId: completedAgentId, waitingAgentId, error }, "Failed to notify waiting agent");
+      }
     }
   }
 
@@ -507,7 +579,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     const handler = this.permissionHandler;
 
     return async (toolName, input, options) => {
-      this.setStatus(agentId, AGENT_STATUS.WAITING_PERMISSION);
+      this.updateAgentStatus(agentId, AGENT_STATUS.WAITING_PERMISSION);
 
       const result = await handler.requestPermission(
         agentId,
@@ -518,7 +590,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       );
 
       // Restore to streaming after permission is resolved
-      this.setStatus(agentId, AGENT_STATUS.STREAMING);
+      this.updateAgentStatus(agentId, AGENT_STATUS.STREAMING);
 
       if (result.behavior === "allow") {
         return { behavior: "allow" as const, updatedInput: result.updatedInput || input, toolUseID: options.toolUseID };
@@ -682,10 +754,9 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       }
 
       const targetIsBeingResumed = agentsToResume.includes(state.waitingForAgentId);
-
       if (!targetIsBeingResumed) {
         // Target was already idle — notify waiting agent with artifact check
-        this.notifyWaitingAgents(state.waitingForAgentId);
+        await this.notifyWaitingAgents(state.waitingForAgentId);
       }
     }
 
@@ -694,8 +765,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
   /** Listen to registry lifecycle events for cleanup */
   private listenToRegistryEvents(): void {
-    this.registry.on("agentDeleted", ({ agentId }) => {
-      this.cleanup(agentId);
+    this.registry.on("agentDeleted", async ({ agentId }) => {
+      await this.cleanup(agentId);
     });
   }
 
@@ -705,7 +776,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       this.sendMessage(agentId, prompt).catch((error) => {
         if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.AGENT_BUSY) {
           log.debug({ agentId }, "Loop tick skipped — agent is busy");
-
           return;
         }
 
@@ -740,6 +810,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       })
     );
 
-    return content ?? "";
+    return content;
   }
 }

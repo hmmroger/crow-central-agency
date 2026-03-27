@@ -4,6 +4,9 @@ import { z } from "zod/v4";
 import type { AgentOrchestrator } from "../services/agent-orchestrator.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 
+export const AGENTS_MCP_LIST_AGENTS_TOOL_NAME = "list_agents";
+export const AGENTS_MCP_INVOKE_AGENT_TOOL_NAME = "invoke_agent";
+
 /**
  * Create the crow-agents MCP server for a specific agent.
  * Provides tools for discovering and invoking other agents.
@@ -18,7 +21,7 @@ export function createAgentsMcpServer(
     name: "crow-agents",
     tools: [
       tool(
-        "list_agents",
+        AGENTS_MCP_LIST_AGENTS_TOOL_NAME,
         "List all registered agents with their IDs, names, and role descriptions. Use this to discover which agents are available for collaboration.",
         {},
         async () => {
@@ -42,7 +45,7 @@ export function createAgentsMcpServer(
       ),
 
       tool(
-        "invoke_agent",
+        AGENTS_MCP_INVOKE_AGENT_TOOL_NAME,
         "Delegate a task to another agent. The target agent will work on it asynchronously and write results to its artifacts. You will be notified automatically when the agent finishes.",
         {
           agent_id: z

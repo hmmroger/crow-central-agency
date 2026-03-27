@@ -74,6 +74,25 @@ export async function writeTextFile(filePath: string, content: string): Promise<
 }
 
 /**
+ * Copy a file. Silently succeeds if the source does not exist.
+ * Creates parent directories for the destination if needed.
+ */
+export async function copyFileIfExists(src: string, dest: string): Promise<boolean> {
+  try {
+    await fs.mkdir(path.dirname(dest), { recursive: true });
+    await fs.copyFile(src, dest);
+
+    return true;
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+/**
  * Ensure a directory exists, creating it if necessary.
  */
 export async function ensureDir(dirPath: string): Promise<void> {

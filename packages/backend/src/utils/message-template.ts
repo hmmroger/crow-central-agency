@@ -62,10 +62,7 @@ export const createModelMessageFromTemplate = (
   };
 };
 
-export const createMessageContentFromTemplate = (
-  messageTemplate: MessageTemplate,
-  context?: PromptContext
-): string | undefined => {
+export const createMessageContentFromTemplate = (messageTemplate: MessageTemplate, context?: PromptContext): string => {
   const chatMessage = createModelMessageFromTemplate(messageTemplate, context);
-  return chatMessage.content;
+  return chatMessage.content || "";
 };
