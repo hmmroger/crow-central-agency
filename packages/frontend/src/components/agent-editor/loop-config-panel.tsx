@@ -1,15 +1,15 @@
-import { DAY_OF_WEEK, TIME_MODE, type DayOfWeek, type TimeMode } from "@crow-central-agency/shared";
+import { DAY_OF_WEEK, TIME_MODE, type DayOfWeek, type TimeModeType } from "@crow-central-agency/shared";
 
 interface LoopConfigPanelProps {
   enabled: boolean;
   daysOfWeek: DayOfWeek[];
-  timeMode: TimeMode;
+  timeMode: TimeModeType;
   hour?: number;
   minute?: number;
   prompt: string;
   onEnabledChange: (enabled: boolean) => void;
   onDaysChange: (days: DayOfWeek[]) => void;
-  onTimeModeChange: (mode: TimeMode) => void;
+  onTimeModeChange: (mode: TimeModeType) => void;
   onHourChange: (hour: number | undefined) => void;
   onMinuteChange: (minute: number | undefined) => void;
   onPromptChange: (prompt: string) => void;

@@ -4,10 +4,10 @@ import { FieldGroup } from "./field-group.js";
 
 interface BasicInfoSectionProps {
   name: string;
-  description: string;
+  description?: string;
   workspace: string;
   model: string;
-  persona: string;
+  persona?: string;
   onNameChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onWorkspaceChange: (value: string) => void;

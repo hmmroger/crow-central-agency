@@ -9,7 +9,7 @@ import {
   type DayOfWeek,
   type PermissionMode,
   type SettingSource,
-  type TimeMode,
+  type TimeModeType,
   type ToolMode,
 } from "@crow-central-agency/shared";
 import type { AgentDetailData, AgentEditorFormState } from "./agent-editor.types.js";
@@ -50,12 +50,12 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     selectedTools: agent.toolConfig.tools ?? [],
     autoApprovedTools: agent.toolConfig.autoApprovedTools ?? [],
     availableTools: agent.availableTools ?? [...DEFAULT_AVAILABLE_TOOLS],
-    loopEnabled: agent.loop.enabled,
-    loopDays: agent.loop.daysOfWeek,
-    loopTimeMode: agent.loop.timeMode,
-    loopHour: agent.loop.hour,
-    loopMinute: agent.loop.minute,
-    loopPrompt: agent.loop.prompt,
+    loopEnabled: agent.loop?.enabled ?? false,
+    loopDays: agent.loop?.daysOfWeek ?? [],
+    loopTimeMode: agent.loop?.timeMode ?? TIME_MODE.EVERY,
+    loopHour: agent.loop?.hour,
+    loopMinute: agent.loop?.minute,
+    loopPrompt: agent.loop?.prompt ?? "",
     agentMd: agent.agentMd ?? "",
   };
 }
@@ -191,7 +191,10 @@ export function useAgentEditorForm(agent?: AgentDetailData) {
   // Loop setters
   const setLoopEnabled = useCallback((value: boolean) => setForm((prev) => ({ ...prev, loopEnabled: value })), []);
   const setLoopDays = useCallback((value: DayOfWeek[]) => setForm((prev) => ({ ...prev, loopDays: value })), []);
-  const setLoopTimeMode = useCallback((value: TimeMode) => setForm((prev) => ({ ...prev, loopTimeMode: value })), []);
+  const setLoopTimeMode = useCallback(
+    (value: TimeModeType) => setForm((prev) => ({ ...prev, loopTimeMode: value })),
+    []
+  );
   const setLoopHour = useCallback((value: number | undefined) => setForm((prev) => ({ ...prev, loopHour: value })), []);
   const setLoopMinute = useCallback(
     (value: number | undefined) => setForm((prev) => ({ ...prev, loopMinute: value })),

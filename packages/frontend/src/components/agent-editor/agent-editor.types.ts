@@ -1,13 +1,13 @@
-import type { DayOfWeek, PermissionMode, SettingSource, TimeMode, ToolMode } from "@crow-central-agency/shared";
+import type { DayOfWeek, PermissionMode, SettingSource, TimeModeType, ToolMode } from "@crow-central-agency/shared";
 
 export type { AgentDetailData } from "../../hooks/use-agent-query.js";
 
 /** Form state for the agent editor — all editable fields */
 export interface AgentEditorFormState {
   name: string;
-  description: string;
+  description?: string;
   workspace: string;
-  persona: string;
+  persona?: string;
   model: string;
   permissionMode: PermissionMode;
   settingSources: SettingSource[];
@@ -17,7 +17,7 @@ export interface AgentEditorFormState {
   availableTools: string[];
   loopEnabled: boolean;
   loopDays: DayOfWeek[];
-  loopTimeMode: TimeMode;
+  loopTimeMode: TimeModeType;
   loopHour?: number;
   loopMinute?: number;
   loopPrompt: string;
