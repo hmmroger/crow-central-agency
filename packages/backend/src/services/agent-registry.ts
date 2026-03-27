@@ -37,6 +37,8 @@ const log = logger.child({ context: "agent-registry" });
  */
 export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   private agents = new Map<string, AgentConfig>();
+  /** IDs of built-in system agents — used to guard persist and load */
+  private readonly systemAgentIds = new Set<string>();
   private readonly agentsFilePath: string;
   private readonly agentsBaseDir: string;
 
@@ -49,7 +51,11 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   /** Load all agent configs from agents.json on startup, validating each against schema */
   public async initialize(): Promise<void> {
     await ensureDir(this.agentsBaseDir);
-    this.agents.set(CROW_SYSTEM_AGENT_ID, getCrowAgent());
+
+    // Register built-in system agents and track their IDs
+    const crowAgent = getCrowAgent();
+    this.agents.set(CROW_SYSTEM_AGENT_ID, crowAgent);
+    this.systemAgentIds.add(CROW_SYSTEM_AGENT_ID);
 
     try {
       const data = await readJsonFile<unknown[]>(this.agentsFilePath);
@@ -59,7 +65,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
         if (result.success) {
           // Skip persisted entries that collide with a system agent ID
-          if (this.agents.get(result.data.id)?.isSystemAgent) {
+          if (this.systemAgentIds.has(result.data.id)) {
             log.warn({ id: result.data.id }, "Skipping persisted entry that conflicts with a system agent ID");
 
             continue;
@@ -236,9 +242,9 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     return path.join(this.getAgentDir(agentId), AGENT_MD_FILENAME);
   }
 
-  /** Persist all user-created agent configs to agents.json — excludes system agents */
+  /** Persist all user-created agent configs to agents.json — excludes system agents by known ID */
   private async persist(): Promise<void> {
-    const data = Array.from(this.agents.values()).filter((agent) => !agent.isSystemAgent);
+    const data = Array.from(this.agents.values()).filter((agent) => !this.systemAgentIds.has(agent.id));
     await writeJsonFile(this.agentsFilePath, data);
   }
 }
