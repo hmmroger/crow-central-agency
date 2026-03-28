@@ -735,11 +735,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
               // Drain any injected messages as a systemMessage
               const state = this.runtimeStates.get(agentId);
-              if (state?.injectedMessages && state.injectedMessages.length > 0) {
-                const systemMessage = state.injectedMessages.join("\n\n");
-                const messageCount = state.injectedMessages.length;
+              const pendingMessages = state?.injectedMessages;
+              if (pendingMessages && pendingMessages.length > 0) {
+                const systemMessage = pendingMessages.join("\n\n");
                 state.injectedMessages = undefined;
-                log.info({ agentId, messageCount }, "Delivering injected messages via hook");
+                log.info({ agentId, messageCount: pendingMessages.length }, "Delivering injected messages via hook");
 
                 return { continue: true, systemMessage };
               }
