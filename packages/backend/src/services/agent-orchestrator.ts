@@ -360,15 +360,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         }
       }
 
-      // Warn if injected messages were never delivered (agent completed without a tool use)
-      if (state.injectedMessages && state.injectedMessages.length > 0) {
-        log.warn(
-          { agentId, dropped: state.injectedMessages.length },
-          "Injected messages were never delivered — agent completed without a tool use"
-        );
-        state.injectedMessages = undefined;
-      }
-
       if (streamSuccess) {
         state.lastError = undefined;
         this.updateAgentStatus(agentId, AGENT_STATUS.IDLE);
@@ -537,6 +528,9 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
     // status changed handlers
     if (status === AGENT_STATUS.IDLE) {
+      // Drain any undelivered injected messages by sending them as a follow-up
+      this.drainInjectedMessages(agentId);
+
       await this.notifyWaitingAgents(agentId);
 
       // Drain next queued message after notifications
@@ -599,6 +593,29 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         log.error({ agentId: completedAgentId, waitingAgentId, error }, "Failed to notify waiting agent");
       }
     }
+  }
+
+  /**
+   * Drain undelivered injected messages by sending them as a follow-up message.
+   * Called on IDLE before queue drain. If the agent completed without a tool use,
+   * the PreToolUse hook never fired, so injected messages are still buffered.
+   * Sending them via sendMessage ensures they are processed (or queued if busy).
+   */
+  private drainInjectedMessages(agentId: string): void {
+    const state = this.runtimeStates.get(agentId);
+    const pendingMessages = state?.injectedMessages;
+    if (!pendingMessages || pendingMessages.length === 0) {
+      return;
+    }
+
+    const combined = pendingMessages.join("\n\n");
+    state.injectedMessages = undefined;
+
+    log.info({ agentId, messageCount: pendingMessages.length }, "Draining undelivered injected messages");
+
+    this.sendMessage(agentId, combined, MESSAGE_SOURCE.USER).catch((error) => {
+      log.error({ agentId, error }, "Failed to drain injected messages");
+    });
   }
 
   /**
