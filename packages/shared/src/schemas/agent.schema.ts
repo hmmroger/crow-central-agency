@@ -3,10 +3,12 @@ import { PERMISSION_MODE } from "../constants/permission-mode.js";
 import { SETTING_SOURCE, DEFAULT_SETTING_SOURCES } from "../constants/setting-source.js";
 import { TOOL_MODE } from "../constants/tool-mode.js";
 import { LoopConfigSchema } from "./loop.schema.js";
-import { CLAUDE_CODE_MODEL_OPTIONS } from "../constants/model-options.js";
+import { CLAUDE_MODELS } from "../constants/model-options.js";
 
-/** Default model for new agents — derived from the first entry in CLAUDE_CODE_MODEL_OPTIONS */
-export const DEFAULT_MODEL = CLAUDE_CODE_MODEL_OPTIONS[0].value;
+/** Default model for new agents */
+export const DEFAULT_MODEL = CLAUDE_MODELS.SONNET;
+
+export const AgentIdSchema = z.uuid();
 
 /** Zod schema for PermissionMode values */
 export const PermissionModeSchema = z.enum([
@@ -33,7 +35,7 @@ export const ToolConfigSchema = z.object({
  * Full agent configuration — persisted to disk in agents.json
  */
 export const AgentConfigSchema = z.object({
-  id: z.uuid(),
+  id: AgentIdSchema,
   name: z.string().min(1).max(64),
   description: z.string().optional(),
   workspace: z.string(),

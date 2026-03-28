@@ -14,6 +14,7 @@ export { CLAUDE_MODELS, CLAUDE_CODE_MODEL_OPTIONS } from "./constants/model-opti
 
 export {
   DEFAULT_MODEL,
+  AgentIdSchema,
   AgentConfigSchema,
   CreateAgentInputSchema,
   UpdateAgentInputSchema,

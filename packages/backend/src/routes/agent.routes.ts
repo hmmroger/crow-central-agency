@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { z, ZodError } from "zod";
+import { ZodError } from "zod";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { AgentOrchestrator } from "../services/agent-orchestrator.js";
 import type { SessionManager } from "../services/session-manager.js";
@@ -7,24 +7,7 @@ import { AGENT_STATUS, type AgentRuntimeState } from "@crow-central-agency/share
 import { AppError } from "../error/app-error.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
 import { logger } from "../utils/logger.js";
-import { SYSTEM_AGENT_IDS } from "../services/agent-registry.js";
-
-const uuidParamSchema = z.uuid();
-
-/** Validate that a route param is a valid UUID or a known system agent ID */
-function validateAgentIdParam(id: string): string {
-  if (SYSTEM_AGENT_IDS.has(id)) {
-    return id;
-  }
-
-  const result = uuidParamSchema.safeParse(id);
-
-  if (!result.success) {
-    throw new AppError("Invalid agent id", APP_ERROR_CODES.VALIDATION);
-  }
-
-  return result.data;
-}
+import { validateAgentIdParam } from "./validation.js";
 
 /** Wrap ZodError into AppError for consistent error responses */
 function wrapZodError(error: unknown): never {

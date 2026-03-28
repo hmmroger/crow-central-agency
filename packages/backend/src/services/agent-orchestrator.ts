@@ -401,17 +401,16 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     );
 
     const targetState = this.ensureState(targetAgentId);
-    try {
-      if (targetState.status === AGENT_STATUS.IDLE || targetState.status === AGENT_STATUS.ERROR) {
-        await this.sendMessage(targetAgentId, taskPrompt);
-      } else {
-        await this.injectMessage(targetAgentId, taskPrompt);
-      }
-    } catch (error) {
-      log.error(
-        { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name, error },
-        "Failed to deliver inter-agent task"
-      );
+    if (targetState.status === AGENT_STATUS.IDLE || targetState.status === AGENT_STATUS.ERROR) {
+      // Not waiting, will notify
+      this.sendMessage(targetAgentId, taskPrompt).catch((error) => {
+        log.error(
+          { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name, error },
+          "Failed to deliver inter-agent task"
+        );
+      });
+    } else {
+      await this.injectMessage(targetAgentId, taskPrompt);
     }
 
     const sourceState = this.ensureState(sourceAgentId);
@@ -562,9 +561,12 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
         const running = this.runningAgents.get(waitingAgentId);
         if (running) {
-          await this.injectMessage(waitingAgentId, notificationPrompt);
+          await this.injectMessage(agentId, notificationPrompt);
         } else {
-          await this.sendMessage(waitingAgentId, notificationPrompt);
+          // Not waiting
+          this.sendMessage(agentId, notificationPrompt).catch((error) => {
+            log.error({ agentId, error }, "Failed to notify waiting agent");
+          });
         }
 
         log.info({ agentId: completedAgentId, waitingAgentId }, "Notifying waiting agent");

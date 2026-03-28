@@ -18,7 +18,6 @@ export class EventBus<TEvents extends EventMap> {
   /** Subscribe to an event */
   public on<K extends keyof TEvents>(event: K, listener: EventListener<TEvents[K]>): void {
     let eventListeners = this.listeners.get(event);
-
     if (!eventListeners) {
       eventListeners = new Set();
       this.listeners.set(event, eventListeners);

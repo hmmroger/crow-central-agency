@@ -1,10 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { z } from "zod";
 import type { ArtifactManager } from "../services/artifact-manager.js";
-import { AppError } from "../error/app-error.js";
-import { APP_ERROR_CODES } from "../error/app-error.types.js";
-
-const uuidParamSchema = z.uuid();
+import { validateAgentIdParam } from "./validation.js";
 
 /**
  * Register artifact REST routes
@@ -12,26 +8,16 @@ const uuidParamSchema = z.uuid();
 export async function registerArtifactRoutes(server: FastifyInstance, artifactManager: ArtifactManager) {
   /** List artifacts for an agent */
   server.get<{ Params: { id: string } }>("/api/agents/:id/artifacts", async (request) => {
-    const parseResult = uuidParamSchema.safeParse(request.params.id);
-
-    if (!parseResult.success) {
-      throw new AppError("Invalid agent id", APP_ERROR_CODES.VALIDATION);
-    }
-
-    const artifacts = await artifactManager.listArtifacts(parseResult.data);
+    const agentId = validateAgentIdParam(request.params.id);
+    const artifacts = await artifactManager.listArtifacts(agentId);
 
     return { success: true, data: artifacts };
   });
 
   /** Read a specific artifact */
   server.get<{ Params: { id: string; filename: string } }>("/api/agents/:id/artifacts/:filename", async (request) => {
-    const parseResult = uuidParamSchema.safeParse(request.params.id);
-
-    if (!parseResult.success) {
-      throw new AppError("Invalid agent id", APP_ERROR_CODES.VALIDATION);
-    }
-
-    const content = await artifactManager.readArtifact(parseResult.data, request.params.filename);
+    const agentId = validateAgentIdParam(request.params.id);
+    const content = await artifactManager.readArtifact(agentId, request.params.filename);
 
     return { success: true, data: { filename: request.params.filename, content } };
   });
