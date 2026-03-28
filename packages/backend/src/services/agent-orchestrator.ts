@@ -22,6 +22,8 @@ import type { PermissionHandler } from "./permission-handler.js";
 import type { ArtifactManager } from "./artifact-manager.js";
 import type { LoopScheduler } from "./loop-scheduler.js";
 import type { SessionManager } from "./session-manager.js";
+import type { MessageQueueManager } from "./message-queue-manager.js";
+import { MESSAGE_SOURCE, type MessageSource } from "./message-queue-manager.types.js";
 import { processStream } from "../stream/stream-processor.js";
 import { parseToolActivity } from "../stream/tool-activity-parser.js";
 import crypto from "node:crypto";
@@ -154,6 +156,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   private runningAgents = new Map<string, RunningAgent>();
   private runtimeStates = new Map<string, AgentRuntimeState>();
   private mcpServerFactories = new Map<string, McpServerFactory>();
+  /** Guards against re-entrant sendMessage for the same agent during async gaps */
+  private processingAgents = new Set<string>();
   private readonly stateFilePath: string;
   private readonly backupFilePath: string;
 
@@ -163,7 +167,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     private readonly permissionHandler: PermissionHandler,
     private readonly artifactManager: ArtifactManager,
     private readonly loopScheduler: LoopScheduler,
-    private readonly sessionManager: SessionManager
+    private readonly sessionManager: SessionManager,
+    private readonly messageQueue: MessageQueueManager
   ) {
     super();
     this.stateFilePath = path.join(env.CROW_SYSTEM_PATH, ORCHESTRATOR_STATE_FILENAME);
@@ -222,15 +227,27 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
   /**
    * Send a message to an agent — creates an SDK query and processes the stream.
-   * The agent must be idle.
+   * If the agent is busy, the message is transparently enqueued and processed
+   * when the agent becomes idle.
    */
-  public async sendMessage(agentId: string, message: string): Promise<void> {
+  public async sendMessage(
+    agentId: string,
+    message: string,
+    source: MessageSource = MESSAGE_SOURCE.USER
+  ): Promise<void> {
     const agentConfig = this.registry.getAgent(agentId);
     const state = this.ensureState(agentId);
 
-    if (state.status !== AGENT_STATUS.IDLE && state.status !== AGENT_STATUS.ERROR) {
-      throw new AppError(`Agent ${agentId} is busy (status: ${state.status})`, APP_ERROR_CODES.AGENT_BUSY);
+    // If busy or another sendMessage is already processing this agent, enqueue silently
+    if (
+      (state.status !== AGENT_STATUS.IDLE && state.status !== AGENT_STATUS.ERROR) ||
+      this.processingAgents.has(agentId)
+    ) {
+      await this.messageQueue.enqueue(agentId, message, source);
+      return;
     }
+
+    this.processingAgents.add(agentId);
 
     const systemPrompt = await this.buildSystemPrompt(agentId, agentConfig);
     const systemPromptOption = systemPrompt
@@ -357,10 +374,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       log.error({ agentId, error }, "Query execution failed");
     } finally {
       this.runningAgents.delete(agentId);
+      this.processingAgents.delete(agentId);
     }
   }
 
-  /** Inject an user message into an active agent stream */
+  /** Inject a user message into an active agent stream */
   public async injectMessage(agentId: string, text: string): Promise<void> {
     const running = this.runningAgents.get(agentId);
 
@@ -400,18 +418,13 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       })
     );
 
-    const targetState = this.ensureState(targetAgentId);
-    if (targetState.status === AGENT_STATUS.IDLE || targetState.status === AGENT_STATUS.ERROR) {
-      // Not waiting, will notify
-      this.sendMessage(targetAgentId, taskPrompt).catch((error) => {
-        log.error(
-          { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name, error },
-          "Failed to deliver inter-agent task"
-        );
-      });
-    } else {
-      await this.injectMessage(targetAgentId, taskPrompt);
-    }
+    // sendMessage queues transparently if the target is busy
+    this.sendMessage(targetAgentId, taskPrompt, MESSAGE_SOURCE.INTER_AGENT).catch((error) => {
+      log.error(
+        { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name, error },
+        "Failed to deliver inter-agent task"
+      );
+    });
 
     const sourceState = this.ensureState(sourceAgentId);
     sourceState.waitingForAgentId = targetAgentId;
@@ -438,7 +451,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     running.query.close();
   }
 
-  /** Start a new session for an agent (clears current session) */
+  /** Start a new session for an agent (clears current session and message queue) */
   public async newSession(agentId: string): Promise<void> {
     const state = this.ensureState(agentId);
     state.sessionId = undefined;
@@ -449,6 +462,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       contextUsed: 0,
       contextTotal: 0,
     };
+
+    await this.messageQueue.clear(agentId);
 
     try {
       await this.persistState();
@@ -469,6 +484,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     this.runtimeStates.delete(agentId);
+    this.processingAgents.delete(agentId);
+    await this.messageQueue.clear(agentId);
 
     try {
       await this.persistState();
@@ -513,6 +530,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     // status changed handlers
     if (status === AGENT_STATUS.IDLE) {
       await this.notifyWaitingAgents(agentId);
+
+      // Drain next queued message after notifications
+      this.drainQueue(agentId).catch((error) => {
+        log.error({ agentId, error }, "Queue drain failed");
+      });
     }
 
     this.broadcaster.broadcast({
@@ -559,20 +581,34 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
           })
         );
 
-        const running = this.runningAgents.get(waitingAgentId);
-        if (running) {
-          await this.injectMessage(agentId, notificationPrompt);
-        } else {
-          // Not waiting
-          this.sendMessage(agentId, notificationPrompt).catch((error) => {
-            log.error({ agentId, error }, "Failed to notify waiting agent");
-          });
-        }
+        // sendMessage queues transparently if the waiting agent is busy
+        this.sendMessage(agentId, notificationPrompt, MESSAGE_SOURCE.NOTIFICATION).catch((error) => {
+          log.error({ agentId, error }, "Failed to notify waiting agent");
+        });
 
         log.info({ agentId: completedAgentId, waitingAgentId }, "Notifying waiting agent");
       } catch (error) {
         log.error({ agentId: completedAgentId, waitingAgentId, error }, "Failed to notify waiting agent");
       }
+    }
+  }
+
+  /**
+   * Drain the next queued message for an agent.
+   * Called when an agent transitions to IDLE after notifications are sent.
+   */
+  private async drainQueue(agentId: string): Promise<void> {
+    const next = await this.messageQueue.dequeue(agentId);
+    if (!next) {
+      return;
+    }
+
+    log.info({ agentId, queueEntryId: next.id, source: next.source }, "Draining queued message");
+
+    try {
+      await this.sendMessage(agentId, next.message, next.source);
+    } catch (error) {
+      log.error({ agentId, queueEntryId: next.id, error }, "Failed to process drained message");
     }
   }
 
@@ -747,9 +783,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       state.status = AGENT_STATUS.IDLE; // Reset before sendMessage validates
 
       // Fire-and-forget — don't block startup
-      this.sendMessage(agentId, "Continue your work from where you left off.").catch((error) => {
-        log.error({ agentId, error }, "Failed to resume agent on startup");
-      });
+      this.sendMessage(agentId, "Continue your work from where you left off.", MESSAGE_SOURCE.RECOVERY).catch(
+        (error) => {
+          log.error({ agentId, error }, "Failed to resume agent on startup");
+        }
+      );
     }
 
     // Handle waiting_agent agents whose targets are idle (not being resumed)
@@ -762,6 +800,15 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       if (!targetIsBeingResumed) {
         // Target was already idle — notify waiting agent with artifact check
         await this.notifyWaitingAgents(state.waitingForAgentId);
+      }
+    }
+
+    // Drain persisted queues for agents that are idle after recovery
+    for (const [agentId, state] of this.runtimeStates) {
+      if (state.status === AGENT_STATUS.IDLE) {
+        this.drainQueue(agentId).catch((error) => {
+          log.error({ agentId, error }, "Queue drain failed during startup recovery");
+        });
       }
     }
 
@@ -778,12 +825,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   /** Listen to loop scheduler ticks and send scheduled prompts */
   private listenToLoopScheduler(): void {
     this.loopScheduler.on("loopTick", ({ agentId, prompt }) => {
-      this.sendMessage(agentId, prompt).catch((error) => {
-        if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.AGENT_BUSY) {
-          log.debug({ agentId }, "Loop tick skipped — agent is busy");
-          return;
-        }
-
+      this.sendMessage(agentId, prompt, MESSAGE_SOURCE.LOOP).catch((error) => {
         log.error({ agentId, error }, "Loop tick failed");
       });
     });

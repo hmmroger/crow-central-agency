@@ -31,3 +31,6 @@ export const AGENT_ARTIFACTS_DIR_NAME = "artifacts";
 
 /** Filename for the per-agent instruction file */
 export const AGENT_MD_FILENAME = "AGENT.md";
+
+/** Filename for the per-agent message queue */
+export const MESSAGE_QUEUE_FILENAME = "message-queue.json";

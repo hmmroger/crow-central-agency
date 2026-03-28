@@ -14,6 +14,7 @@ import { registerArtifactRoutes } from "./routes/artifact.routes.js";
 import { createArtifactsMcpServer } from "./mcp/artifacts-mcp-server.js";
 import { createAgentsMcpServer } from "./mcp/agents-mcp-server.js";
 import { LoopScheduler } from "./services/loop-scheduler.js";
+import { MessageQueueManager } from "./services/message-queue-manager.js";
 import { OpenAIProvider } from "./model-providers/openai-provider.js";
 import { MdGenerationService } from "./services/md-generation-service.js";
 import { registerGenerationRoutes } from "./routes/generation.routes.js";
@@ -38,6 +39,7 @@ export async function bootstrap(options: BootstrapOptions) {
   const permissionHandler = new PermissionHandler(broadcaster);
   const artifactManager = new ArtifactManager();
   const loopScheduler = new LoopScheduler(registry);
+  const messageQueue = new MessageQueueManager();
 
   const orchestrator = new AgentOrchestrator(
     registry,
@@ -45,7 +47,8 @@ export async function bootstrap(options: BootstrapOptions) {
     permissionHandler,
     artifactManager,
     loopScheduler,
-    sessionManager
+    sessionManager,
+    messageQueue
   );
   await orchestrator.initialize();
 
