@@ -3,6 +3,7 @@ import { CLIENT_MESSAGE_TYPE, ClientMessageSchema } from "@crow-central-agency/s
 import type { WsBroadcaster } from "../services/ws-broadcaster.js";
 import type { AgentOrchestrator } from "../services/agent-orchestrator.js";
 import type { PermissionHandler } from "../services/permission-handler.js";
+import { AppError } from "../error/app-error.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "websocket" });
@@ -47,7 +48,7 @@ export async function setupWebSocket(
               broadcaster.sendTo(socket, {
                 type: "error",
                 agentId: message.agentId,
-                code: "agent_busy",
+                code: error instanceof AppError ? error.errorCode : "sdk_error",
                 message: error instanceof Error ? error.message : "Failed to send message",
               });
             });

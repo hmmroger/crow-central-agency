@@ -130,12 +130,15 @@ export class MessageQueueManager {
   private async serialized(agentId: string, operation: () => Promise<void>): Promise<void> {
     const previous = this.opChains.get(agentId) ?? Promise.resolve();
 
-    const next = previous.then(operation, operation).finally(() => {
-      // Clean up if this is still the tail of the chain (no new ops queued after us)
-      if (this.opChains.get(agentId) === next) {
-        this.opChains.delete(agentId);
-      }
-    });
+    const next = previous
+      .catch(() => undefined)
+      .then(operation)
+      .finally(() => {
+        // Clean up if this is still the tail of the chain (no new ops queued after us)
+        if (this.opChains.get(agentId) === next) {
+          this.opChains.delete(agentId);
+        }
+      });
     this.opChains.set(agentId, next);
 
     await next;

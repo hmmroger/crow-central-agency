@@ -596,6 +596,15 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   /**
    * Drain the next queued message for an agent.
    * Called when an agent transitions to IDLE after notifications are sent.
+   *
+   * Draining is chained through IDLE transitions: each successful drain triggers
+   * another IDLE → drainQueue cycle until the queue is empty. If a drained message
+   * causes ERROR status, remaining messages stay queued until the next successful
+   * IDLE transition (e.g. user intervention).
+   *
+   * Uses dequeue-before-send (at-most-once): if sendMessage fails after dequeue,
+   * that single message is lost. This is acceptable because the same message would
+   * likely fail again on retry.
    */
   private async drainQueue(agentId: string): Promise<void> {
     const next = await this.messageQueue.dequeue(agentId);
