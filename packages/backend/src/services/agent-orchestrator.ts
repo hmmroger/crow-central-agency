@@ -1,6 +1,5 @@
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
-  SDKUserMessage,
   CanUseTool,
   McpSdkServerConfigWithInstance,
   HookEvent,
@@ -378,26 +377,25 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
   }
 
-  /** Inject a user message into an active agent stream */
-  public async injectMessage(agentId: string, text: string): Promise<void> {
+  /**
+   * Inject a message into an active agent stream.
+   * The message is buffered and delivered as a systemMessage via the PreToolUse hook
+   * on the agent's next tool use.
+   */
+  public injectMessage(agentId: string, text: string): void {
     const running = this.runningAgents.get(agentId);
 
     if (!running) {
       throw new AppError(`Agent ${agentId} is not streaming`, APP_ERROR_CODES.AGENT_NOT_RUNNING);
     }
 
-    await running.query.streamInput(
-      (async function* () {
-        yield {
-          type: "user",
-          message: { role: "user", content: text },
-          parent_tool_use_id: null,
-          session_id: "",
-          isSynthetic: true,
-          priority: "now",
-        } as SDKUserMessage;
-      })()
-    );
+    const state = this.ensureState(agentId);
+    if (!state.injectedMessages) {
+      state.injectedMessages = [];
+    }
+
+    state.injectedMessages.push(text);
+    log.info({ agentId, messageCount: state.injectedMessages.length }, "Message buffered for injection via hook");
   }
 
   /**
@@ -451,10 +449,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     running.query.close();
   }
 
-  /** Start a new session for an agent (clears current session and message queue) */
+  /** Start a new session for an agent (clears current session, message queue, and injected messages) */
   public async newSession(agentId: string): Promise<void> {
     const state = this.ensureState(agentId);
     state.sessionId = undefined;
+    state.injectedMessages = undefined;
     state.sessionUsage = {
       inputTokens: 0,
       outputTokens: 0,
@@ -723,6 +722,17 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
                 }
               } catch (error) {
                 log.warn({ agentId, error }, "PreToolUse hook broadcast failed");
+              }
+
+              // Drain any injected messages as a systemMessage
+              const state = this.runtimeStates.get(agentId);
+              const pending = state?.injectedMessages;
+              if (pending && pending.length > 0) {
+                const systemMessage = pending.join("\n\n");
+                state.injectedMessages = undefined;
+                log.info({ agentId, messageCount: pending.length }, "Delivering injected messages via hook");
+
+                return { continue: true, systemMessage };
               }
 
               return { continue: true };

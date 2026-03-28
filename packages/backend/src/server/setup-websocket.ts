@@ -55,15 +55,18 @@ export async function setupWebSocket(
             break;
 
           case CLIENT_MESSAGE_TYPE.INJECT_MESSAGE:
-            orchestrator.injectMessage(message.agentId, message.message).catch((error) => {
-              log.error({ agentId: message.agentId, error }, "Failed to inject message");
+            try {
+              orchestrator.injectMessage(message.agentId, message.message);
+            } catch (injectError) {
+              log.error({ agentId: message.agentId, error: injectError }, "Failed to inject message");
               broadcaster.sendTo(socket, {
                 type: "error",
                 agentId: message.agentId,
-                code: error instanceof AppError ? error.errorCode : "sdk_error",
-                message: error instanceof Error ? error.message : "Agent is not streaming",
+                code: injectError instanceof AppError ? injectError.errorCode : "sdk_error",
+                message: injectError instanceof Error ? injectError.message : "Agent is not streaming",
               });
-            });
+            }
+
             break;
 
           case "permission_response":

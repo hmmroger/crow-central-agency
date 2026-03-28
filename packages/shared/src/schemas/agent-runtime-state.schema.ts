@@ -31,6 +31,8 @@ export const AgentRuntimeStateSchema = z.object({
   sessionUsage: SessionUsageSchema,
   waitingForAgentId: z.string().optional(),
   lastError: z.string().optional(),
+  /** Pending messages to inject via PreToolUse hook systemMessage */
+  injectedMessages: z.array(z.string()).optional(),
 });
 
 /**
