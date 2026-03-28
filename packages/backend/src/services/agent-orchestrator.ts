@@ -4,6 +4,8 @@ import type {
   McpSdkServerConfigWithInstance,
   HookEvent,
   HookCallbackMatcher,
+  SyncHookJSONOutput,
+  HookInput,
 } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_STATUS,
@@ -155,8 +157,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   private runningAgents = new Map<string, RunningAgent>();
   private runtimeStates = new Map<string, AgentRuntimeState>();
   private mcpServerFactories = new Map<string, McpServerFactory>();
-  /** Guards against re-entrant sendMessage for the same agent during async gaps */
-  private processingAgents = new Set<string>();
   private readonly stateFilePath: string;
   private readonly backupFilePath: string;
 
@@ -206,6 +206,15 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     await this.runStartupRecovery();
+
+    // Drain persisted queues for agents that are idle after recovery
+    for (const [agentId, state] of this.runtimeStates) {
+      if (state.status === AGENT_STATUS.IDLE) {
+        this.drainQueue(agentId).catch((error) => {
+          log.error({ agentId, error }, "Queue drain failed during startup recovery");
+        });
+      }
+    }
   }
 
   /** Register a factory that creates per-agent MCP server instances */
@@ -234,19 +243,140 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     message: string,
     source: MessageSource = MESSAGE_SOURCE.USER
   ): Promise<void> {
-    const agentConfig = this.registry.getAgent(agentId);
-    const state = this.ensureState(agentId);
+    let nextMessage: string | undefined = message;
+    while (nextMessage) {
+      const agentConfig = this.registry.getAgent(agentId);
+      const state = this.ensureState(agentId);
 
-    // If busy or another sendMessage is already processing this agent, enqueue silently
-    if (
-      (state.status !== AGENT_STATUS.IDLE && state.status !== AGENT_STATUS.ERROR) ||
-      this.processingAgents.has(agentId)
-    ) {
-      await this.messageQueue.enqueue(agentId, message, source);
-      return;
+      // If busy or another sendMessage is already processing this agent, enqueue silently
+      if (
+        (state.status !== AGENT_STATUS.IDLE && state.status !== AGENT_STATUS.ERROR) ||
+        this.runningAgents.has(agentId)
+      ) {
+        await this.messageQueue.enqueue(agentId, nextMessage, source);
+        return;
+      }
+
+      await this.runQuery(agentId, nextMessage, agentConfig, state);
+
+      // Injected messages take priority holding the same promise
+      nextMessage = this.getInjectedMessages(agentId);
+      if (nextMessage) {
+        log.info({ agentId }, "Delivering injected messages post messaging.");
+      }
     }
 
-    this.processingAgents.add(agentId);
+    // Post messaging handling
+    // 1. notify waiting agents if any
+    await this.notifyWaitingAgents(agentId);
+
+    // 2. drain next queued message
+    this.drainQueue(agentId).catch((error) => {
+      log.error({ agentId, error }, "Queue drain failed");
+    });
+  }
+
+  /**
+   * Inject a message into an active agent stream.
+   * The message is buffered and delivered as a systemMessage via the PreToolUse hook
+   * on the agent's next tool use.
+   */
+  public injectMessage(agentId: string, text: string): void {
+    const running = this.runningAgents.get(agentId);
+    if (!running) {
+      throw new AppError(`Agent ${agentId} is not streaming`, APP_ERROR_CODES.AGENT_NOT_RUNNING);
+    }
+
+    const state = this.ensureState(agentId);
+    if (!state.injectedMessages) {
+      state.injectedMessages = [];
+    }
+
+    state.injectedMessages.push(text);
+    log.info({ agentId, messageCount: state.injectedMessages.length }, "Message buffered for injection via hook");
+  }
+
+  /**
+   * Handle inter-agent invocation: deliver task to target, mark source as waiting.
+   * Called from crow-agents MCP tool.
+   */
+  public async invokeInterAgent(sourceAgentId: string, targetAgentId: string, task: string): Promise<string> {
+    const targetConfig = this.registry.getAgent(targetAgentId);
+    const sourceConfig = this.registry.getAgent(sourceAgentId);
+    const sourceName = sourceConfig.name;
+
+    const taskPrompt = createMessageContentFromTemplate(
+      INTER_AGENT_INVOKE_PROMPT,
+      getDefaultPromptContext({
+        agentId: sourceAgentId,
+        agentName: sourceName,
+        task,
+      })
+    );
+
+    // sendMessage queues transparently if the target is busy
+    this.sendMessage(targetAgentId, taskPrompt, MESSAGE_SOURCE.INTER_AGENT).catch((error) => {
+      log.error(
+        { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name, error },
+        "Failed to deliver inter-agent task"
+      );
+    });
+
+    const sourceState = this.ensureState(sourceAgentId);
+    sourceState.waitingForAgentId = targetAgentId;
+    this.updateAgentStatus(sourceAgentId, AGENT_STATUS.WAITING_AGENT);
+
+    log.info(
+      { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name },
+      "Inter-agent invocation started"
+    );
+    return `Task sent to agent "${targetConfig.name}" (${targetAgentId}). The agent is working on it and you will be notified when the result is ready.`;
+  }
+
+  /** Stop an active agent */
+  public async stopAgent(agentId: string): Promise<void> {
+    const running = this.runningAgents.get(agentId);
+    if (!running) {
+      throw new AppError(`Agent ${agentId} is not streaming`, APP_ERROR_CODES.AGENT_NOT_RUNNING);
+    }
+
+    this.permissionHandler.cancelAllForAgent(agentId);
+    running.abortController.abort();
+    running.query?.close();
+  }
+
+  /** Start a new session for an agent (clears current session, message queue, and injected messages) */
+  public async newSession(agentId: string): Promise<void> {
+    const state = this.ensureState(agentId);
+    state.sessionId = undefined;
+    state.injectedMessages = undefined;
+    state.sessionUsage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalCostUsd: 0,
+      contextUsed: 0,
+      contextTotal: 0,
+    };
+
+    await this.messageQueue.clear(agentId);
+
+    try {
+      await this.persistState();
+    } catch (error) {
+      log.error({ agentId, error }, "Failed to persist state after newSession");
+    }
+  }
+
+  private async runQuery(
+    agentId: string,
+    message: string,
+    agentConfig: AgentConfig,
+    state: AgentRuntimeState
+  ): Promise<void> {
+    // Track running agent
+    const abortController = new AbortController();
+    const runningAgent: RunningAgent = { abortController };
+    this.runningAgents.set(agentId, runningAgent);
 
     const systemPrompt = await this.buildSystemPrompt(agentId, agentConfig);
     const systemPromptOption = systemPrompt
@@ -256,7 +386,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       : undefined;
 
     // Build SDK options
-    const abortController = new AbortController();
     const toolsOption = agentConfig.toolConfig.mode === "restricted" ? agentConfig.toolConfig.tools : undefined;
     const internalMcpPrefixes = [...this.mcpServerFactories.keys()].map((serverName) => `mcp__${serverName}__`);
 
@@ -289,8 +418,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       },
     });
 
-    // Track running agent
-    this.runningAgents.set(agentId, { query: queryInstance, abortController });
+    runningAgent.query = queryInstance;
     this.updateAgentStatus(agentId, AGENT_STATUS.STREAMING);
 
     // Process stream via async generator
@@ -372,102 +500,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       this.updateAgentStatus(agentId, AGENT_STATUS.ERROR);
       log.error({ agentId, error }, "Query execution failed");
     } finally {
+      runningAgent.query = undefined;
       this.runningAgents.delete(agentId);
-      this.processingAgents.delete(agentId);
-    }
-  }
-
-  /**
-   * Inject a message into an active agent stream.
-   * The message is buffered and delivered as a systemMessage via the PreToolUse hook
-   * on the agent's next tool use.
-   */
-  public injectMessage(agentId: string, text: string): void {
-    const running = this.runningAgents.get(agentId);
-
-    if (!running) {
-      throw new AppError(`Agent ${agentId} is not streaming`, APP_ERROR_CODES.AGENT_NOT_RUNNING);
-    }
-
-    const state = this.ensureState(agentId);
-    if (!state.injectedMessages) {
-      state.injectedMessages = [];
-    }
-
-    state.injectedMessages.push(text);
-    log.info({ agentId, messageCount: state.injectedMessages.length }, "Message buffered for injection via hook");
-  }
-
-  /**
-   * Handle inter-agent invocation: deliver task to target, mark source as waiting.
-   * Called from crow-agents MCP tool.
-   */
-  public async invokeInterAgent(sourceAgentId: string, targetAgentId: string, task: string): Promise<string> {
-    const targetConfig = this.registry.getAgent(targetAgentId);
-    const sourceConfig = this.registry.getAgent(sourceAgentId);
-    const sourceName = sourceConfig.name;
-
-    const taskPrompt = createMessageContentFromTemplate(
-      INTER_AGENT_INVOKE_PROMPT,
-      getDefaultPromptContext({
-        agentId: sourceAgentId,
-        agentName: sourceName,
-        task,
-      })
-    );
-
-    // sendMessage queues transparently if the target is busy
-    this.sendMessage(targetAgentId, taskPrompt, MESSAGE_SOURCE.INTER_AGENT).catch((error) => {
-      log.error(
-        { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name, error },
-        "Failed to deliver inter-agent task"
-      );
-    });
-
-    const sourceState = this.ensureState(sourceAgentId);
-    sourceState.waitingForAgentId = targetAgentId;
-    this.updateAgentStatus(sourceAgentId, AGENT_STATUS.WAITING_AGENT);
-
-    log.info(
-      { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name },
-      "Inter-agent invocation started"
-    );
-    return `Task sent to agent "${targetConfig.name}" (${targetAgentId}). The agent is working on it and you will be notified when the result is ready.`;
-  }
-
-  /** Stop an active agent */
-  public async stopAgent(agentId: string): Promise<void> {
-    const running = this.runningAgents.get(agentId);
-
-    if (!running) {
-      throw new AppError(`Agent ${agentId} is not streaming`, APP_ERROR_CODES.AGENT_NOT_RUNNING);
-    }
-
-    this.permissionHandler.cancelAllForAgent(agentId);
-    running.abortController.abort();
-    await running.query.interrupt();
-    running.query.close();
-  }
-
-  /** Start a new session for an agent (clears current session, message queue, and injected messages) */
-  public async newSession(agentId: string): Promise<void> {
-    const state = this.ensureState(agentId);
-    state.sessionId = undefined;
-    state.injectedMessages = undefined;
-    state.sessionUsage = {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalCostUsd: 0,
-      contextUsed: 0,
-      contextTotal: 0,
-    };
-
-    await this.messageQueue.clear(agentId);
-
-    try {
-      await this.persistState();
-    } catch (error) {
-      log.error({ agentId, error }, "Failed to persist state after newSession");
     }
   }
 
@@ -475,15 +509,13 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   private async cleanup(agentId: string): Promise<void> {
     this.permissionHandler.cancelAllForAgent(agentId);
     const running = this.runningAgents.get(agentId);
-
     if (running) {
       running.abortController.abort();
-      running.query.close();
+      running.query?.close();
       this.runningAgents.delete(agentId);
     }
 
     this.runtimeStates.delete(agentId);
-    this.processingAgents.delete(agentId);
     await this.messageQueue.clear(agentId);
 
     try {
@@ -525,19 +557,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     state.status = status;
     log.info({ agentId, status }, "Agent status changed.");
     await this.persistState();
-
-    // status changed handlers
-    if (status === AGENT_STATUS.IDLE) {
-      // Drain any undelivered injected messages by sending them as a follow-up
-      this.drainInjectedMessages(agentId);
-
-      await this.notifyWaitingAgents(agentId);
-
-      // Drain next queued message after notifications
-      this.drainQueue(agentId).catch((error) => {
-        log.error({ agentId, error }, "Queue drain failed");
-      });
-    }
 
     this.broadcaster.broadcast({
       type: "agent_status",
@@ -596,36 +615,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
   }
 
   /**
-   * Drain undelivered injected messages by sending them as a follow-up message.
-   * Called on IDLE before queue drain. If the agent completed without a tool use,
-   * the PreToolUse hook never fired, so injected messages are still buffered.
-   * Sending them via sendMessage ensures they are processed (or queued if busy).
-   */
-  private drainInjectedMessages(agentId: string): void {
-    const state = this.runtimeStates.get(agentId);
-    const pendingMessages = state?.injectedMessages;
-    if (!pendingMessages || pendingMessages.length === 0) {
-      return;
-    }
-
-    const combined = pendingMessages.join("\n\n");
-    state.injectedMessages = undefined;
-
-    log.info({ agentId, messageCount: pendingMessages.length }, "Draining undelivered injected messages");
-
-    this.sendMessage(agentId, combined, MESSAGE_SOURCE.USER).catch((error) => {
-      log.error({ agentId, error }, "Failed to drain injected messages");
-    });
-  }
-
-  /**
    * Drain the next queued message for an agent.
-   * Called when an agent transitions to IDLE after notifications are sent.
-   *
-   * Draining is chained through IDLE transitions: each successful drain triggers
-   * another IDLE → drainQueue cycle until the queue is empty. If a drained message
-   * causes ERROR status, remaining messages stay queued until the next successful
-   * IDLE transition (e.g. user intervention).
+   * Called when an agent finishing query and returning control to caller or on initialization.
    *
    * Uses dequeue-before-send (at-most-once): if sendMessage fails after dequeue,
    * that single message is lost. This is acceptable because the same message would
@@ -638,12 +629,9 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     log.info({ agentId, queueEntryId: next.id, source: next.source }, "Draining queued message");
-
-    try {
-      await this.sendMessage(agentId, next.message, next.source);
-    } catch (error) {
+    this.sendMessage(agentId, next.message, next.source).catch((error) => {
       log.error({ agentId, queueEntryId: next.id, error }, "Failed to process drained message");
-    }
+    });
   }
 
   /** Build canUseTool callback that bridges SDK permission requests to our PermissionHandler */
@@ -701,6 +689,8 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       });
     };
 
+    const systemToolUseHookHandler = this.getSystemToolUseHookHandler(agentId, broadcastActivity);
+
     return {
       SubagentStart: [
         {
@@ -738,35 +728,55 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       ],
       PreToolUse: [
         {
-          hooks: [
-            async (input) => {
-              try {
-                // Only broadcast for subagent tool use (has agent_id on the input)
-                if (input.hook_event_name === "PreToolUse" && input.agent_id) {
-                  const description = parseToolActivity(input.tool_name, input.tool_input);
-                  broadcastActivity(`Subagent: ${description}`, input.tool_name);
-                }
-              } catch (error) {
-                log.warn({ agentId, error }, "PreToolUse hook broadcast failed");
-              }
-
-              // Drain any injected messages as a systemMessage
-              const state = this.runtimeStates.get(agentId);
-              const pendingMessages = state?.injectedMessages;
-              if (pendingMessages && pendingMessages.length > 0) {
-                const systemMessage = pendingMessages.join("\n\n");
-                state.injectedMessages = undefined;
-                log.info({ agentId, messageCount: pendingMessages.length }, "Delivering injected messages via hook");
-
-                return { continue: true, systemMessage };
-              }
-
-              return { continue: true };
-            },
-          ],
+          hooks: [systemToolUseHookHandler],
+        },
+      ],
+      PostToolUse: [
+        {
+          hooks: [systemToolUseHookHandler],
         },
       ],
     };
+  }
+
+  private getSystemToolUseHookHandler(
+    agentId: string,
+    broadcastActivity: (description: string, toolName: string) => void
+  ): (input: HookInput) => Promise<SyncHookJSONOutput> {
+    return async (input) => {
+      try {
+        // Only broadcast for subagent tool use (has agent_id on the input)
+        if (input.hook_event_name === "PreToolUse" && input.agent_id) {
+          const description = parseToolActivity(input.tool_name, input.tool_input);
+          broadcastActivity(`Subagent: ${description}`, input.tool_name);
+        }
+      } catch (error) {
+        log.warn({ agentId, error }, "PreToolUse hook broadcast failed");
+      }
+
+      // Only try to inject on main agent
+      if ((input.hook_event_name === "PreToolUse" || input.hook_event_name === "PostToolUse") && !input.agent_id) {
+        // Drain any injected messages as a systemMessage
+        const systemMessage = this.getInjectedMessages(agentId);
+        if (systemMessage) {
+          log.info({ agentId }, "Delivering injected messages via hook");
+          return { continue: true, systemMessage };
+        }
+      }
+
+      return { continue: true };
+    };
+  }
+
+  private getInjectedMessages(agentId: string): string | undefined {
+    const state = this.ensureState(agentId);
+    const injectedMessages = state?.injectedMessages;
+    if (!injectedMessages?.length) {
+      return undefined;
+    }
+
+    state.injectedMessages = undefined;
+    return injectedMessages.join("\n\n");
   }
 
   /** Persist all runtime states to disk */
@@ -794,10 +804,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
       // Discard stale injected messages from previous process — they are ephemeral
       if (state.injectedMessages && state.injectedMessages.length > 0) {
-        log.info(
-          { agentId, dropped: state.injectedMessages.length },
-          "Discarding stale injected messages from previous run"
-        );
+        log.info({ agentId }, "Discarding stale injected messages from previous run");
         state.injectedMessages = undefined;
       }
 
@@ -854,15 +861,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       if (!targetIsBeingResumed) {
         // Target was already idle — notify waiting agent with artifact check
         await this.notifyWaitingAgents(state.waitingForAgentId);
-      }
-    }
-
-    // Drain persisted queues for agents that are idle after recovery
-    for (const [agentId, state] of this.runtimeStates) {
-      if (state.status === AGENT_STATUS.IDLE) {
-        this.drainQueue(agentId).catch((error) => {
-          log.error({ agentId, error }, "Queue drain failed during startup recovery");
-        });
       }
     }
 

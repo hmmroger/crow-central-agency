@@ -4,7 +4,7 @@ import type { EventMap } from "../event-bus/event-bus.types.js";
 
 /** A running agent query with its abort controller */
 export interface RunningAgent {
-  query: Query;
+  query?: Query;
   abortController: AbortController;
 }
 
