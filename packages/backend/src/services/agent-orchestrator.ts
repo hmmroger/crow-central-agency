@@ -360,6 +360,15 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         }
       }
 
+      // Warn if injected messages were never delivered (agent completed without a tool use)
+      if (state.injectedMessages && state.injectedMessages.length > 0) {
+        log.warn(
+          { agentId, dropped: state.injectedMessages.length },
+          "Injected messages were never delivered — agent completed without a tool use"
+        );
+        state.injectedMessages = undefined;
+      }
+
       if (streamSuccess) {
         state.lastError = undefined;
         this.updateAgentStatus(agentId, AGENT_STATUS.IDLE);
@@ -726,11 +735,11 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
               // Drain any injected messages as a systemMessage
               const state = this.runtimeStates.get(agentId);
-              const pending = state?.injectedMessages;
-              if (pending && pending.length > 0) {
-                const systemMessage = pending.join("\n\n");
+              if (state?.injectedMessages && state.injectedMessages.length > 0) {
+                const systemMessage = state.injectedMessages.join("\n\n");
+                const messageCount = state.injectedMessages.length;
                 state.injectedMessages = undefined;
-                log.info({ agentId, messageCount: pending.length }, "Delivering injected messages via hook");
+                log.info({ agentId, messageCount }, "Delivering injected messages via hook");
 
                 return { continue: true, systemMessage };
               }
@@ -764,6 +773,15 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         this.runtimeStates.delete(agentId);
 
         continue;
+      }
+
+      // Discard stale injected messages from previous process — they are ephemeral
+      if (state.injectedMessages && state.injectedMessages.length > 0) {
+        log.info(
+          { agentId, dropped: state.injectedMessages.length },
+          "Discarding stale injected messages from previous run"
+        );
+        state.injectedMessages = undefined;
       }
 
       switch (state.status) {
