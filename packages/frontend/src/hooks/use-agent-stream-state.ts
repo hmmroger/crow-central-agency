@@ -25,8 +25,8 @@ export interface AgentStreamState {
 
 /**
  * Ephemeral WS-driven state for agent streaming display.
- * Manages streamingText, activeToolUse, lastResult, and pendingPermissions —
- * all transient state with no REST endpoint and no cache value.
+ * Manages streamingText, activeToolUse, and lastResult —
+ * all transient display state with no REST endpoint and no cache value.
  *
  * @param agentId - The agent to subscribe to
  */

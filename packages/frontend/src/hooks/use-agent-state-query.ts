@@ -92,9 +92,15 @@ export function useAgentStateQuery(agentId: string) {
 
       queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
         const base = prev ?? { ...DEFAULT_STATE, agentId };
+        const existing = base.pendingPermissions ?? [];
+
+        if (existing.some((perm) => perm.toolUseId === permInfo.toolUseId)) {
+          return base;
+        }
+
         return {
           ...base,
-          pendingPermissions: [...(base.pendingPermissions ?? []), permInfo],
+          pendingPermissions: [...existing, permInfo],
         };
       });
 
