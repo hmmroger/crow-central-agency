@@ -32,7 +32,8 @@ const CROW_SYSTEM_AGENT_PERSONA: MessageTemplate = {
   ],
 };
 
-const CROW_BIRTHDAY = "1970-01-01T00:00:00Z";
+const SUPER_CROW_BIRTHDAY = "1970-01-01T00:00:00Z";
+const SUPER_CROW_TOOLS = ["Glob", "Grep", "Read", "WebFetch", "WebSearch"];
 
 /** Build the Crow system agent config — built-in, immutable, not persisted */
 export function getCrowAgent(): AgentConfig {
@@ -49,12 +50,12 @@ export function getCrowAgent(): AgentConfig {
     availableTools: [],
     toolConfig: {
       mode: TOOL_MODE.RESTRICTED,
-      tools: ["Glob", "Grep", "Read", "WebFetch", "WebSearch"],
-      autoApprovedTools: ["Glob", "Grep", "Read", "WebFetch", "WebSearch"],
+      tools: SUPER_CROW_TOOLS,
+      autoApprovedTools: SUPER_CROW_TOOLS,
     },
     isReplaceSystemPrompt: true,
     isSystemAgent: true,
-    createdAt: CROW_BIRTHDAY,
-    updatedAt: CROW_BIRTHDAY,
+    createdAt: SUPER_CROW_BIRTHDAY,
+    updatedAt: SUPER_CROW_BIRTHDAY,
   };
 }

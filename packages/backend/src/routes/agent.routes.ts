@@ -7,7 +7,7 @@ import { AGENT_STATUS, type AgentRuntimeState } from "@crow-central-agency/share
 import { AppError } from "../error/app-error.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
 import { logger } from "../utils/logger.js";
-import { validateAgentIdParam } from "./validation.js";
+import { validateAgentIdParam } from "../utils/validation.js";
 
 /** Wrap ZodError into AppError for consistent error responses */
 function wrapZodError(error: unknown): never {

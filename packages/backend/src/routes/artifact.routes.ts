@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { ArtifactManager } from "../services/artifact-manager.js";
-import { validateAgentIdParam } from "./validation.js";
+import { validateAgentIdParam } from "../utils/validation.js";
 
 /**
  * Register artifact REST routes
