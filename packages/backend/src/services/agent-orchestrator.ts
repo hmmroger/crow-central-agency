@@ -383,7 +383,6 @@ export class AgentOrchestrator {
           }
 
           case AGENT_STREAM_EVENT_TYPE.ABORTED:
-            // Currently this event type does not happen
             break;
 
           case AGENT_STREAM_EVENT_TYPE.ERROR:

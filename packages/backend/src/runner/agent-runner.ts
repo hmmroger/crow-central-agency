@@ -116,6 +116,7 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
     while (nextMessage) {
       const agentStream = await this.runQuery(nextMessage, agentConfig, sessionId);
       for await (const agentStreamEvent of agentStream) {
+        log.debug({ agentId: this.agentId, agentStreamEvent: agentStreamEvent.type }, "Agent stream event");
         yield agentStreamEvent;
       }
 
@@ -202,8 +203,24 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
     this.updateAgentStatus(AGENT_STATUS.STREAMING);
 
     try {
+      let hasDone = false;
       for await (const agentStreamEvent of processStream(this.agentId, queryInstance, internalMcpPrefixes)) {
+        if (!sessionId) {
+          sessionId = agentStreamEvent.sessionId;
+        }
+
+        if (agentStreamEvent.type === AGENT_STREAM_EVENT_TYPE.DONE) {
+          hasDone = true;
+        }
+
         yield agentStreamEvent;
+      }
+
+      if (!hasDone && this.abortController?.signal.aborted) {
+        yield {
+          type: AGENT_STREAM_EVENT_TYPE.ABORTED,
+          sessionId: sessionId ?? "",
+        };
       }
     } catch (error) {
       log.error({ agentId: this.agentId, error }, "Query execution failed");
