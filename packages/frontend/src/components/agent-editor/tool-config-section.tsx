@@ -1,10 +1,9 @@
 import { useMemo, useRef, useState } from "react";
-import { DEFAULT_AVAILABLE_TOOLS, TOOL_MODE, type ToolMode } from "@crow-central-agency/shared";
+import { TOOL_MODE, type ToolMode } from "@crow-central-agency/shared";
 import { FieldGroup } from "./field-group.js";
 import { ToggleButton } from "./toggle-button.js";
 import { ChipButton } from "./chip-button.js";
-
-export const BUILTIN_TOOL_SET = new Set<string>(DEFAULT_AVAILABLE_TOOLS);
+import { BUILTIN_TOOL_SET } from "./tool-constants.js";
 
 interface ToolConfigSectionProps {
   toolMode: ToolMode;
@@ -37,14 +36,19 @@ export function ToolConfigSection({
   /** In restricted mode, only builtin tools can be toggled on/off */
   const builtinTools = useMemo(() => availableTools.filter((tool) => BUILTIN_TOOL_SET.has(tool)), [availableTools]);
 
+  const selectedToolSet = useMemo(() => new Set(selectedTools), [selectedTools]);
+
   /**
    * The source of tools for auto-approved selection depends on tool mode.
    * In restricted mode: all available tools except deselected builtins.
    */
-  const autoApprovedSource =
-    toolMode === TOOL_MODE.RESTRICTED
-      ? availableTools.filter((tool) => !BUILTIN_TOOL_SET.has(tool) || selectedTools.includes(tool))
-      : availableTools;
+  const autoApprovedSource = useMemo(
+    () =>
+      toolMode === TOOL_MODE.RESTRICTED
+        ? availableTools.filter((tool) => !BUILTIN_TOOL_SET.has(tool) || selectedToolSet.has(tool))
+        : availableTools,
+    [toolMode, availableTools, selectedToolSet]
+  );
 
   /** Custom tools added by user that aren't in the standard source list */
   const customOnlyTools = autoApprovedTools.filter((tool) => !autoApprovedSource.includes(tool));

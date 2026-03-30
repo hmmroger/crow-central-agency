@@ -13,7 +13,7 @@ import {
   type ToolMode,
 } from "@crow-central-agency/shared";
 import type { AgentDetailData, AgentEditorFormState } from "./agent-editor.types.js";
-import { BUILTIN_TOOL_SET } from "./tool-config-section.js";
+import { BUILTIN_TOOL_SET } from "./tool-constants.js";
 
 /** Default form state for a new agent */
 const DEFAULT_FORM_STATE: AgentEditorFormState = {
@@ -148,7 +148,7 @@ export function useAgentEditorForm(agent?: AgentDetailData) {
           return { ...prev, toolMode: value, selectedTools };
         }
 
-        return { ...prev, toolMode: value };
+        return { ...prev, toolMode: value, selectedTools: [] };
       }),
     []
   );
