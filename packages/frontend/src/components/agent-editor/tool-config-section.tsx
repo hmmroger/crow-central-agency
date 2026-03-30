@@ -1,8 +1,10 @@
-import { useRef, useState } from "react";
-import { TOOL_MODE, type ToolMode } from "@crow-central-agency/shared";
+import { useMemo, useRef, useState } from "react";
+import { DEFAULT_AVAILABLE_TOOLS, TOOL_MODE, type ToolMode } from "@crow-central-agency/shared";
 import { FieldGroup } from "./field-group.js";
 import { ToggleButton } from "./toggle-button.js";
 import { ChipButton } from "./chip-button.js";
+
+export const BUILTIN_TOOL_SET = new Set<string>(DEFAULT_AVAILABLE_TOOLS);
 
 interface ToolConfigSectionProps {
   toolMode: ToolMode;
@@ -32,8 +34,17 @@ export function ToolConfigSection({
   const [customToolInput, setCustomToolInput] = useState("");
   const customToolInputRef = useRef<HTMLInputElement>(null);
 
-  /** The source of tools for auto-approved selection depends on tool mode */
-  const autoApprovedSource = toolMode === TOOL_MODE.RESTRICTED ? selectedTools : availableTools;
+  /** In restricted mode, only builtin tools can be toggled on/off */
+  const builtinTools = useMemo(() => availableTools.filter((tool) => BUILTIN_TOOL_SET.has(tool)), [availableTools]);
+
+  /**
+   * The source of tools for auto-approved selection depends on tool mode.
+   * In restricted mode: all available tools except deselected builtins.
+   */
+  const autoApprovedSource =
+    toolMode === TOOL_MODE.RESTRICTED
+      ? availableTools.filter((tool) => !BUILTIN_TOOL_SET.has(tool) || selectedTools.includes(tool))
+      : availableTools;
 
   /** Custom tools added by user that aren't in the standard source list */
   const customOnlyTools = autoApprovedTools.filter((tool) => !autoApprovedSource.includes(tool));
@@ -67,9 +78,9 @@ export function ToolConfigSection({
           />
         </div>
 
-        {toolMode === TOOL_MODE.RESTRICTED && availableTools.length > 0 && (
+        {toolMode === TOOL_MODE.RESTRICTED && builtinTools.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {availableTools.map((tool) => (
+            {builtinTools.map((tool) => (
               <ChipButton
                 key={tool}
                 label={tool}
@@ -80,7 +91,7 @@ export function ToolConfigSection({
           </div>
         )}
 
-        {toolMode === TOOL_MODE.RESTRICTED && availableTools.length === 0 && (
+        {toolMode === TOOL_MODE.RESTRICTED && builtinTools.length === 0 && (
           <p className="text-xs text-text-muted">
             Available tools will be populated after the agent&apos;s first query.
           </p>

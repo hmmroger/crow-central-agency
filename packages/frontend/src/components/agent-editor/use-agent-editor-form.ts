@@ -13,6 +13,7 @@ import {
   type ToolMode,
 } from "@crow-central-agency/shared";
 import type { AgentDetailData, AgentEditorFormState } from "./agent-editor.types.js";
+import { BUILTIN_TOOL_SET } from "./tool-config-section.js";
 
 /** Default form state for a new agent */
 const DEFAULT_FORM_STATE: AgentEditorFormState = {
@@ -140,12 +141,15 @@ export function useAgentEditorForm(agent?: AgentDetailData) {
 
   const setToolMode = useCallback(
     (value: ToolMode) =>
-      setForm((prev) => ({
-        ...prev,
-        toolMode: value,
-        // Clear source-list-derived approvals when switching mode
-        autoApprovedTools: prev.autoApprovedTools.filter((tool) => !prev.availableTools.includes(tool)),
-      })),
+      setForm((prev) => {
+        if (value === TOOL_MODE.RESTRICTED) {
+          // Pre-select builtin tools that are already auto-approved
+          const selectedTools = prev.autoApprovedTools.filter((tool) => BUILTIN_TOOL_SET.has(tool));
+          return { ...prev, toolMode: value, selectedTools };
+        }
+
+        return { ...prev, toolMode: value };
+      }),
     []
   );
 
