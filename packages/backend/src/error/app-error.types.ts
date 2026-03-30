@@ -13,6 +13,8 @@ export const APP_ERROR_CODES = {
   PERMISSION_TIMEOUT: "permission_timeout",
   PERMISSION_DENIED: "permission_denied",
   ARTIFACT_NOT_FOUND: "artifact_not_found",
+  TASK_NOT_FOUND: "task_not_found",
+  INVALID_STATE_TRANSITION: "invalid_state_transition",
   PATH_TRAVERSAL: "path_traversal",
   MCP_ERROR: "mcp_error",
   SDK_ERROR: "sdk_error",

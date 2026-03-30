@@ -34,3 +34,6 @@ export const AGENT_MD_FILENAME = "AGENT.md";
 
 /** Filename for the per-agent message queue */
 export const MESSAGE_QUEUE_FILENAME = "message-queue.json";
+
+/** Filename for the agent tasks database under CROW_SYSTEM_PATH */
+export const AGENT_TASKS_FILENAME = "agent-tasks.json";

@@ -101,3 +101,16 @@ export {
 
 export { AgentMessageSchema, type AgentMessage } from "./schemas/agent-message.schema.js";
 export { ArtifactMetadataSchema, type ArtifactMetadata } from "./schemas/artifact.schema.js";
+
+export {
+  AGENT_TASK_STATE,
+  AGENT_TASK_SOURCE_TYPE,
+  AgentTaskSourceSchema,
+  AgentTaskItemSchema,
+  AgentTaskDatabaseSchema,
+  type AgentTaskState,
+  type AgentTaskSourceType,
+  type AgentTaskSource,
+  type AgentTaskItem,
+  type AgentTaskDatabase,
+} from "./schemas/agent-task.schema.js";

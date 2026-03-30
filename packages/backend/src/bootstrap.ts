@@ -15,6 +15,7 @@ import { createArtifactsMcpServer } from "./mcp/artifacts-mcp-server.js";
 import { createAgentsMcpServer } from "./mcp/agents-mcp-server.js";
 import { LoopScheduler } from "./services/loop-scheduler.js";
 import { MessageQueueManager } from "./services/message-queue-manager.js";
+import { AgentTaskManager } from "./services/agent-task-manager.js";
 import { OpenAIProvider } from "./model-providers/openai-provider.js";
 import { MdGenerationService } from "./services/md-generation-service.js";
 import { registerGenerationRoutes } from "./routes/generation.routes.js";
@@ -41,6 +42,8 @@ export async function bootstrap(options: BootstrapOptions) {
   const artifactManager = new ArtifactManager();
   const loopScheduler = new LoopScheduler(registry);
   const messageQueue = new MessageQueueManager();
+  const taskManager = new AgentTaskManager();
+  await taskManager.initialize();
   const mcpManager = new CrowMcpManager();
 
   const orchestrator = new AgentOrchestrator(
