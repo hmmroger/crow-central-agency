@@ -13,6 +13,17 @@ export const SessionUsageSchema = z.object({
 });
 
 /**
+ * Pending permission request metadata — persisted on runtime state
+ * so the frontend can recover pending permissions on refresh.
+ */
+export const PendingPermissionInfoSchema = z.object({
+  toolUseId: z.string(),
+  toolName: z.string(),
+  input: z.record(z.string(), z.unknown()).optional(),
+  decisionReason: z.string().optional(),
+});
+
+/**
  * Agent runtime state — maintained by the orchestrator per agent.
  */
 export const AgentRuntimeStateSchema = z.object({
@@ -22,6 +33,7 @@ export const AgentRuntimeStateSchema = z.object({
   sessionUsage: SessionUsageSchema,
   waitingForAgentId: z.string().optional(),
   lastError: z.string().optional(),
+  pendingPermissions: z.array(PendingPermissionInfoSchema).optional(),
 });
 
 /**
@@ -33,5 +45,6 @@ export const CrowStateSchema = z.object({
 });
 
 export type SessionUsage = z.infer<typeof SessionUsageSchema>;
+export type PendingPermissionInfo = z.infer<typeof PendingPermissionInfoSchema>;
 export type AgentRuntimeState = z.infer<typeof AgentRuntimeStateSchema>;
 export type CrowState = z.infer<typeof CrowStateSchema>;

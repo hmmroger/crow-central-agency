@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CLIENT_MESSAGE_TYPE, PERMISSION_DECISION } from "@crow-central-agency/shared";
+import { CLIENT_MESSAGE_TYPE, PERMISSION_DECISION, type AgentRuntimeState } from "@crow-central-agency/shared";
 import { useWs } from "./use-ws.js";
 import { apiClient, unwrapResponse } from "../services/api-client.js";
 import { agentKeys } from "../services/query-keys.js";
@@ -8,8 +8,6 @@ import type { ApiError } from "../services/api-client.types.js";
 
 /** Options for useAgentActions */
 export interface UseAgentActionsOptions {
-  /** Callback to optimistically remove a permission from local stream state */
-  removePendingPermission: (toolUseId: string) => void;
   /** Reset all ephemeral stream state (for new conversation) */
   resetStreamState: () => void;
 }
@@ -42,7 +40,7 @@ export interface AgentActions {
 export function useAgentActions(agentId: string, options: UseAgentActionsOptions): AgentActions {
   const { send } = useWs();
   const queryClient = useQueryClient();
-  const { removePendingPermission, resetStreamState } = options;
+  const { resetStreamState } = options;
 
   /** Send a user message — backend creates the AgentMessage and broadcasts agent_message WS */
   const sendMessage = useCallback(
@@ -99,6 +97,23 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
       console.error(`[compact] failed for agent ${agentId}:`, error.message);
     },
   });
+
+  /** Optimistically remove a pending permission from the query cache */
+  const removePendingPermission = useCallback(
+    (toolUseId: string) => {
+      queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
+        if (!prev) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          pendingPermissions: prev.pendingPermissions?.filter((perm) => perm.toolUseId !== toolUseId),
+        };
+      });
+    },
+    [queryClient, agentId]
+  );
 
   /** Allow a pending permission request */
   const allowPermission = useCallback(

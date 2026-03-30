@@ -1,11 +1,3 @@
-/** A pending permission request awaiting user response */
-export interface PendingPermissionRequest {
-  toolUseId: string;
-  toolName: string;
-  input?: Record<string, unknown>;
-  decisionReason?: string;
-}
-
 /** Last query result info (displayed outside the message list) */
 export interface QueryResult {
   subtype: string;

@@ -24,10 +24,9 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
   const { data: messages = [] } = useAgentMessagesQuery(agentId);
   const { data: agentState } = useAgentStateQuery(agentId);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
-  const { streamingText, activeToolUse, pendingPermissions, removePendingPermission, resetStreamState } =
-    useAgentStreamState(agentId);
+  const { streamingText, activeToolUse, resetStreamState } = useAgentStreamState(agentId);
+  const pendingPermissions = agentState?.pendingPermissions ?? [];
   const { sendMessage, injectMessage, abort, allowPermission, denyPermission } = useAgentActions(agentId, {
-    removePendingPermission,
     resetStreamState,
   });
   const isStreaming = status === AGENT_STATUS.STREAMING;

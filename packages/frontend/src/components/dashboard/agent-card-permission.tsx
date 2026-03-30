@@ -1,7 +1,7 @@
-import type { PendingPermissionRequest } from "../../hooks/agent-interaction.types.js";
+import type { PendingPermissionInfo } from "@crow-central-agency/shared";
 
 interface AgentCardPermissionProps {
-  permissions: PendingPermissionRequest[];
+  permissions: PendingPermissionInfo[];
   onAllow: (toolUseId: string) => void;
   onDeny: (toolUseId: string) => void;
 }

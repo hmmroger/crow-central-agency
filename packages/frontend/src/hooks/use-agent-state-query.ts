@@ -3,8 +3,11 @@ import {
   AGENT_STATUS,
   AgentStatusWsMessageSchema,
   AgentUsageWsMessageSchema,
+  PermissionRequestWsMessageSchema,
+  PermissionCancelledWsMessageSchema,
   type AgentRuntimeState,
   type SessionUsage,
+  type PendingPermissionInfo,
 } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../services/api-client.js";
 import { agentKeys } from "../services/query-keys.js";
@@ -73,6 +76,46 @@ export function useAgentStateQuery(agentId: string) {
           contextTotal: usageParsed.data.contextTotal,
         },
       }));
+
+      return;
+    }
+
+    const permRequestParsed = PermissionRequestWsMessageSchema.safeParse(data);
+
+    if (permRequestParsed.success) {
+      const permInfo: PendingPermissionInfo = {
+        toolUseId: permRequestParsed.data.toolUseId,
+        toolName: permRequestParsed.data.toolName,
+        input: permRequestParsed.data.input,
+        decisionReason: permRequestParsed.data.decisionReason,
+      };
+
+      queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
+        const base = prev ?? { ...DEFAULT_STATE, agentId };
+        return {
+          ...base,
+          pendingPermissions: [...(base.pendingPermissions ?? []), permInfo],
+        };
+      });
+
+      return;
+    }
+
+    const permCancelledParsed = PermissionCancelledWsMessageSchema.safeParse(data);
+
+    if (permCancelledParsed.success) {
+      queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
+        if (!prev) {
+          return { ...DEFAULT_STATE, agentId };
+        }
+
+        return {
+          ...prev,
+          pendingPermissions: prev.pendingPermissions?.filter(
+            (perm) => perm.toolUseId !== permCancelledParsed.data.toolUseId
+          ),
+        };
+      });
     }
   });
 

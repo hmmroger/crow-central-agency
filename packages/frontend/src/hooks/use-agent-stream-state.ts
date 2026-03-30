@@ -7,11 +7,9 @@ import {
   AgentResultWsMessageSchema,
   AgentStatusWsMessageSchema,
   AgentToolProgressWsMessageSchema,
-  PermissionRequestWsMessageSchema,
-  PermissionCancelledWsMessageSchema,
 } from "@crow-central-agency/shared";
 import { useWsSubscription } from "./use-ws-subscription.js";
-import type { PendingPermissionRequest, QueryResult, ActiveToolUse } from "./agent-interaction.types.js";
+import type { QueryResult, ActiveToolUse } from "./agent-interaction.types.js";
 
 /** Return type of useAgentStreamState */
 export interface AgentStreamState {
@@ -21,10 +19,6 @@ export interface AgentStreamState {
   activeToolUse: ActiveToolUse | undefined;
   /** Last query result (cost, duration) — displayed outside message list */
   lastResult: QueryResult | undefined;
-  /** Pending permission requests awaiting user response */
-  pendingPermissions: PendingPermissionRequest[];
-  /** Remove a permission by toolUseId (for optimistic updates on allow/deny) */
-  removePendingPermission: (toolUseId: string) => void;
   /** Reset all ephemeral state (for new conversation) */
   resetStreamState: () => void;
 }
@@ -40,7 +34,6 @@ export function useAgentStreamState(agentId: string): AgentStreamState {
   const [streamingText, setStreamingText] = useState("");
   const [activeToolUse, setActiveToolUse] = useState<ActiveToolUse | undefined>();
   const [lastResult, setLastResult] = useState<QueryResult | undefined>();
-  const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
 
   useWsSubscription(agentId, (data) => {
     const textParsed = AgentTextWsMessageSchema.safeParse(data);
@@ -118,40 +111,13 @@ export function useAgentStreamState(agentId: string): AgentStreamState {
 
       return;
     }
-
-    const permRequestParsed = PermissionRequestWsMessageSchema.safeParse(data);
-
-    if (permRequestParsed.success) {
-      setPendingPermissions((prev) => [
-        ...prev,
-        {
-          toolUseId: permRequestParsed.data.toolUseId,
-          toolName: permRequestParsed.data.toolName,
-          input: permRequestParsed.data.input,
-          decisionReason: permRequestParsed.data.decisionReason,
-        },
-      ]);
-
-      return;
-    }
-
-    const permCancelledParsed = PermissionCancelledWsMessageSchema.safeParse(data);
-
-    if (permCancelledParsed.success) {
-      setPendingPermissions((prev) => prev.filter((perm) => perm.toolUseId !== permCancelledParsed.data.toolUseId));
-    }
   });
-
-  const removePendingPermission = useCallback((toolUseId: string) => {
-    setPendingPermissions((prev) => prev.filter((perm) => perm.toolUseId !== toolUseId));
-  }, []);
 
   const resetStreamState = useCallback(() => {
     setStreamingText("");
     setActiveToolUse(undefined);
     setLastResult(undefined);
-    setPendingPermissions([]);
   }, []);
 
-  return { streamingText, activeToolUse, lastResult, pendingPermissions, removePendingPermission, resetStreamState };
+  return { streamingText, activeToolUse, lastResult, resetStreamState };
 }

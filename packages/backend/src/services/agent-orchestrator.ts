@@ -549,6 +549,12 @@ export class AgentOrchestrator {
         continue;
       }
 
+      // Clear stale pending permissions — SDK callbacks no longer exist after restart
+      if (state.pendingPermissions?.length) {
+        log.info({ agentId, count: state.pendingPermissions.length }, "Clearing stale pending permissions");
+        state.pendingPermissions = undefined;
+      }
+
       switch (state.status) {
         case AGENT_STATUS.STREAMING:
           // Agent was working — resume by sending "continue your work"
@@ -623,13 +629,31 @@ export class AgentOrchestrator {
   }
 
   private createAgentRunner(agentId: string): AgentRunner {
-    const permissionRequestCallback: PermissionRequestCallback = (
-      agentId,
+    const permissionRequestCallback: PermissionRequestCallback = async (
+      permAgentId,
       toolName,
       input,
       toolUseId,
       decisionReason
-    ) => this.permissionHandler.requestPermission(agentId, toolName, input, toolUseId, decisionReason);
+    ) => {
+      const state = this.ensureState(permAgentId);
+      const permissionInfo = { toolUseId, toolName, input, decisionReason };
+
+      if (!state.pendingPermissions) {
+        state.pendingPermissions = [];
+      }
+
+      state.pendingPermissions.push(permissionInfo);
+
+      try {
+        return await this.permissionHandler.requestPermission(permAgentId, toolName, input, toolUseId, decisionReason);
+      } finally {
+        if (state.pendingPermissions) {
+          state.pendingPermissions = state.pendingPermissions.filter((perm) => perm.toolUseId !== toolUseId);
+        }
+      }
+    };
+
     const broadcastActivityCallback = (toolName: string, description: string) => {
       this.broadcaster.broadcast({
         type: "agent_activity",
@@ -646,7 +670,9 @@ export class AgentOrchestrator {
       permissionRequestCallback,
       broadcastActivityCallback
     );
-    agentRunner.on("agentStatusChanged", ({ agentId, status }) => this.onAgentStatusChanged(agentId, status));
+    agentRunner.on("agentStatusChanged", ({ agentId: runnerId, status }) =>
+      this.onAgentStatusChanged(runnerId, status)
+    );
 
     return agentRunner;
   }
