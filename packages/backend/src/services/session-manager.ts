@@ -1,7 +1,7 @@
 import { getSessionMessages, getSessionInfo, listSessions } from "@anthropic-ai/claude-agent-sdk";
 import type { SessionMessage, SDKSessionInfo } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentMessage } from "@crow-central-agency/shared";
-import { transformSessionMessages, transformSingleMessage } from "../stream/session-message-transformer.js";
+import { transformSessionMessages, transformSingleMessage } from "../utils/session-message-transformer.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "session-manager" });

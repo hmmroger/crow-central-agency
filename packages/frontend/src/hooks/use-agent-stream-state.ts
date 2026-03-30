@@ -111,7 +111,7 @@ export function useAgentStreamState(agentId: string): AgentStreamState {
       }
 
       // Clear streaming state when agent becomes idle or errors
-      if (statusParsed.data.status === AGENT_STATUS.IDLE || statusParsed.data.status === AGENT_STATUS.ERROR) {
+      if (statusParsed.data.status === AGENT_STATUS.IDLE) {
         setStreamingText("");
         setActiveToolUse(undefined);
       }

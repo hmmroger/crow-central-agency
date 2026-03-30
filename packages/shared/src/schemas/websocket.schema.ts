@@ -64,14 +64,7 @@ export const AgentResultWsMessageSchema = z.object({
 export const AgentStatusWsMessageSchema = z.object({
   type: z.literal("agent_status"),
   agentId: z.string(),
-  status: z.enum([
-    AGENT_STATUS.IDLE,
-    AGENT_STATUS.STREAMING,
-    AGENT_STATUS.WAITING_PERMISSION,
-    AGENT_STATUS.WAITING_AGENT,
-    AGENT_STATUS.COMPACTING,
-    AGENT_STATUS.ERROR,
-  ]),
+  status: z.enum([AGENT_STATUS.IDLE, AGENT_STATUS.STREAMING, AGENT_STATUS.COMPACTING]),
 });
 
 export const AgentUpdatedWsMessageSchema = z.object({

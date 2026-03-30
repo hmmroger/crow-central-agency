@@ -17,22 +17,11 @@ export const SessionUsageSchema = z.object({
  */
 export const AgentRuntimeStateSchema = z.object({
   agentId: z.string(),
-  status: z
-    .enum([
-      AGENT_STATUS.IDLE,
-      AGENT_STATUS.STREAMING,
-      AGENT_STATUS.WAITING_PERMISSION,
-      AGENT_STATUS.WAITING_AGENT,
-      AGENT_STATUS.COMPACTING,
-      AGENT_STATUS.ERROR,
-    ])
-    .default(AGENT_STATUS.IDLE),
+  status: z.enum([AGENT_STATUS.IDLE, AGENT_STATUS.STREAMING, AGENT_STATUS.COMPACTING]).default(AGENT_STATUS.IDLE),
   sessionId: z.string().optional(),
   sessionUsage: SessionUsageSchema,
   waitingForAgentId: z.string().optional(),
   lastError: z.string().optional(),
-  /** Pending messages to inject via PreToolUse hook systemMessage */
-  injectedMessages: z.array(z.string()).optional(),
 });
 
 /**

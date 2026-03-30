@@ -1,6 +1,6 @@
 import { AGENT_MESSAGE_ROLE, type AgentMessage } from "@crow-central-agency/shared";
 import type { SessionMessage } from "@anthropic-ai/claude-agent-sdk";
-import { parseToolActivity } from "./tool-activity-parser.js";
+import { parseToolActivity } from "../runner/tool-activity-parser.js";
 
 /** Content block types from the Anthropic API (inside SessionMessage.message) */
 interface TextBlock {

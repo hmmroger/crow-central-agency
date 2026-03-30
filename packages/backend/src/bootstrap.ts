@@ -18,6 +18,7 @@ import { MessageQueueManager } from "./services/message-queue-manager.js";
 import { OpenAIProvider } from "./model-providers/openai-provider.js";
 import { MdGenerationService } from "./services/md-generation-service.js";
 import { registerGenerationRoutes } from "./routes/generation.routes.js";
+import { CrowMcpManager } from "./mcp/crow-mcp-manager.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -40,9 +41,11 @@ export async function bootstrap(options: BootstrapOptions) {
   const artifactManager = new ArtifactManager();
   const loopScheduler = new LoopScheduler(registry);
   const messageQueue = new MessageQueueManager();
+  const mcpManager = new CrowMcpManager();
 
   const orchestrator = new AgentOrchestrator(
     registry,
+    mcpManager,
     broadcaster,
     permissionHandler,
     artifactManager,
@@ -52,11 +55,11 @@ export async function bootstrap(options: BootstrapOptions) {
   );
   await orchestrator.initialize();
 
-  // Register MCP server factories on orchestrator
-  orchestrator.registerMcpServer("crow-artifacts", (agentId) =>
+  // Register MCP server factories
+  mcpManager.registerMcpServer("crow-artifacts", (agentId) =>
     createArtifactsMcpServer(agentId, artifactManager, registry)
   );
-  orchestrator.registerMcpServer("crow-agents", (agentId) => createAgentsMcpServer(agentId, orchestrator, registry));
+  mcpManager.registerMcpServer("crow-agents", (agentId) => createAgentsMcpServer(agentId, orchestrator, registry));
 
   // Start loop scheduler
   loopScheduler.start();

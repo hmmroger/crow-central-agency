@@ -1,22 +1,12 @@
-import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
-import type {
-  CanUseTool,
-  McpSdkServerConfigWithInstance,
-  HookEvent,
-  HookCallbackMatcher,
-  SyncHookJSONOutput,
-  HookInput,
-} from "@anthropic-ai/claude-agent-sdk";
+import type { SessionMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_STATUS,
   CrowStateSchema,
-  type AgentConfig,
+  SERVER_MESSAGE_TYPE,
   type AgentRuntimeState,
   type AgentStatus,
   type CrowState,
 } from "@crow-central-agency/shared";
-import { EventBus } from "../event-bus/event-bus.js";
-import type { OrchestratorEvents, RunningAgent, McpServerFactory } from "./agent-orchestrator.types.js";
 import type { AgentRegistry } from "./agent-registry.js";
 import type { WsBroadcaster } from "./ws-broadcaster.js";
 import type { PermissionHandler } from "./permission-handler.js";
@@ -25,14 +15,11 @@ import type { LoopScheduler } from "./loop-scheduler.js";
 import type { SessionManager } from "./session-manager.js";
 import type { MessageQueueManager } from "./message-queue-manager.js";
 import { MESSAGE_SOURCE, type MessageSource } from "./message-queue-manager.types.js";
-import { processStream } from "../stream/stream-processor.js";
-import { parseToolActivity } from "../stream/tool-activity-parser.js";
 import crypto from "node:crypto";
 import { AppError } from "../error/app-error.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
 import { env } from "../config/env.js";
 import {
-  DEFAULT_PERMISSION_DENY_MESSAGE,
   ARTIFACT_TIMESTAMP_WINDOW_MS,
   ORCHESTRATOR_STATE_FILENAME,
   ORCHESTRATOR_STATE_BACKUP_FILENAME,
@@ -42,63 +29,14 @@ import { readJsonFile, writeJsonFile, copyFileIfExists } from "../utils/fs-utils
 import path from "node:path";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
-import { CROW_SYSTEM_AGENT_ID } from "../agents/crow-agent.js";
 import { MessageRoles } from "../model-providers/openai-provider.types.js";
 import {
   ARTIFACTS_MCP_READ_ARTIFACT_TOOL_NAME,
   ARTIFACTS_MCP_WRITE_ARTIFACT_TOOL_NAME,
 } from "../mcp/artifacts-mcp-server.js";
-import { AGENTS_MCP_INVOKE_AGENT_TOOL_NAME } from "../mcp/agents-mcp-server.js";
-
-const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
-  role: MessageRoles.system,
-  content: [
-    { content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your agent name is: {agentName}", ""] },
-    { content: ["## Core persona", "", "{persona}", ""], keys: ["persona"] },
-    {
-      content: [
-        "## Agent Context",
-        "",
-        "Avoid speculation and never fabricate data or sources. Be transparent if you do not have enough information.",
-        "The current date is {currentDate}",
-        "The current time is {currentTime}.",
-      ],
-    },
-    {
-      content: [
-        `The following agents are available for collaboration with the "${AGENTS_MCP_INVOKE_AGENT_TOOL_NAME}" tool from the crow-agents MCP server:`,
-        "{peerAgents}",
-        `If a task does not fall explicitly within your own scope, check whether a peer agent is better suited and use the "${AGENTS_MCP_INVOKE_AGENT_TOOL_NAME}" tool from the crow-agents MCP server to delegate.`,
-        "Do NOT attempt to perform tasks that fall under another agent's responsibility — invoke that agent instead.",
-      ],
-      keys: ["peerAgents"],
-    },
-    {
-      content: ["## AGENT.md", "", "{agentMd}"],
-      keys: ["agentMd"],
-    },
-  ],
-  keys: ["currentDate", "currentTime", "agentId", "agentName", "persona", "peerAgents", "agentMd"],
-};
-
-const CROW_SYSTEM_PROMPT: MessageTemplate = {
-  role: MessageRoles.system,
-  content: [
-    { content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your agent name is: {agentName}", ""] },
-    { content: ["## Core persona", "", "{persona}", ""], keys: ["persona"] },
-    {
-      content: ["## Agent Context", "", "The current date is {currentDate}", "The current time is {currentTime}."],
-    },
-    {
-      content: [
-        `The following agents are available for task delegation with the "${AGENTS_MCP_INVOKE_AGENT_TOOL_NAME}" tool from the crow-agents MCP server:`,
-        "{peerAgents}",
-      ],
-      keys: ["peerAgents"],
-    },
-  ],
-  keys: ["currentDate", "currentTime", "agentId", "agentName", "persona", "peerAgents"],
-};
+import { AgentRunner } from "../runner/agent-runner.js";
+import { AGENT_STREAM_EVENT_TYPE, type PermissionRequestCallback } from "../runner/agent-runner.types.js";
+import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
 
 const INTER_AGENT_INVOKE_PROMPT: MessageTemplate = {
   role: MessageRoles.user,
@@ -153,15 +91,15 @@ const log = logger.child({ context: "orchestrator" });
  * Creates SDK queries, processes streams, coordinates lifecycle, persists state.
  * Owns all its dependencies — broadcasts directly, listens to registry/loopScheduler events internally.
  */
-export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
-  private runningAgents = new Map<string, RunningAgent>();
+export class AgentOrchestrator {
+  private agentRunners = new Map<string, AgentRunner>();
   private runtimeStates = new Map<string, AgentRuntimeState>();
-  private mcpServerFactories = new Map<string, McpServerFactory>();
   private readonly stateFilePath: string;
   private readonly backupFilePath: string;
 
   constructor(
     private readonly registry: AgentRegistry,
+    private readonly mcpManager: CrowMcpManager,
     private readonly broadcaster: WsBroadcaster,
     private readonly permissionHandler: PermissionHandler,
     private readonly artifactManager: ArtifactManager,
@@ -169,7 +107,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     private readonly sessionManager: SessionManager,
     private readonly messageQueue: MessageQueueManager
   ) {
-    super();
     this.stateFilePath = path.join(env.CROW_SYSTEM_PATH, ORCHESTRATOR_STATE_FILENAME);
     this.backupFilePath = path.join(env.CROW_SYSTEM_PATH, ORCHESTRATOR_STATE_BACKUP_FILENAME);
     this.listenToRegistryEvents();
@@ -205,22 +142,13 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
       }
     }
 
-    await this.runStartupRecovery();
-
-    // Drain persisted queues for agents that are idle after recovery
-    for (const [agentId, state] of this.runtimeStates) {
-      if (state.status === AGENT_STATUS.IDLE) {
-        this.drainQueue(agentId).catch((error) => {
-          log.error({ agentId, error }, "Queue drain failed during startup recovery");
-        });
-      }
+    const agents = this.registry.getAllAgents();
+    for (const agent of agents) {
+      const runner = this.createAgentRunner(agent.id);
+      this.agentRunners.set(agent.id, runner);
     }
-  }
 
-  /** Register a factory that creates per-agent MCP server instances */
-  public registerMcpServer(name: string, factory: McpServerFactory): void {
-    this.mcpServerFactories.set(name, factory);
-    log.info({ name }, "MCP server factory registered");
+    await this.runStartupRecovery();
   }
 
   /** Get runtime state for an agent */
@@ -243,57 +171,29 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     message: string,
     source: MessageSource = MESSAGE_SOURCE.USER
   ): Promise<void> {
-    let nextMessage: string | undefined = message;
-    while (nextMessage) {
-      const agentConfig = this.registry.getAgent(agentId);
-      const state = this.ensureState(agentId);
+    const state = this.ensureState(agentId);
+    const agentRunner = this.getAgentRunner(agentId);
 
-      // If busy or another sendMessage is already processing this agent, enqueue silently
-      if (
-        (state.status !== AGENT_STATUS.IDLE && state.status !== AGENT_STATUS.ERROR) ||
-        this.runningAgents.has(agentId)
-      ) {
-        await this.messageQueue.enqueue(agentId, nextMessage, source);
-        return;
-      }
-
-      await this.runQuery(agentId, nextMessage, agentConfig, state);
-
-      // Injected messages take priority holding the same promise
-      nextMessage = this.getInjectedMessages(agentId);
-      if (nextMessage) {
-        log.info({ agentId }, "Delivering injected messages post messaging.");
-      }
+    if (agentRunner.getAgentStatus() !== AGENT_STATUS.IDLE) {
+      await this.messageQueue.enqueue(agentId, message, source);
+      return;
     }
 
-    // Post messaging handling
-    // 1. notify waiting agents if any
-    await this.notifyWaitingAgents(agentId);
-
-    // 2. drain next queued message
-    this.drainQueue(agentId).catch((error) => {
-      log.error({ agentId, error }, "Queue drain failed");
-    });
+    await this.runAgent(agentId, message, state);
   }
 
   /**
    * Inject a message into an active agent stream.
-   * The message is buffered and delivered as a systemMessage via the PreToolUse hook
-   * on the agent's next tool use.
    */
   public injectMessage(agentId: string, text: string): void {
-    const running = this.runningAgents.get(agentId);
-    if (!running) {
-      throw new AppError(`Agent ${agentId} is not streaming`, APP_ERROR_CODES.AGENT_NOT_RUNNING);
-    }
+    const agentRunner = this.getAgentRunner(agentId);
+    agentRunner.injectMessage(text);
+  }
 
-    const state = this.ensureState(agentId);
-    if (!state.injectedMessages) {
-      state.injectedMessages = [];
-    }
-
-    state.injectedMessages.push(text);
-    log.info({ agentId, messageCount: state.injectedMessages.length }, "Message buffered for injection via hook");
+  /** Stop an active agent */
+  public async stopAgent(agentId: string): Promise<void> {
+    const agentRunner = this.getAgentRunner(agentId);
+    await agentRunner.abort();
   }
 
   /**
@@ -324,7 +224,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
     const sourceState = this.ensureState(sourceAgentId);
     sourceState.waitingForAgentId = targetAgentId;
-    this.updateAgentStatus(sourceAgentId, AGENT_STATUS.WAITING_AGENT);
 
     log.info(
       { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name },
@@ -333,23 +232,10 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     return `Task sent to agent "${targetConfig.name}" (${targetAgentId}). The agent is working on it and you will be notified when the result is ready.`;
   }
 
-  /** Stop an active agent */
-  public async stopAgent(agentId: string): Promise<void> {
-    const running = this.runningAgents.get(agentId);
-    if (!running) {
-      throw new AppError(`Agent ${agentId} is not streaming`, APP_ERROR_CODES.AGENT_NOT_RUNNING);
-    }
-
-    this.permissionHandler.cancelAllForAgent(agentId);
-    running.abortController.abort();
-    running.query?.close();
-  }
-
   /** Start a new session for an agent (clears current session, message queue, and injected messages) */
   public async newSession(agentId: string): Promise<void> {
     const state = this.ensureState(agentId);
     state.sessionId = undefined;
-    state.injectedMessages = undefined;
     state.sessionUsage = {
       inputTokens: 0,
       outputTokens: 0,
@@ -367,153 +253,163 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
   }
 
-  private async runQuery(
-    agentId: string,
-    message: string,
-    agentConfig: AgentConfig,
-    state: AgentRuntimeState
-  ): Promise<void> {
-    // Track running agent
-    const abortController = new AbortController();
-    const runningAgent: RunningAgent = { abortController };
-    this.runningAgents.set(agentId, runningAgent);
-
-    const systemPrompt = await this.buildSystemPrompt(agentId, agentConfig);
-    const systemPromptOption = systemPrompt
-      ? agentConfig.isReplaceSystemPrompt
-        ? systemPrompt
-        : { type: "preset" as const, preset: "claude_code" as const, append: systemPrompt }
-      : undefined;
-
-    // Build SDK options
-    const toolsOption = agentConfig.toolConfig.mode === "restricted" ? agentConfig.toolConfig.tools : undefined;
-    const internalMcpPrefixes = [...this.mcpServerFactories.keys()].map((serverName) => `mcp__${serverName}__`);
-
-    // Create query (mcpServers cast will be properly typed when MCP servers are implemented in Phase 5)
-    const queryInstance = sdkQuery({
-      prompt: message,
-      options: {
-        cwd: agentConfig.workspace,
-        model: agentConfig.model,
-        resume: state.sessionId,
-        systemPrompt: systemPromptOption,
-        abortController,
-        includePartialMessages: true,
-        permissionMode: agentConfig.permissionMode,
-        allowedTools: [
-          ...(agentConfig.toolConfig.autoApprovedTools || []),
-          ...internalMcpPrefixes.map((prefix) => `${prefix}*`),
-        ],
-        tools: toolsOption,
-        canUseTool: this.buildCanUseTool(agentId),
-        settingSources: agentConfig.settingSources,
-        mcpServers: this.buildMcpServers(agentId),
-        persistSession: true,
-        agentProgressSummaries: true,
-        pathToClaudeCodeExecutable: env.CLAUDE_CLI_PATH,
-        toolConfig: {
-          askUserQuestion: { previewFormat: "html" },
-        },
-        hooks: this.buildSdkHooks(agentId),
-      },
-    });
-
-    runningAgent.query = queryInstance;
-    this.updateAgentStatus(agentId, AGENT_STATUS.STREAMING);
+  private async runAgent(agentId: string, message: string, state: AgentRuntimeState): Promise<void> {
+    const agentRunner = this.getAgentRunner(agentId);
 
     // Process stream via async generator
     let userMessageAdded = false;
-    let streamSuccess = false;
-    let streamErrorSubtype: string | undefined;
-
     try {
-      for await (const event of processStream(agentId, queryInstance)) {
-        // 1. Broadcast real-time WS messages (streaming text, activity hints, status)
-        for (const wsMsg of event.wsMessages) {
-          this.broadcaster.broadcast(wsMsg);
-        }
+      const eventStream = agentRunner.sendMessage(message, state.sessionId);
+      for await (const event of eventStream) {
+        switch (event.type) {
+          case AGENT_STREAM_EVENT_TYPE.INIT:
+            state.sessionId = event.sessionId;
+            if (!userMessageAdded) {
+              const userSessionMsg: SessionMessage = {
+                type: "user",
+                uuid: crypto.randomUUID(),
+                session_id: event.sessionId,
+                message: { role: "user", content: message },
+                parent_tool_use_id: null,
+              };
+              const userMessages = this.sessionManager.addMessage(event.sessionId, userSessionMsg);
 
-        // 2. Capture sessionId from init → add user message as SessionMessage
-        if (event.meta?.sessionId) {
-          state.sessionId = event.meta.sessionId;
+              for (const msg of userMessages) {
+                this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: msg });
+              }
 
-          if (!userMessageAdded) {
-            const userSessionMsg = {
-              type: "user" as const,
-              uuid: crypto.randomUUID(),
-              session_id: event.meta.sessionId,
-              message: { role: "user", content: message },
-              parent_tool_use_id: null,
-            };
-            const userMessages = this.sessionManager.addMessage(event.meta.sessionId, userSessionMsg);
-
-            for (const msg of userMessages) {
-              this.broadcaster.broadcast({ type: "agent_message", agentId, message: msg });
+              userMessageAdded = true;
             }
 
-            userMessageAdded = true;
+            // 3. Discovered tools → filter internal MCP tools, update registry
+            if (event.discoveredTools && event.discoveredTools.length > 0) {
+              await this.registry.updateAgent(agentId, { availableTools: event.discoveredTools });
+            }
+
+            await this.persistState();
+            break;
+
+          case AGENT_STREAM_EVENT_TYPE.MESSAGE_DONE: {
+            const sessionMessage: SessionMessage = {
+              type: "assistant",
+              uuid: event.messageId,
+              session_id: event.sessionId,
+              message: event.message,
+              parent_tool_use_id: null,
+            };
+
+            const agentMessages = this.sessionManager.addMessage(event.sessionId, sessionMessage);
+            for (const msg of agentMessages) {
+              this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: msg });
+            }
+
+            break;
           }
-        }
 
-        // 3. Discovered tools → filter internal MCP tools, update registry
-        if (event.meta?.discoveredTools && event.meta.discoveredTools.length > 0) {
-          const userFacingTools = event.meta.discoveredTools.filter(
-            (tool) => !internalMcpPrefixes.some((prefix) => tool.startsWith(prefix))
-          );
-          await this.registry.updateAgent(agentId, { availableTools: userFacingTools });
-        }
+          case AGENT_STREAM_EVENT_TYPE.CONTENT:
+            this.broadcaster.broadcast({
+              type: SERVER_MESSAGE_TYPE.AGENT_TEXT,
+              agentId,
+              text: event.content,
+            });
 
-        // 4. Complete assistant turn → session manager transforms, stores, returns canonical messages
-        if (event.sessionMessage && state.sessionId) {
-          const agentMessages = this.sessionManager.addMessage(state.sessionId, event.sessionMessage);
+            break;
 
-          for (const msg of agentMessages) {
-            this.broadcaster.broadcast({ type: "agent_message", agentId, message: msg });
+          case AGENT_STREAM_EVENT_TYPE.THINKING:
+            // TODO
+            break;
+
+          case AGENT_STREAM_EVENT_TYPE.TOOL_USE:
+            this.broadcaster.broadcast({
+              type: SERVER_MESSAGE_TYPE.AGENT_ACTIVITY,
+              agentId,
+              toolName: event.toolName,
+              description: event.description,
+            });
+
+            break;
+
+          case AGENT_STREAM_EVENT_TYPE.TOOL_USE_PROGRESS:
+            this.broadcaster.broadcast({
+              type: SERVER_MESSAGE_TYPE.AGENT_TOOL_PROGRESS,
+              agentId,
+              toolName: event.toolName,
+              elapsedTimeSeconds: event.elapsedTimeSeconds,
+            });
+            break;
+
+          case AGENT_STREAM_EVENT_TYPE.STATUS:
+            this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_STATUS, agentId, status: event.status });
+            break;
+
+          case AGENT_STREAM_EVENT_TYPE.RATE_LIMIT_INFO:
+            if (event.rateLimitStatus === "rejected") {
+              log.warn({ agentId, rateLimitType: event.rateLimitType }, "Rate limited.");
+            }
+
+            break;
+
+          case AGENT_STREAM_EVENT_TYPE.DONE: {
+            const inputTokens = event.usage?.inputTokens ?? 0;
+            const outputTokens = event.usage?.outputTokens ?? 0;
+            const totalCostUsd = event.usage?.totalCostUsd ?? 0;
+            this.broadcaster.broadcast({
+              type: SERVER_MESSAGE_TYPE.AGENT_RESULT,
+              agentId,
+              subtype: event.doneType,
+              totalCostUsd,
+              durationMs: event.durationMs,
+            });
+            this.broadcaster.broadcast({
+              type: SERVER_MESSAGE_TYPE.AGENT_USAGE,
+              agentId,
+              inputTokens,
+              outputTokens,
+              totalCostUsd,
+              contextTotal: event.usage?.contextTotal ?? 0,
+              contextUsed: event.usage?.contextUsed ?? 0,
+            });
+
+            const sessionInputTokens = (state.sessionUsage.inputTokens += inputTokens);
+            const sessionOutputTokens = (state.sessionUsage.outputTokens += outputTokens);
+            state.sessionUsage = {
+              inputTokens: sessionInputTokens,
+              outputTokens: sessionOutputTokens,
+              totalCostUsd,
+              contextUsed: event.usage?.contextUsed ?? state.sessionUsage.contextUsed,
+              contextTotal: event.usage?.contextTotal ?? state.sessionUsage.contextTotal,
+            };
+            break;
           }
-        }
 
-        if (event.meta?.result) {
-          const resultInfo = event.meta.result;
-          const inputTokens = (state.sessionUsage.inputTokens += resultInfo.inputTokens);
-          const outputTokens = (state.sessionUsage.outputTokens += resultInfo.outputTokens);
-          state.sessionUsage = {
-            inputTokens,
-            outputTokens,
-            totalCostUsd: resultInfo.totalCostUsd,
-            contextUsed: resultInfo.contextUsed ?? state.sessionUsage.contextUsed,
-            contextTotal: resultInfo.contextTotal ?? state.sessionUsage.contextTotal,
-          };
-          streamSuccess = resultInfo.success;
-          streamErrorSubtype = resultInfo.success ? undefined : resultInfo.subtype;
-        }
-      }
+          case AGENT_STREAM_EVENT_TYPE.ABORTED:
+            // Currently this event type does not happen
+            break;
 
-      if (streamSuccess) {
-        state.lastError = undefined;
-        this.updateAgentStatus(agentId, AGENT_STATUS.IDLE);
-      } else {
-        state.lastError = streamErrorSubtype ?? "Stream ended without result event";
-        this.updateAgentStatus(agentId, AGENT_STATUS.ERROR);
+          case AGENT_STREAM_EVENT_TYPE.ERROR:
+            state.lastError = event.error;
+            this.broadcaster.broadcast({
+              type: SERVER_MESSAGE_TYPE.ERROR,
+              agentId,
+              code: APP_ERROR_CODES.SDK_ERROR,
+              message: event.error,
+            });
+            break;
+        }
       }
     } catch (error) {
       state.lastError = error instanceof Error ? error.message : "Unknown error";
-      this.updateAgentStatus(agentId, AGENT_STATUS.ERROR);
       log.error({ agentId, error }, "Query execution failed");
-    } finally {
-      runningAgent.query = undefined;
-      this.runningAgents.delete(agentId);
     }
   }
 
   /** Cleanup when an agent is deleted — triggered by registry agentDeleted event */
   private async cleanup(agentId: string): Promise<void> {
     this.permissionHandler.cancelAllForAgent(agentId);
-    const running = this.runningAgents.get(agentId);
-    if (running) {
-      running.abortController.abort();
-      running.query?.close();
-      this.runningAgents.delete(agentId);
-    }
+
+    const agentRunner = this.getAgentRunner(agentId);
+    await agentRunner.abort();
+    this.agentRunners.delete(agentId);
 
     this.runtimeStates.delete(agentId);
     await this.messageQueue.clear(agentId);
@@ -547,23 +443,19 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     return state;
   }
 
-  /** Set agent status — broadcasts to WS clients and emits lifecycle event */
-  private async updateAgentStatus(agentId: string, status: AgentStatus): Promise<void> {
-    const state = this.ensureState(agentId);
-    if (state.status === status) {
+  private async onAgentStatusChanged(agentId: string, status: AgentStatus): Promise<void> {
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_STATUS, agentId, status });
+    if (status !== AGENT_STATUS.IDLE) {
       return;
     }
 
-    state.status = status;
-    log.info({ agentId, status }, "Agent status changed.");
-    await this.persistState();
+    // 1. notify waiting agents if any
+    await this.notifyWaitingAgents(agentId);
 
-    this.broadcaster.broadcast({
-      type: "agent_status",
-      agentId,
-      status,
+    // 2. drain next queued message
+    this.drainQueue(agentId).catch((error) => {
+      log.error({ agentId, error }, "Queue drain failed");
     });
-    this.emit("agentStateChanged", { agentId, status });
   }
 
   /** Notify agents that were waiting for the given agent to complete */
@@ -634,151 +526,6 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     });
   }
 
-  /** Build canUseTool callback that bridges SDK permission requests to our PermissionHandler */
-  private buildCanUseTool(agentId: string): CanUseTool {
-    const handler = this.permissionHandler;
-
-    return async (toolName, input, options) => {
-      this.updateAgentStatus(agentId, AGENT_STATUS.WAITING_PERMISSION);
-
-      const result = await handler.requestPermission(
-        agentId,
-        toolName,
-        input,
-        options.toolUseID,
-        options.decisionReason
-      );
-
-      // Restore to streaming after permission is resolved
-      this.updateAgentStatus(agentId, AGENT_STATUS.STREAMING);
-
-      if (result.behavior === "allow") {
-        return { behavior: "allow" as const, updatedInput: result.updatedInput || input, toolUseID: options.toolUseID };
-      }
-
-      return {
-        behavior: "deny" as const,
-        message: result.message ?? DEFAULT_PERMISSION_DENY_MESSAGE,
-        toolUseID: options.toolUseID,
-      };
-    };
-  }
-
-  /** Build MCP servers for a query using registered factories */
-  private buildMcpServers(agentId: string): Record<string, McpSdkServerConfigWithInstance> {
-    const servers: Record<string, McpSdkServerConfigWithInstance> = {};
-
-    for (const [name, factory] of this.mcpServerFactories) {
-      servers[name] = factory(agentId);
-    }
-
-    return servers;
-  }
-
-  /**
-   * Build SDK hooks to capture subagent lifecycle events.
-   * Broadcasts agent_activity WS messages when subagents start, stop, or use tools.
-   */
-  private buildSdkHooks(agentId: string): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
-    const broadcastActivity = (description: string, toolName: string) => {
-      this.broadcaster.broadcast({
-        type: "agent_activity",
-        agentId,
-        toolName,
-        description,
-      });
-    };
-
-    const systemToolUseHookHandler = this.getSystemToolUseHookHandler(agentId, broadcastActivity);
-
-    return {
-      SubagentStart: [
-        {
-          hooks: [
-            async (input) => {
-              try {
-                if (input.hook_event_name === "SubagentStart") {
-                  broadcastActivity(`Subagent started: ${input.agent_type}`, "Agent");
-                }
-              } catch (error) {
-                log.warn({ agentId, error }, "SubagentStart hook broadcast failed");
-              }
-
-              return { continue: true };
-            },
-          ],
-        },
-      ],
-      SubagentStop: [
-        {
-          hooks: [
-            async (input) => {
-              try {
-                if (input.hook_event_name === "SubagentStop") {
-                  broadcastActivity(`Subagent completed: ${input.agent_type}`, "Agent");
-                }
-              } catch (error) {
-                log.warn({ agentId, error }, "SubagentStop hook broadcast failed");
-              }
-
-              return { continue: true };
-            },
-          ],
-        },
-      ],
-      PreToolUse: [
-        {
-          hooks: [systemToolUseHookHandler],
-        },
-      ],
-      PostToolUse: [
-        {
-          hooks: [systemToolUseHookHandler],
-        },
-      ],
-    };
-  }
-
-  private getSystemToolUseHookHandler(
-    agentId: string,
-    broadcastActivity: (description: string, toolName: string) => void
-  ): (input: HookInput) => Promise<SyncHookJSONOutput> {
-    return async (input) => {
-      try {
-        // Only broadcast for subagent tool use (has agent_id on the input)
-        if (input.hook_event_name === "PreToolUse" && input.agent_id) {
-          const description = parseToolActivity(input.tool_name, input.tool_input);
-          broadcastActivity(`Subagent: ${description}`, input.tool_name);
-        }
-      } catch (error) {
-        log.warn({ agentId, error }, "PreToolUse hook broadcast failed");
-      }
-
-      // Only try to inject on main agent
-      if ((input.hook_event_name === "PreToolUse" || input.hook_event_name === "PostToolUse") && !input.agent_id) {
-        // Drain any injected messages as a systemMessage
-        const systemMessage = this.getInjectedMessages(agentId);
-        if (systemMessage) {
-          log.info({ agentId }, "Delivering injected messages via hook");
-          return { continue: true, systemMessage };
-        }
-      }
-
-      return { continue: true };
-    };
-  }
-
-  private getInjectedMessages(agentId: string): string | undefined {
-    const state = this.ensureState(agentId);
-    const injectedMessages = state?.injectedMessages;
-    if (!injectedMessages?.length) {
-      return undefined;
-    }
-
-    state.injectedMessages = undefined;
-    return injectedMessages.join("\n\n");
-  }
-
   /** Persist all runtime states to disk */
   private async persistState(): Promise<void> {
     const crowState: CrowState = {
@@ -802,34 +549,17 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
         continue;
       }
 
-      // Discard stale injected messages from previous process — they are ephemeral
-      if (state.injectedMessages && state.injectedMessages.length > 0) {
-        log.info({ agentId }, "Discarding stale injected messages from previous run");
-        state.injectedMessages = undefined;
-      }
-
       switch (state.status) {
         case AGENT_STATUS.STREAMING:
-        case AGENT_STATUS.WAITING_PERMISSION:
           // Agent was working — resume by sending "continue your work"
           agentsToResume.push(agentId);
           log.info({ agentId, status: state.status }, "Will resume agent after startup");
-          break;
-
-        case AGENT_STATUS.WAITING_AGENT:
-          // Keep waitingForAgentId — will be handled after resume agents finish
-          log.info({ agentId, waitingFor: state.waitingForAgentId }, "Agent waiting for peer — preserving state");
           break;
 
         case AGENT_STATUS.COMPACTING:
           // Compaction was interrupted — set to idle
           state.status = AGENT_STATUS.IDLE;
           log.info({ agentId }, "Reset compacting agent to idle");
-          break;
-
-        case AGENT_STATUS.ERROR:
-          // Keep error state
-          log.info({ agentId, error: state.lastError }, "Agent in error state — not auto-resuming");
           break;
 
         case AGENT_STATUS.IDLE:
@@ -853,7 +583,7 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
 
     // Handle waiting_agent agents whose targets are idle (not being resumed)
     for (const [_agentId, state] of this.runtimeStates) {
-      if (state.status !== AGENT_STATUS.WAITING_AGENT || !state.waitingForAgentId) {
+      if (!state.waitingForAgentId) {
         continue;
       }
 
@@ -865,6 +595,15 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     }
 
     await this.persistState();
+
+    // Drain persisted queues for agents that are idle after recovery
+    for (const [agentId, state] of this.runtimeStates) {
+      if (state.status === AGENT_STATUS.IDLE) {
+        this.drainQueue(agentId).catch((error) => {
+          log.error({ agentId, error }, "Queue drain failed during startup recovery");
+        });
+      }
+    }
   }
 
   /** Listen to registry lifecycle events for cleanup */
@@ -883,32 +622,41 @@ export class AgentOrchestrator extends EventBus<OrchestratorEvents> {
     });
   }
 
-  private async buildSystemPrompt(agentId: string, agent: AgentConfig): Promise<string> {
-    const agentMd = await this.registry.getAgentMd(agentId);
-    const peerAgents = this.registry
-      .getAllAgents()
-      .filter((peer) => peer.id !== agentId)
-      .map((peer) => {
-        const parts = [`Agent ID: ${peer.id}`, `Name: ${peer.name}`];
-        if (peer.description) {
-          parts.push(`Description: ${peer.description}`);
-        }
+  private createAgentRunner(agentId: string): AgentRunner {
+    const permissionRequestCallback: PermissionRequestCallback = (
+      agentId,
+      toolName,
+      input,
+      toolUseId,
+      decisionReason
+    ) => this.permissionHandler.requestPermission(agentId, toolName, input, toolUseId, decisionReason);
+    const broadcastActivityCallback = (toolName: string, description: string) => {
+      this.broadcaster.broadcast({
+        type: "agent_activity",
+        agentId,
+        toolName,
+        description,
+      });
+    };
 
-        return `- ${parts.join(", ")}`;
-      })
-      .join("\n");
-
-    const content = createMessageContentFromTemplate(
-      agentId === CROW_SYSTEM_AGENT_ID ? CROW_SYSTEM_PROMPT : DEFAULT_SYSTEM_PROMPT,
-      getDefaultPromptContext({
-        agentId: agent.id,
-        agentName: agent.name,
-        persona: agent.persona || undefined,
-        peerAgents: peerAgents || undefined,
-        agentMd: agentMd || undefined,
-      })
+    const agentRunner = new AgentRunner(
+      agentId,
+      this.registry,
+      this.mcpManager,
+      permissionRequestCallback,
+      broadcastActivityCallback
     );
+    agentRunner.on("agentStatusChanged", ({ agentId, status }) => this.onAgentStatusChanged(agentId, status));
 
-    return content;
+    return agentRunner;
+  }
+
+  private getAgentRunner(agentId: string): AgentRunner {
+    const agentRunner = this.agentRunners.get(agentId);
+    if (!agentRunner) {
+      throw new AppError(`Agent ${agentId} does not have runner`, APP_ERROR_CODES.AGENT_NOT_FOUND);
+    }
+
+    return agentRunner;
   }
 }

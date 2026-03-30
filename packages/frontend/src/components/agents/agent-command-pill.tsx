@@ -20,11 +20,7 @@ interface AgentCommandPillProps {
 export function AgentCommandPill({ agent, isSelected, onClick }: AgentCommandPillProps) {
   const { data: agentState } = useAgentStateQuery(agent.id);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
-  const isStreaming =
-    status === AGENT_STATUS.STREAMING ||
-    status === AGENT_STATUS.WAITING_PERMISSION ||
-    status === AGENT_STATUS.WAITING_AGENT ||
-    status === AGENT_STATUS.COMPACTING;
+  const isStreaming = status === AGENT_STATUS.STREAMING || status === AGENT_STATUS.COMPACTING;
   const abbreviation = getAgentAbbreviation(agent.name);
 
   return (
