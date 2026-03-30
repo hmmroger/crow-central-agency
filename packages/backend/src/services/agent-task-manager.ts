@@ -2,11 +2,12 @@ import path from "node:path";
 import {
   AGENT_TASK_STATE,
   AGENT_TASK_SOURCE_TYPE,
-  AgentTaskDatabaseSchema,
+  AgentTaskItemSchema,
   type AgentTaskItem,
   type AgentTaskSource,
   type AgentTaskState,
 } from "@crow-central-agency/shared";
+import { z } from "zod";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { AgentTaskManagerEvents } from "./agent-task-manager.types.js";
 import { env } from "../config/env.js";
@@ -16,6 +17,12 @@ import { generateId } from "../utils/id-utils.js";
 import { logger } from "../utils/logger.js";
 import { AppError } from "../error/app-error.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
+
+/** Loose envelope schema — validates structure but parses tasks individually */
+const TaskDatabaseEnvelopeSchema = z.object({
+  version: z.number(),
+  tasks: z.array(z.unknown()),
+});
 
 /** Current version of the persisted AgentTaskDatabase format */
 const TASK_DATABASE_VERSION = 1;
@@ -48,24 +55,32 @@ export class AgentTaskManager extends EventBus<AgentTaskManagerEvents> {
     this.tasksFilePath = path.join(env.CROW_SYSTEM_PATH, AGENT_TASKS_FILENAME);
   }
 
-  /** Load persisted tasks from disk */
+  /** Load persisted tasks from disk, skipping individually invalid entries */
   public async initialize(): Promise<void> {
     try {
       const raw = await readJsonFile<unknown>(this.tasksFilePath);
-      const result = AgentTaskDatabaseSchema.safeParse(raw);
+      const envelope = TaskDatabaseEnvelopeSchema.safeParse(raw);
 
-      if (result.success) {
-        for (const task of result.data.tasks) {
-          this.tasks.set(task.id, task);
-        }
-
-        log.info({ version: result.data.version, count: this.tasks.size }, "Loaded persisted tasks");
-      } else {
-        log.warn({ issues: result.error.issues }, "Invalid tasks file — starting fresh");
+      if (!envelope.success) {
+        log.warn({ issues: envelope.error.issues }, "Invalid tasks file structure - starting fresh");
+        return;
       }
+
+      let skipped = 0;
+      for (const entry of envelope.data.tasks) {
+        const result = AgentTaskItemSchema.safeParse(entry);
+        if (result.success) {
+          this.tasks.set(result.data.id, result.data);
+        } else {
+          skipped++;
+          log.warn({ entry, issues: result.error.issues }, "Skipping invalid task entry");
+        }
+      }
+
+      log.info({ version: envelope.data.version, loaded: this.tasks.size, skipped }, "Loaded persisted tasks");
     } catch (error) {
       if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
-        log.info("No persisted tasks found — starting fresh");
+        log.info("No persisted tasks found - starting fresh");
       } else {
         throw error;
       }
