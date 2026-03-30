@@ -1,17 +1,20 @@
 import type { SessionMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_STATUS,
+  AGENT_TASK_SOURCE_TYPE,
+  AGENT_TASK_STATE,
   CrowStateSchema,
   SERVER_MESSAGE_TYPE,
   type AgentRuntimeState,
   type AgentStatus,
+  type AgentTaskItem,
+  type AgentTaskState,
   type CrowState,
 } from "@crow-central-agency/shared";
 import type { AgentRegistry } from "./agent-registry.js";
 import type { WsBroadcaster } from "./ws-broadcaster.js";
 import type { PermissionHandler } from "./permission-handler.js";
 import type { ArtifactManager } from "./artifact-manager.js";
-import type { LoopScheduler } from "./loop-scheduler.js";
 import type { SessionManager } from "./session-manager.js";
 import type { MessageQueueManager } from "./message-queue-manager.js";
 import { MESSAGE_SOURCE_TYPE, type MessageSource } from "./message-queue-manager.types.js";
@@ -30,55 +33,50 @@ import path from "node:path";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
 import { MessageRoles } from "../model-providers/openai-provider.types.js";
-import {
-  ARTIFACTS_MCP_READ_ARTIFACT_TOOL_NAME,
-  ARTIFACTS_MCP_WRITE_ARTIFACT_TOOL_NAME,
-} from "../mcp/artifacts-mcp-server.js";
+import { ARTIFACTS_MCP_READ_ARTIFACT_TOOL_NAME } from "../mcp/artifacts-mcp-server.js";
 import { AgentRunner } from "../runner/agent-runner.js";
 import { AGENT_STREAM_EVENT_TYPE, type PermissionRequestCallback } from "../runner/agent-runner.types.js";
 import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
+import type { AgentTaskManager } from "./agent-task-manager.js";
+import { head } from "es-toolkit";
 
-const INTER_AGENT_INVOKE_PROMPT: MessageTemplate = {
+const TASK_COMPLETED_PROMPT: MessageTemplate = {
   role: MessageRoles.user,
   content: [
     {
       content: [
-        `[Agent request from "{agentName}" ({agentId})]`,
-        "",
-        "{task}",
-        "",
-        `Please perform this task and write your results to an artifact using the "${ARTIFACTS_MCP_WRITE_ARTIFACT_TOOL_NAME}" tool.`,
-      ],
-    },
-  ],
-  keys: ["agentName", "agentId", "task"],
-};
-
-const INTER_AGENT_COMPLETED_PROMPT: MessageTemplate = {
-  role: MessageRoles.user,
-  content: [
-    {
-      content: [
-        `[Inter-agent response: Agent "{completedAgentName}" ({completedAgentId}) has completed your requested task]`,
+        `[Task completed: Agent "{agentName}" ({agentId}) has completed your requested task]`,
         "",
         `Result artifact: "{artifactFilename}"`,
-        `Use ${ARTIFACTS_MCP_READ_ARTIFACT_TOOL_NAME}(agentId: "{completedAgentId}", filename: "{artifactFilename}") to retrieve the result.`,
+        `Use ${ARTIFACTS_MCP_READ_ARTIFACT_TOOL_NAME}(agentId: "{agentId}", filename: "{artifactFilename}") to retrieve the result.`,
       ],
     },
   ],
-  keys: ["completedAgentId", "completedAgentName", "artifactFilename"],
+  keys: ["agentId", "agentName", "artifactFilename"],
 };
 
-const INTER_AGENT_COMPLETED_NORESULTS_PROMPT: MessageTemplate = {
+const TASK_COMPLETED_NO_ARTIFACT_PROMPT: MessageTemplate = {
   role: MessageRoles.user,
   content: [
     {
       content: [
-        `[Inter-agent response: Agent "{completedAgentName}" ({completedAgentId}) has completed your requested task, but did not produce a response artifact.]`,
+        `[Task completed: Agent "{agentName}" ({agentId}) has completed your requested task, but did not produce a response artifact.]`,
       ],
     },
   ],
-  keys: ["completedAgentId", "completedAgentName"],
+  keys: ["agentId", "agentName"],
+};
+
+const TASK_INCOMPLETE_PROMPT: MessageTemplate = {
+  role: MessageRoles.user,
+  content: [
+    {
+      content: [
+        `[Task interrupted: Agent "{agentName}" ({agentId}) was unable to complete your requested task. The task was interrupted or encountered an error.]`,
+      ],
+    },
+  ],
+  keys: ["agentId", "agentName"],
 };
 
 /** Current version of the persisted CrowState format */
@@ -89,7 +87,7 @@ const log = logger.child({ context: "orchestrator" });
 /**
  * Agent orchestrator — central state machine that owns agent runtimes.
  * Creates SDK queries, processes streams, coordinates lifecycle, persists state.
- * Owns all its dependencies — broadcasts directly, listens to registry/loopScheduler events internally.
+ * Owns all its dependencies — broadcasts directly, listens to registry/taskManager events internally.
  */
 export class AgentOrchestrator {
   private agentRunners = new Map<string, AgentRunner>();
@@ -103,14 +101,15 @@ export class AgentOrchestrator {
     private readonly broadcaster: WsBroadcaster,
     private readonly permissionHandler: PermissionHandler,
     private readonly artifactManager: ArtifactManager,
-    private readonly loopScheduler: LoopScheduler,
     private readonly sessionManager: SessionManager,
-    private readonly messageQueue: MessageQueueManager
+    private readonly messageQueue: MessageQueueManager,
+    private readonly taskManager: AgentTaskManager
   ) {
     this.stateFilePath = path.join(env.CROW_SYSTEM_PATH, ORCHESTRATOR_STATE_FILENAME);
     this.backupFilePath = path.join(env.CROW_SYSTEM_PATH, ORCHESTRATOR_STATE_BACKUP_FILENAME);
     this.listenToRegistryEvents();
-    this.listenToLoopScheduler();
+    this.taskManager.on("taskAssigned", ({ task }) => this.onTaskAssigned(task));
+    this.taskManager.on("taskStateChanged", ({ task, previousState }) => this.onTaskStateChanged(task, previousState));
   }
 
   /** Load persisted runtime states and run startup recovery */
@@ -179,7 +178,7 @@ export class AgentOrchestrator {
       return;
     }
 
-    await this.runAgent(agentId, message, state);
+    await this.runAgent(agentId, message, state, source);
   }
 
   /**
@@ -194,45 +193,6 @@ export class AgentOrchestrator {
   public async stopAgent(agentId: string): Promise<void> {
     const agentRunner = this.getAgentRunner(agentId);
     await agentRunner.abort();
-  }
-
-  /**
-   * Handle inter-agent invocation: deliver task to target, mark source as waiting.
-   * Called from crow-agents MCP tool.
-   */
-  public async invokeInterAgent(sourceAgentId: string, targetAgentId: string, task: string): Promise<string> {
-    const targetConfig = this.registry.getAgent(targetAgentId);
-    const sourceConfig = this.registry.getAgent(sourceAgentId);
-    const sourceName = sourceConfig.name;
-
-    const taskPrompt = createMessageContentFromTemplate(
-      INTER_AGENT_INVOKE_PROMPT,
-      getDefaultPromptContext({
-        agentId: sourceAgentId,
-        agentName: sourceName,
-        task,
-      })
-    );
-
-    // sendMessage queues transparently if the target is busy
-    this.sendMessage(targetAgentId, taskPrompt, {
-      sourceType: MESSAGE_SOURCE_TYPE.AGENT,
-      agentId: sourceAgentId,
-    }).catch((error) => {
-      log.error(
-        { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name, error },
-        "Failed to deliver inter-agent task"
-      );
-    });
-
-    const sourceState = this.ensureState(sourceAgentId);
-    sourceState.waitingForAgentId = targetAgentId;
-
-    log.info(
-      { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name },
-      "Inter-agent invocation started"
-    );
-    return `Task sent to agent "${targetConfig.name}" (${targetAgentId}). The agent is working on it and you will be notified when the result is ready.`;
   }
 
   /** Start a new session for an agent (clears current session, message queue, and injected messages) */
@@ -256,11 +216,17 @@ export class AgentOrchestrator {
     }
   }
 
-  private async runAgent(agentId: string, message: string, state: AgentRuntimeState): Promise<void> {
+  private async runAgent(
+    agentId: string,
+    message: string,
+    state: AgentRuntimeState,
+    source: MessageSource
+  ): Promise<void> {
     const agentRunner = this.getAgentRunner(agentId);
 
     // Process stream via async generator
     let userMessageAdded = false;
+    let isAbortedOrError = false;
     try {
       const eventStream = agentRunner.sendMessage(message, state.sessionId);
       for await (const event of eventStream) {
@@ -386,9 +352,11 @@ export class AgentOrchestrator {
           }
 
           case AGENT_STREAM_EVENT_TYPE.ABORTED:
+            isAbortedOrError = true;
             break;
 
           case AGENT_STREAM_EVENT_TYPE.ERROR:
+            isAbortedOrError = true;
             state.lastError = event.error;
             this.broadcaster.broadcast({
               type: SERVER_MESSAGE_TYPE.ERROR,
@@ -399,9 +367,20 @@ export class AgentOrchestrator {
             break;
         }
       }
+
+      // Source sepecific handling
+      if (source.sourceType === MESSAGE_SOURCE_TYPE.TASK) {
+        const task = this.taskManager.getTask(source.taskId);
+        if (task) {
+          await this.taskManager.updateTaskState(
+            task.id,
+            isAbortedOrError ? AGENT_TASK_STATE.INCOMPLETE : AGENT_TASK_STATE.COMPLETED
+          );
+        }
+      }
     } catch (error) {
       state.lastError = error instanceof Error ? error.message : "Unknown error";
-      log.error({ agentId, error }, "Query execution failed");
+      log.error({ agentId, error }, "Run agent execution failed");
     }
   }
 
@@ -443,71 +422,6 @@ export class AgentOrchestrator {
     }
 
     return state;
-  }
-
-  private async onAgentStatusChanged(agentId: string, status: AgentStatus): Promise<void> {
-    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_STATUS, agentId, status });
-    if (status !== AGENT_STATUS.IDLE) {
-      return;
-    }
-
-    // 1. notify waiting agents if any
-    await this.notifyWaitingAgents(agentId);
-
-    // 2. drain next queued message
-    this.drainQueue(agentId).catch((error) => {
-      log.error({ agentId, error }, "Queue drain failed");
-    });
-  }
-
-  /** Notify agents that were waiting for the given agent to complete */
-  private async notifyWaitingAgents(completedAgentId: string): Promise<void> {
-    for (const [agentId, state] of this.runtimeStates) {
-      if (state.waitingForAgentId !== completedAgentId) {
-        continue;
-      }
-
-      const waitingAgentId = agentId;
-      state.waitingForAgentId = undefined;
-      let targetName: string;
-
-      try {
-        targetName = this.registry.getAgent(completedAgentId).name;
-      } catch {
-        log.warn(
-          { agentId: completedAgentId, waitingAgentId },
-          "Completed agent no longer exists — skipping notification"
-        );
-        continue;
-      }
-
-      try {
-        const recentArtifact = await this.artifactManager.getMostRecentArtifact(completedAgentId);
-        const isRecent =
-          recentArtifact !== undefined &&
-          Date.now() - new Date(recentArtifact.updatedAt).getTime() <= ARTIFACT_TIMESTAMP_WINDOW_MS;
-
-        const notificationPrompt = createMessageContentFromTemplate(
-          isRecent && recentArtifact ? INTER_AGENT_COMPLETED_PROMPT : INTER_AGENT_COMPLETED_NORESULTS_PROMPT,
-          getDefaultPromptContext({
-            completedAgentId,
-            completedAgentName: targetName,
-            artifactFilename: recentArtifact?.filename,
-          })
-        );
-
-        // sendMessage queues transparently if the waiting agent is busy
-        this.sendMessage(agentId, notificationPrompt, { sourceType: MESSAGE_SOURCE_TYPE.NOTIFICATION }).catch(
-          (error) => {
-            log.error({ agentId, error }, "Failed to notify waiting agent");
-          }
-        );
-
-        log.info({ agentId: completedAgentId, waitingAgentId }, "Notifying waiting agent");
-      } catch (error) {
-        log.error({ agentId: completedAgentId, waitingAgentId, error }, "Failed to notify waiting agent");
-      }
-    }
   }
 
   /**
@@ -578,30 +492,30 @@ export class AgentOrchestrator {
       }
     }
 
-    // Resume streaming/waiting_permission agents
+    // Resume streaming agents
     for (const agentId of agentsToResume) {
       const state = this.ensureState(agentId);
-      state.status = AGENT_STATUS.IDLE; // Reset before sendMessage validates
+      state.status = AGENT_STATUS.IDLE;
+
+      let messageSource: MessageSource = {
+        sourceType: MESSAGE_SOURCE_TYPE.RECOVERY,
+      };
+      const activeTasks = this.taskManager
+        .getTasksByOwner(agentId)
+        .filter((task) => task.state === AGENT_TASK_STATE.ACTIVE);
+      const firstTask = head(activeTasks);
+      if (firstTask) {
+        messageSource = { sourceType: MESSAGE_SOURCE_TYPE.TASK, taskId: firstTask.id };
+        const otherActiveTasks = activeTasks.slice(1);
+        for (const task of otherActiveTasks) {
+          await this.taskManager.updateTaskState(task.id, AGENT_TASK_STATE.OPEN);
+        }
+      }
 
       // Fire-and-forget — don't block startup
-      this.sendMessage(agentId, "Continue your work from where you left off.", {
-        sourceType: MESSAGE_SOURCE_TYPE.RECOVERY,
-      }).catch((error) => {
+      this.sendMessage(agentId, "Continue your work from where you left off.", messageSource).catch((error) => {
         log.error({ agentId, error }, "Failed to resume agent on startup");
       });
-    }
-
-    // Handle waiting_agent agents whose targets are idle (not being resumed)
-    for (const [_agentId, state] of this.runtimeStates) {
-      if (!state.waitingForAgentId) {
-        continue;
-      }
-
-      const targetIsBeingResumed = agentsToResume.includes(state.waitingForAgentId);
-      if (!targetIsBeingResumed) {
-        // Target was already idle — notify waiting agent with artifact check
-        await this.notifyWaitingAgents(state.waitingForAgentId);
-      }
     }
 
     await this.persistState();
@@ -623,13 +537,133 @@ export class AgentOrchestrator {
     });
   }
 
-  /** Listen to loop scheduler ticks and send scheduled prompts */
-  private listenToLoopScheduler(): void {
-    this.loopScheduler.on("loopTick", ({ agentId, prompt, taskId }) => {
-      this.sendMessage(agentId, prompt, { sourceType: MESSAGE_SOURCE_TYPE.TASK, taskId }).catch((error) => {
-        log.error({ agentId, taskId, error }, "Loop tick failed");
-      });
+  private async onAgentStatusChanged(agentId: string, status: AgentStatus): Promise<void> {
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_STATUS, agentId, status });
+    if (status !== AGENT_STATUS.IDLE) {
+      return;
+    }
+
+    this.drainQueue(agentId).catch((error) => {
+      log.error({ agentId, error }, "Queue drain failed");
     });
+
+    await this.scheduleTask(agentId);
+  }
+
+  private async onTaskAssigned(task: AgentTaskItem): Promise<void> {
+    const assignedAgentId =
+      task.ownerSource?.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT ? task.ownerSource.agentId : undefined;
+    if (!assignedAgentId) {
+      return;
+    }
+
+    await this.scheduleTask(assignedAgentId);
+  }
+
+  private async onTaskStateChanged(task: AgentTaskItem, _previousState: AgentTaskState): Promise<void> {
+    if (task.state !== AGENT_TASK_STATE.COMPLETED && task.state !== AGENT_TASK_STATE.INCOMPLETE) {
+      return;
+    }
+
+    const owningAgentId =
+      task.ownerSource?.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT ? task.ownerSource.agentId : undefined;
+    try {
+      const owningAgentName = this.getAgentName(owningAgentId);
+      const dispatchAgentId =
+        task.dispatchSource?.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT ? task.dispatchSource.agentId : undefined;
+      const dispatchAgentName = this.getAgentName(dispatchAgentId);
+      if (!dispatchAgentId) {
+        log.debug(
+          { agentId: owningAgentId, agentName: owningAgentName, taskId: task.id, taskState: task.state },
+          "Task completed, no agent notification needed."
+        );
+        return;
+      }
+
+      let notificationPrompt: string;
+
+      if (task.state === AGENT_TASK_STATE.INCOMPLETE) {
+        notificationPrompt = createMessageContentFromTemplate(
+          TASK_INCOMPLETE_PROMPT,
+          getDefaultPromptContext({ agentId: owningAgentId, agentName: owningAgentName })
+        );
+      } else {
+        const recentArtifact = owningAgentId
+          ? await this.artifactManager.getMostRecentArtifact(owningAgentId)
+          : undefined;
+        const isRecent =
+          recentArtifact !== undefined &&
+          Date.now() - new Date(recentArtifact.updatedAt).getTime() <= ARTIFACT_TIMESTAMP_WINDOW_MS;
+
+        notificationPrompt = createMessageContentFromTemplate(
+          isRecent && recentArtifact ? TASK_COMPLETED_PROMPT : TASK_COMPLETED_NO_ARTIFACT_PROMPT,
+          getDefaultPromptContext({
+            agentId: owningAgentId,
+            agentName: owningAgentName,
+            artifactFilename: recentArtifact?.filename,
+          })
+        );
+      }
+
+      this.sendMessage(dispatchAgentId, notificationPrompt, { sourceType: MESSAGE_SOURCE_TYPE.NOTIFICATION }).catch(
+        (error) => {
+          log.error(
+            {
+              agentId: owningAgentId,
+              agentName: owningAgentName,
+              targetAgentId: dispatchAgentId,
+              targetAgentName: dispatchAgentName,
+              error,
+            },
+            "Send message failed to notify target agent"
+          );
+        }
+      );
+
+      log.info(
+        {
+          agentId: owningAgentId,
+          agentName: owningAgentName,
+          targetAgentId: dispatchAgentId,
+          targetAgentName: dispatchAgentName,
+        },
+        "Notifying task dispatch agent"
+      );
+
+      await this.taskManager.updateTaskState(task.id, AGENT_TASK_STATE.CLOSED);
+    } catch (error) {
+      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.AGENT_NOT_FOUND) {
+        log.warn({ agentId: owningAgentId, error }, "Agent no longer exists.");
+      } else {
+        log.error({ agentId: owningAgentId, error }, "Failed to notify target agent.");
+      }
+    }
+  }
+
+  private async scheduleTask(agentId: string): Promise<void> {
+    const openedTasks = this.taskManager
+      .getTasksByOwner(agentId)
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+      .filter((task) => task.state === AGENT_TASK_STATE.OPEN);
+    const nextTask = head(openedTasks);
+    if (!nextTask) {
+      log.info({ agentId }, `No tasks pending`);
+      return;
+    }
+
+    const agentRunner = this.getAgentRunner(agentId);
+    if (agentRunner.getAgentStatus() !== AGENT_STATUS.IDLE) {
+      log.info({ agentId }, `Agent busy, not scheduling new task`);
+      return;
+    }
+
+    this.sendMessage(agentId, nextTask.task, { sourceType: MESSAGE_SOURCE_TYPE.TASK, taskId: nextTask.id }).catch(
+      (error) => {
+        log.error({ agentId, taskId: nextTask.id, error }, "Task send message failed");
+      }
+    );
+
+    await this.taskManager.updateTaskState(nextTask.id, AGENT_TASK_STATE.ACTIVE);
   }
 
   private createAgentRunner(agentId: string): AgentRunner {
@@ -688,5 +722,13 @@ export class AgentOrchestrator {
     }
 
     return agentRunner;
+  }
+
+  private getAgentName(agentId?: string): string {
+    if (!agentId) {
+      return "";
+    }
+
+    return this.registry.getAgent(agentId).name;
   }
 }

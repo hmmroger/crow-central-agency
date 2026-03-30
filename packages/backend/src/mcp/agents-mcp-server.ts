@@ -1,11 +1,32 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod/v4";
-import type { AgentOrchestrator } from "../services/agent-orchestrator.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
+import type { AgentTaskManager } from "../services/agent-task-manager.js";
+import { AGENT_TASK_SOURCE_TYPE, type AgentConfig } from "@crow-central-agency/shared";
+import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
+import type { MessageTemplate } from "../utils/message-template.types.js";
+import { MessageRoles } from "../model-providers/openai-provider.types.js";
+import { ARTIFACTS_MCP_WRITE_ARTIFACT_TOOL_NAME } from "./artifacts-mcp-server.js";
 
 export const AGENTS_MCP_LIST_AGENTS_TOOL_NAME = "list_agents";
 export const AGENTS_MCP_INVOKE_AGENT_TOOL_NAME = "invoke_agent";
+
+const INTER_AGENT_INVOKE_PROMPT: MessageTemplate = {
+  role: MessageRoles.user,
+  content: [
+    {
+      content: [
+        `[Agent request from "{agentName}" ({agentId})]`,
+        "",
+        "{task}",
+        "",
+        `Please perform this task and write your results to an artifact using the "${ARTIFACTS_MCP_WRITE_ARTIFACT_TOOL_NAME}" tool.`,
+      ],
+    },
+  ],
+  keys: ["agentName", "agentId", "task"],
+};
 
 /**
  * Create the crow-agents MCP server for a specific agent.
@@ -14,8 +35,8 @@ export const AGENTS_MCP_INVOKE_AGENT_TOOL_NAME = "invoke_agent";
  */
 export function createAgentsMcpServer(
   agentId: string,
-  orchestrator: AgentOrchestrator,
-  registry: AgentRegistry
+  registry: AgentRegistry,
+  taskManager: AgentTaskManager
 ): McpSdkServerConfigWithInstance {
   return createSdkMcpServer({
     name: "crow-agents",
@@ -62,14 +83,16 @@ export function createAgentsMcpServer(
             return { content: [{ type: "text", text: "Error: cannot invoke yourself" }], isError: true };
           }
 
+          const sourceAgentConfig = registry.getAgent(agentId);
+          let targetAgentConfig: AgentConfig;
           try {
-            registry.getAgent(args.agent_id);
+            targetAgentConfig = registry.getAgent(args.agent_id);
           } catch {
             return { content: [{ type: "text", text: "Error: target agent not found" }], isError: true };
           }
 
           try {
-            const result = await orchestrator.invokeInterAgent(agentId, args.agent_id, args.task);
+            const result = await createTask(taskManager, sourceAgentConfig, targetAgentConfig, args.task);
             return { content: [{ type: "text", text: result }] };
           } catch (err) {
             const message = err instanceof Error ? err.message : "Failed to invoke agent";
@@ -79,4 +102,31 @@ export function createAgentsMcpServer(
       ),
     ],
   });
+}
+
+async function createTask(
+  taskManager: AgentTaskManager,
+  sourceAgentConfig: AgentConfig,
+  targetAgentConfig: AgentConfig,
+  task: string
+): Promise<string> {
+  const sourceName = sourceAgentConfig.name;
+  const taskPrompt = createMessageContentFromTemplate(
+    INTER_AGENT_INVOKE_PROMPT,
+    getDefaultPromptContext({
+      agentId: sourceAgentConfig.id,
+      agentName: sourceName,
+      task,
+    })
+  );
+
+  const sourceAgent = { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId: sourceAgentConfig.id };
+  const newTask = await taskManager.addTask(taskPrompt, sourceAgent);
+  await taskManager.assignTask(
+    newTask.id,
+    { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId: targetAgentConfig.id },
+    sourceAgent
+  );
+
+  return `Task sent to agent "${targetAgentConfig.name}" (${targetAgentConfig.id}). The agent is working on it and you will be notified when the result is ready.`;
 }

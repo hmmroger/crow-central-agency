@@ -52,9 +52,9 @@ export async function bootstrap(options: BootstrapOptions) {
     broadcaster,
     permissionHandler,
     artifactManager,
-    loopScheduler,
     sessionManager,
-    messageQueue
+    messageQueue,
+    taskManager
   );
   await orchestrator.initialize();
 
@@ -62,7 +62,7 @@ export async function bootstrap(options: BootstrapOptions) {
   mcpManager.registerMcpServer("crow-artifacts", (agentId) =>
     createArtifactsMcpServer(agentId, artifactManager, registry)
   );
-  mcpManager.registerMcpServer("crow-agents", (agentId) => createAgentsMcpServer(agentId, orchestrator, registry));
+  mcpManager.registerMcpServer("crow-agents", (agentId) => createAgentsMcpServer(agentId, registry, taskManager));
 
   // Start loop scheduler
   loopScheduler.start();

@@ -31,7 +31,6 @@ export const AgentRuntimeStateSchema = z.object({
   status: z.enum([AGENT_STATUS.IDLE, AGENT_STATUS.STREAMING, AGENT_STATUS.COMPACTING]).default(AGENT_STATUS.IDLE),
   sessionId: z.string().optional(),
   sessionUsage: SessionUsageSchema,
-  waitingForAgentId: z.string().optional(),
   lastError: z.string().optional(),
   pendingPermissions: z.array(PendingPermissionInfoSchema).optional(),
 });
