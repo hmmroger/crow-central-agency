@@ -23,8 +23,8 @@ const TASK_DATABASE_VERSION = 1;
 /** Valid state transitions — maps current state to allowed next states */
 const VALID_TRANSITIONS: Record<AgentTaskState, readonly AgentTaskState[]> = {
   [AGENT_TASK_STATE.OPEN]: [AGENT_TASK_STATE.ACTIVE, AGENT_TASK_STATE.CLOSED],
-  [AGENT_TASK_STATE.ACTIVE]: [AGENT_TASK_STATE.COMPLETED, AGENT_TASK_STATE.INCOMPLETED],
-  [AGENT_TASK_STATE.INCOMPLETED]: [AGENT_TASK_STATE.ACTIVE, AGENT_TASK_STATE.CLOSED],
+  [AGENT_TASK_STATE.ACTIVE]: [AGENT_TASK_STATE.COMPLETED, AGENT_TASK_STATE.INCOMPLETE],
+  [AGENT_TASK_STATE.INCOMPLETE]: [AGENT_TASK_STATE.ACTIVE, AGENT_TASK_STATE.CLOSED],
   [AGENT_TASK_STATE.COMPLETED]: [AGENT_TASK_STATE.CLOSED],
   [AGENT_TASK_STATE.CLOSED]: [],
 };
@@ -129,6 +129,11 @@ export class AgentTaskManager extends EventBus<AgentTaskManagerEvents> {
   ): Promise<AgentTaskItem> {
     const task = await this.serializedWithResult(async () => {
       const found = this.getTaskOrThrow(taskId);
+
+      if (found.state !== AGENT_TASK_STATE.OPEN) {
+        throw new AppError(`Cannot assign task in state ${found.state}`, APP_ERROR_CODES.INVALID_STATE_TRANSITION);
+      }
+
       found.ownerSource = ownerSource;
       found.dispatchSource = dispatchSource;
       found.updatedTimestamp = Date.now();

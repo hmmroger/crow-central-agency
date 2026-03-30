@@ -3,7 +3,7 @@ import { z } from "zod";
 export const AGENT_TASK_STATE = {
   OPEN: "OPEN",
   ACTIVE: "ACTIVE",
-  INCOMPLETED: "INCOMPLETED",
+  INCOMPLETE: "INCOMPLETE",
   COMPLETED: "COMPLETED",
   CLOSED: "CLOSED",
 } as const;
@@ -32,7 +32,7 @@ export const AgentTaskItemSchema = z.object({
   state: z.enum([
     AGENT_TASK_STATE.OPEN,
     AGENT_TASK_STATE.ACTIVE,
-    AGENT_TASK_STATE.INCOMPLETED,
+    AGENT_TASK_STATE.INCOMPLETE,
     AGENT_TASK_STATE.COMPLETED,
     AGENT_TASK_STATE.CLOSED,
   ]),
