@@ -625,9 +625,9 @@ export class AgentOrchestrator {
 
   /** Listen to loop scheduler ticks and send scheduled prompts */
   private listenToLoopScheduler(): void {
-    this.loopScheduler.on("loopTick", ({ agentId, prompt }) => {
-      this.sendMessage(agentId, prompt, { sourceType: MESSAGE_SOURCE_TYPE.LOOP }).catch((error) => {
-        log.error({ agentId, error }, "Loop tick failed");
+    this.loopScheduler.on("loopTick", ({ agentId, prompt, taskId }) => {
+      this.sendMessage(agentId, prompt, { sourceType: MESSAGE_SOURCE_TYPE.TASK, taskId }).catch((error) => {
+        log.error({ agentId, taskId, error }, "Loop tick failed");
       });
     });
   }

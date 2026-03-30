@@ -113,9 +113,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
       }
 
       if (this.shouldTick(agent, now)) {
-        this.lastTickTime.set(agent.id, now.getTime());
         this.createLoopTask(agent.id, agent.loop.prompt);
-        log.debug({ agentId: agent.id }, "Loop tick emitted");
       }
     }
   }
@@ -213,11 +211,12 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
       .addTask(prompt, loopSource)
       .then((task) => this.taskManager.assignTask(task.id, agentOwner, userDispatch))
       .then((task) => {
-        this.emit("loopTick", { agentId, prompt });
+        this.lastTickTime.set(agentId, Date.now());
+        this.emit("loopTick", { agentId, prompt, taskId: task.id });
         log.debug({ agentId, taskId: task.id }, "Loop task created and assigned");
       })
       .catch((error) => {
-        log.error({ agentId, error }, "Failed to create loop task");
+        log.error({ agentId, error }, "Failed to create loop task — will retry on next check");
       });
   }
 }
