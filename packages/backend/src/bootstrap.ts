@@ -40,10 +40,10 @@ export async function bootstrap(options: BootstrapOptions) {
   const sessionManager = new SessionManager();
   const permissionHandler = new PermissionHandler(broadcaster);
   const artifactManager = new ArtifactManager();
-  const loopScheduler = new LoopScheduler(registry);
   const messageQueue = new MessageQueueManager();
   const taskManager = new AgentTaskManager();
   await taskManager.initialize();
+  const loopScheduler = new LoopScheduler(registry, taskManager);
   const mcpManager = new CrowMcpManager();
 
   const orchestrator = new AgentOrchestrator(

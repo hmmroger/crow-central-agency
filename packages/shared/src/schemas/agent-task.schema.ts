@@ -12,6 +12,7 @@ export type AgentTaskState = (typeof AGENT_TASK_STATE)[keyof typeof AGENT_TASK_S
 export const AGENT_TASK_SOURCE_TYPE = {
   AGENT: "AGENT",
   USER: "USER",
+  LOOP: "LOOP",
 } as const;
 export type AgentTaskSourceType = (typeof AGENT_TASK_SOURCE_TYPE)[keyof typeof AGENT_TASK_SOURCE_TYPE];
 
@@ -24,7 +25,15 @@ const AgentSourceSchema = z.object({
   agentId: z.string(),
 });
 
-export const AgentTaskSourceSchema = z.discriminatedUnion("sourceType", [UserSourceSchema, AgentSourceSchema]);
+const LoopSourceSchema = z.object({
+  sourceType: z.literal(AGENT_TASK_SOURCE_TYPE.LOOP),
+});
+
+export const AgentTaskSourceSchema = z.discriminatedUnion("sourceType", [
+  UserSourceSchema,
+  AgentSourceSchema,
+  LoopSourceSchema,
+]);
 export type AgentTaskSource = z.infer<typeof AgentTaskSourceSchema>;
 
 export const AgentTaskItemSchema = z.object({

@@ -1,7 +1,8 @@
-import { TIME_MODE, type AgentConfig, type LoopConfig } from "@crow-central-agency/shared";
+import { AGENT_TASK_SOURCE_TYPE, TIME_MODE, type AgentConfig, type LoopConfig } from "@crow-central-agency/shared";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { LoopSchedulerEvents } from "./loop-scheduler.types.js";
 import type { AgentRegistry } from "./agent-registry.js";
+import type { AgentTaskManager } from "./agent-task-manager.js";
 import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "loop-scheduler" });
@@ -28,7 +29,10 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
   private checkInterval: ReturnType<typeof setInterval> | undefined;
   private lastTickTime = new Map<string, number>();
 
-  constructor(private readonly registry: AgentRegistry) {
+  constructor(
+    private readonly registry: AgentRegistry,
+    private readonly taskManager: AgentTaskManager
+  ) {
     super();
     this.listenToRegistryEvents();
   }
@@ -110,7 +114,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
 
       if (this.shouldTick(agent, now)) {
         this.lastTickTime.set(agent.id, now.getTime());
-        this.emit("loopTick", { agentId: agent.id, prompt: agent.loop.prompt });
+        this.createLoopTask(agent.id, agent.loop.prompt);
         log.debug({ agentId: agent.id }, "Loop tick emitted");
       }
     }
@@ -197,5 +201,23 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
     }
 
     return now.getTime() - lastTick >= intervalMs;
+  }
+
+  /** Create a task for a loop tick — add as OPEN then immediately assign to the target agent */
+  private createLoopTask(agentId: string, prompt: string): void {
+    const loopSource = { sourceType: AGENT_TASK_SOURCE_TYPE.LOOP };
+    const agentOwner = { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId };
+    const userDispatch = { sourceType: AGENT_TASK_SOURCE_TYPE.USER };
+
+    this.taskManager
+      .addTask(prompt, loopSource)
+      .then((task) => this.taskManager.assignTask(task.id, agentOwner, userDispatch))
+      .then((task) => {
+        this.emit("loopTick", { agentId, prompt });
+        log.debug({ agentId, taskId: task.id }, "Loop task created and assigned");
+      })
+      .catch((error) => {
+        log.error({ agentId, error }, "Failed to create loop task");
+      });
   }
 }

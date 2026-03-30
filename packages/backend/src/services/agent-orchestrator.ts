@@ -14,7 +14,7 @@ import type { ArtifactManager } from "./artifact-manager.js";
 import type { LoopScheduler } from "./loop-scheduler.js";
 import type { SessionManager } from "./session-manager.js";
 import type { MessageQueueManager } from "./message-queue-manager.js";
-import { MESSAGE_SOURCE, type MessageSource } from "./message-queue-manager.types.js";
+import { MESSAGE_SOURCE_TYPE, type MessageSource } from "./message-queue-manager.types.js";
 import crypto from "node:crypto";
 import { AppError } from "../error/app-error.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
@@ -169,7 +169,7 @@ export class AgentOrchestrator {
   public async sendMessage(
     agentId: string,
     message: string,
-    source: MessageSource = MESSAGE_SOURCE.USER
+    source: MessageSource = { sourceType: MESSAGE_SOURCE_TYPE.USER }
   ): Promise<void> {
     const state = this.ensureState(agentId);
     const agentRunner = this.getAgentRunner(agentId);
@@ -215,7 +215,10 @@ export class AgentOrchestrator {
     );
 
     // sendMessage queues transparently if the target is busy
-    this.sendMessage(targetAgentId, taskPrompt, MESSAGE_SOURCE.INTER_AGENT).catch((error) => {
+    this.sendMessage(targetAgentId, taskPrompt, {
+      sourceType: MESSAGE_SOURCE_TYPE.AGENT,
+      agentId: sourceAgentId,
+    }).catch((error) => {
       log.error(
         { agentId: sourceAgentId, agentName: sourceName, targetAgentId, targetAgentName: targetConfig.name, error },
         "Failed to deliver inter-agent task"
@@ -494,9 +497,11 @@ export class AgentOrchestrator {
         );
 
         // sendMessage queues transparently if the waiting agent is busy
-        this.sendMessage(agentId, notificationPrompt, MESSAGE_SOURCE.NOTIFICATION).catch((error) => {
-          log.error({ agentId, error }, "Failed to notify waiting agent");
-        });
+        this.sendMessage(agentId, notificationPrompt, { sourceType: MESSAGE_SOURCE_TYPE.NOTIFICATION }).catch(
+          (error) => {
+            log.error({ agentId, error }, "Failed to notify waiting agent");
+          }
+        );
 
         log.info({ agentId: completedAgentId, waitingAgentId }, "Notifying waiting agent");
       } catch (error) {
@@ -579,11 +584,11 @@ export class AgentOrchestrator {
       state.status = AGENT_STATUS.IDLE; // Reset before sendMessage validates
 
       // Fire-and-forget — don't block startup
-      this.sendMessage(agentId, "Continue your work from where you left off.", MESSAGE_SOURCE.RECOVERY).catch(
-        (error) => {
-          log.error({ agentId, error }, "Failed to resume agent on startup");
-        }
-      );
+      this.sendMessage(agentId, "Continue your work from where you left off.", {
+        sourceType: MESSAGE_SOURCE_TYPE.RECOVERY,
+      }).catch((error) => {
+        log.error({ agentId, error }, "Failed to resume agent on startup");
+      });
     }
 
     // Handle waiting_agent agents whose targets are idle (not being resumed)
@@ -621,7 +626,7 @@ export class AgentOrchestrator {
   /** Listen to loop scheduler ticks and send scheduled prompts */
   private listenToLoopScheduler(): void {
     this.loopScheduler.on("loopTick", ({ agentId, prompt }) => {
-      this.sendMessage(agentId, prompt, MESSAGE_SOURCE.LOOP).catch((error) => {
+      this.sendMessage(agentId, prompt, { sourceType: MESSAGE_SOURCE_TYPE.LOOP }).catch((error) => {
         log.error({ agentId, error }, "Loop tick failed");
       });
     });
