@@ -7,6 +7,7 @@ export const VIEW_MODE = {
   DASHBOARD: "dashboard",
   AGENTS: "agents",
   AGENT_EDITOR: "agent-editor",
+  TASKS: "tasks",
 } as const;
 
 export type ViewMode = (typeof VIEW_MODE)[keyof typeof VIEW_MODE];
