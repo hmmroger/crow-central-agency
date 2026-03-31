@@ -47,7 +47,7 @@ export function SidePanel() {
 
       {/* Open panel */}
       {sidePanelOpen && (
-        <div className="flex h-full">
+        <div className="flex h-full animate-fade-in">
           <PanelResizeHandle
             onPointerDown={resizeHandle.handlePointerDown}
             onKeyDown={resizeHandle.handleKeyDown}

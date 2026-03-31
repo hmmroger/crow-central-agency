@@ -36,7 +36,7 @@ export function AgentsViewSidePanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="shrink-0 px-2 pt-2">
+      <div className="shrink-0 border-b border-border px-2">
         <TabBar
           tabs={SIDE_PANEL_TABS}
           activeTab={activeTab}

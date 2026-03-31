@@ -102,17 +102,11 @@
 
   /* ── Animation - timing & easing ── */
   --duration-fast: 150ms;
-  --duration-normal: 200ms;
-  --duration-slow: 300ms;
-  /* Deliberately override Tailwind v4 defaults with snappier spring-feel
-     curves for a distinctive command-center motion personality. All
-     ease-out/ease-in/ease-in-out utilities use these curves globally. */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
 
   /* ── Animation shorthand tokens + keyframes ── */
-  --animate-fade-in: fade-in var(--duration-normal) var(--ease-out) both;
+  --animate-fade-in: fade-in var(--duration-normal) var(--ease-in-out) both;
   --animate-fade-slide-up: fade-slide-up var(--duration-normal) var(--ease-out) both;
   --animate-fade-slide-down: fade-slide-down var(--duration-normal) var(--ease-out) both;
   --animate-scale-in: scale-in var(--duration-normal) var(--ease-out) both;
