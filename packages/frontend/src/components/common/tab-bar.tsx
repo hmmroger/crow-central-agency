@@ -56,6 +56,7 @@ export function TabBar<T extends string>({
     <motion.div
       className="absolute bottom-0 left-0 right-0 h-px bg-linear-to-r from-accent-primary to-accent-hover"
       layoutId={`${layoutId}-indicator`}
+      initial={false}
       transition={{ type: "spring", stiffness: 400, damping: 30 }}
     />
   );

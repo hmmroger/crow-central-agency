@@ -44,14 +44,14 @@ interface AppState {
   setSidePanelWidth: (width: number) => void;
 }
 
+/** localStorage key for persisted app state */
+const APP_STORE_STORAGE_KEY = "crow-app-state";
+
 /**
  * App-wide store - flat navigation state.
  * Sidebar controls viewMode (DASHBOARD / AGENTS). Agent editor is a full view.
  * No view stack - sidebar switching is flat, editor always returns to dashboard.
  */
-/** localStorage key for persisted app state */
-const APP_STORE_STORAGE_KEY = "crow-app-state";
-
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -111,6 +111,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: APP_STORE_STORAGE_KEY,
+      version: 1,
       partialize: (state) => ({
         viewMode: state.viewMode,
         selectedAgentId: state.selectedAgentId,
