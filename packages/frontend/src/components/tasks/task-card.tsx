@@ -7,6 +7,7 @@ import {
 import { Clock, User, Bot, RotateCw } from "lucide-react";
 import { cn } from "../../utils/cn.js";
 import { getTaskStateLabel, formatRelativeTime } from "../../utils/task-utils.js";
+import { TaskActions } from "./task-actions.js";
 
 interface TaskCardProps {
   task: AgentTaskItem;
@@ -77,9 +78,16 @@ export function TaskCard({ task, agents }: TaskCardProps) {
           </span>
         </div>
 
-        <span className="text-3xs font-mono text-text-muted tabular-nums">
-          {formatRelativeTime(task.updatedTimestamp)}
-        </span>
+        <div className="flex items-center gap-2">
+          {/* Actions — visible on card hover */}
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-[var(--duration-fast)]">
+            <TaskActions task={task} />
+          </div>
+
+          <span className="text-3xs font-mono text-text-muted tabular-nums">
+            {formatRelativeTime(task.updatedTimestamp)}
+          </span>
+        </div>
       </div>
 
       {/* Task content */}

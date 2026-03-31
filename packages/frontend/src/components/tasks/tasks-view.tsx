@@ -1,11 +1,13 @@
 import { Plus, RefreshCw } from "lucide-react";
 import { useTasksContext } from "../../providers/tasks-provider.js";
 import { useAgentsQuery } from "../../hooks/use-agents-query.js";
+import { useModalDialog } from "../../providers/modal-dialog-provider.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { ActionBarButton } from "../common/action-bar-button.js";
 import { LoadingSkeleton } from "../common/loading-skeleton.js";
 import { EmptyState } from "../common/empty-state.js";
 import { TaskList } from "./task-list.js";
+import { CreateTaskDialog } from "./create-task-dialog.js";
 
 /**
  * Tasks view — top-level view for task management.
@@ -14,6 +16,16 @@ import { TaskList } from "./task-list.js";
 export function TasksView() {
   const { tasks, isLoading, error } = useTasksContext();
   const { data: agents = [] } = useAgentsQuery();
+  const { showDialog } = useModalDialog();
+
+  const openCreateDialog = () => {
+    showDialog({
+      id: "create-task",
+      component: CreateTaskDialog,
+      title: "New Task",
+      className: "w-fit",
+    });
+  };
 
   if (isLoading) {
     return (
@@ -52,9 +64,7 @@ export function TasksView() {
           description="Create a task or let agents delegate work to each other."
           actionLabel="New Task"
           actionIcon={Plus}
-          onAction={() => {
-            /* TODO: Phase 5 — open create task dialog */
-          }}
+          onAction={openCreateDialog}
         />
       </>
     );
@@ -69,14 +79,7 @@ export function TasksView() {
         <span className="text-xs text-text-muted font-mono tabular-nums">
           {tasks.length} task{tasks.length !== 1 ? "s" : ""}
         </span>
-        <ActionBarButton
-          icon={Plus}
-          label="New Task"
-          onClick={() => {
-            /* TODO: Phase 5 — open create task dialog */
-          }}
-          isPrimary
-        />
+        <ActionBarButton icon={Plus} label="New Task" onClick={openCreateDialog} isPrimary />
       </div>
 
       {/* Task list */}
