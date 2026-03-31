@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AGENT_STATUS } from "../constants/agent-status.js";
 
 /**
- * Session usage tracking — accumulated across queries in a session
+ * Session usage tracking - accumulated across queries in a session
  */
 export const SessionUsageSchema = z.object({
   inputTokens: z.number().default(0),
@@ -13,7 +13,7 @@ export const SessionUsageSchema = z.object({
 });
 
 /**
- * Pending permission request metadata — persisted on runtime state
+ * Pending permission request metadata - persisted on runtime state
  * so the frontend can recover pending permissions on refresh.
  */
 export const PendingPermissionInfoSchema = z.object({
@@ -24,7 +24,7 @@ export const PendingPermissionInfoSchema = z.object({
 });
 
 /**
- * Agent runtime state — maintained by the orchestrator per agent.
+ * Agent runtime state - maintained by the orchestrator per agent.
  */
 export const AgentRuntimeStateSchema = z.object({
   agentId: z.string(),

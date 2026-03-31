@@ -1,10 +1,10 @@
-/* Typography — Inter for interface, JetBrains Mono for code/data */
+/* Typography - Inter for interface, JetBrains Mono for code/data */
 @import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap");
 
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════════
-   CROW CENTRAL AGENCY — Design Tokens
+   CROW CENTRAL AGENCY - Design Tokens
    Neon-noir command center: obsidian void, violet atmosphere,
    luminous readouts, translucent layered panels
    ═══════════════════════════════════════════════════════════════ */
@@ -14,13 +14,13 @@
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
-  /* Deep obsidian with violet undertone — the void */
+  /* Deep obsidian with violet undertone - the void */
   --color-base: oklch(0.13 0.02 285);
-  /* Slightly lifted matte surface — panels float above the void */
+  /* Slightly lifted matte surface - panels float above the void */
   --color-surface: oklch(0.17 0.02 285);
-  /* Elevated surface — cards, modals, hover states */
+  /* Elevated surface - cards, modals, hover states */
   --color-surface-elevated: oklch(0.21 0.022 285);
-  /* Inset surface — input fields, code blocks */
+  /* Inset surface - input fields, code blocks */
   --color-surface-inset: oklch(0.11 0.018 285);
 
   /* primary actions, active states, key readouts */
@@ -49,7 +49,7 @@
   --color-error: oklch(0.65 0.2 18);
   --color-warning: oklch(0.78 0.15 75);
 
-  /* ── Glow — diffused bloom underneath panels ── */
+  /* ── Glow - diffused bloom underneath panels ── */
   --color-glow: oklch(0.45 0.08 175);
   --color-glow-primary: oklch(0.5 0.1 192);
   --color-glow-accent: oklch(0.45 0.12 340);
@@ -100,7 +100,7 @@
   --shadow-card: 0 2px 12px oklch(0 0 0 / 0.4), 0 0 1px oklch(0 0 0 / 0.2);
   --shadow-elevated: 0 8px 32px oklch(0 0 0 / 0.5), 0 0 1px oklch(0 0 0 / 0.3);
 
-  /* ── Animation — timing & easing ── */
+  /* ── Animation - timing & easing ── */
   --duration-fast: 150ms;
   --duration-normal: 200ms;
   --duration-slow: 300ms;
@@ -181,7 +181,7 @@
     cursor: pointer;
   }
 
-  /* Scrollbar — thin, translucent, matches the void */
+  /* Scrollbar - thin, translucent, matches the void */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -200,7 +200,7 @@
     background: var(--color-scrollbar-thumb-hover);
   }
 
-  /* Selection — primary tint */
+  /* Selection - primary tint */
   ::selection {
     background: var(--color-selection);
     color: var(--color-text-primary);
@@ -208,7 +208,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Markdown Rendering — Agent Responses
+   Markdown Rendering - Agent Responses
    Rich, readable prose in the dark void. Code blocks glow faintly.
    ═══════════════════════════════════════════════════════════════ */
 

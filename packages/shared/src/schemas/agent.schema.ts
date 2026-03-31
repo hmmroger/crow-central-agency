@@ -32,7 +32,7 @@ export const ToolConfigSchema = z.object({
 });
 
 /**
- * Full agent configuration — persisted to disk in agents.json
+ * Full agent configuration - persisted to disk in agents.json
  */
 export const AgentConfigSchema = z.object({
   id: AgentIdSchema,
@@ -54,7 +54,7 @@ export const AgentConfigSchema = z.object({
 });
 
 /**
- * Input for creating a new agent — only required fields
+ * Input for creating a new agent - only required fields
  */
 export const CreateAgentInputSchema = z.object({
   name: z.string().min(1).max(50),
@@ -70,7 +70,7 @@ export const CreateAgentInputSchema = z.object({
 });
 
 /**
- * Input for updating an existing agent — all fields optional
+ * Input for updating an existing agent - all fields optional
  */
 export const UpdateAgentInputSchema = z.object({
   name: z.string().min(1).max(50).optional(),

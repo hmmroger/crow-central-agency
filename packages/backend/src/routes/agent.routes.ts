@@ -86,7 +86,7 @@ export async function registerAgentRoutes(
       throw new AppError("Message is required", APP_ERROR_CODES.VALIDATION);
     }
 
-    // Fire-and-forget — response is streamed via WS
+    // Fire-and-forget - response is streamed via WS
     orchestrator.sendMessage(agentId, message).catch((error) => {
       // Errors are broadcast to WS subscribers
       logger.error({ agentId, error }, "Send message failed");
@@ -143,7 +143,7 @@ export async function registerAgentRoutes(
 
     const sessionIdBeforeCompact = state.sessionId;
 
-    // Fire-and-forget — result delivered via WS, consistent with /send
+    // Fire-and-forget - result delivered via WS, consistent with /send
     orchestrator
       .sendMessage(agentId, "/compact")
       .then(() => {

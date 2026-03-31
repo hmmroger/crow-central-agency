@@ -18,7 +18,7 @@ import { logger } from "../utils/logger.js";
 import { AppError } from "../error/app-error.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
 
-/** Loose envelope schema — validates structure but parses tasks individually */
+/** Loose envelope schema - validates structure but parses tasks individually */
 const TaskDatabaseEnvelopeSchema = z.object({
   version: z.number(),
   tasks: z.array(z.unknown()),
@@ -27,7 +27,7 @@ const TaskDatabaseEnvelopeSchema = z.object({
 /** Current version of the persisted AgentTaskDatabase format */
 const TASK_DATABASE_VERSION = 1;
 
-/** Valid state transitions — maps current state to allowed next states */
+/** Valid state transitions - maps current state to allowed next states */
 const VALID_TRANSITIONS: Record<AgentTaskState, readonly AgentTaskState[]> = {
   [AGENT_TASK_STATE.OPEN]: [AGENT_TASK_STATE.ACTIVE, AGENT_TASK_STATE.CLOSED],
   [AGENT_TASK_STATE.ACTIVE]: [AGENT_TASK_STATE.COMPLETED, AGENT_TASK_STATE.INCOMPLETE],

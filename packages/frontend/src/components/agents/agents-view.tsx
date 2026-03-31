@@ -4,7 +4,7 @@ import { AgentCommandStrip } from "./agent-command-strip.js";
 import { AgentConsole } from "../console/agent-console.js";
 
 /**
- * Agents view — command strip (left) + agent console (right).
+ * Agents view - command strip (left) + agent console (right).
  * When no agent is selected, shows an empty state placeholder.
  */
 export function AgentsView() {
@@ -15,7 +15,7 @@ export function AgentsView() {
       <HeaderPortal title="Agents" />
       <AgentCommandStrip />
 
-      {/* Console panel — shows selected agent or empty state */}
+      {/* Console panel - shows selected agent or empty state */}
       <div className="flex-1 min-w-0">
         {selectedAgentId ? (
           <AgentConsole agentId={selectedAgentId} />

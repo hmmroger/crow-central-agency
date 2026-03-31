@@ -10,7 +10,7 @@ interface AppLayoutProps {
 }
 
 /**
- * App layout shell — header spans full width, then sidebar + content side by side.
+ * App layout shell - header spans full width, then sidebar + content side by side.
  */
 export function AppLayout({ children }: AppLayoutProps) {
   const { connectionState } = useWs();

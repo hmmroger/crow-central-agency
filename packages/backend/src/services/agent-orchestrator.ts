@@ -85,9 +85,9 @@ const CROW_STATE_VERSION = 1;
 const log = logger.child({ context: "orchestrator" });
 
 /**
- * Agent orchestrator — central state machine that owns agent runtimes.
+ * Agent orchestrator - central state machine that owns agent runtimes.
  * Creates SDK queries, processes streams, coordinates lifecycle, persists state.
- * Owns all its dependencies — broadcasts directly, listens to registry/taskManager events internally.
+ * Owns all its dependencies - broadcasts directly, listens to registry/taskManager events internally.
  */
 export class AgentOrchestrator {
   private agentRunners = new Map<string, AgentRunner>();
@@ -131,11 +131,11 @@ export class AgentOrchestrator {
 
         log.info({ version: result.data.version, count: this.runtimeStates.size }, "Loaded persisted runtime states");
       } else {
-        log.warn({ issues: result.error.issues }, "Invalid orchestrator state file — starting fresh");
+        log.warn({ issues: result.error.issues }, "Invalid orchestrator state file - starting fresh");
       }
     } catch (error) {
       if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
-        log.info("No persisted runtime states found — starting fresh");
+        log.info("No persisted runtime states found - starting fresh");
       } else {
         throw error;
       }
@@ -161,7 +161,7 @@ export class AgentOrchestrator {
   }
 
   /**
-   * Send a message to an agent — creates an SDK query and processes the stream.
+   * Send a message to an agent - creates an SDK query and processes the stream.
    * If the agent is busy, the message is transparently enqueued and processed
    * when the agent becomes idle.
    */
@@ -384,7 +384,7 @@ export class AgentOrchestrator {
     }
   }
 
-  /** Cleanup when an agent is deleted — triggered by registry agentDeleted event */
+  /** Cleanup when an agent is deleted - triggered by registry agentDeleted event */
   private async cleanup(agentId: string): Promise<void> {
     this.permissionHandler.cancelAllForAgent(agentId);
 
@@ -453,7 +453,7 @@ export class AgentOrchestrator {
     await writeJsonFile(this.stateFilePath, crowState);
   }
 
-  /** Startup recovery — resume agents based on their persisted status */
+  /** Startup recovery - resume agents based on their persisted status */
   private async runStartupRecovery(): Promise<void> {
     const agentsToResume: string[] = [];
 
@@ -461,13 +461,13 @@ export class AgentOrchestrator {
       try {
         this.registry.getAgent(agentId);
       } catch {
-        log.warn({ agentId }, "Orphaned runtime state — agent no longer exists, cleaning up");
+        log.warn({ agentId }, "Orphaned runtime state - agent no longer exists, cleaning up");
         this.runtimeStates.delete(agentId);
 
         continue;
       }
 
-      // Clear stale pending permissions — SDK callbacks no longer exist after restart
+      // Clear stale pending permissions - SDK callbacks no longer exist after restart
       if (state.pendingPermissions?.length) {
         log.info({ agentId, count: state.pendingPermissions.length }, "Clearing stale pending permissions");
         state.pendingPermissions = undefined;
@@ -475,13 +475,13 @@ export class AgentOrchestrator {
 
       switch (state.status) {
         case AGENT_STATUS.STREAMING:
-          // Agent was working — resume by sending "continue your work"
+          // Agent was working - resume by sending "continue your work"
           agentsToResume.push(agentId);
           log.info({ agentId, status: state.status }, "Will resume agent after startup");
           break;
 
         case AGENT_STATUS.COMPACTING:
-          // Compaction was interrupted — set to idle
+          // Compaction was interrupted - set to idle
           state.status = AGENT_STATUS.IDLE;
           log.info({ agentId }, "Reset compacting agent to idle");
           break;
@@ -512,7 +512,7 @@ export class AgentOrchestrator {
         }
       }
 
-      // Fire-and-forget — don't block startup
+      // Fire-and-forget - don't block startup
       this.sendMessage(agentId, "Continue your work from where you left off.", messageSource).catch((error) => {
         log.error({ agentId, error }, "Failed to resume agent on startup");
       });

@@ -14,14 +14,14 @@ const ONE_MINUTE_MS = 60 * 1000;
 const ONE_HOUR_MS = 60 * ONE_MINUTE_MS;
 
 /**
- * Loop scheduler — sends configured prompts to agents on a schedule.
+ * Loop scheduler - sends configured prompts to agents on a schedule.
  * Checks every minute whether any agent's loop should fire.
  *
- * timeMode "at" — trigger at a specific time point:
+ * timeMode "at" - trigger at a specific time point:
  *   minute: 5 → tick at XX:05 every hour
  *   hour: 14, minute: 30 → tick at 14:30 daily
  *
- * timeMode "every" — trigger at recurring intervals:
+ * timeMode "every" - trigger at recurring intervals:
  *   minute: 15 → every 15 minutes
  *   hour: 1, minute: 30 → every 1h 30m
  */
@@ -37,7 +37,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
     this.listenToRegistryEvents();
   }
 
-  /** Start the scheduler — checks every minute */
+  /** Start the scheduler - checks every minute */
   public start(): void {
     if (this.checkInterval) {
       return;
@@ -60,12 +60,12 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
     log.info("Loop scheduler stopped");
   }
 
-  /** Wire up registry lifecycle events — owns its own listeners */
+  /** Wire up registry lifecycle events - owns its own listeners */
   private listenToRegistryEvents(): void {
     this.registry.on("agentCreated", ({ agent }) => {
       if (agent.loop?.enabled && agent.loop.timeMode === TIME_MODE.EVERY) {
         // Seed so interval counts from creation, not fires immediately on first tick.
-        // "at" mode needs no entry — first matching wall-clock time fires normally.
+        // "at" mode needs no entry - first matching wall-clock time fires normally.
         this.lastTickTime.set(agent.id, Date.now());
         log.debug({ agentId: agent.id }, "Loop 'every' tracking seeded for new agent");
       }
@@ -82,7 +82,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
         this.lastTickTime.set(agent.id, Date.now());
         log.debug({ agentId: agent.id }, "Loop 'every' tracking reset after config update");
       } else {
-        // "at" mode — clear de-dup guard so the next matching wall-clock time fires normally
+        // "at" mode - clear de-dup guard so the next matching wall-clock time fires normally
         this.lastTickTime.delete(agent.id);
         log.debug({ agentId: agent.id }, "Loop 'at' de-dup guard cleared after config update");
       }
@@ -103,7 +103,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
       }
 
       // "every" mode needs a seed on first encounter so the interval starts
-      // from now rather than firing immediately. "at" mode needs no seed —
+      // from now rather than firing immediately. "at" mode needs no seed -
       // shouldTickAt handles a missing entry via && short-circuit.
       if (!this.lastTickTime.has(agent.id) && agent.loop.timeMode === TIME_MODE.EVERY) {
         this.lastTickTime.set(agent.id, now.getTime());
@@ -143,7 +143,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
   }
 
   /**
-   * timeMode "at" — trigger at a specific time point each cycle:
+   * timeMode "at" - trigger at a specific time point each cycle:
    *   minute: 5 → tick at XX:05 every hour
    *   hour: 14 → tick at 14:00 daily
    *   hour: 14, minute: 30 → tick at 14:30 daily
@@ -169,7 +169,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
     }
 
     // Prevent double-tick within the same minute.
-    // lastTick may be undefined after restart — && short-circuits safely, no seed needed for "at" mode.
+    // lastTick may be undefined after restart - && short-circuits safely, no seed needed for "at" mode.
     const lastTick = this.lastTickTime.get(agentId);
 
     if (lastTick && now.getTime() - lastTick < ONE_MINUTE_MS) {
@@ -180,7 +180,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
   }
 
   /**
-   * timeMode "every" — trigger at recurring intervals:
+   * timeMode "every" - trigger at recurring intervals:
    *   minute: 15 → every 15 minutes
    *   hour: 2 → every 2 hours
    *   hour: 1, minute: 30 → every 1h 30m
@@ -201,7 +201,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
     return now.getTime() - lastTick >= intervalMs;
   }
 
-  /** Create a task for a loop tick — add as OPEN then immediately assign to the target agent */
+  /** Create a task for a loop tick - add as OPEN then immediately assign to the target agent */
   private createLoopTask(agentId: string, prompt: string): void {
     const loopSource = { sourceType: AGENT_TASK_SOURCE_TYPE.LOOP };
     const agentOwner = { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId };
@@ -216,7 +216,7 @@ export class LoopScheduler extends EventBus<LoopSchedulerEvents> {
         log.debug({ agentId, taskId: task.id }, "Loop task created and assigned");
       })
       .catch((error) => {
-        log.error({ agentId, error }, "Failed to create loop task — will retry on next check");
+        log.error({ agentId, error }, "Failed to create loop task - will retry on next check");
       });
   }
 }

@@ -5,7 +5,7 @@ import { logger } from "../utils/logger.js";
 const log = logger.child({ context: "ws-broadcaster" });
 
 /**
- * WebSocket broadcaster — sends messages to all connected clients.
+ * WebSocket broadcaster - sends messages to all connected clients.
  * No per-agent subscription filtering; all connected clients receive all messages.
  * Client-side handlers filter by agentId.
  */

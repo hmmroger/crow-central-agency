@@ -50,7 +50,7 @@ export function AgentEditorView({ agentId }: AgentEditorViewProps) {
 
   const [generateModalType, setGenerateModalType] = useState<"persona" | "agentmd" | undefined>(undefined);
 
-  /** Save — create or update */
+  /** Save - create or update */
   const handleSave = useCallback(async () => {
     const loopConfig = {
       enabled: form.loopEnabled,
@@ -130,7 +130,7 @@ export function AgentEditorView({ agentId }: AgentEditorViewProps) {
     });
   }, [agentId, confirm, deleteFn, goToDashboard]);
 
-  /** Cancel — confirm if there are unsaved changes */
+  /** Cancel - confirm if there are unsaved changes */
   const handleCancel = useCallback(() => {
     if (!isDirty) {
       goToDashboard();
@@ -173,7 +173,7 @@ export function AgentEditorView({ agentId }: AgentEditorViewProps) {
     <div className="flex flex-col h-full">
       <HeaderPortal title={headerTitle} />
 
-      {/* Action bar — save/delete (left), cancel (right) */}
+      {/* Action bar - save/delete (left), cancel (right) */}
       <div className="flex items-center justify-between px-6 pt-4 pb-2 shrink-0">
         <div className="flex items-center gap-1">
           {isEditing && (
@@ -211,7 +211,7 @@ export function AgentEditorView({ agentId }: AgentEditorViewProps) {
         )}
 
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Left column — settings */}
+          {/* Left column - settings */}
           <div className="flex flex-col flex-1 min-w-0 space-y-6">
             <BasicInfoSection
               name={form.name}
@@ -267,7 +267,7 @@ export function AgentEditorView({ agentId }: AgentEditorViewProps) {
             </FieldGroup>
           </div>
 
-          {/* Right column — AGENT.md editor */}
+          {/* Right column - AGENT.md editor */}
           <div className="flex flex-col flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1.5 shrink-0">
               <label className="text-sm font-medium text-text-secondary">AGENT.md</label>

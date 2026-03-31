@@ -1,5 +1,5 @@
 /**
- * WebSocket message types — Client → Server
+ * WebSocket message types - Client → Server
  */
 export const CLIENT_MESSAGE_TYPE = {
   SEND_MESSAGE: "send_message",
@@ -10,7 +10,7 @@ export const CLIENT_MESSAGE_TYPE = {
 export type ClientMessageType = (typeof CLIENT_MESSAGE_TYPE)[keyof typeof CLIENT_MESSAGE_TYPE];
 
 /**
- * WebSocket message types — Server → Client
+ * WebSocket message types - Server → Client
  */
 export const SERVER_MESSAGE_TYPE = {
   AGENT_TEXT: "agent_text",

@@ -3,7 +3,7 @@ import { useAppStore } from "../../stores/app-store.js";
 import { AgentCommandPill } from "./agent-command-pill.js";
 
 /**
- * Vertical strip of agent command pills — shows all agents as square buttons.
+ * Vertical strip of agent command pills - shows all agents as square buttons.
  * Selected agent gets a primary border; active agents show a dot indicator.
  * Sits to the left of the agent console in the Agents view.
  */

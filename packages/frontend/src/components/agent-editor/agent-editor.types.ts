@@ -2,7 +2,7 @@ import type { DayOfWeek, PermissionMode, SettingSource, TimeModeType, ToolMode }
 
 export type { AgentDetailData } from "../../hooks/use-agent-query.js";
 
-/** Form state for the agent editor — all editable fields */
+/** Form state for the agent editor - all editable fields */
 export interface AgentEditorFormState {
   name: string;
   description?: string;

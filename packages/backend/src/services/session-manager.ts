@@ -7,7 +7,7 @@ import { logger } from "../utils/logger.js";
 const log = logger.child({ context: "session-manager" });
 
 /**
- * Session manager — the sole creator of AgentMessage objects.
+ * Session manager - the sole creator of AgentMessage objects.
  * All SDK SessionMessage → AgentMessage transformation is encapsulated here.
  *
  * Maintains an in-memory AgentMessage cache per session.
@@ -19,8 +19,8 @@ export class SessionManager {
   private messageCache = new Map<string, AgentMessage[]>();
 
   /**
-   * Load messages for a session — cache-first, falls back to SDK.
-   * Returns AgentMessage[] — the public API never exposes SessionMessage.
+   * Load messages for a session - cache-first, falls back to SDK.
+   * Returns AgentMessage[] - the public API never exposes SessionMessage.
    */
   public async loadMessages(sessionId: string, cwd: string): Promise<AgentMessage[]> {
     const cached = this.messageCache.get(sessionId);
@@ -29,7 +29,7 @@ export class SessionManager {
       return cached;
     }
 
-    log.debug({ sessionId }, "Cache miss — loading messages from SDK");
+    log.debug({ sessionId }, "Cache miss - loading messages from SDK");
     const rawMessages = await getSessionMessages(sessionId, { dir: cwd });
     const agentMessages = transformSessionMessages(rawMessages);
     this.messageCache.set(sessionId, agentMessages);
@@ -44,7 +44,7 @@ export class SessionManager {
    *
    * @param sessionId - The session to add to
    * @param message - SDK SessionMessage (user or assistant)
-   * @returns The AgentMessage[] created from this SessionMessage — canonical source for WS broadcast
+   * @returns The AgentMessage[] created from this SessionMessage - canonical source for WS broadcast
    */
   public addMessage(sessionId: string, message: SessionMessage): AgentMessage[] {
     let cached = this.messageCache.get(sessionId);
@@ -61,7 +61,7 @@ export class SessionManager {
     return agentMessages;
   }
 
-  /** Get session info from SDK (not cached — lightweight call) */
+  /** Get session info from SDK (not cached - lightweight call) */
   public async getInfo(sessionId: string, cwd: string): Promise<SDKSessionInfo | undefined> {
     return getSessionInfo(sessionId, { dir: cwd });
   }
@@ -71,7 +71,7 @@ export class SessionManager {
     return listSessions({ dir: cwd });
   }
 
-  /** Invalidate cache for a session — called after compact or new session */
+  /** Invalidate cache for a session - called after compact or new session */
   public invalidateCache(sessionId: string): void {
     this.messageCache.delete(sessionId);
     log.debug({ sessionId }, "Cache invalidated");

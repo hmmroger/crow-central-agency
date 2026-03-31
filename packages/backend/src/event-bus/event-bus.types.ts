@@ -1,5 +1,5 @@
 /**
- * Generic event map type — maps event names to their payload types.
+ * Generic event map type - maps event names to their payload types.
  * Services define their own event maps extending this pattern.
  */
 export type EventMap = Record<string, unknown>;

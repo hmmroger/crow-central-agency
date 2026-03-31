@@ -8,7 +8,7 @@ const log = logger.child({ context: "permission-handler" });
 /**
  * Manages tool permission requests with configurable timeout.
  * Bridges the SDK's canUseTool callback with WS-based user responses.
- * Takes WsBroadcaster as a direct dependency — broadcasting is intrinsic to this service.
+ * Takes WsBroadcaster as a direct dependency - broadcasting is intrinsic to this service.
  */
 export class PermissionHandler {
   private pending = new Map<string, PendingPermission>();
@@ -28,7 +28,7 @@ export class PermissionHandler {
     decisionReason?: string
   ): Promise<PermissionResult> {
     return new Promise<PermissionResult>((resolve) => {
-      // Set timeout — auto-deny after PERMISSION_TIMEOUT_MS
+      // Set timeout - auto-deny after PERMISSION_TIMEOUT_MS
       const timeout = setTimeout(() => {
         this.cancelPermission(toolUseId, "Timed out waiting for permission response");
       }, PERMISSION_TIMEOUT_MS);

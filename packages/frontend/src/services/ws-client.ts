@@ -5,7 +5,7 @@ const RECONNECT_MAX_MS = 30000;
 
 /**
  * WebSocket client with auto-reconnect.
- * No subscription management — server broadcasts all agent messages to connected clients.
+ * No subscription management - server broadcasts all agent messages to connected clients.
  * Client-side handlers filter by agentId.
  */
 export class WsClient {

@@ -4,7 +4,7 @@ import { useWs } from "./use-ws.js";
 /**
  * Register a client-side handler for an agent's WS messages.
  * Filters incoming messages by agentId and routes matches to the callback.
- * No server-side subscribe/unsubscribe — server broadcasts all messages to connected clients.
+ * No server-side subscribe/unsubscribe - server broadcasts all messages to connected clients.
  *
  * @param agentId - The agent to filter for (pass undefined to skip)
  * @param onMessage - Callback for incoming messages matching this agent

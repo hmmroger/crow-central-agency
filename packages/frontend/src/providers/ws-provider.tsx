@@ -18,9 +18,9 @@ interface WsProviderProps {
 }
 
 /**
- * WebSocket provider — manages WsClient lifecycle.
+ * WebSocket provider - manages WsClient lifecycle.
  * Connects on mount, disconnects on unmount.
- * No subscription management — server broadcasts all messages to connected clients.
+ * No subscription management - server broadcasts all messages to connected clients.
  */
 export function WsProvider({ children }: WsProviderProps) {
   const clientRef = useRef<WsClient | undefined>(undefined);
@@ -40,7 +40,7 @@ export function WsProvider({ children }: WsProviderProps) {
     };
   }, []);
 
-  // Stable function references — only connectionState changes trigger context update
+  // Stable function references - only connectionState changes trigger context update
   const send = useCallback((message: Record<string, unknown>) => clientRef.current?.send(message), []);
   const onMessage = useCallback((handler: WsMessageHandler) => clientRef.current?.onMessage(handler) ?? (() => {}), []);
 

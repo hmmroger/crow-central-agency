@@ -19,7 +19,7 @@ Write only the markdown content, no extra commentary or wrapping.`,
 /**
  * Text generation via an OpenAI-compatible API.
  * Uses type-specific system prompts with user-provided instructions.
- * Optional — requires OPENAI_BASE_URL to be configured.
+ * Optional - requires OPENAI_BASE_URL to be configured.
  */
 export class MdGenerationService {
   constructor(

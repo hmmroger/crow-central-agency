@@ -1,7 +1,7 @@
 /**
  * Reusable confirmation dialog content for the modal dialog framework.
- * Rendered inside ModalDialogRenderer — onClose is injected automatically.
- * Supports async onConfirm — dialog stays open until the callback resolves.
+ * Rendered inside ModalDialogRenderer - onClose is injected automatically.
+ * Supports async onConfirm - dialog stays open until the callback resolves.
  */
 
 import { useState } from "react";
@@ -16,7 +16,7 @@ interface ConfirmationDialogProps {
   cancelLabel?: string;
   /** When true, styles the confirm button as destructive */
   destructive?: boolean;
-  /** Called when the user confirms — if async, dialog stays open until resolved */
+  /** Called when the user confirms - if async, dialog stays open until resolved */
   onConfirm: () => void | Promise<void>;
   /** Injected by ModalDialogRenderer */
   onClose: () => void;
@@ -39,7 +39,7 @@ export function ConfirmationDialog({
       await onConfirm();
       onClose();
     } catch {
-      // Error handling is the caller's responsibility — just re-enable the button
+      // Error handling is the caller's responsibility - just re-enable the button
       setIsPending(false);
     }
   };

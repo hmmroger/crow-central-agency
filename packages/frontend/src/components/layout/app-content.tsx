@@ -5,7 +5,7 @@ import { AgentEditorView } from "../agent-editor/agent-editor-view.js";
 import { AgentsView } from "../agents/agents-view.js";
 
 /**
- * App content — reads viewMode from app-store and renders the active view.
+ * App content - reads viewMode from app-store and renders the active view.
  * Pure view-switcher; each view owns its own data queries.
  */
 export function AppContent() {

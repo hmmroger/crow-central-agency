@@ -14,7 +14,7 @@ import { agentKeys } from "../services/query-keys.js";
 import { useWsSubscription } from "./use-ws-subscription.js";
 import type { ApiError } from "../services/api-client.types.js";
 
-/** Default session usage — zero values for all fields */
+/** Default session usage - zero values for all fields */
 export const DEFAULT_SESSION_USAGE: SessionUsage = {
   inputTokens: 0,
   outputTokens: 0,
@@ -33,7 +33,7 @@ const DEFAULT_STATE: AgentRuntimeState = {
 /**
  * Fetch agent runtime state via React Query, kept fresh by WS events.
  * WS `agent_status` and `agent_usage` events update the cache directly.
- * Uses staleTime: Infinity — no background refetch needed.
+ * Uses staleTime: Infinity - no background refetch needed.
  *
  * @param agentId - The agent whose state to fetch
  */

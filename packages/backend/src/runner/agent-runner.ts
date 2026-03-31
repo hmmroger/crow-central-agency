@@ -51,7 +51,7 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
         `The following agents are available for collaboration with the "${AGENTS_MCP_INVOKE_AGENT_TOOL_NAME}" tool from the crow-agents MCP server:`,
         "{peerAgents}",
         `If a task does not fall explicitly within your own scope, check whether a peer agent is better suited and use the "${AGENTS_MCP_INVOKE_AGENT_TOOL_NAME}" tool from the crow-agents MCP server to delegate.`,
-        "Do NOT attempt to perform tasks that fall under another agent's responsibility — invoke that agent instead.",
+        "Do NOT attempt to perform tasks that fall under another agent's responsibility - invoke that agent instead.",
       ],
       keys: ["peerAgents"],
     },
@@ -106,7 +106,7 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
   }
 
   /**
-   * Send a message to an agent — creates an SDK query and processes the stream.
+   * Send a message to an agent - creates an SDK query and processes the stream.
    * If the agent is busy, the message is transparently enqueued and processed
    * when the agent becomes idle.
    */

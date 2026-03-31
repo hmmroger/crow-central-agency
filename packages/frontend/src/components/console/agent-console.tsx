@@ -14,7 +14,7 @@ interface AgentConsoleProps {
 }
 
 /**
- * Agent console — message list + input + permission queue.
+ * Agent console - message list + input + permission queue.
  * Composes query hooks for data, stream state for ephemeral WS state, and actions for commands.
  * Status, session actions, and artifacts are handled by the side panel.
  */

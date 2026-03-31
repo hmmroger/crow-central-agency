@@ -5,7 +5,7 @@ interface ResultBannerProps {
 }
 
 /**
- * Displays the result of a completed agent query — success or error with cost/duration.
+ * Displays the result of a completed agent query - success or error with cost/duration.
  */
 export function ResultBanner({ subtype, costUsd, durationMs }: ResultBannerProps) {
   const isSuccess = subtype === "success";

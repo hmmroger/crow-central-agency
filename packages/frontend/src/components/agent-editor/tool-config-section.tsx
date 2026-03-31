@@ -17,7 +17,7 @@ interface ToolConfigSectionProps {
 }
 
 /**
- * Tool configuration section — tool mode toggle, tool selection,
+ * Tool configuration section - tool mode toggle, tool selection,
  * auto-approved tools, and custom tool input.
  */
 export function ToolConfigSection({

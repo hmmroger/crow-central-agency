@@ -30,11 +30,11 @@ import { CROW_SYSTEM_AGENT_ID, getCrowAgent } from "../agents/crow-agent.js";
 
 const log = logger.child({ context: "agent-registry" });
 
-/** Known system agent IDs — authoritative source for persist, load, and route validation */
+/** Known system agent IDs - authoritative source for persist, load, and route validation */
 export const SYSTEM_AGENT_IDS = new Set([CROW_SYSTEM_AGENT_ID]);
 
 /**
- * Agent registry — CRUD for agent configs with file persistence.
+ * Agent registry - CRUD for agent configs with file persistence.
  * All configs stored in a single agents.json file.
  * Each agent gets a folder for AGENT.md and artifacts.
  */
@@ -80,7 +80,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
       }
     } catch (error) {
       if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
-        log.info("No agents.json found — starting with empty registry");
+        log.info("No agents.json found - starting with empty registry");
       } else {
         throw error;
       }
@@ -142,7 +142,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     return agent;
   }
 
-  /** Update an existing agent — system agents cannot be updated */
+  /** Update an existing agent - system agents cannot be updated */
   public async updateAgent(agentId: string, input: UpdateAgentInput): Promise<AgentConfig> {
     const existing = this.getAgent(agentId);
     try {
@@ -183,12 +183,12 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     return updated;
   }
 
-  /** Delete an agent and its folder — system agents cannot be deleted */
+  /** Delete an agent and its folder - system agents cannot be deleted */
   public async deleteAgent(agentId: string): Promise<void> {
     const existing = this.getAgent(agentId);
     this.assertMutable(existing);
 
-    // Persist JSON first — orphaned folder is recoverable; orphaned JSON entry is not
+    // Persist JSON first - orphaned folder is recoverable; orphaned JSON entry is not
     this.agents.delete(agentId);
     await this.persist();
 
@@ -216,7 +216,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     }
   }
 
-  /** Write the agent's AGENT.md file — system agents cannot be modified */
+  /** Write the agent's AGENT.md file - system agents cannot be modified */
   public async setAgentMd(agentId: string, content: string): Promise<void> {
     const agent = this.getAgent(agentId);
     this.assertMutable(agent);
@@ -246,7 +246,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     return path.join(this.getAgentDir(agentId), AGENT_MD_FILENAME);
   }
 
-  /** Persist all user-created agent configs to agents.json — excludes system agents by known ID */
+  /** Persist all user-created agent configs to agents.json - excludes system agents by known ID */
   private async persist(): Promise<void> {
     const data = Array.from(this.agents.values()).filter((agent) => !SYSTEM_AGENT_IDS.has(agent.id));
     await writeJsonFile(this.agentsFilePath, data);

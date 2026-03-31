@@ -61,7 +61,7 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
   };
 }
 
-/** Deep equality check for form state — compares all fields including arrays */
+/** Deep equality check for form state - compares all fields including arrays */
 function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): boolean {
   return (
     formA.name === formB.name &&

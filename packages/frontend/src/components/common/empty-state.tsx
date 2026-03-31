@@ -11,7 +11,7 @@ interface EmptyStateProps {
 }
 
 /**
- * Empty state display — used when a list has no items or an error occurred.
+ * Empty state display - used when a list has no items or an error occurred.
  * Owns its own button rendering. Consumer provides label + callback, not JSX.
  * Consumer can override styling via className (merged with tailwind-merge).
  */

@@ -1,5 +1,5 @@
 /**
- * App error codes — internal to CCA, no HTTP status.
+ * App error codes - internal to CCA, no HTTP status.
  * Route handlers map these to appropriate HTTP status codes.
  */
 export const APP_ERROR_CODES = {

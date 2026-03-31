@@ -1,5 +1,5 @@
 /**
- * Agent message role values — defines the source/purpose of each message.
+ * Agent message role values - defines the source/purpose of each message.
  * - "user": message from the human user
  * - "agent": text response from the AI agent
  * - "system": tool use activity (file read, bash command, etc.)

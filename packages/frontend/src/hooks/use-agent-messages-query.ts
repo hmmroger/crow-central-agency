@@ -8,7 +8,7 @@ import type { ApiError } from "../services/api-client.types.js";
 /**
  * Fetch agent messages via React Query, kept fresh by WS events.
  * WS `agent_message` events append to the cache directly.
- * Uses staleTime: Infinity — no background refetch needed.
+ * Uses staleTime: Infinity - no background refetch needed.
  *
  * @param agentId - The agent whose messages to fetch
  */

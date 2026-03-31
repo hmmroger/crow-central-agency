@@ -6,7 +6,7 @@ import { bootstrap } from "./bootstrap.js";
 
 const program = new Command();
 
-program.name("crow").description("Crow Central Agency — Multi-Instance Claude Code Orchestrator").version("0.1.0");
+program.name("crow").description("Crow Central Agency - Multi-Instance Claude Code Orchestrator").version("0.1.0");
 
 program
   .command("server")

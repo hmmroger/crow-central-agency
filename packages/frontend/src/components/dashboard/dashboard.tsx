@@ -8,7 +8,7 @@ import { LoadingSkeleton } from "../common/loading-skeleton.js";
 import { EmptyState } from "../common/empty-state.js";
 
 /**
- * Dashboard — agent cards grid with inline "New Agent" button.
+ * Dashboard - agent cards grid with inline "New Agent" button.
  * Owns its agent list query via useAgentsQuery.
  */
 export function Dashboard() {

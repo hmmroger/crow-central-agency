@@ -2,7 +2,7 @@
 
 ## Architecture principles
 
-- **Backend is the source of truth**: All state, data, and computation lives in the backend. The frontend is purely a presentation layer — it renders what the backend provides via REST and WebSocket. The frontend MUST NOT maintain its own derived state or duplicate backend logic.
+- **Backend is the source of truth**: All state, data, and computation lives in the backend. The frontend is purely a presentation layer - it renders what the backend provides via REST and WebSocket. The frontend MUST NOT maintain its own derived state or duplicate backend logic.
 - **Design tokens over hardcoded values**: All colors, font sizes, spacing, and other visual properties MUST use theme tokens defined in `index.css` `@theme` block. Never use hardcoded pixel sizes (e.g. `text-[10px]`) or raw color values (e.g. `rgba(129,140,248,...)`).
 
 ## Workflow

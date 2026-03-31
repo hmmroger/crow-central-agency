@@ -42,7 +42,7 @@ export function AgentCommandPill({ agent, isSelected, onClick }: AgentCommandPil
 
       {abbreviation}
 
-      {/* Streaming dot — upper-right corner */}
+      {/* Streaming dot - upper-right corner */}
       {isStreaming && (
         <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-accent border-2 border-base" />
       )}

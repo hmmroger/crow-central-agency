@@ -20,7 +20,7 @@ export async function registerGenerationRoutes(server: FastifyInstance, generati
     const { type, prompt, context } = request.body ?? {};
 
     if (!type || !VALID_TYPES.has(type)) {
-      throw new AppError(`Invalid type — must be one of: ${[...VALID_TYPES].join(", ")}`, APP_ERROR_CODES.VALIDATION);
+      throw new AppError(`Invalid type - must be one of: ${[...VALID_TYPES].join(", ")}`, APP_ERROR_CODES.VALIDATION);
     }
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {

@@ -2,14 +2,14 @@ import { Bot, LayoutDashboard } from "lucide-react";
 import { useAppStore, VIEW_MODE, type ViewMode } from "../../stores/app-store.js";
 import { cn } from "../../utils/cn.js";
 
-/** Sidebar navigation items — icon + target view mode */
+/** Sidebar navigation items - icon + target view mode */
 const SIDEBAR_ITEMS: { mode: ViewMode; icon: typeof LayoutDashboard; label: string }[] = [
   { mode: VIEW_MODE.DASHBOARD, icon: LayoutDashboard, label: "Dashboard" },
   { mode: VIEW_MODE.AGENTS, icon: Bot, label: "Agents" },
 ];
 
 /**
- * Fixed icon sidebar — switches between Dashboard and Agents views.
+ * Fixed icon sidebar - switches between Dashboard and Agents views.
  * AGENT_EDITOR mode: neither icon is highlighted.
  */
 export function AppSidebar() {

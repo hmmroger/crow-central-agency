@@ -28,7 +28,7 @@ const DAY_LABELS: Record<DayOfWeek, string> = {
 const ALL_DAYS = Object.values(DAY_OF_WEEK) as DayOfWeek[];
 
 /**
- * Loop configuration panel — enable/disable, days, time mode, hour/minute, prompt.
+ * Loop configuration panel - enable/disable, days, time mode, hour/minute, prompt.
  */
 export function LoopConfigPanel({
   enabled,

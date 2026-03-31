@@ -14,13 +14,13 @@ export interface UseAgentActionsOptions {
 
 /** Return type of useAgentActions */
 export interface AgentActions {
-  /** Send a user message — backend creates the AgentMessage and broadcasts via WS */
+  /** Send a user message - backend creates the AgentMessage and broadcasts via WS */
   sendMessage: (text: string) => void;
   /** Inject a btw message while streaming */
   injectMessage: (text: string) => void;
   /** Stop the agent */
   abort: () => void;
-  /** Start a new conversation — invalidates messages and state caches */
+  /** Start a new conversation - invalidates messages and state caches */
   newConversation: () => void;
   /** Trigger manual compaction */
   compact: () => void;
@@ -42,7 +42,7 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
   const queryClient = useQueryClient();
   const { resetStreamState } = options;
 
-  /** Send a user message — backend creates the AgentMessage and broadcasts agent_message WS */
+  /** Send a user message - backend creates the AgentMessage and broadcasts agent_message WS */
   const sendMessage = useCallback(
     (text: string) => {
       send({ type: CLIENT_MESSAGE_TYPE.SEND_MESSAGE, agentId, message: text });
@@ -70,7 +70,7 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
     },
   });
 
-  /** Start a new conversation — clears ephemeral state and invalidates query caches */
+  /** Start a new conversation - clears ephemeral state and invalidates query caches */
   const newConversationMutation = useMutation<void, ApiError>({
     mutationFn: async () => {
       const response = await apiClient.post<void>(`/agents/${agentId}/session/new`);

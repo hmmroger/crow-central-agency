@@ -8,7 +8,7 @@ import { AppContent } from "./components/layout/app-content.js";
 import { ModalDialogProvider } from "./providers/modal-dialog-provider.js";
 
 /**
- * App root — thin shell with providers and top-level composition.
+ * App root - thin shell with providers and top-level composition.
  */
 export function App() {
   return (

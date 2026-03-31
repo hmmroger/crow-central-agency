@@ -11,7 +11,7 @@ interface ErrorBoundaryState {
 }
 
 /**
- * React error boundary — catches unhandled errors in the component tree
+ * React error boundary - catches unhandled errors in the component tree
  * and displays a fallback UI instead of crashing the app.
  */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {

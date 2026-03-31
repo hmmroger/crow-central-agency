@@ -35,7 +35,7 @@ const CROW_SYSTEM_AGENT_PERSONA: MessageTemplate = {
 const SUPER_CROW_BIRTHDAY = "1970-01-01T00:00:00Z";
 const SUPER_CROW_TOOLS = ["Glob", "Grep", "Read", "WebFetch", "WebSearch"];
 
-/** Build the Crow system agent config — built-in, immutable, not persisted */
+/** Build the Crow system agent config - built-in, immutable, not persisted */
 export function getCrowAgent(): AgentConfig {
   const persona = createMessageContentFromTemplate(CROW_SYSTEM_AGENT_PERSONA, getDefaultPromptContext());
   return {

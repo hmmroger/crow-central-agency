@@ -2,9 +2,9 @@
  * Tool configuration modes for agent tool availability.
  */
 export const TOOL_MODE = {
-  /** All tools available — pass undefined to SDK */
+  /** All tools available - pass undefined to SDK */
   UNRESTRICTED: "unrestricted",
-  /** User-selected tool subset — pass explicit string[] to SDK */
+  /** User-selected tool subset - pass explicit string[] to SDK */
   RESTRICTED: "restricted",
 } as const;
 

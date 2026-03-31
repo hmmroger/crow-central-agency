@@ -28,7 +28,7 @@ const HTTP_STATUS_MAP: Record<AppErrorCode, number> = {
 /**
  * Register Fastify error handler.
  * Maps AppError codes → HTTP status codes. Unknown errors → 500.
- * Route concern only — services throw AppError, this handler maps to HTTP.
+ * Route concern only - services throw AppError, this handler maps to HTTP.
  */
 export function registerErrorHandler(server: FastifyInstance): void {
   server.setErrorHandler((error: Error, _request: FastifyRequest, reply: FastifyReply) => {

@@ -23,7 +23,7 @@ export async function createServer(options: { serveStatic: boolean }) {
   const websocket = await import("@fastify/websocket");
   await server.register(websocket.default);
 
-  // Error handler — maps AppError → HTTP status
+  // Error handler - maps AppError → HTTP status
   registerErrorHandler(server);
 
   // Static file serving (fullstack mode only)
@@ -57,7 +57,7 @@ async function setupStatic(server: FastifyInstance) {
     wildcard: false,
   });
 
-  // SPA fallback — serve index.html for non-API, non-file routes
+  // SPA fallback - serve index.html for non-API, non-file routes
   server.setNotFoundHandler(async (request: FastifyRequest, reply: FastifyReply) => {
     if (request.url.startsWith("/api/") || request.url.startsWith("/ws")) {
       return reply.status(404).send({ success: false, error: { code: "not_found", message: "Route not found" } });

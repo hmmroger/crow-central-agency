@@ -9,7 +9,7 @@ export const MESSAGE_SOURCE_TYPE = {
 } as const;
 export type MessageSourceType = (typeof MESSAGE_SOURCE_TYPE)[keyof typeof MESSAGE_SOURCE_TYPE];
 
-/** Composite source — identifies who originated a queued message */
+/** Composite source - identifies who originated a queued message */
 export type MessageSource =
   | { sourceType: typeof MESSAGE_SOURCE_TYPE.USER }
   | { sourceType: typeof MESSAGE_SOURCE_TYPE.LOOP }

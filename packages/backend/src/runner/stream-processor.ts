@@ -174,7 +174,7 @@ function handleAssistantMessage(agentId: string, message: SDKMessage & { type: "
   };
 }
 
-/** Handle tool progress — surface tool execution status */
+/** Handle tool progress - surface tool execution status */
 function handleToolProgress(agentId: string, message: SDKMessage & { type: "tool_progress" }): AgentStreamEvent {
   log.debug({ agentId, type: message.type, sessionId: message.session_id }, "handleToolProgress");
   return {

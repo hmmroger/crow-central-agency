@@ -11,7 +11,7 @@ interface AgentCardHeaderProps {
 }
 
 /**
- * Agent card header — name (click to toggle expand/collapse), status indicator, actions.
+ * Agent card header - name (click to toggle expand/collapse), status indicator, actions.
  */
 export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: AgentCardHeaderProps) {
   const openAgentEditor = useAppStore((state) => state.openAgentEditor);
@@ -19,7 +19,7 @@ export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: Age
 
   return (
     <div className="flex items-center justify-between">
-      {/* Name — click to toggle collapse/expand */}
+      {/* Name - click to toggle collapse/expand */}
       <div className="flex items-center gap-1 flex-1 min-w-0 cursor-pointer select-none" onClick={onToggleExpand}>
         <h3 className="text-sm font-semibold text-text-primary truncate">{agent.name}</h3>
         <ChevronDown

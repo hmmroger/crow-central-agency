@@ -14,7 +14,7 @@ interface AgentCardProps {
 }
 
 /**
- * Rich agent card — full control panel always visible.
+ * Rich agent card - full control panel always visible.
  * Collapsed shows everything with truncated messages.
  * Expanded doubles message area height and removes truncation.
  * Each card composes query hooks for its own agent data.
@@ -44,7 +44,7 @@ export function AgentCard({ agent }: AgentCardProps) {
         />
       </div>
 
-      {/* Messages — fills remaining space, expand controls truncation */}
+      {/* Messages - fills remaining space, expand controls truncation */}
       <AgentCardMessages
         messages={messages}
         streamingText={streamingText}

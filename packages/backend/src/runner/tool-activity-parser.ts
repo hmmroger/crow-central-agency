@@ -1,6 +1,6 @@
 import { SUBAGENT_TOOL_NAME } from "@crow-central-agency/shared";
 
-/** Type guard — returns true when value is a non-null, non-array object */
+/** Type guard - returns true when value is a non-null, non-array object */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -68,7 +68,7 @@ export function parseToolActivity(toolName: string, rawInput: unknown): string {
       return `Reading notebook ${toolInput.notebook_path ?? ""}`;
 
     default: {
-      // MCP tools or unknown tools — show tool name + first key input
+      // MCP tools or unknown tools - show tool name + first key input
       const firstKey = Object.keys(toolInput)[0];
       const firstValue = firstKey ? String(toolInput[firstKey]).slice(0, 50) : "";
 

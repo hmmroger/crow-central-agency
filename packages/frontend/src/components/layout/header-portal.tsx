@@ -7,7 +7,7 @@ interface HeaderPortalProps {
 }
 
 /**
- * Declarative header title registration — renders nothing.
+ * Declarative header title registration - renders nothing.
  * Place in a view's render tree to push the title into the app header.
  * Uses useLayoutEffect to sync before paint, avoiding flash on view transitions.
  */

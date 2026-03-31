@@ -9,7 +9,7 @@ interface UseResizablePanelOptions {
   currentWidth: number;
   /** Callback fired on resize with the new width */
   onResize: (width: number) => void;
-  /** Which side the resize handle sits on — determines drag direction */
+  /** Which side the resize handle sits on - determines drag direction */
   direction: "left" | "right";
 }
 
@@ -18,7 +18,7 @@ const KEYBOARD_STEP_LARGE = 20;
 
 /**
  * Pointer-capture-based panel resize hook.
- * Returns handlers for a resize handle element — supports drag and keyboard (arrow keys, shift for large steps).
+ * Returns handlers for a resize handle element - supports drag and keyboard (arrow keys, shift for large steps).
  */
 export function useResizablePanel({ minWidth, maxWidth, currentWidth, onResize, direction }: UseResizablePanelOptions) {
   const isDragging = useRef(false);

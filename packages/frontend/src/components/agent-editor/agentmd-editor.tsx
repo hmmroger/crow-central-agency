@@ -18,7 +18,7 @@ const EDITOR_PADDING_PX = 24;
 
 /**
  * Code-editor-style markdown editor with line numbers and edit/preview toggle.
- * Pure controlled component — parent owns the state and save logic.
+ * Pure controlled component - parent owns the state and save logic.
  */
 export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
   const [previewing, setPreviewing] = useState(false);
@@ -80,12 +80,12 @@ export function AgentMdEditor({ value, onChange }: AgentMdEditorProps) {
       const end = textarea.selectionEnd;
 
       if (start === end) {
-        // No selection — insert two spaces at cursor
+        // No selection - insert two spaces at cursor
         const newValue = value.substring(0, start) + "  " + value.substring(end);
         pendingSelectionRef.current = { start: start + 2, end: start + 2 };
         onChange(newValue);
       } else {
-        // Multi-line selection — indent every selected line
+        // Multi-line selection - indent every selected line
         const before = value.substring(0, start);
         const selected = value.substring(start, end);
         const after = value.substring(end);

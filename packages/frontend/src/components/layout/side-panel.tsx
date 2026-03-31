@@ -5,7 +5,7 @@ import { PanelResizeHandle } from "./panel-resize-handle.js";
 import { AgentsViewSidePanel } from "../agents/agents-view-side-panel.js";
 
 /**
- * Right side panel — renders view-specific content with a resize handle.
+ * Right side panel - renders view-specific content with a resize handle.
  * When closed, shows a floating toggle button on the center-right edge.
  * Only renders for views that have side panel content (Agents view for now).
  */
@@ -24,7 +24,7 @@ export function SidePanel() {
     direction: "right",
   });
 
-  // Determine content based on view mode — only agents view has content for now
+  // Determine content based on view mode - only agents view has content for now
   const hasContent = viewMode === VIEW_MODE.AGENTS;
 
   if (!hasContent) {

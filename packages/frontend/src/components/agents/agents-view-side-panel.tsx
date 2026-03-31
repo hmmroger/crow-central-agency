@@ -36,7 +36,7 @@ interface AgentSidePanelContentProps {
 }
 
 /**
- * Inner content — separated so hooks are only called when an agent is selected.
+ * Inner content - separated so hooks are only called when an agent is selected.
  */
 function AgentSidePanelContent({ agentId }: AgentSidePanelContentProps) {
   const queryClient = useQueryClient();
@@ -78,7 +78,7 @@ function AgentSidePanelContent({ agentId }: AgentSidePanelContentProps) {
 
   return (
     <div className="flex flex-col h-full px-3 pb-3 gap-4 animate-[fade-in_var(--duration-normal)_var(--ease-out)_both]">
-      {/* ── Status readout — recessed gauge ── */}
+      {/* ── Status readout - recessed gauge ── */}
       <div className="rounded-md bg-surface-inset border border-border-subtle/30 px-3 py-2.5">
         <GaugeLabel>Status</GaugeLabel>
         <div className="flex items-center gap-2.5 mt-1.5">
@@ -93,7 +93,7 @@ function AgentSidePanelContent({ agentId }: AgentSidePanelContentProps) {
         </div>
       </div>
 
-      {/* ── Session metrics — instrument wells ── */}
+      {/* ── Session metrics - instrument wells ── */}
       {(usage.totalCostUsd > 0 || usage.contextTotal > 0) && (
         <div className="grid grid-cols-2 gap-2">
           {usage.totalCostUsd > 0 && <MetricWell label="Cost" value={`$${usage.totalCostUsd.toFixed(4)}`} />}
@@ -116,7 +116,7 @@ function AgentSidePanelContent({ agentId }: AgentSidePanelContentProps) {
         </div>
       </div>
 
-      {/* ── Artifacts — collapsible ── */}
+      {/* ── Artifacts - collapsible ── */}
       <div className="flex flex-col flex-1 min-h-0">
         <button type="button" className="flex items-center justify-between w-full group" onClick={toggleArtifacts}>
           <GaugeLabel>Artifacts</GaugeLabel>
@@ -139,7 +139,7 @@ function AgentSidePanelContent({ agentId }: AgentSidePanelContentProps) {
 
 /* ── Sub-components ── */
 
-/** Gauge section label — tiny uppercase monospace, like instrument etching */
+/** Gauge section label - tiny uppercase monospace, like instrument etching */
 function GaugeLabel({ children }: { children: string }) {
   return <span className="text-3xs font-mono uppercase tracking-[0.15em] text-text-muted/50">{children}</span>;
 }
@@ -151,7 +151,7 @@ interface MetricWellProps {
 }
 
 /**
- * Recessed metric display — inset background with monospace readout.
+ * Recessed metric display - inset background with monospace readout.
  * Resembles a cockpit instrument gauge well.
  */
 function MetricWell({ label, value, suffix }: MetricWellProps) {
@@ -174,7 +174,7 @@ interface ControlButtonProps {
 }
 
 /**
- * Control button — bordered pill matching the command strip aesthetic.
+ * Control button - bordered pill matching the command strip aesthetic.
  * Inset feel with subtle border, teal hover glow.
  */
 function ControlButton({ icon: Icon, label, onClick, disabled }: ControlButtonProps) {

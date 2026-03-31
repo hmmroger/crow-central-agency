@@ -1,8 +1,8 @@
-# Crow Central Agency (CCA) — Project Specification
+# Crow Central Agency (CCA) - Project Specification
 
 ## Overview
 
-Crow Central Agency is a multi-instance Claude Code orchestrator. It provides a web-based control plane for creating, managing, and coordinating multiple autonomous Claude Code agents — each with its own identity, workspace, permissions, and persistent memory.
+Crow Central Agency is a multi-instance Claude Code orchestrator. It provides a web-based control plane for creating, managing, and coordinating multiple autonomous Claude Code agents - each with its own identity, workspace, permissions, and persistent memory.
 
 The system follows a client-server architecture where the backend is the single source of truth for all state, computation, and AI interaction. The frontend is a stateless presentation layer that renders what the backend provides. Agents communicate with each other through standardized MCP tools, enabling collaborative workflows where one agent can delegate tasks to another and consume results through shared artifacts.
 
@@ -10,7 +10,7 @@ The system follows a client-server architecture where the backend is the single 
 
 ### Agent
 
-An agent is a **unique persistent identity**, not a template or factory. Each agent has exactly one configuration and may work on one particular session at any time. There is a 1:1 relationship between an agent config and an agent instance — one config never spawns multiple instances.
+An agent is a **unique persistent identity**, not a template or factory. Each agent has exactly one configuration and may work on one particular session at any time. There is a 1:1 relationship between an agent config and an agent instance - one config never spawns multiple instances.
 
 An agent is defined by:
 - **Identity**: UUID, name, description
@@ -19,7 +19,7 @@ An agent is defined by:
 - **AGENT.md**: Persistent markdown instructions loaded into each session's system prompt
 - **Model**: The Claude model to use (default: `claude-sonnet-4-6`)
 - **Tools & Permissions**: Which tools are available, which are auto-approved, and the permission escalation mode
-- **Loop**: Optional automation config — send a prompt on a recurring interval
+- **Loop**: Optional automation config - send a prompt on a recurring interval
 
 ### Artifact
 
@@ -72,7 +72,7 @@ No runtime dependency exists between the two packages. They communicate exclusiv
 
 #### Service Layer
 
-Each responsibility is encapsulated in a standalone service. Services communicate via constructor injection and an event bus — no global singletons.
+Each responsibility is encapsulated in a standalone service. Services communicate via constructor injection and an event bus - no global singletons.
 
 | Service | Responsibility |
 |---|---|
@@ -83,7 +83,7 @@ Each responsibility is encapsulated in a standalone service. Services communicat
 | **WsBroadcaster** | Pub/sub layer. Maps `agentId → Set<WebSocket>`. Provides `broadcast(agentId, message)` and `sendTo(ws, message)`. |
 | **PermissionHandler** | Manages tool permission requests with a configurable timeout. Resolves via WebSocket responses from the UI. |
 | **LoopScheduler** | Scheduled prompt delivery. Emits `loopTick` events consumed by the orchestrator. |
-| **MdGenerationService** | Generates personas and AGENT.md content via an OpenAI-compatible API. Optional — requires `OPENAI_BASE_URL` config. |
+| **MdGenerationService** | Generates personas and AGENT.md content via an OpenAI-compatible API. Optional - requires `OPENAI_BASE_URL` config. |
 
 #### Stream Processing Pipeline
 
@@ -114,7 +114,7 @@ Agents discover and invoke each other through MCP tools, not direct API calls:
 4. When Agent B goes idle, the orchestrator notifies Agent A with a list of available artifacts
 5. Agent A reads the results via `read_artifact(agentId, filename)`
 
-This is an async pattern — there is no synchronous return value or direct callback.
+This is an async pattern - there is no synchronous return value or direct callback.
 
 #### Permission Flow
 
@@ -148,7 +148,7 @@ The overall visual is a dark theme with deep dark base background, matte midnigh
 - **Accent**: Electric blue
 
 
-All visual properties must use theme tokens — no hardcoded pixel sizes or raw color values.
+All visual properties must use theme tokens - no hardcoded pixel sizes or raw color values.
 
 ### Communication Protocol
 
@@ -188,8 +188,8 @@ npm start         # node dist/cli.js fullstack (serves API + SPA from single por
 ```
 
 The CLI supports two modes:
-- `crow server` — API + WebSocket only (frontend served separately)
-- `crow fullstack` — API + WebSocket + bundled SPA with fallback routing
+- `crow server` - API + WebSocket only (frontend served separately)
+- `crow fullstack` - API + WebSocket + bundled SPA with fallback routing
 
 ### Configuration
 
@@ -202,9 +202,9 @@ Environment variables with sensible defaults:
 | `CORS_ORIGINS` | `http://localhost:5101` | Allowed origins (comma-separated) |
 | `CROW_SYSTEM_PATH` | `.crow` | Storage root directory |
 | `STATIC_PATH` | `dist/public` | Frontend assets path |
-| `OPENAI_BASE_URL` | — | OpenAI-compatible API for content generation |
-| `OPENAI_API_KEY` | — | API key for generation endpoint |
-| `OPENAI_MODEL` | — | Model name for generation |
+| `OPENAI_BASE_URL` | - | OpenAI-compatible API for content generation |
+| `OPENAI_API_KEY` | - | API key for generation endpoint |
+| `OPENAI_MODEL` | - | Model name for generation |
 
 ## Design Principles
 

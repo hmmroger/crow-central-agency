@@ -13,11 +13,11 @@ import type { QueryResult, ActiveToolUse } from "./agent-interaction.types.js";
 
 /** Return type of useAgentStreamState */
 export interface AgentStreamState {
-  /** Currently streaming text — display-only buffer, not a message */
+  /** Currently streaming text - display-only buffer, not a message */
   streamingText: string;
-  /** Currently executing tool — real-time indicator */
+  /** Currently executing tool - real-time indicator */
   activeToolUse: ActiveToolUse | undefined;
-  /** Last query result (cost, duration) — displayed outside message list */
+  /** Last query result (cost, duration) - displayed outside message list */
   lastResult: QueryResult | undefined;
   /** Reset all ephemeral state (for new conversation) */
   resetStreamState: () => void;
@@ -25,7 +25,7 @@ export interface AgentStreamState {
 
 /**
  * Ephemeral WS-driven state for agent streaming display.
- * Manages streamingText, activeToolUse, and lastResult —
+ * Manages streamingText, activeToolUse, and lastResult -
  * all transient display state with no REST endpoint and no cache value.
  *
  * @param agentId - The agent to subscribe to
@@ -44,7 +44,7 @@ export function useAgentStreamState(agentId: string): AgentStreamState {
       return;
     }
 
-    // Committed message — clear streaming display buffer
+    // Committed message - clear streaming display buffer
     const messageParsed = AgentMessageWsMessageSchema.safeParse(data);
 
     if (messageParsed.success) {

@@ -145,7 +145,7 @@ export class OpenAIProvider {
 
       yield { type: StreamEventTypes.done, content: "" };
     } catch (error) {
-      // Abort errors are expected — consumer cancelled intentionally
+      // Abort errors are expected - consumer cancelled intentionally
       if (error instanceof Error && error.name === "AbortError") {
         return;
       }
@@ -211,7 +211,7 @@ export class OpenAIProvider {
       }
 
       case MessageRoles.function:
-        // Deprecated role — skip
+        // Deprecated role - skip
         this.logger.warn("Skipping deprecated function role message");
         return undefined;
 

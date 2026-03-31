@@ -9,7 +9,7 @@ import type { ApiError } from "../services/api-client.types.js";
 /**
  * Fetch agent list via React Query, kept fresh by WS events.
  * Uses staleTime: Infinity because WS `agent_updated` events
- * update the query cache directly — no background refetch needed.
+ * update the query cache directly - no background refetch needed.
  */
 export function useAgentsQuery() {
   const queryClient = useQueryClient();
@@ -29,7 +29,7 @@ export function useAgentsQuery() {
   // WS listener updates cache directly instead of triggering refetch
   useEffect(() => {
     const unregister = onMessage((raw) => {
-      // Handle agent_updated — full config refresh
+      // Handle agent_updated - full config refresh
       const updatedResult = AgentUpdatedWsMessageSchema.safeParse(raw);
 
       if (updatedResult.success) {
@@ -49,7 +49,7 @@ export function useAgentsQuery() {
             return updated;
           }
 
-          // New agent — append
+          // New agent - append
           return [...prev, config];
         });
 

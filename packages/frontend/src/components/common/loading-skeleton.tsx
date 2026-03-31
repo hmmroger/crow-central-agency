@@ -2,7 +2,7 @@
 const LINE_WIDTHS = ["85%", "70%", "92%", "78%", "88%", "65%"];
 
 /**
- * Skeleton placeholder — animated pulse block for loading states.
+ * Skeleton placeholder - animated pulse block for loading states.
  */
 export function LoadingSkeleton({ lines = 3 }: { lines?: number }) {
   return (

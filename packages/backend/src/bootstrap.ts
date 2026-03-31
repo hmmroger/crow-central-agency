@@ -26,13 +26,13 @@ export interface BootstrapOptions {
 }
 
 /**
- * Bootstrap the application — create services with constructor deps, start server.
- * No event wiring here — services own their own listeners.
+ * Bootstrap the application - create services with constructor deps, start server.
+ * No event wiring here - services own their own listeners.
  */
 export async function bootstrap(options: BootstrapOptions) {
   logger.info({ env: env.NODE_ENV }, "Bootstrapping Crow Central Agency");
 
-  // Create services — order matters for dependency graph
+  // Create services - order matters for dependency graph
   const broadcaster = new WsBroadcaster();
   const registry = new AgentRegistry(broadcaster);
   await registry.initialize();

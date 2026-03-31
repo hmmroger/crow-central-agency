@@ -11,7 +11,7 @@ const log = logger.child({ context: "websocket" });
 /**
  * Set up WebSocket endpoint with message routing.
  * Handles send_message, inject_message, permission_response.
- * No subscribe/unsubscribe — server broadcasts all messages to all connected clients.
+ * No subscribe/unsubscribe - server broadcasts all messages to all connected clients.
  */
 export async function setupWebSocket(
   server: FastifyInstance,

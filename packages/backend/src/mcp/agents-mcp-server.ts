@@ -31,7 +31,7 @@ const INTER_AGENT_INVOKE_PROMPT: MessageTemplate = {
 /**
  * Create the crow-agents MCP server for a specific agent.
  * Provides tools for discovering and invoking other agents.
- * MCP tool delegates to orchestrator — no business logic here.
+ * MCP tool delegates to orchestrator - no business logic here.
  */
 export function createAgentsMcpServer(
   agentId: string,
