@@ -27,39 +27,52 @@ const SIDE_PANEL_TABS: TabDefinition<SidePanelTab>[] = [
 
 /**
  * Side panel content for the Agents view.
- * Flight-deck instrument readout: recessed gauge wells, monospace data,
- * status-colored glow, dense utilitarian layout.
+ * TabBar with close action is always rendered; inner content depends on agent selection.
  */
 export function AgentsViewSidePanel() {
   const selectedAgentId = useAppStore((state) => state.selectedAgentId);
+  const toggleSidePanel = useAppStore((state) => state.toggleSidePanel);
+  const [activeTab, setActiveTab] = useState<SidePanelTab>(SIDE_PANEL_TAB.STATUS);
 
-  if (!selectedAgentId) {
-    return (
-      <div className="flex items-center justify-center h-full text-text-muted text-3xs font-mono uppercase tracking-widest">
-        No signal
+  return (
+    <div className="flex flex-col h-full">
+      <div className="shrink-0 px-2 pt-2">
+        <TabBar
+          tabs={SIDE_PANEL_TABS}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          layoutId="agentSidePanel"
+          actionIcon={X}
+          onActionClick={toggleSidePanel}
+          actionTitle="Close side panel"
+        />
       </div>
-    );
-  }
 
-  return <AgentSidePanelContent agentId={selectedAgentId} />;
+      {!selectedAgentId ? (
+        <div className="flex items-center justify-center flex-1 text-text-muted text-3xs font-mono uppercase tracking-widest">
+          No signal
+        </div>
+      ) : (
+        <AgentSidePanelContent agentId={selectedAgentId} activeTab={activeTab} />
+      )}
+    </div>
+  );
 }
 
 interface AgentSidePanelContentProps {
   agentId: string;
+  activeTab: SidePanelTab;
 }
 
 /**
  * Inner content - separated so hooks are only called when an agent is selected.
  */
-function AgentSidePanelContent({ agentId }: AgentSidePanelContentProps) {
+function AgentSidePanelContent({ agentId, activeTab }: AgentSidePanelContentProps) {
   const queryClient = useQueryClient();
-  const toggleSidePanel = useAppStore((state) => state.toggleSidePanel);
   const { data: agentState } = useAgentStateQuery(agentId);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
   const usage = agentState?.sessionUsage ?? DEFAULT_SESSION_USAGE;
   const isStreaming = status === AGENT_STATUS.STREAMING;
-
-  const [activeTab, setActiveTab] = useState<SidePanelTab>(SIDE_PANEL_TAB.STATUS);
 
   const compactMutation = useMutation<void, ApiError>({
     mutationFn: async () => {
@@ -90,21 +103,9 @@ function AgentSidePanelContent({ agentId }: AgentSidePanelContentProps) {
   const newConversation = useCallback(() => newConversationMutation.mutate(), [newConversationMutation]);
 
   return (
-    <div className="flex flex-col h-full animate-[fade-in_var(--duration-normal)_var(--ease-out)_both]">
-      <div className="shrink-0 px-2 pt-2">
-        <TabBar
-          tabs={SIDE_PANEL_TABS}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          layoutId="agentSidePanel"
-          actionIcon={X}
-          onActionClick={toggleSidePanel}
-          actionTitle="Close side panel"
-        />
-      </div>
-
+    <div className="flex-1 min-h-0 flex flex-col animate-[fade-in_var(--duration-normal)_var(--ease-out)_both]">
       {activeTab === SIDE_PANEL_TAB.STATUS && (
-        <div className="flex-1 overflow-y-auto px-3 pb-3 gap-4 flex flex-col">
+        <div className="flex-1 overflow-y-auto px-3 pt-2 pb-3 gap-4 flex flex-col">
           {/* ── Status readout - recessed gauge ── */}
           <div className="rounded-md bg-surface-inset border border-border-subtle/30 px-3 py-2.5">
             <GaugeLabel>Status</GaugeLabel>
