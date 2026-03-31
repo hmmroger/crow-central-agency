@@ -36,15 +36,18 @@ export const AgentTaskSourceSchema = z.discriminatedUnion("sourceType", [
 ]);
 export type AgentTaskSource = z.infer<typeof AgentTaskSourceSchema>;
 
+/** Reusable Zod schema for task state — single source of truth for all state enums */
+export const AgentTaskStateSchema = z.enum([
+  AGENT_TASK_STATE.OPEN,
+  AGENT_TASK_STATE.ACTIVE,
+  AGENT_TASK_STATE.INCOMPLETE,
+  AGENT_TASK_STATE.COMPLETED,
+  AGENT_TASK_STATE.CLOSED,
+]);
+
 export const AgentTaskItemSchema = z.object({
   id: z.string(),
-  state: z.enum([
-    AGENT_TASK_STATE.OPEN,
-    AGENT_TASK_STATE.ACTIVE,
-    AGENT_TASK_STATE.INCOMPLETE,
-    AGENT_TASK_STATE.COMPLETED,
-    AGENT_TASK_STATE.CLOSED,
-  ]),
+  state: AgentTaskStateSchema,
   originateSource: AgentTaskSourceSchema,
   dispatchSource: AgentTaskSourceSchema.optional(),
   ownerSource: AgentTaskSourceSchema.optional(),
@@ -75,15 +78,13 @@ export const UpdateTaskInputSchema = z.object({
 });
 export type UpdateTaskInput = z.infer<typeof UpdateTaskInputSchema>;
 
-/** Input for transitioning a task to a new state. */
+/**
+ * Input for transitioning a task to a new state via REST.
+ * Only includes states reachable by user action. OPEN is the initial
+ * state (not a valid target), and ACTIVE is system-driven by the orchestrator.
+ */
 export const UpdateTaskStateInputSchema = z.object({
-  state: z.enum([
-    AGENT_TASK_STATE.OPEN,
-    AGENT_TASK_STATE.ACTIVE,
-    AGENT_TASK_STATE.INCOMPLETE,
-    AGENT_TASK_STATE.COMPLETED,
-    AGENT_TASK_STATE.CLOSED,
-  ]),
+  state: z.enum([AGENT_TASK_STATE.INCOMPLETE, AGENT_TASK_STATE.COMPLETED, AGENT_TASK_STATE.CLOSED]),
 });
 export type UpdateTaskStateInput = z.infer<typeof UpdateTaskStateInputSchema>;
 

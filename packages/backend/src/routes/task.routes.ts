@@ -1,5 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import { ZodError } from "zod";
 import {
   AGENT_TASK_SOURCE_TYPE,
   CreateTaskInputSchema,
@@ -11,15 +10,8 @@ import type { AgentTaskManager } from "../services/agent-task-manager.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import { AppError } from "../error/app-error.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
-
-/** Wrap ZodError into AppError for consistent error responses */
-function wrapZodError(error: unknown): never {
-  if (error instanceof ZodError) {
-    throw new AppError("Invalid input", APP_ERROR_CODES.VALIDATION);
-  }
-
-  throw error;
-}
+import { validateAgentIdParam } from "../utils/validation.js";
+import { wrapZodError } from "./route-utils.js";
 
 /**
  * Register task CRUD routes.
@@ -55,12 +47,12 @@ export async function registerTaskRoutes(
       const task = await taskManager.addTask(input.task, { sourceType: AGENT_TASK_SOURCE_TYPE.USER });
 
       if (input.assignToAgentId) {
-        // Validate agent exists before assigning
-        registry.getAgent(input.assignToAgentId);
+        const validatedAgentId = validateAgentIdParam(input.assignToAgentId);
+        registry.getAgent(validatedAgentId);
 
         await taskManager.assignTask(
           task.id,
-          { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId: input.assignToAgentId },
+          { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId: validatedAgentId },
           { sourceType: AGENT_TASK_SOURCE_TYPE.USER }
         );
 
@@ -104,13 +96,12 @@ export async function registerTaskRoutes(
   server.post<{ Params: { id: string }; Body: unknown }>("/api/tasks/:id/assign", async (request) => {
     try {
       const input = AssignTaskInputSchema.parse(request.body);
-
-      // Validate agent exists before assigning
-      registry.getAgent(input.agentId);
+      const validatedAgentId = validateAgentIdParam(input.agentId);
+      registry.getAgent(validatedAgentId);
 
       const task = await taskManager.assignTask(
         request.params.id,
-        { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId: input.agentId },
+        { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId: validatedAgentId },
         { sourceType: AGENT_TASK_SOURCE_TYPE.USER }
       );
 

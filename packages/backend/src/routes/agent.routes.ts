@@ -1,5 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import { ZodError } from "zod";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { AgentOrchestrator } from "../services/agent-orchestrator.js";
 import type { SessionManager } from "../services/session-manager.js";
@@ -8,15 +7,7 @@ import { AppError } from "../error/app-error.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
 import { logger } from "../utils/logger.js";
 import { validateAgentIdParam } from "../utils/validation.js";
-
-/** Wrap ZodError into AppError for consistent error responses */
-function wrapZodError(error: unknown): never {
-  if (error instanceof ZodError) {
-    throw new AppError("Invalid input", APP_ERROR_CODES.VALIDATION);
-  }
-
-  throw error;
-}
+import { wrapZodError } from "./route-utils.js";
 
 /**
  * Register agent CRUD routes

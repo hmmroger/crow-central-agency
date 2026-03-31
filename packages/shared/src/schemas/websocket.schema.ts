@@ -4,7 +4,7 @@ import { PERMISSION_DECISION } from "./permission.schema.js";
 import { AgentConfigSchema } from "./agent.schema.js";
 import { AgentMessageSchema } from "./agent-message.schema.js";
 import { CLIENT_MESSAGE_TYPE, SERVER_MESSAGE_TYPE } from "../constants/message-type.js";
-import { AGENT_TASK_STATE, AgentTaskItemSchema } from "./agent-task.schema.js";
+import { AgentTaskItemSchema, AgentTaskStateSchema } from "./agent-task.schema.js";
 
 // --- Client → Server messages ---
 
@@ -139,13 +139,7 @@ export const TaskAssignedWsMessageSchema = z.object({
 export const TaskStateChangedWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.TASK_STATE_CHANGED),
   task: AgentTaskItemSchema,
-  previousState: z.enum([
-    AGENT_TASK_STATE.OPEN,
-    AGENT_TASK_STATE.ACTIVE,
-    AGENT_TASK_STATE.INCOMPLETE,
-    AGENT_TASK_STATE.COMPLETED,
-    AGENT_TASK_STATE.CLOSED,
-  ]),
+  previousState: AgentTaskStateSchema,
 });
 
 export const TaskDeletedWsMessageSchema = z.object({

@@ -115,6 +115,7 @@ export { ArtifactMetadataSchema, type ArtifactMetadata } from "./schemas/artifac
 export {
   AGENT_TASK_STATE,
   AGENT_TASK_SOURCE_TYPE,
+  AgentTaskStateSchema,
   AgentTaskSourceSchema,
   AgentTaskItemSchema,
   AgentTaskDatabaseSchema,

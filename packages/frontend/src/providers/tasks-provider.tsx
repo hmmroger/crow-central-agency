@@ -7,7 +7,7 @@
  */
 
 import { createContext, useContext, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
   TaskAddedWsMessageSchema,
   TaskUpdatedWsMessageSchema,
@@ -32,6 +32,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     data: tasks = [],
     isLoading,
     error,
+    refetch,
   } = useQuery<AgentTaskItem[], ApiError>({
     queryKey: taskKeys.list(),
     queryFn: async () => {
@@ -100,7 +101,12 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     return unregister;
   }, [onMessage, queryClient]);
 
-  const value: TasksContextValue = { tasks, isLoading, error: error ?? undefined };
+  const value: TasksContextValue = {
+    tasks,
+    isLoading,
+    error: error ?? undefined,
+    refetch: () => void refetch(),
+  };
 
   return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>;
 }
@@ -120,7 +126,7 @@ export function useTasksContext(): TasksContextValue {
 }
 
 /** Replace a single task in the query cache by ID */
-function replaceTaskInCache(queryClient: ReturnType<typeof useQueryClient>, updatedTask: AgentTaskItem) {
+function replaceTaskInCache(queryClient: QueryClient, updatedTask: AgentTaskItem) {
   queryClient.setQueryData<AgentTaskItem[]>(taskKeys.list(), (prev) => {
     if (!prev) {
       return [updatedTask];

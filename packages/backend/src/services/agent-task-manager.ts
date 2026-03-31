@@ -137,10 +137,14 @@ export class AgentTaskManager extends EventBus<AgentTaskManagerEvents> {
         );
       }
 
-      found.task = newContent;
-      found.updatedTimestamp = Date.now();
+      const updated: AgentTaskItem = {
+        ...found,
+        task: newContent,
+        updatedTimestamp: Date.now(),
+      };
+      this.tasks.set(taskId, updated);
       await this.persistTasks();
-      return found;
+      return updated;
     });
 
     log.info({ taskId }, "Task content updated");

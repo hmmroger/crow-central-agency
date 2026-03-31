@@ -2,6 +2,8 @@ import {
   AGENT_TASK_STATE,
   AGENT_TASK_SOURCE_TYPE,
   type AgentTaskItem,
+  type AgentTaskState,
+  type AgentTaskSource,
   type AgentConfig,
 } from "@crow-central-agency/shared";
 import { Clock, User, Bot, RotateCw } from "lucide-react";
@@ -15,7 +17,7 @@ interface TaskCardProps {
 }
 
 /** Left-edge accent color per task state */
-const STATE_BORDER_COLOR: Record<string, string> = {
+const STATE_BORDER_COLOR: Record<AgentTaskState, string> = {
   [AGENT_TASK_STATE.OPEN]: "border-l-primary",
   [AGENT_TASK_STATE.ACTIVE]: "border-l-accent",
   [AGENT_TASK_STATE.COMPLETED]: "border-l-success",
@@ -24,7 +26,7 @@ const STATE_BORDER_COLOR: Record<string, string> = {
 };
 
 /** Badge background per task state */
-const STATE_BADGE_STYLE: Record<string, string> = {
+const STATE_BADGE_STYLE: Record<AgentTaskState, string> = {
   [AGENT_TASK_STATE.OPEN]: "bg-primary/12 text-primary",
   [AGENT_TASK_STATE.ACTIVE]: "bg-accent/12 text-accent",
   [AGENT_TASK_STATE.COMPLETED]: "bg-success/12 text-success",
@@ -54,14 +56,14 @@ export function TaskCard({ task, agents }: TaskCardProps) {
         "rounded-lg border-l-[3px] border border-border-subtle/60",
         "bg-surface hover:bg-surface-elevated/60",
         "transition-all duration-[var(--duration-normal)]",
-        "hover:border-border hover:shadow-[0_2px_12px_oklch(0_0_0/0.3)]",
+        "hover:border-border hover:shadow-card",
         STATE_BORDER_COLOR[task.state],
         isClosed && "opacity-50"
       )}
     >
       {/* Active glow effect */}
       {isActive && (
-        <div className="absolute inset-0 rounded-lg pointer-events-none animate-pulse opacity-30 shadow-[inset_0_0_20px_oklch(0.58_0.11_31.757/0.15)]" />
+        <div className="absolute inset-0 rounded-lg pointer-events-none animate-pulse opacity-30 shadow-[inset_0_0_20px_var(--color-accent)/0.15]" />
       )}
 
       {/* Top row: state badge + timestamps */}
@@ -129,14 +131,14 @@ function SourceBadge({
   resolveAgentName,
 }: {
   label: string;
-  source: { sourceType: string; agentId?: string };
+  source: AgentTaskSource;
   resolveAgentName: (id: string) => string;
 }) {
   const isAgent = source.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT;
   const isLoop = source.sourceType === AGENT_TASK_SOURCE_TYPE.LOOP;
 
   const Icon = isAgent ? Bot : isLoop ? RotateCw : User;
-  const name = isAgent && source.agentId ? resolveAgentName(source.agentId) : isLoop ? "Loop" : "User";
+  const name = isAgent ? resolveAgentName(source.agentId) : isLoop ? "Loop" : "User";
 
   return (
     <span className="flex items-center gap-1.5 text-3xs text-text-muted">

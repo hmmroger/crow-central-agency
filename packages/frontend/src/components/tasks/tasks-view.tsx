@@ -70,7 +70,7 @@ function filterTasks(tasks: AgentTaskItem[], filter: TaskFilter): AgentTaskItem[
  * Consumes global task data from TasksProvider.
  */
 export function TasksView() {
-  const { tasks, isLoading, error } = useTasksContext();
+  const { tasks, isLoading, error, refetch } = useTasksContext();
   const { data: agents = [] } = useAgentsQuery();
   const { showDialog } = useModalDialog();
   const [activeFilter, setActiveFilter] = useState<TaskFilter>(TASK_FILTER.ALL);
@@ -104,7 +104,7 @@ export function TasksView() {
           <button
             type="button"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-elevated text-text-primary text-sm font-medium hover:opacity-90 transition-opacity"
-            onClick={() => window.location.reload()}
+            onClick={refetch}
           >
             <RefreshCw className="h-3.5 w-3.5" />
             Retry

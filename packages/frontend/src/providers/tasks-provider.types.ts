@@ -9,4 +9,6 @@ export interface TasksContextValue {
   isLoading: boolean;
   /** Error from the initial fetch, if any */
   error: ApiError | undefined;
+  /** Refetch the task list from the server */
+  refetch: () => void;
 }
