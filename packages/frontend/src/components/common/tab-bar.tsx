@@ -29,9 +29,23 @@ interface TabBarProps<T extends string> {
   onTabChange: (tab: T) => void;
   /** Unique layoutId prefix to avoid collisions when multiple TabBars exist */
   layoutId?: string;
+  /** Icon for the optional right-aligned action button */
+  actionIcon?: ComponentType<{ className?: string }>;
+  /** Click handler for the action button */
+  onActionClick?: () => void;
+  /** Tooltip / aria-label for the action button */
+  actionTitle?: string;
 }
 
-export function TabBar<T extends string>({ tabs, activeTab, onTabChange, layoutId = "tabBar" }: TabBarProps<T>) {
+export function TabBar<T extends string>({
+  tabs,
+  activeTab,
+  onTabChange,
+  layoutId = "tabBar",
+  actionIcon: ActionIcon,
+  onActionClick,
+  actionTitle,
+}: TabBarProps<T>) {
   const { isMenuOpen } = useContextMenu();
 
   const textStyle = "flex items-center gap-1 px-1.5 py-0.5 text-sm font-medium transition-colors";
@@ -103,6 +117,18 @@ export function TabBar<T extends string>({ tabs, activeTab, onTabChange, layoutI
           </div>
         );
       })}
+
+      {ActionIcon && onActionClick && (
+        <button
+          type="button"
+          className="ml-auto p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
+          onClick={onActionClick}
+          title={actionTitle}
+          aria-label={actionTitle}
+        >
+          <ActionIcon className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 }

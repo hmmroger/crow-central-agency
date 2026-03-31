@@ -1,4 +1,4 @@
-import { PanelRight, X } from "lucide-react";
+import { PanelRight } from "lucide-react";
 import { useAppStore, VIEW_MODE, SIDE_PANEL_MIN_WIDTH, SIDE_PANEL_MAX_WIDTH } from "../../stores/app-store.js";
 import { useResizablePanel } from "../../hooks/use-resizable-panel.js";
 import { PanelResizeHandle } from "./panel-resize-handle.js";
@@ -55,20 +55,8 @@ export function SidePanel() {
           />
 
           <div className="flex flex-col flex-1 min-w-0 border-l border-border-subtle/30 bg-surface/50">
-            {/* Panel header with close button */}
-            <div className="flex items-center justify-end px-3 py-2 shrink-0">
-              <button
-                type="button"
-                className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
-                onClick={toggleSidePanel}
-                title="Close side panel"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-
             {/* View-specific content */}
-            <div className="flex-1 overflow-y-auto">{viewMode === VIEW_MODE.AGENTS && <AgentsViewSidePanel />}</div>
+            <div className="flex-1 min-h-0">{viewMode === VIEW_MODE.AGENTS && <AgentsViewSidePanel />}</div>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { useCallback, useState } from "react";
-import { ChevronDown, Minimize2, Plus } from "lucide-react";
+import { Activity, FileText, Minimize2, Plus, X } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AGENT_STATUS } from "@crow-central-agency/shared";
 import { cn } from "../../utils/cn.js";
@@ -9,8 +9,21 @@ import { useAgentStateQuery, DEFAULT_SESSION_USAGE } from "../../hooks/use-agent
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { agentKeys } from "../../services/query-keys.js";
 import { ArtifactPanel } from "../console/artifact-panel.js";
+import { TabBar, type TabDefinition } from "../common/tab-bar.js";
 import { STATUS_DOT_COLOR, STATUS_TEXT_COLOR, STATUS_LABEL } from "../../utils/agent-status-display.js";
 import type { ApiError } from "../../services/api-client.types.js";
+
+const SIDE_PANEL_TAB = {
+  STATUS: "status",
+  ARTIFACTS: "artifacts",
+} as const;
+
+type SidePanelTab = (typeof SIDE_PANEL_TAB)[keyof typeof SIDE_PANEL_TAB];
+
+const SIDE_PANEL_TABS: TabDefinition<SidePanelTab>[] = [
+  { id: SIDE_PANEL_TAB.STATUS, label: "Status", icon: Activity },
+  { id: SIDE_PANEL_TAB.ARTIFACTS, label: "Artifacts", icon: FileText },
+];
 
 /**
  * Side panel content for the Agents view.
@@ -40,13 +53,13 @@ interface AgentSidePanelContentProps {
  */
 function AgentSidePanelContent({ agentId }: AgentSidePanelContentProps) {
   const queryClient = useQueryClient();
+  const toggleSidePanel = useAppStore((state) => state.toggleSidePanel);
   const { data: agentState } = useAgentStateQuery(agentId);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
   const usage = agentState?.sessionUsage ?? DEFAULT_SESSION_USAGE;
   const isStreaming = status === AGENT_STATUS.STREAMING;
 
-  const [showArtifacts, setShowArtifacts] = useState(false);
-  const toggleArtifacts = useCallback(() => setShowArtifacts((prev) => !prev), []);
+  const [activeTab, setActiveTab] = useState<SidePanelTab>(SIDE_PANEL_TAB.STATUS);
 
   const compactMutation = useMutation<void, ApiError>({
     mutationFn: async () => {
@@ -77,62 +90,67 @@ function AgentSidePanelContent({ agentId }: AgentSidePanelContentProps) {
   const newConversation = useCallback(() => newConversationMutation.mutate(), [newConversationMutation]);
 
   return (
-    <div className="flex flex-col h-full px-3 pb-3 gap-4 animate-[fade-in_var(--duration-normal)_var(--ease-out)_both]">
-      {/* ── Status readout - recessed gauge ── */}
-      <div className="rounded-md bg-surface-inset border border-border-subtle/30 px-3 py-2.5">
-        <GaugeLabel>Status</GaugeLabel>
-        <div className="flex items-center gap-2.5 mt-1.5">
-          {/* Status beacon with glow ring */}
-          <span className="relative flex items-center justify-center">
-            <span className={cn("w-2 h-2 rounded-full", STATUS_DOT_COLOR[status], isStreaming && "animate-pulse")} />
-            <span className={cn("absolute inset-0 rounded-full opacity-40 blur-sm", STATUS_DOT_COLOR[status])} />
-          </span>
-          <span className={cn("font-mono text-2xs font-medium tracking-wide", STATUS_TEXT_COLOR[status])}>
-            {STATUS_LABEL[status]}
-          </span>
-        </div>
+    <div className="flex flex-col h-full animate-[fade-in_var(--duration-normal)_var(--ease-out)_both]">
+      <div className="shrink-0 px-2 pt-2">
+        <TabBar
+          tabs={SIDE_PANEL_TABS}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          layoutId="agentSidePanel"
+          actionIcon={X}
+          onActionClick={toggleSidePanel}
+          actionTitle="Close side panel"
+        />
       </div>
 
-      {/* ── Session metrics - instrument wells ── */}
-      {(usage.totalCostUsd > 0 || usage.contextTotal > 0) && (
-        <div className="grid grid-cols-2 gap-2">
-          {usage.totalCostUsd > 0 && <MetricWell label="Cost" value={`$${usage.totalCostUsd.toFixed(4)}`} />}
-          {usage.contextTotal > 0 && (
-            <MetricWell
-              label="Context"
-              value={`${Math.round(usage.contextUsed / 1000)}k`}
-              suffix={`/ ${Math.round(usage.contextTotal / 1000)}k`}
-            />
+      {activeTab === SIDE_PANEL_TAB.STATUS && (
+        <div className="flex-1 overflow-y-auto px-3 pb-3 gap-4 flex flex-col">
+          {/* ── Status readout - recessed gauge ── */}
+          <div className="rounded-md bg-surface-inset border border-border-subtle/30 px-3 py-2.5">
+            <GaugeLabel>Status</GaugeLabel>
+            <div className="flex items-center gap-2.5 mt-1.5">
+              <span className="relative flex items-center justify-center">
+                <span
+                  className={cn("w-2 h-2 rounded-full", STATUS_DOT_COLOR[status], isStreaming && "animate-pulse")}
+                />
+                <span className={cn("absolute inset-0 rounded-full opacity-40 blur-sm", STATUS_DOT_COLOR[status])} />
+              </span>
+              <span className={cn("font-mono text-2xs font-medium tracking-wide", STATUS_TEXT_COLOR[status])}>
+                {STATUS_LABEL[status]}
+              </span>
+            </div>
+          </div>
+
+          {/* ── Session metrics - instrument wells ── */}
+          {(usage.totalCostUsd > 0 || usage.contextTotal > 0) && (
+            <div className="grid grid-cols-2 gap-2">
+              {usage.totalCostUsd > 0 && <MetricWell label="Cost" value={`$${usage.totalCostUsd.toFixed(4)}`} />}
+              {usage.contextTotal > 0 && (
+                <MetricWell
+                  label="Context"
+                  value={`${Math.round(usage.contextUsed / 1000)}k`}
+                  suffix={`/ ${Math.round(usage.contextTotal / 1000)}k`}
+                />
+              )}
+            </div>
           )}
+
+          {/* ── Controls ── */}
+          <div className="space-y-1.5">
+            <GaugeLabel>Controls</GaugeLabel>
+            <div className="flex gap-1.5">
+              <ControlButton icon={Minimize2} label="Compact" onClick={compact} disabled={isStreaming} />
+              <ControlButton icon={Plus} label="New" onClick={newConversation} />
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── Controls ── */}
-      <div className="space-y-1.5">
-        <GaugeLabel>Controls</GaugeLabel>
-        <div className="flex gap-1.5">
-          <ControlButton icon={Minimize2} label="Compact" onClick={compact} disabled={isStreaming} />
-          <ControlButton icon={Plus} label="New" onClick={newConversation} />
+      {activeTab === SIDE_PANEL_TAB.ARTIFACTS && (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ArtifactPanel agentId={agentId} />
         </div>
-      </div>
-
-      {/* ── Artifacts - collapsible ── */}
-      <div className="flex flex-col flex-1 min-h-0">
-        <button type="button" className="flex items-center justify-between w-full group" onClick={toggleArtifacts}>
-          <GaugeLabel>Artifacts</GaugeLabel>
-          <ChevronDown
-            className={cn(
-              "h-3 w-3 text-text-muted/30 group-hover:text-text-muted transition-all",
-              showArtifacts && "rotate-180"
-            )}
-          />
-        </button>
-        {showArtifacts && (
-          <div className="flex-1 min-h-0 mt-1.5 rounded-md bg-surface-inset border border-border-subtle/30 overflow-hidden">
-            <ArtifactPanel agentId={agentId} />
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
