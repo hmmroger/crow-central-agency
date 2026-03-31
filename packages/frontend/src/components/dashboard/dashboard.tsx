@@ -1,9 +1,11 @@
 import { Plus, RefreshCw } from "lucide-react";
 import { useAppStore } from "../../stores/app-store.js";
 import { useAgentsQuery } from "../../hooks/use-agents-query.js";
+import { useTasksContext } from "../../providers/tasks-provider.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { ActionBarButton } from "../common/action-bar-button.js";
 import { AgentCard } from "./agent-card.js";
+import { TaskStatsBar } from "./task-stats-bar.js";
 import { LoadingSkeleton } from "../common/loading-skeleton.js";
 import { EmptyState } from "../common/empty-state.js";
 
@@ -13,6 +15,7 @@ import { EmptyState } from "../common/empty-state.js";
  */
 export function Dashboard() {
   const { data: agents = [], isLoading: loading, error, refetch } = useAgentsQuery();
+  const { tasks } = useTasksContext();
   const openAgentEditor = useAppStore((state) => state.openAgentEditor);
 
   if (loading) {
@@ -61,6 +64,9 @@ export function Dashboard() {
   return (
     <div className="flex flex-col h-full">
       <HeaderPortal title="Dashboard" />
+
+      {/* Task stats bar — live-updating from TasksProvider */}
+      <TaskStatsBar tasks={tasks} />
 
       {/* Header row with New Agent button */}
       <div className="flex items-center justify-end px-6 pt-4 pb-2">
