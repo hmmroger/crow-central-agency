@@ -3,7 +3,8 @@ import { AGENT_STATUS } from "../constants/agent-status.js";
 import { PERMISSION_DECISION } from "./permission.schema.js";
 import { AgentConfigSchema } from "./agent.schema.js";
 import { AgentMessageSchema } from "./agent-message.schema.js";
-import { CLIENT_MESSAGE_TYPE } from "../constants/message-type.js";
+import { CLIENT_MESSAGE_TYPE, SERVER_MESSAGE_TYPE } from "../constants/message-type.js";
+import { AGENT_TASK_STATE, AgentTaskItemSchema } from "./agent-task.schema.js";
 
 // --- Client → Server messages ---
 
@@ -118,6 +119,40 @@ export const AgentToolProgressWsMessageSchema = z.object({
   elapsedTimeSeconds: z.number(),
 });
 
+// --- Task WebSocket messages (Server → Client) ---
+
+export const TaskAddedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.TASK_ADDED),
+  task: AgentTaskItemSchema,
+});
+
+export const TaskUpdatedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.TASK_UPDATED),
+  task: AgentTaskItemSchema,
+});
+
+export const TaskAssignedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.TASK_ASSIGNED),
+  task: AgentTaskItemSchema,
+});
+
+export const TaskStateChangedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.TASK_STATE_CHANGED),
+  task: AgentTaskItemSchema,
+  previousState: z.enum([
+    AGENT_TASK_STATE.OPEN,
+    AGENT_TASK_STATE.ACTIVE,
+    AGENT_TASK_STATE.INCOMPLETE,
+    AGENT_TASK_STATE.COMPLETED,
+    AGENT_TASK_STATE.CLOSED,
+  ]),
+});
+
+export const TaskDeletedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.TASK_DELETED),
+  taskId: z.string(),
+});
+
 /** Server → Client discriminated union for runtime parsing */
 export const ServerMessageSchema = z.discriminatedUnion("type", [
   AgentTextWsMessageSchema,
@@ -131,6 +166,11 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   ErrorWsMessageSchema,
   AgentMessageWsMessageSchema,
   AgentToolProgressWsMessageSchema,
+  TaskAddedWsMessageSchema,
+  TaskUpdatedWsMessageSchema,
+  TaskAssignedWsMessageSchema,
+  TaskStateChangedWsMessageSchema,
+  TaskDeletedWsMessageSchema,
 ]);
 
 export type AgentTextWsMessage = z.infer<typeof AgentTextWsMessageSchema>;
@@ -144,4 +184,9 @@ export type PermissionCancelledWsMessage = z.infer<typeof PermissionCancelledWsM
 export type ErrorWsMessage = z.infer<typeof ErrorWsMessageSchema>;
 export type AgentMessageWsMessage = z.infer<typeof AgentMessageWsMessageSchema>;
 export type AgentToolProgressWsMessage = z.infer<typeof AgentToolProgressWsMessageSchema>;
+export type TaskAddedWsMessage = z.infer<typeof TaskAddedWsMessageSchema>;
+export type TaskUpdatedWsMessage = z.infer<typeof TaskUpdatedWsMessageSchema>;
+export type TaskAssignedWsMessage = z.infer<typeof TaskAssignedWsMessageSchema>;
+export type TaskStateChangedWsMessage = z.infer<typeof TaskStateChangedWsMessageSchema>;
+export type TaskDeletedWsMessage = z.infer<typeof TaskDeletedWsMessageSchema>;
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;

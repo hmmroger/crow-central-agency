@@ -24,6 +24,11 @@ export const SERVER_MESSAGE_TYPE = {
   ERROR: "error",
   AGENT_MESSAGE: "agent_message",
   AGENT_TOOL_PROGRESS: "agent_tool_progress",
+  TASK_ADDED: "task_added",
+  TASK_UPDATED: "task_updated",
+  TASK_ASSIGNED: "task_assigned",
+  TASK_STATE_CHANGED: "task_state_changed",
+  TASK_DELETED: "task_deleted",
 } as const;
 
 export type ServerMessageType = (typeof SERVER_MESSAGE_TYPE)[keyof typeof SERVER_MESSAGE_TYPE];

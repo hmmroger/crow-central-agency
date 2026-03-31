@@ -85,8 +85,18 @@ export {
   type ErrorWsMessage,
   AgentMessageWsMessageSchema,
   AgentToolProgressWsMessageSchema,
+  TaskAddedWsMessageSchema,
+  TaskUpdatedWsMessageSchema,
+  TaskAssignedWsMessageSchema,
+  TaskStateChangedWsMessageSchema,
+  TaskDeletedWsMessageSchema,
   type AgentMessageWsMessage,
   type AgentToolProgressWsMessage,
+  type TaskAddedWsMessage,
+  type TaskUpdatedWsMessage,
+  type TaskAssignedWsMessage,
+  type TaskStateChangedWsMessage,
+  type TaskDeletedWsMessage,
   type ServerMessage,
 } from "./schemas/websocket.schema.js";
 
@@ -108,11 +118,19 @@ export {
   AgentTaskSourceSchema,
   AgentTaskItemSchema,
   AgentTaskDatabaseSchema,
+  CreateTaskInputSchema,
+  UpdateTaskInputSchema,
+  UpdateTaskStateInputSchema,
+  AssignTaskInputSchema,
   type AgentTaskState,
   type AgentTaskSourceType,
   type AgentTaskSource,
   type AgentTaskItem,
   type AgentTaskDatabase,
+  type CreateTaskInput,
+  type UpdateTaskInput,
+  type UpdateTaskStateInput,
+  type AssignTaskInput,
 } from "./schemas/agent-task.schema.js";
 
 export { CROW_SYSTEM_AGENT_ID } from "./constants/system-agent.js";

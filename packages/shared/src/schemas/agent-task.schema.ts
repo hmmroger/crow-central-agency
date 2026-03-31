@@ -59,3 +59,36 @@ export const AgentTaskDatabaseSchema = z.object({
   tasks: z.array(AgentTaskItemSchema),
 });
 export type AgentTaskDatabase = z.infer<typeof AgentTaskDatabaseSchema>;
+
+// --- REST input schemas ---
+
+/** Input for creating a new task. Optionally assign to an agent at creation time. */
+export const CreateTaskInputSchema = z.object({
+  task: z.string().min(1, "Task description is required"),
+  assignToAgentId: z.string().optional(),
+});
+export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>;
+
+/** Input for updating task content (only allowed when state is OPEN). */
+export const UpdateTaskInputSchema = z.object({
+  task: z.string().min(1, "Task description is required"),
+});
+export type UpdateTaskInput = z.infer<typeof UpdateTaskInputSchema>;
+
+/** Input for transitioning a task to a new state. */
+export const UpdateTaskStateInputSchema = z.object({
+  state: z.enum([
+    AGENT_TASK_STATE.OPEN,
+    AGENT_TASK_STATE.ACTIVE,
+    AGENT_TASK_STATE.INCOMPLETE,
+    AGENT_TASK_STATE.COMPLETED,
+    AGENT_TASK_STATE.CLOSED,
+  ]),
+});
+export type UpdateTaskStateInput = z.infer<typeof UpdateTaskStateInputSchema>;
+
+/** Input for assigning a task to an agent. */
+export const AssignTaskInputSchema = z.object({
+  agentId: z.string().min(1, "Agent ID is required"),
+});
+export type AssignTaskInput = z.infer<typeof AssignTaskInputSchema>;
