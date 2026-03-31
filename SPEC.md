@@ -19,7 +19,9 @@ An agent is defined by:
 - **AGENT.md**: Persistent markdown instructions loaded into each session's system prompt
 - **Model**: The Claude model to use (default: `claude-sonnet-4-6`)
 - **Tools & Permissions**: Which tools are available, which are auto-approved, and the permission escalation mode
+- **Setting Sources**: Which Claude settings sources to load (`user`, `project`, `local`)
 - **Loop**: Optional automation config - send a prompt on a recurring interval
+- **System flag**: Built-in system agents (e.g. "Crow") are immutable and not persisted to disk
 
 ### Artifact
 
@@ -31,11 +33,21 @@ A file in an agent's `artifacts/` directory. Artifacts are the primary mechanism
 
 ### Session
 
-A conversation between a user (or the system) and a single agent, managed by the Claude Agent SDK. Sessions are persisted to disk by the SDK and can be resumed across server restarts. Each agent work on one session at a time, and is captured from Claude Agent SDK message during streaming, orchestrator captured the ID and track it with `sessionId` in runtime state.
+A conversation between a user (or the system) and a single agent, managed by the Claude Agent SDK. Sessions are persisted to disk by the SDK and can be resumed across server restarts. Each agent works on one session at a time, and the session ID is captured from the agent stream during initialization.
+
+### Task
+
+A unit of work assigned to an agent. Tasks can originate from a user or from another agent (via `invoke_agent`). They have a lifecycle: `OPEN` -> `ACTIVE` -> `COMPLETED`/`INCOMPLETE` -> `CLOSED`. Tasks are persisted to `agent-tasks.json` and scheduled by the orchestrator when the target agent becomes idle.
+
+### AgentStreamEvent
+
+The abstraction boundary between agent execution and orchestration. `AgentRunner` produces a typed stream of `AgentStreamEvent`s via async generator. The orchestrator consumes these events without knowledge of the underlying AI SDK or how the agent executes. This interface allows future replacement of the agent backend without changing orchestration logic.
+
+Event types: `INIT`, `CONTENT`, `THINKING`, `TOOL_USE`, `TOOL_USE_PROGRESS`, `MESSAGE_DONE`, `STATUS`, `DONE`, `ERROR`, `ABORTED`, `RATE_LIMIT_INFO`.
 
 ### Orchestrator
 
-The central state machine that owns the lifecycle of all agent runtimes: creating queries, processing streams, coordinating inter-agent invocations, persisting state, and broadcasting events to connected clients.
+The central state machine that owns the lifecycle of all agent runtimes. It manages message routing and queuing, consumes `AgentStreamEvent`s from runners, broadcasts WebSocket messages to clients, persists state, and schedules tasks. The orchestrator does not know how agents execute - that responsibility belongs to `AgentRunner`.
 
 ## Architecture
 
@@ -57,12 +69,16 @@ No runtime dependency exists between the two packages. They communicate exclusiv
 |---|---|
 | Backend runtime | Node.js (ESM) |
 | Backend framework | Fastify 5 |
-| Real-time | WebSocket (`ws`) |
+| Real-time | WebSocket (`@fastify/websocket` + `ws`) |
 | AI integration | Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) |
 | Validation | Zod v4 |
 | Frontend framework | React 19 |
-| State management | Zustand |
+| State management | Zustand (app state, persisted to localStorage) |
+| Server state | TanStack React Query (REST caching) |
 | Styling | Tailwind CSS 4 |
+| Animation | Framer Motion |
+| Icons | Lucide React |
+| Markdown rendering | Marked + DOMPurify |
 | Bundler | Vite 8 |
 | Type checking | TypeScript 5.9 (strict) |
 | Linting | ESLint with TypeScript, React Hooks, and import plugins |
@@ -76,114 +92,217 @@ Each responsibility is encapsulated in a standalone service. Services communicat
 
 | Service | Responsibility |
 |---|---|
-| **AgentOrchestrator** | Central state machine. Owns runtimes, processes SDK streams, coordinates inter-agent invocation, persists state. Extends `EventBus<OrchestratorEvents>`. |
-| **AgentRegistry** | CRUD for agent configs. Validates with Zod schemas. Extends `EventBus<AgentRegistryEvents>`. |
-| **SessionManager** | In-memory message store keyed by session ID. Main interface to Agent SDK to look up sessions, load history, etc. |
-| **ArtifactManager** | Provide CRUD for agent artifacts. Abstract away from the actual data source/sink. |
-| **WsBroadcaster** | Pub/sub layer. Maps `agentId → Set<WebSocket>`. Provides `broadcast(agentId, message)` and `sendTo(ws, message)`. |
-| **PermissionHandler** | Manages tool permission requests with a configurable timeout. Resolves via WebSocket responses from the UI. |
-| **LoopScheduler** | Scheduled prompt delivery. Emits `loopTick` events consumed by the orchestrator. |
-| **MdGenerationService** | Generates personas and AGENT.md content via an OpenAI-compatible API. Optional - requires `OPENAI_BASE_URL` config. |
+| **AgentOrchestrator** | Central state machine. Manages message routing/queuing, consumes `AgentStreamEvent`s from runners, maps events to WebSocket broadcasts, persists runtime state, schedules tasks when agents become idle. Reacts to `AgentTaskManager` events for task notifications. |
+| **AgentRunner** | Per-agent abstraction for agent execution. Wraps the Claude Agent SDK `query()` behind the `AgentStreamEvent` async generator interface. Builds system prompts, configures tools/MCP/permissions, processes SDK streams into typed events. Emits `agentStatusChanged` events. The orchestrator is decoupled from the SDK through this boundary. |
+| **AgentRegistry** | CRUD for agent configs. Validates with Zod schemas. Persists to `agents.json`. Manages agent folders (AGENT.md + artifacts). Extends `EventBus<AgentRegistryEvents>`. |
+| **SessionManager** | Loads session messages from SDK backend storage. Transforms raw SDK messages to UI-friendly `AgentMessage` format. Caches with invalidation support. |
+| **ArtifactManager** | CRUD for agent artifacts under `agents/{id}/artifacts/`. Path traversal protection on all operations. |
+| **WsBroadcaster** | Maintains set of connected WebSocket clients. Provides `broadcast(message)` and `sendTo(ws, message)`. No per-agent subscription filtering - all clients receive all messages. |
+| **PermissionHandler** | Manages tool permission requests with a 2-minute timeout. Resolves via WebSocket responses from the UI. |
+| **MessageQueueManager** | In-memory queue for messages sent while an agent is busy. Processed when agent becomes idle. Cleared on new session. |
+| **AgentTaskManager** | Persistence and event layer for tasks (`agent-tasks.json`). Stores tasks, validates state transitions (OPEN -> ACTIVE -> COMPLETED/INCOMPLETE -> CLOSED), and emits lifecycle events. Does not make scheduling or assignment decisions - callers (MCP servers, orchestrator) drive those. Serialized read-modify-write via promise chain. Extends `EventBus<AgentTaskManagerEvents>`. |
+| **LoopScheduler** | Scheduled prompt delivery. Two time modes: `AT` (specific wall-clock time) and `EVERY` (recurring interval). Creates loop tasks via `AgentTaskManager`. |
+| **CrowMcpManager** | Registry for MCP server factories. Maps server name -> factory function. Generates tool prefixes: `mcp__{serverName}__`. |
+| **MdGenerationService** | Generates personas and AGENT.md content via an OpenAI-compatible API. Optional - requires `OPENAI_API_KEY` config. |
 
 #### Stream Processing Pipeline
 
 When a user sends a message to an agent:
 
-1. **Orchestrator** validates the agent is not busy, creates/resumes a runtime
-2. **System prompt** is assembled: persona + agent context (peer list) + AGENT.md
-3. **SDK query** is created with the agent's model, tools, permissions, MCP servers
-4. **Stream iteration** processes SDK events:
-   - `content_block_delta` → `AgentTextMessage` (streamed to UI in real-time)
-   - Tool use events → `AgentActivityMessage` (human-readable descriptions)
-   - Usage events → `AgentUsageMessage` (token counts, cost)
-   - `system.init` → captures available tools, updates registry
-5. **Text coalescing**: consecutive text deltas are buffered and flushed as a single message on the next non-text event or stream end
-6. **On completion**: runtime transitions to idle, state is persisted, `agentIdle` event fires
+1. **Orchestrator** validates the agent is idle (or enqueues via `MessageQueueManager`)
+2. **AgentRunner.sendMessage()** is called, which returns an async generator of `AgentStreamEvent`s
+3. Inside the runner: system prompt is assembled, SDK query is created with model/tools/permissions/MCP, and the SDK stream is transformed into `AgentStreamEvent`s via `processStream()`
+4. **Orchestrator** iterates the event stream and maps each event to actions:
+   - `INIT` -> captures session ID, broadcasts user message, discovers tools, persists state
+   - `CONTENT` -> broadcasts `agent_text` (streamed text delta)
+   - `TOOL_USE` -> broadcasts `agent_activity` (tool name + description)
+   - `TOOL_USE_PROGRESS` -> broadcasts `agent_tool_progress` (elapsed time)
+   - `MESSAGE_DONE` -> adds to session manager, broadcasts `agent_message` (complete message)
+   - `STATUS` -> broadcasts `agent_status` (e.g. compacting)
+   - `DONE` -> broadcasts `agent_result` + `agent_usage`, accumulates session usage
+   - `ERROR` / `ABORTED` -> broadcasts error, marks task incomplete if applicable
+5. **On completion**: runner transitions to idle, orchestrator persists state, drains message queue, schedules next task
 
-#### System MCP servers
- - `crow-agents` MCP server providing tool for invoke each other
- - `crow-artifacts` MCP server providing tools for agent to access artifacts
+#### System MCP Servers
+ - `crow-artifacts` MCP server providing tools for agents to access artifacts (`write_artifact`, `read_artifact`, `list_artifacts`)
+ - `crow-agents` MCP server providing tools for inter-agent communication (`list_agents`, `invoke_agent`)
 
 #### Inter-Agent Communication
 
-Agents discover and invoke each other through MCP tools, not direct API calls:
+Agents discover and invoke each other through MCP tools. The MCP server is the actor that creates and assigns tasks; `AgentTaskManager` is a persistence and event layer. The orchestrator reacts to task lifecycle events rather than directly coordinating invocations:
 
 1. Agent A calls `invoke_agent(targetId, task)` via the `crow-agents` MCP server
-2. The orchestrator sends the task as a message to Agent B (or injects it if B is already streaming)
-3. Agent B works on the task and writes results to its artifacts folder
-4. When Agent B goes idle, the orchestrator notifies Agent A with a list of available artifacts
-5. Agent A reads the results via `read_artifact(agentId, filename)`
+2. The MCP server creates a task via `taskManager.addTask()` with originate source `AGENT` (Agent A)
+3. The MCP server immediately assigns it via `taskManager.assignTask()` to Agent B, with dispatch source pointing to Agent A
+4. `AgentTaskManager` persists and emits `taskAssigned`
+5. The orchestrator reacts to `taskAssigned` by scheduling the task when Agent B becomes idle
+6. Agent B works on the task and writes results to its artifacts folder
+7. When Agent B finishes, the orchestrator updates the task to `COMPLETED`/`INCOMPLETE`
+8. `AgentTaskManager` emits `taskStateChanged`; the orchestrator reacts by notifying Agent A with available artifacts
+9. Agent A reads the results via `read_artifact(agentId, filename)`
 
-This is an async pattern - there is no synchronous return value or direct callback.
+This is an async, event-driven pattern - there is no synchronous return value or direct callback.
 
 #### Permission Flow
 
 When a tool requires user approval:
 
-1. SDK calls `canUseTool()` hook on the orchestrator
-2. `PermissionHandler` creates a pending request with a 2-minute timeout
-3. A `permission_request` message is broadcast to subscribed WebSocket clients
-4. The UI displays an approval prompt
-5. User clicks allow/deny → client sends `permission_response` over WebSocket
-6. `PermissionHandler` resolves the pending promise → SDK proceeds or skips
+1. SDK calls the `canUseTool` hook on the `AgentRunner`
+2. The runner delegates to a `PermissionRequestCallback` provided by the orchestrator
+3. `PermissionHandler` creates a pending request with a 2-minute timeout
+4. A `permission_request` message is broadcast to all connected WebSocket clients
+5. The UI displays an approval prompt in the `PermissionQueue`
+6. User clicks allow/deny -> client sends `permission_response` over WebSocket
+7. `PermissionHandler` resolves the pending promise -> SDK proceeds or skips
 
 ### Frontend Architecture
+
+#### Provider Stack
+
+The app root composes providers in this order:
+1. `ErrorBoundary` - catches React errors, displays fallback UI
+2. `QueryClientProvider` - TanStack React Query for REST data caching
+3. `WsProvider` - WebSocket connection context
+4. `ContextMenuProvider` - portal-rendered context menus
+5. `ModalDialogProvider` - portal-rendered modal dialogs
+6. `HeaderProvider` - dynamic page header content
+
+#### App Layout
+
+The layout shell consists of:
+- **AppHeader** - spans full width at top
+- **ReconnectBanner** - shown when WebSocket disconnects
+- **AppSidebar** - left navigation, controls view mode + agent list
+- **Main content** - renders the active view
+- **SidePanel** - right resizable panel (only shown in Agents view)
+
+#### Navigation & Views
+
+Navigation is flat (no history stack), controlled by `viewMode` in the Zustand app store:
+
+| View Mode | Component | Description |
+|---|---|---|
+| `DASHBOARD` | `Dashboard` | Grid of agent cards with status, usage, and quick actions. "New Agent" button opens editor. |
+| `AGENTS` | `AgentsView` | Left: `AgentCommandStrip` (agent list + selection). Right: `AgentConsole` (messages, input, permissions). |
+| `AGENT_EDITOR` | `AgentEditorView` | Full-page form for creating/editing agents. Returns to dashboard on save/cancel. |
+
+The Agents view side panel has tabs:
+- **Status** - agent status indicator, session metrics (cost, context usage), session controls (compact, new conversation)
+- **Artifacts** - browse and view agent artifact files
 
 #### WebSocket Client
 
 - Connects to `/ws` with automatic protocol detection (ws/wss)
-- Exponential backoff reconnect (1s → 30s cap)
-- Maintains subscription set across reconnects
-- Global message handler registry for routing server messages to stores
+- Exponential backoff reconnect (1s -> 30s cap)
+- No subscription management - receives all server messages, client-side hooks filter by `agentId`
+- Connection states: `DISCONNECTED`, `CONNECTING`, `RECONNECTING`, `CONNECTED`
+
+#### Data Fetching Patterns
+
+**React Query** (REST data):
+- `useAgentsQuery()` - list all agents
+- `useAgentQuery(agentId)` - single agent + AGENT.md
+- `useAgentMessagesQuery(agentId)` - session messages
+- `useAgentStateQuery(agentId)` - runtime state (status, usage, pending permissions)
+- `useAgentArtifactsQuery(agentId)` - list artifacts
+- `useArtifactContentQuery(agentId, filename)` - read artifact content
+
+**WebSocket** (real-time ephemeral state via `useAgentStreamState`):
+- `streamingText` - text being typed in real-time (accumulated `agent_text` deltas)
+- `activeToolUse` - current tool name + elapsed time
+- `lastResult` - query completion info (cost, duration)
+
+**Action hooks** (`useAgentActions`):
+- `sendMessage` / `injectMessage` - send via WebSocket
+- `abortAgent` - stop agent via REST
+- `compact` / `newSession` - session management via REST
+- `respondToPermission` - permission decisions via WebSocket
+
+#### State Management
+
+| Store | Scope | Persistence |
+|---|---|---|
+| **App Store** (Zustand) | View mode, selected agent, editor agent, side panel state | localStorage |
+| **React Query cache** | Agent list, agent details, messages, runtime state, artifacts | In-memory |
+| **Stream state** (hook-local) | Streaming text, active tool, last result | None (ephemeral) |
 
 #### Design System
 
-Design a theme defined using latest TailwindCSS v4 `@theme` and layers. Reference the latest documentation on best practices on v4 system.:
-Basic tokens should at least include: base, surface, primary, secondary, accent, border, text (text-primary, text-secondary, text-muted), success, info, error, warning.
-I have pre-selected the typography.
-
-The overall visual is a dark theme with deep dark base background, matte midnight plum with a soft-touch texture. The overall should give deep muted tones and diffused glows. The interface should feel translucent, layered, and sophisticated with accents that pop. For example, subtle, diffused muted Sage or deep teal light glows from underneath the panels, creating a soft bloom effect on the matte surface.
+Theme defined using Tailwind CSS v4 `@theme` block and layers. All visual properties use theme tokens - no hardcoded pixel sizes or raw color values.
 
 - **Base colors**: Deep obsidian with violet undertone
 - **Accent**: Electric blue
+- **Overall feel**: Dark theme with deep dark base, matte midnight plum with soft-touch texture. Deep muted tones, diffused glows, translucent layered panels. Subtle sage/teal bloom effects on matte surfaces.
 
-
-All visual properties must use theme tokens - no hardcoded pixel sizes or raw color values.
+Basic tokens include: base, surface (surface, surface-elevated, surface-inset), primary, secondary, accent, border (border, border-subtle), text (text-primary, text-secondary, text-muted), success, info, error, warning.
 
 ### Communication Protocol
 
 #### REST API
 
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/health` | Health check |
+| `GET` | `/api/agents` | List all agents |
+| `GET` | `/api/agents/:id` | Get agent config + AGENT.md |
+| `POST` | `/api/agents` | Create agent |
+| `PATCH` | `/api/agents/:id` | Update agent |
+| `DELETE` | `/api/agents/:id` | Delete agent |
+| `POST` | `/api/agents/:id/send` | Send message (fire-and-forget, result via WS) |
+| `POST` | `/api/agents/:id/stop` | Stop an active agent |
+| `GET` | `/api/agents/:id/messages` | Get session messages |
+| `GET` | `/api/agents/:id/sessions` | List sessions for an agent |
+| `POST` | `/api/agents/:id/session/new` | Start a new session |
+| `POST` | `/api/agents/:id/session/compact` | Trigger manual compaction (fire-and-forget) |
+| `GET` | `/api/agents/:id/state` | Get runtime state (status, usage, pending permissions) |
+| `GET` | `/api/agents/:id/artifacts` | List agent artifacts |
+| `GET` | `/api/agents/:id/artifacts/:filename` | Read artifact content |
+| `POST` | `/api/generate/persona` | Generate persona (optional, requires OpenAI config) |
+| `POST` | `/api/generate/agent-md` | Generate AGENT.md (optional, requires OpenAI config) |
+
 #### WebSocket Messages
 
-**Client → Server:**
+**Client -> Server:**
 
 | Type | Purpose |
 |---|---|
-| `subscribe` | Start receiving updates for an agent |
-| `unsubscribe` | Stop receiving updates |
 | `send_message` | Send a user message to an agent |
 | `inject_message` | Inject a message into an active stream |
-| `permission_response` | Approve, deny, or type something for a tool permission request |
+| `permission_response` | Approve or deny a tool permission request (with optional message) |
 
-**Server → Client:**
+**Server -> Client:**
 
 | Type | Purpose |
 |---|---|
 | `agent_text` | Streamed response text delta |
-| `agent_activity` | Tool usage description (Read, Write, Bash, etc.) |
-| `agent_result` | Success or error on stream completion |
-| `agent_status` | Runtime state change (streaming, idle, closed) |
+| `agent_message` | Complete assistant message (committed to session history) |
+| `agent_activity` | Tool use started (tool name + human-readable description) |
+| `agent_tool_progress` | Tool execution elapsed time |
+| `agent_result` | Query completion (success/error, cost, duration) |
+| `agent_status` | Runtime state change (idle, streaming, compacting) |
 | `agent_updated` | Agent config changed |
 | `agent_usage` | Token count and cost update |
 | `permission_request` | Prompt user to approve/deny a tool |
 | `permission_cancelled` | Permission request timed out |
 | `error` | Transport or processing error |
 
+### Data Persistence
+
+#### Files (under `CROW_SYSTEM_PATH`)
+
+| File | Contents |
+|---|---|
+| `agents.json` | All user-created agent configs (excludes system agents) |
+| `agent-tasks.json` | All tasks with state lifecycle |
+| `orchestrator-state.json` | Runtime states per agent (sessionId, usage, pending permissions) |
+| `agents/{id}/AGENT.md` | Agent-specific system prompt extension |
+| `agents/{id}/artifacts/{filename}` | Agent output files |
+
 ### Build and Deployment
 
 ```bash
-npm run build     # typecheck → lint → compile backend → bundle frontend → copy to backend/dist/public
+npm run dev       # parallel: shared watch + backend tsc watch + frontend vite dev (port 5101)
+npm run build     # shared -> backend tsc -> frontend vite build -> copy to backend/dist/public
 npm start         # node dist/cli.js fullstack (serves API + SPA from single port)
 ```
 
@@ -202,6 +321,8 @@ Environment variables with sensible defaults:
 | `CORS_ORIGINS` | `http://localhost:5101` | Allowed origins (comma-separated) |
 | `CROW_SYSTEM_PATH` | `.crow` | Storage root directory |
 | `STATIC_PATH` | `dist/public` | Frontend assets path |
+| `LOG_LEVEL` | `debug` (dev) / `info` (prod) | Logging verbosity |
+| `CLAUDE_CLI_PATH` | - | Path to Claude CLI executable |
 | `OPENAI_BASE_URL` | - | OpenAI-compatible API for content generation |
 | `OPENAI_API_KEY` | - | API key for generation endpoint |
 | `OPENAI_MODEL` | - | Model name for generation |
@@ -210,10 +331,12 @@ Environment variables with sensible defaults:
 
  - Backend is the source of truth: The frontend renders what the backend provides. No derived state, no duplicated logic on the client.
  - Agents are identities, not templates: Each agent config maps to exactly one agent instance. Never design patterns where one config spawns multiple instances.
- - Event-driven coordination: Loose coupling through `EventBus`. Agent deletion triggers cleanup in the registry, orchestrator, and loop scheduler independently.
+ - Agent execution is abstracted: The orchestrator consumes `AgentStreamEvent`s without knowledge of the underlying AI SDK. `AgentRunner` owns the SDK interaction and exposes a typed async generator interface, allowing future replacement of the agent backend.
+ - Event-driven coordination: Loose coupling through `EventBus`. Agent deletion triggers cleanup in the registry, orchestrator, and loop scheduler independently. Inter-agent task lifecycle flows through `AgentTaskManager` events.
  - Stream-first communication: Real-time data flows over WebSocket. REST is for queries and one-shot mutations. The UI never polls.
+ - Broadcast WebSocket model: Server broadcasts all messages to all connected clients. Client-side hooks filter by `agentId`. No server-side subscription management.
  - MCP for agent collaboration: Agents interact through standardized MCP tools, not ad-hoc APIs. This keeps the agent-to-agent protocol discoverable and tool-native.
  - Design tokens over hardcoded values: All visual properties use theme tokens from the Tailwind `@theme` block. No raw pixel values or color codes in components.
  - Optional features (OpenAI generation, loop automation) are conditionally initialized. The core system works without them.
  - MUST NOT use variant design pattern for UI component like variant="primary" size="md".
- - AppError MUST NOT contain http status, services throwing error should not be concern about http. This is our CCA internal error class. What status code to return is a route concern.
+ - AppError MUST NOT contain http status, services throwing error should not be concerned about http. This is our CCA internal error class. What status code to return is a route concern.
