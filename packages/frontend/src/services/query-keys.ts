@@ -21,3 +21,14 @@ export const agentKeys = {
   artifactContent: (agentId: string, filename: string) =>
     [...agentKeys.all, "detail", agentId, "artifacts", filename] as const,
 };
+
+/**
+ * Query key factory for task-related queries.
+ * Tasks are global (not scoped per agent), so the hierarchy is flat.
+ */
+export const taskKeys = {
+  /** Root key for all task-related queries */
+  all: ["tasks"] as const,
+  /** Task list */
+  list: () => [...taskKeys.all, "list"] as const,
+};

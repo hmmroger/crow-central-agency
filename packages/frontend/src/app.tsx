@@ -7,6 +7,7 @@ import { AppLayout } from "./components/layout/app-layout.js";
 import { AppContent } from "./components/layout/app-content.js";
 import { ModalDialogProvider } from "./providers/modal-dialog-provider.js";
 import { ContextMenuProvider } from "./providers/context-menu-provider.js";
+import { TasksProvider } from "./providers/tasks-provider.js";
 
 /**
  * App root - thin shell with providers and top-level composition.
@@ -16,15 +17,17 @@ export function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <WsProvider>
-          <ContextMenuProvider>
-            <ModalDialogProvider>
-              <HeaderProvider>
-                <AppLayout>
-                  <AppContent />
-                </AppLayout>
-              </HeaderProvider>
-            </ModalDialogProvider>
-          </ContextMenuProvider>
+          <TasksProvider>
+            <ContextMenuProvider>
+              <ModalDialogProvider>
+                <HeaderProvider>
+                  <AppLayout>
+                    <AppContent />
+                  </AppLayout>
+                </HeaderProvider>
+              </ModalDialogProvider>
+            </ContextMenuProvider>
+          </TasksProvider>
         </WsProvider>
       </QueryClientProvider>
     </ErrorBoundary>
