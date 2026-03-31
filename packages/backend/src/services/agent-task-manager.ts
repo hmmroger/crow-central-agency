@@ -194,11 +194,15 @@ export class AgentTaskManager extends EventBus<AgentTaskManagerEvents> {
         throw new AppError(`Cannot assign task in state ${found.state}`, APP_ERROR_CODES.INVALID_STATE_TRANSITION);
       }
 
-      found.ownerSource = ownerSource;
-      found.dispatchSource = dispatchSource;
-      found.updatedTimestamp = Date.now();
+      const updated: AgentTaskItem = {
+        ...found,
+        ownerSource,
+        dispatchSource,
+        updatedTimestamp: Date.now(),
+      };
+      this.tasks.set(taskId, updated);
       await this.persistTasks();
-      return found;
+      return updated;
     });
 
     log.info({ taskId, ownerSource, dispatchSource }, "Task assigned");
@@ -225,10 +229,14 @@ export class AgentTaskManager extends EventBus<AgentTaskManagerEvents> {
       }
 
       const prevState = found.state;
-      found.state = newState;
-      found.updatedTimestamp = Date.now();
+      const updated: AgentTaskItem = {
+        ...found,
+        state: newState,
+        updatedTimestamp: Date.now(),
+      };
+      this.tasks.set(taskId, updated);
       await this.persistTasks();
-      return { task: found, previousState: prevState };
+      return { task: updated, previousState: prevState };
     });
 
     log.info({ taskId, previousState, newState }, "Task state changed");

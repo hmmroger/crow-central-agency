@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { AGENT_TASK_STATE, type AgentTaskItem } from "@crow-central-agency/shared";
+import { AGENT_TASK_STATE, type AgentTaskItem, type AgentTaskState } from "@crow-central-agency/shared";
 import { Plus, RefreshCw, List, CircleDot, Zap, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { useTasksContext } from "../../providers/tasks-provider.js";
 import { useAgentsQuery } from "../../hooks/use-agents-query.js";
@@ -35,7 +35,7 @@ const FILTER_TABS: TabDefinition<TaskFilter>[] = [
 ];
 
 /** Map filter ID to task state (ALL maps to undefined = no filter) */
-const FILTER_TO_STATE: Record<TaskFilter, string | undefined> = {
+const FILTER_TO_STATE: Record<TaskFilter, AgentTaskState | undefined> = {
   [TASK_FILTER.ALL]: undefined,
   [TASK_FILTER.OPEN]: AGENT_TASK_STATE.OPEN,
   [TASK_FILTER.ACTIVE]: AGENT_TASK_STATE.ACTIVE,

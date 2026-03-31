@@ -63,7 +63,7 @@ export function TaskCard({ task, agents }: TaskCardProps) {
     >
       {/* Active glow effect */}
       {isActive && (
-        <div className="absolute inset-0 rounded-lg pointer-events-none animate-pulse opacity-30 shadow-[inset_0_0_20px_var(--color-accent)/0.15]" />
+        <div className="absolute inset-0 rounded-lg pointer-events-none animate-pulse opacity-30 shadow-glow-accent" />
       )}
 
       {/* Top row: state badge + timestamps */}
@@ -124,6 +124,26 @@ export function TaskCard({ task, agents }: TaskCardProps) {
   );
 }
 
+/** Resolve display name from a task source using discriminant narrowing */
+function resolveSourceName(source: AgentTaskSource, resolveAgentName: (id: string) => string): string {
+  if (source.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT) {
+    return resolveAgentName(source.agentId);
+  }
+
+  if (source.sourceType === AGENT_TASK_SOURCE_TYPE.LOOP) {
+    return "Loop";
+  }
+
+  return "User";
+}
+
+/** Map source type to icon — declared outside render to avoid ESLint static-components rule */
+const SOURCE_TYPE_ICON: Record<string, typeof Bot> = {
+  [AGENT_TASK_SOURCE_TYPE.AGENT]: Bot,
+  [AGENT_TASK_SOURCE_TYPE.LOOP]: RotateCw,
+  [AGENT_TASK_SOURCE_TYPE.USER]: User,
+};
+
 /** Small metadata badge showing source type + name */
 function SourceBadge({
   label,
@@ -134,11 +154,8 @@ function SourceBadge({
   source: AgentTaskSource;
   resolveAgentName: (id: string) => string;
 }) {
-  const isAgent = source.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT;
-  const isLoop = source.sourceType === AGENT_TASK_SOURCE_TYPE.LOOP;
-
-  const Icon = isAgent ? Bot : isLoop ? RotateCw : User;
-  const name = isAgent ? resolveAgentName(source.agentId) : isLoop ? "Loop" : "User";
+  const Icon = SOURCE_TYPE_ICON[source.sourceType] ?? User;
+  const name = resolveSourceName(source, resolveAgentName);
 
   return (
     <span className="flex items-center gap-1.5 text-3xs text-text-muted">
