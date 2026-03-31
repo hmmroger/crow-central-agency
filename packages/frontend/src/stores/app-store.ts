@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 /** View modes for the app - flat navigation via sidebar, no view stack */
 export const VIEW_MODE = {
@@ -48,58 +49,75 @@ interface AppState {
  * Sidebar controls viewMode (DASHBOARD / AGENTS). Agent editor is a full view.
  * No view stack - sidebar switching is flat, editor always returns to dashboard.
  */
-export const useAppStore = create<AppState>((set) => ({
-  viewMode: VIEW_MODE.DASHBOARD,
-  selectedAgentId: undefined,
-  editorAgentId: undefined,
-  sidePanelOpen: true,
-  sidePanelWidth: DEFAULT_SIDE_PANEL_WIDTH,
+/** localStorage key for persisted app state */
+const APP_STORE_STORAGE_KEY = "crow-app-state";
 
-  setViewMode: (mode: ViewMode) =>
-    set((state) => {
-      if (state.viewMode === mode) {
-        return state;
-      }
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
+      viewMode: VIEW_MODE.DASHBOARD,
+      selectedAgentId: undefined,
+      editorAgentId: undefined,
+      sidePanelOpen: true,
+      sidePanelWidth: DEFAULT_SIDE_PANEL_WIDTH,
 
-      return {
-        viewMode: mode,
-        // Always clear selection on sidebar switch; goToAgentConsole sets it explicitly
-        selectedAgentId: undefined,
-        editorAgentId: undefined,
-      };
+      setViewMode: (mode: ViewMode) =>
+        set((state) => {
+          if (state.viewMode === mode) {
+            return state;
+          }
+
+          return {
+            viewMode: mode,
+            // Always clear selection on sidebar switch; goToAgentConsole sets it explicitly
+            selectedAgentId: undefined,
+            editorAgentId: undefined,
+          };
+        }),
+
+      selectAgent: (agentId: string) =>
+        set((state) => {
+          if (state.selectedAgentId === agentId) {
+            return state;
+          }
+
+          return { selectedAgentId: agentId };
+        }),
+
+      openAgentEditor: (agentId?: string) =>
+        set((state) => {
+          if (state.viewMode === VIEW_MODE.AGENT_EDITOR && state.editorAgentId === agentId) {
+            return state;
+          }
+
+          return { viewMode: VIEW_MODE.AGENT_EDITOR, editorAgentId: agentId };
+        }),
+
+      goToDashboard: () =>
+        set((state) => {
+          if (state.viewMode === VIEW_MODE.DASHBOARD) {
+            return state;
+          }
+
+          return { viewMode: VIEW_MODE.DASHBOARD, selectedAgentId: undefined, editorAgentId: undefined };
+        }),
+
+      goToAgentConsole: (agentId: string) =>
+        set({ viewMode: VIEW_MODE.AGENTS, selectedAgentId: agentId, editorAgentId: undefined }),
+
+      toggleSidePanel: () => set((state) => ({ sidePanelOpen: !state.sidePanelOpen })),
+
+      setSidePanelWidth: (width: number) => set({ sidePanelWidth: width }),
     }),
-
-  selectAgent: (agentId: string) =>
-    set((state) => {
-      if (state.selectedAgentId === agentId) {
-        return state;
-      }
-
-      return { selectedAgentId: agentId };
-    }),
-
-  openAgentEditor: (agentId?: string) =>
-    set((state) => {
-      if (state.viewMode === VIEW_MODE.AGENT_EDITOR && state.editorAgentId === agentId) {
-        return state;
-      }
-
-      return { viewMode: VIEW_MODE.AGENT_EDITOR, editorAgentId: agentId };
-    }),
-
-  goToDashboard: () =>
-    set((state) => {
-      if (state.viewMode === VIEW_MODE.DASHBOARD) {
-        return state;
-      }
-
-      return { viewMode: VIEW_MODE.DASHBOARD, selectedAgentId: undefined, editorAgentId: undefined };
-    }),
-
-  goToAgentConsole: (agentId: string) =>
-    set({ viewMode: VIEW_MODE.AGENTS, selectedAgentId: agentId, editorAgentId: undefined }),
-
-  toggleSidePanel: () => set((state) => ({ sidePanelOpen: !state.sidePanelOpen })),
-
-  setSidePanelWidth: (width: number) => set({ sidePanelWidth: width }),
-}));
+    {
+      name: APP_STORE_STORAGE_KEY,
+      partialize: (state) => ({
+        viewMode: state.viewMode,
+        selectedAgentId: state.selectedAgentId,
+        editorAgentId: state.editorAgentId,
+        sidePanelOpen: state.sidePanelOpen,
+        sidePanelWidth: state.sidePanelWidth,
+      }),
+    }
+  )
+);
