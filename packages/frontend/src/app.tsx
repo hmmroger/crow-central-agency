@@ -6,6 +6,7 @@ import { ErrorBoundary } from "./components/common/error-boundary.js";
 import { AppLayout } from "./components/layout/app-layout.js";
 import { AppContent } from "./components/layout/app-content.js";
 import { ModalDialogProvider } from "./providers/modal-dialog-provider.js";
+import { ContextMenuProvider } from "./providers/context-menu-provider.js";
 
 /**
  * App root - thin shell with providers and top-level composition.
@@ -15,13 +16,15 @@ export function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <WsProvider>
-          <ModalDialogProvider>
-            <HeaderProvider>
-              <AppLayout>
-                <AppContent />
-              </AppLayout>
-            </HeaderProvider>
-          </ModalDialogProvider>
+          <ContextMenuProvider>
+            <ModalDialogProvider>
+              <HeaderProvider>
+                <AppLayout>
+                  <AppContent />
+                </AppLayout>
+              </HeaderProvider>
+            </ModalDialogProvider>
+          </ContextMenuProvider>
         </WsProvider>
       </QueryClientProvider>
     </ErrorBoundary>
