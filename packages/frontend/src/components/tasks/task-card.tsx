@@ -4,6 +4,7 @@ import {
   type AgentTaskItem,
   type AgentTaskState,
   type AgentTaskSource,
+  type AgentTaskSourceType,
   type AgentConfig,
 } from "@crow-central-agency/shared";
 import { Clock, User, Bot, RotateCw } from "lucide-react";
@@ -138,7 +139,7 @@ function resolveSourceName(source: AgentTaskSource, resolveAgentName: (id: strin
 }
 
 /** Map source type to icon — declared outside render to avoid ESLint static-components rule */
-const SOURCE_TYPE_ICON: Record<string, typeof Bot> = {
+const SOURCE_TYPE_ICON: Record<AgentTaskSourceType, typeof Bot> = {
   [AGENT_TASK_SOURCE_TYPE.AGENT]: Bot,
   [AGENT_TASK_SOURCE_TYPE.LOOP]: RotateCw,
   [AGENT_TASK_SOURCE_TYPE.USER]: User,
@@ -154,7 +155,7 @@ function SourceBadge({
   source: AgentTaskSource;
   resolveAgentName: (id: string) => string;
 }) {
-  const Icon = SOURCE_TYPE_ICON[source.sourceType] ?? User;
+  const Icon = SOURCE_TYPE_ICON[source.sourceType];
   const name = resolveSourceName(source, resolveAgentName);
 
   return (
