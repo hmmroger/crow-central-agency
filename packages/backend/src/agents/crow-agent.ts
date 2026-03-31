@@ -1,10 +1,13 @@
-import { PERMISSION_MODE, TOOL_MODE, CLAUDE_MODELS, type AgentConfig } from "@crow-central-agency/shared";
+import {
+  PERMISSION_MODE,
+  TOOL_MODE,
+  CLAUDE_MODELS,
+  type AgentConfig,
+  CROW_SYSTEM_AGENT_ID,
+} from "@crow-central-agency/shared";
 import { env } from "../config/env.js";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
-
-/** Well-known ID for the Crow system agent */
-export const CROW_SYSTEM_AGENT_ID = "__super_crow__";
 
 const CROW_SYSTEM_AGENT_NAME = "Crow";
 const CROW_SYSTEM_AGENT_PERSONA: MessageTemplate = {

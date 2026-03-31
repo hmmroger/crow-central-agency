@@ -1,3 +1,4 @@
+import { CROW_SYSTEM_AGENT_ID } from "@crow-central-agency/shared";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -70,7 +71,7 @@ export const useAppStore = create<AppState>()(
           return {
             viewMode: mode,
             // Always clear selection on sidebar switch; goToAgentConsole sets it explicitly
-            selectedAgentId: undefined,
+            selectedAgentId: state.selectedAgentId ?? CROW_SYSTEM_AGENT_ID,
             editorAgentId: undefined,
           };
         }),

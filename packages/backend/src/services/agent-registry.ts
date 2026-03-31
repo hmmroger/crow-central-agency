@@ -7,6 +7,7 @@ import {
   type AgentConfig,
   type CreateAgentInput,
   type UpdateAgentInput,
+  CROW_SYSTEM_AGENT_ID,
 } from "@crow-central-agency/shared";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { AgentRegistryEvents } from "./agent-registry.types.js";
@@ -26,7 +27,7 @@ import {
   removeDir,
   assertWithinBase,
 } from "../utils/fs-utils.js";
-import { CROW_SYSTEM_AGENT_ID, getCrowAgent } from "../agents/crow-agent.js";
+import { getCrowAgent } from "../agents/crow-agent.js";
 
 const log = logger.child({ context: "agent-registry" });
 

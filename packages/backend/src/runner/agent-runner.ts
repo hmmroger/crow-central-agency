@@ -8,7 +8,7 @@ import type {
   HookInput,
   Query,
 } from "@anthropic-ai/claude-agent-sdk";
-import { AGENT_STATUS, type AgentConfig, type AgentStatus } from "@crow-central-agency/shared";
+import { AGENT_STATUS, CROW_SYSTEM_AGENT_ID, type AgentConfig, type AgentStatus } from "@crow-central-agency/shared";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import { processStream } from "./stream-processor.js";
@@ -20,7 +20,6 @@ import { DEFAULT_PERMISSION_DENY_MESSAGE } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
-import { CROW_SYSTEM_AGENT_ID } from "../agents/crow-agent.js";
 import { MessageRoles } from "../model-providers/openai-provider.types.js";
 import { AGENTS_MCP_INVOKE_AGENT_TOOL_NAME } from "../mcp/agents-mcp-server.js";
 import {
