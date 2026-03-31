@@ -2,6 +2,7 @@ import path from "node:path";
 import {
   AGENT_TASK_STATE,
   AGENT_TASK_SOURCE_TYPE,
+  SERVER_MESSAGE_TYPE,
   AgentTaskItemSchema,
   type AgentTaskItem,
   type AgentTaskSource,
@@ -10,6 +11,7 @@ import {
 import { z } from "zod";
 import { EventBus } from "../event-bus/event-bus.js";
 import type { AgentTaskManagerEvents } from "./agent-task-manager.types.js";
+import type { WsBroadcaster } from "./ws-broadcaster.js";
 import { env } from "../config/env.js";
 import { AGENT_TASKS_FILENAME } from "../config/constants.js";
 import { readJsonFile, writeJsonFile } from "../utils/fs-utils.js";
@@ -47,11 +49,13 @@ const log = logger.child({ context: "agent-task-manager" });
 export class AgentTaskManager extends EventBus<AgentTaskManagerEvents> {
   private tasks = new Map<string, AgentTaskItem>();
   private readonly tasksFilePath: string;
+  private readonly broadcaster: WsBroadcaster;
   /** Promise chain to serialize read-modify-write operations */
   private opChain: Promise<void> = Promise.resolve();
 
-  constructor() {
+  constructor(broadcaster: WsBroadcaster) {
     super();
+    this.broadcaster = broadcaster;
     this.tasksFilePath = path.join(env.CROW_SYSTEM_PATH, AGENT_TASKS_FILENAME);
   }
 
@@ -111,23 +115,60 @@ export class AgentTaskManager extends EventBus<AgentTaskManagerEvents> {
 
     log.info({ taskId: taskItem.id, source: originateSource }, "Task added");
     this.emit("taskAdded", { task: taskItem });
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.TASK_ADDED, task: taskItem });
 
     return taskItem;
   }
 
   /**
+   * Update the content of an OPEN task.
+   * @param taskId - The task to update
+   * @param newContent - The new task description
+   * @throws AppError if task not found or not in OPEN state
+   */
+  public async updateTaskContent(taskId: string, newContent: string): Promise<AgentTaskItem> {
+    const task = await this.serializedWithResult(async () => {
+      const found = this.getTaskOrThrow(taskId);
+
+      if (found.state !== AGENT_TASK_STATE.OPEN) {
+        throw new AppError(
+          `Cannot update content of task in state ${found.state}`,
+          APP_ERROR_CODES.INVALID_STATE_TRANSITION
+        );
+      }
+
+      found.task = newContent;
+      found.updatedTimestamp = Date.now();
+      await this.persistTasks();
+      return found;
+    });
+
+    log.info({ taskId }, "Task content updated");
+    this.emit("taskUpdated", { task });
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.TASK_UPDATED, task });
+
+    return task;
+  }
+
+  /**
    * Delete a task by ID.
-   * @throws AppError if task not found
+   * @throws AppError if task not found or task is ACTIVE
    */
   public async deleteTask(taskId: string): Promise<void> {
     await this.serialized(async () => {
-      this.getTaskOrThrow(taskId);
+      const task = this.getTaskOrThrow(taskId);
+
+      if (task.state === AGENT_TASK_STATE.ACTIVE) {
+        throw new AppError("Cannot delete an active task", APP_ERROR_CODES.INVALID_STATE_TRANSITION);
+      }
+
       this.tasks.delete(taskId);
       await this.persistTasks();
     });
 
     log.info({ taskId }, "Task deleted");
     this.emit("taskDeleted", { taskId });
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.TASK_DELETED, taskId });
   }
 
   /**
@@ -158,6 +199,7 @@ export class AgentTaskManager extends EventBus<AgentTaskManagerEvents> {
 
     log.info({ taskId, ownerSource, dispatchSource }, "Task assigned");
     this.emit("taskAssigned", { task });
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.TASK_ASSIGNED, task });
 
     return task;
   }
@@ -187,6 +229,7 @@ export class AgentTaskManager extends EventBus<AgentTaskManagerEvents> {
 
     log.info({ taskId, previousState, newState }, "Task state changed");
     this.emit("taskStateChanged", { task, previousState });
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.TASK_STATE_CHANGED, task, previousState });
 
     return task;
   }

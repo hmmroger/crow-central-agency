@@ -19,6 +19,7 @@ import { AgentTaskManager } from "./services/agent-task-manager.js";
 import { OpenAIProvider } from "./model-providers/openai-provider.js";
 import { MdGenerationService } from "./services/md-generation-service.js";
 import { registerGenerationRoutes } from "./routes/generation.routes.js";
+import { registerTaskRoutes } from "./routes/task.routes.js";
 import { CrowMcpManager } from "./mcp/crow-mcp-manager.js";
 
 export interface BootstrapOptions {
@@ -41,7 +42,7 @@ export async function bootstrap(options: BootstrapOptions) {
   const permissionHandler = new PermissionHandler(broadcaster);
   const artifactManager = new ArtifactManager();
   const messageQueue = new MessageQueueManager();
-  const taskManager = new AgentTaskManager();
+  const taskManager = new AgentTaskManager(broadcaster);
   await taskManager.initialize();
   const loopScheduler = new LoopScheduler(registry, taskManager);
   const mcpManager = new CrowMcpManager();
@@ -84,6 +85,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerHealthRoutes(server);
   await registerAgentRoutes(server, registry, orchestrator, sessionManager);
   await registerArtifactRoutes(server, artifactManager);
+  await registerTaskRoutes(server, taskManager, registry);
   await registerGenerationRoutes(server, generationService);
 
   // Start listening
