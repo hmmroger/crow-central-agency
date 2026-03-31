@@ -4,6 +4,12 @@ import { useCreateTask } from "../../hooks/use-task-mutations.js";
 import { useAgentsQuery } from "../../hooks/use-agents-query.js";
 import { cn } from "../../utils/cn.js";
 
+interface AgentSelectProps {
+  agents: AgentConfig[];
+  value: string;
+  onChange: (agentId: string) => void;
+}
+
 interface CreateTaskDialogProps {
   /** Injected by ModalDialogRenderer */
   onClose: () => void;
@@ -92,15 +98,7 @@ export function CreateTaskDialog({ onClose }: CreateTaskDialogProps) {
 }
 
 /** Styled agent selector dropdown */
-function AgentSelect({
-  agents,
-  value,
-  onChange,
-}: {
-  agents: AgentConfig[];
-  value: string;
-  onChange: (agentId: string) => void;
-}) {
+function AgentSelect({ agents, value, onChange }: AgentSelectProps) {
   return (
     <select
       id="agent-select"

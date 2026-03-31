@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import { AGENT_TASK_STATE, type AgentTaskItem } from "@crow-central-agency/shared";
 import { Pencil, UserPlus, XCircle, Trash2, Loader } from "lucide-react";
 import { useModalDialog } from "../../providers/modal-dialog-provider.js";
@@ -7,6 +8,13 @@ import { ConfirmationDialog } from "../common/confirmation-dialog.js";
 import { EditTaskDialog } from "./edit-task-dialog.js";
 import { AssignTaskDialog } from "./assign-task-dialog.js";
 import { cn } from "../../utils/cn.js";
+
+interface ActionButtonProps {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+  isDestructive?: boolean;
+}
 
 interface TaskActionsProps {
   task: AgentTaskItem;
@@ -101,17 +109,7 @@ export function TaskActions({ task }: TaskActionsProps) {
 }
 
 /** Small icon-only action button with tooltip */
-function ActionButton({
-  icon: Icon,
-  label,
-  onClick,
-  isDestructive,
-}: {
-  icon: typeof Pencil;
-  label: string;
-  onClick: () => void;
-  isDestructive?: boolean;
-}) {
+function ActionButton({ icon: Icon, label, onClick, isDestructive }: ActionButtonProps) {
   return (
     <button
       type="button"
