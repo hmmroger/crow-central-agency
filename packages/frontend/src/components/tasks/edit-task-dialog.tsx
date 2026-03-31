@@ -17,24 +17,21 @@ interface EditTaskDialogProps {
  */
 export function EditTaskDialog({ taskId, currentContent, onClose }: EditTaskDialogProps) {
   const [taskContent, setTaskContent] = useState(currentContent);
-  const [isPending, setIsPending] = useState(false);
   const updateTask = useUpdateTask();
 
-  const hasChanged = taskContent.trim() !== currentContent;
-  const canSubmit = taskContent.trim().length > 0 && hasChanged && !isPending;
+  const hasChanged = taskContent.trim() !== currentContent.trim();
+  const canSubmit = taskContent.trim().length > 0 && hasChanged && !updateTask.isPending;
 
   const handleSubmit = async () => {
     if (!canSubmit) {
       return;
     }
 
-    setIsPending(true);
-
     try {
       await updateTask.mutateAsync({ taskId, input: { task: taskContent.trim() } });
       onClose();
     } catch {
-      setIsPending(false);
+      // Error accessible via updateTask.error if needed
     }
   };
 
@@ -64,7 +61,7 @@ export function EditTaskDialog({ taskId, currentContent, onClose }: EditTaskDial
           type="button"
           className="px-3 py-1.5 rounded-md text-sm text-text-muted border border-border-subtle hover:text-text-secondary transition-colors"
           onClick={onClose}
-          disabled={isPending}
+          disabled={updateTask.isPending}
         >
           Cancel
         </button>
@@ -74,7 +71,7 @@ export function EditTaskDialog({ taskId, currentContent, onClose }: EditTaskDial
           onClick={() => void handleSubmit()}
           disabled={!canSubmit}
         >
-          {isPending ? "Saving..." : "Save Changes"}
+          {updateTask.isPending ? "Saving..." : "Save Changes"}
         </button>
       </div>
     </div>

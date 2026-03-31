@@ -16,18 +16,15 @@ interface CreateTaskDialogProps {
 export function CreateTaskDialog({ onClose }: CreateTaskDialogProps) {
   const [taskContent, setTaskContent] = useState("");
   const [selectedAgentId, setSelectedAgentId] = useState("");
-  const [isPending, setIsPending] = useState(false);
   const createTask = useCreateTask();
   const { data: agents = [] } = useAgentsQuery();
 
-  const canSubmit = taskContent.trim().length > 0 && !isPending;
+  const canSubmit = taskContent.trim().length > 0 && !createTask.isPending;
 
   const handleSubmit = async () => {
     if (!canSubmit) {
       return;
     }
-
-    setIsPending(true);
 
     try {
       await createTask.mutateAsync({
@@ -36,7 +33,7 @@ export function CreateTaskDialog({ onClose }: CreateTaskDialogProps) {
       });
       onClose();
     } catch {
-      setIsPending(false);
+      // Error accessible via createTask.error if needed
     }
   };
 
@@ -77,7 +74,7 @@ export function CreateTaskDialog({ onClose }: CreateTaskDialogProps) {
           type="button"
           className="px-3 py-1.5 rounded-md text-sm text-text-muted border border-border-subtle hover:text-text-secondary transition-colors"
           onClick={onClose}
-          disabled={isPending}
+          disabled={createTask.isPending}
         >
           Cancel
         </button>
@@ -87,7 +84,7 @@ export function CreateTaskDialog({ onClose }: CreateTaskDialogProps) {
           onClick={() => void handleSubmit()}
           disabled={!canSubmit}
         >
-          {isPending ? "Creating..." : "Create Task"}
+          {createTask.isPending ? "Creating..." : "Create Task"}
         </button>
       </div>
     </div>

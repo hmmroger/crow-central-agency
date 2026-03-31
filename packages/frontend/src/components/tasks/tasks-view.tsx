@@ -58,7 +58,7 @@ const FILTER_EMPTY_MESSAGES: Record<TaskFilter, string> = {
 function filterTasks(tasks: AgentTaskItem[], filter: TaskFilter): AgentTaskItem[] {
   const targetState = FILTER_TO_STATE[filter];
 
-  if (!targetState) {
+  if (targetState === undefined) {
     return tasks;
   }
 

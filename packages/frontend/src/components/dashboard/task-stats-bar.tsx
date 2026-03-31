@@ -1,10 +1,17 @@
-import { useMemo } from "react";
+import { useMemo, type ComponentType } from "react";
 import { AGENT_TASK_STATE, type AgentTaskItem } from "@crow-central-agency/shared";
 import { Zap, CircleDot, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { cn } from "../../utils/cn.js";
 
 interface TaskStatsBarProps {
   tasks: AgentTaskItem[];
+}
+
+interface StatChipProps {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  colorClass: string;
 }
 
 /** Compute task counts by state */
@@ -63,17 +70,7 @@ export function TaskStatsBar({ tasks }: TaskStatsBarProps) {
 }
 
 /** Single stat chip: icon + count + label */
-function StatChip({
-  icon: Icon,
-  label,
-  value,
-  colorClass,
-}: {
-  icon: typeof Zap;
-  label: string;
-  value: number;
-  colorClass: string;
-}) {
+function StatChip({ icon: Icon, label, value, colorClass }: StatChipProps) {
   return (
     <span className="flex items-center gap-1.5 text-xs">
       <Icon className={cn("w-3.5 h-3.5", colorClass)} />

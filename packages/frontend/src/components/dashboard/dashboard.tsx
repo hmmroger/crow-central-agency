@@ -50,6 +50,7 @@ export function Dashboard() {
     return (
       <>
         <HeaderPortal title="Dashboard" />
+        <TaskStatsBar tasks={tasks} />
         <EmptyState
           message="No agents yet"
           description="Create your first agent to get started."

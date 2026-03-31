@@ -17,24 +17,21 @@ interface AssignTaskDialogProps {
  */
 export function AssignTaskDialog({ taskId, onClose }: AssignTaskDialogProps) {
   const [selectedAgentId, setSelectedAgentId] = useState("");
-  const [isPending, setIsPending] = useState(false);
   const assignTask = useAssignTask();
   const { data: agents = [] } = useAgentsQuery();
 
-  const canSubmit = selectedAgentId.length > 0 && !isPending;
+  const canSubmit = selectedAgentId.length > 0 && !assignTask.isPending;
 
   const handleSubmit = async () => {
     if (!canSubmit) {
       return;
     }
 
-    setIsPending(true);
-
     try {
       await assignTask.mutateAsync({ taskId, input: { agentId: selectedAgentId } });
       onClose();
     } catch {
-      setIsPending(false);
+      // Error accessible via assignTask.error if needed
     }
   };
 
@@ -76,7 +73,7 @@ export function AssignTaskDialog({ taskId, onClose }: AssignTaskDialogProps) {
           type="button"
           className="px-3 py-1.5 rounded-md text-sm text-text-muted border border-border-subtle hover:text-text-secondary transition-colors"
           onClick={onClose}
-          disabled={isPending}
+          disabled={assignTask.isPending}
         >
           Cancel
         </button>
@@ -86,7 +83,7 @@ export function AssignTaskDialog({ taskId, onClose }: AssignTaskDialogProps) {
           onClick={() => void handleSubmit()}
           disabled={!canSubmit}
         >
-          {isPending ? "Assigning..." : "Assign"}
+          {assignTask.isPending ? "Assigning..." : "Assign"}
         </button>
       </div>
     </div>
