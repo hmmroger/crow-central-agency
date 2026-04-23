@@ -26,13 +26,18 @@ updates:
           - "eslint-*"
           - "@stylistic/*"
           - "typescript-eslint"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      tanstack:
+        patterns:
+          - "@tanstack/*"
       types:
         patterns:
           - "@types/*"
-      minor-and-patch:
-        update-types:
-          - "minor"
-          - "patch"
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
