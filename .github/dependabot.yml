@@ -1,0 +1,40 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directories:
+      - "/"
+      - "/packages/*"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "automated"
+    open-pull-requests-limit: 10
+    versioning-strategy: increase
+    groups:
+      anthropic:
+        patterns:
+          - "@anthropic-ai/*"
+      opentelemetry:
+        patterns:
+          - "@opentelemetry/*"
+      fastify:
+        patterns:
+          - "fastify"
+          - "@fastify/*"
+      eslint:
+        patterns:
+          - "eslint"
+          - "eslint-*"
+          - "@stylistic/*"
+          - "typescript-eslint"
+      types:
+        patterns:
+          - "@types/*"
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

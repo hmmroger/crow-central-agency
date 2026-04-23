@@ -54,7 +54,7 @@
     "clean": "node ./scripts/clean-dist.mjs",
     "check:deps-sync": "node scripts/check-deps-sync.mjs",
     "bump-version": "node scripts/bump-version.mjs",
-    "prepack": "npm run check:deps-sync && npm run clean -w @crow-central-agency/shared && npm run clean -w @crow-central-agency/backend && npm run clean && npm run build -w @crow-central-agency/shared && npm run build -w @crow-central-agency/backend && npm run build -w @crow-central-agency/frontend && npm run build:crow"
+    "prepack": "npm run check:deps-sync && npm run clean -w @crow-central-agency/shared && npm run clean -w @crow-central-agency/backend && npm run clean && npm run build -w @crow-central-agency/shared && npm run lint && npm run build -w @crow-central-agency/backend && npm run build -w @crow-central-agency/frontend && npm run build:crow"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.76",
