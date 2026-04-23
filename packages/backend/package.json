@@ -1,6 +1,6 @@
 {
   "name": "@crow-central-agency/backend",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,8 +13,8 @@
     "start": "node --import ./dist/telemetry/setup.js dist/cli.js server"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.76",
-    "@anthropic-ai/sdk": "^0.82.0",
+    "@anthropic-ai/claude-agent-sdk": "0.2.76",
+    "@anthropic-ai/sdk": "0.82.0",
     "@fastify/cors": "^11.2.0",
     "@fastify/multipart": "^10.0.0",
     "@fastify/otel": "^0.18.1",
@@ -42,7 +42,6 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/dompurify": "^3.2.0",
     "@types/jsdom": "^28.0.1",
     "@types/node": "^24.12.2",
     "@types/ws": "^8.18.1",

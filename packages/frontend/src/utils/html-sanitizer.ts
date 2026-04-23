@@ -27,6 +27,11 @@ const purifyConfigMermaid = {
 
   // 3. Allow essential attributes for positioning and styling
   ADD_ATTR: ["target", "edgeLabel", "property", "ct-value"],
+
+  HTML_INTEGRATION_POINTS: {
+    "annotation-xml": true,
+    foreignobject: true,
+  },
 };
 
 let anchorHookRegistered = false;
