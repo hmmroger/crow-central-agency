@@ -28,7 +28,7 @@
     "commander": "^14.0.3",
     "dompurify": "^3.4.1",
     "dotenv": "^17.3.1",
-    "es-toolkit": "^1.45.1",
+    "es-toolkit": "^1.46.0",
     "fast-xml-parser": "^5.7.1",
     "fastify": "^5.8.5",
     "jsdom": "^29.0.2",
