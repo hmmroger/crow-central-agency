@@ -155,7 +155,7 @@ export type ToolConfig = z.infer<typeof ToolConfigSchema>;
  */
 export const AgentConfigSchema = z.object({
   id: AgentIdSchema,
-  type: z.enum([AGENT_TYPE.CLAUDE_CODE]),
+  type: z.enum([AGENT_TYPE.CLAUDE_CODE]).default(AGENT_TYPE.CLAUDE_CODE),
   name: z.string().min(1).max(64),
   description: z.string().optional(),
   workspace: z.string().min(1).optional(),
