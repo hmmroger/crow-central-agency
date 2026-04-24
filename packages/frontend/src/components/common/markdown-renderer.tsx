@@ -72,7 +72,10 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
               }
             } catch (error) {
               el.setAttribute("data-rendered", "true");
-              el.innerHTML = `<pre class="text-xs text-error">Mermaid Error: ${error}</pre>`;
+              const errorPre = document.createElement("pre");
+              errorPre.className = "text-xs text-error";
+              errorPre.textContent = `Mermaid Error: ${error}`;
+              el.replaceChildren(errorPre);
             }
           }
         })
@@ -106,7 +109,11 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
       }
 
       event.preventDefault();
-      zoomViewport(viewport, event.deltaY < 0 ? "in" : "out");
+      const rect = viewport.getBoundingClientRect();
+      zoomViewport(viewport, event.deltaY < 0 ? "in" : "out", {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      });
     };
 
     container.addEventListener("wheel", handleWheel, { passive: false });
@@ -296,8 +303,8 @@ function applyViewportTransform(viewport: HTMLElement) {
   viewport.dataset.interactive = zoom > 1 ? "true" : "false";
 }
 
-function zoomViewport(viewport: HTMLElement, action: string) {
-  const { zoom } = readViewportState(viewport);
+function zoomViewport(viewport: HTMLElement, action: string, focal?: { x: number; y: number }) {
+  const { zoom, panX, panY } = readViewportState(viewport);
   let nextZoom = zoom;
   if (action === "in") {
     nextZoom = Math.min(zoom * ZOOM_STEP, MAX_ZOOM);
@@ -310,6 +317,16 @@ function zoomViewport(viewport: HTMLElement, action: string) {
   if (nextZoom <= 1) {
     viewport.dataset.panX = "0";
     viewport.dataset.panY = "0";
+  } else if (focal && nextZoom !== zoom) {
+    // Focal-point zoom: keep the point under `focal` visually stationary.
+    // Stage uses transform-origin: center, which (for a stage that fills
+    // the viewport) aligns with the viewport center.
+    const rect = viewport.getBoundingClientRect();
+    const offsetX = focal.x - rect.width / 2;
+    const offsetY = focal.y - rect.height / 2;
+    const ratio = nextZoom / zoom;
+    viewport.dataset.panX = String(offsetX + ratio * (panX - offsetX));
+    viewport.dataset.panY = String(offsetY + ratio * (panY - offsetY));
   }
 
   viewport.dataset.zoom = String(nextZoom);
