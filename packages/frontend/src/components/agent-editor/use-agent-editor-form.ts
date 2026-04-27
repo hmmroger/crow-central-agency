@@ -49,6 +49,9 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   discordSyncBotName: false,
   excludeClaudeCodeSystemPrompt: false,
   agentMd: "",
+  voiceConfigEnabled: false,
+  voiceName: "",
+  voiceStylePrompt: "",
 };
 
 /**
@@ -115,6 +118,9 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     discordSyncBotName: agent.discordConfig?.syncBotName ?? false,
     excludeClaudeCodeSystemPrompt: agent.excludeClaudeCodeSystemPrompt ?? false,
     agentMd: agent.agentMd ?? "",
+    voiceConfigEnabled: !!(agent.agentVoiceConfig?.voiceName || agent.agentVoiceConfig?.stylePrompt),
+    voiceName: agent.agentVoiceConfig?.voiceName ?? "",
+    voiceStylePrompt: agent.agentVoiceConfig?.stylePrompt ?? "",
   };
 }
 
@@ -148,7 +154,10 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     formA.discordSyncBotName === formB.discordSyncBotName &&
     formA.excludeClaudeCodeSystemPrompt === formB.excludeClaudeCodeSystemPrompt &&
     arraysEqual(formA.discordChannelIds, formB.discordChannelIds) &&
-    arraysEqual(formA.discordAllowedUserIds, formB.discordAllowedUserIds)
+    arraysEqual(formA.discordAllowedUserIds, formB.discordAllowedUserIds) &&
+    formA.voiceConfigEnabled === formB.voiceConfigEnabled &&
+    formA.voiceName === formB.voiceName &&
+    formA.voiceStylePrompt === formB.voiceStylePrompt
   );
 }
 
@@ -434,6 +443,22 @@ export function useAgentEditorForm(agent?: AgentDetailData, templatePreset?: Age
     []
   );
 
+  const setVoiceConfigEnabled = useCallback(
+    (enabled: boolean) =>
+      setForm((prev) => ({
+        ...prev,
+        voiceConfigEnabled: enabled,
+        voiceName: enabled ? prev.voiceName : "",
+        voiceStylePrompt: enabled ? prev.voiceStylePrompt : "",
+      })),
+    []
+  );
+  const setVoiceName = useCallback((value: string) => setForm((prev) => ({ ...prev, voiceName: value })), []);
+  const setVoiceStylePrompt = useCallback(
+    (value: string) => setForm((prev) => ({ ...prev, voiceStylePrompt: value })),
+    []
+  );
+
   return {
     form,
     isDirty,
@@ -470,5 +495,8 @@ export function useAgentEditorForm(agent?: AgentDetailData, templatePreset?: Age
     setDiscordRespondToMentionsOnly,
     setDiscordSyncBotName,
     setExcludeClaudeCodeSystemPrompt,
+    setVoiceConfigEnabled,
+    setVoiceName,
+    setVoiceStylePrompt,
   };
 }

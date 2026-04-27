@@ -46,6 +46,7 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
       {/* Main console area */}
       <div className="flex flex-col flex-1 min-h-0">
         <MessageList
+          agentId={agent.id}
           messages={messages}
           streamingText={streamingText}
           isStreaming={isStreaming}

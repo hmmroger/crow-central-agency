@@ -2,8 +2,12 @@ import { LLM_PROVIDER_TYPE } from "./config/constants.js";
 import { env } from "./config/env.js";
 import { AppError } from "./core/error/app-error.js";
 import { APP_ERROR_CODES } from "./core/error/app-error.types.js";
-import { OpenAIProvider } from "./services/text-generation/provider/openai-provider.js";
-import type { TextGenerationProviderInterface } from "./services/text-generation/text-generation-service.types.js";
+import { GoogleAIProvider } from "./services/content-generation/provider/google-provider.js";
+import { OpenAIProvider } from "./services/content-generation/provider/openai-provider.js";
+import type {
+  AudioGenerationProviderInterface,
+  TextGenerationProviderInterface,
+} from "./services/content-generation/content-generation.types.js";
 
 const DEFAULT_API_KEY = "not-needed";
 
@@ -39,6 +43,18 @@ class Container {
 
       const baseUrl = env.TEXT_GENERATION_BASE_URL ?? PROVIDER_BASE_URLS[provider];
       return new OpenAIProvider({ baseUrl, apiKey: env.TEXT_GENERATION_API_KEY ?? DEFAULT_API_KEY });
+    });
+  }
+
+  public get audioGenProvider(): AudioGenerationProviderInterface {
+    return this.singleton("audioGen", () => {
+      const provider = env.AUDIO_GENERATION_PROVIDER;
+      const apiKey = env.AUDIO_GENERATION_API_KEY;
+      if (provider !== LLM_PROVIDER_TYPE.GOOGLE || !apiKey) {
+        throw new AppError("Audio generation provider not available", APP_ERROR_CODES.NOT_SUPPORTED);
+      }
+
+      return new GoogleAIProvider(apiKey);
     });
   }
 

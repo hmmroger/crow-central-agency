@@ -41,4 +41,7 @@ export interface AgentEditorFormState {
   discordSyncBotName: boolean;
   excludeClaudeCodeSystemPrompt: boolean;
   agentMd: string;
+  voiceConfigEnabled: boolean;
+  voiceName: string;
+  voiceStylePrompt: string;
 }

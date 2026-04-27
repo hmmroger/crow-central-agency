@@ -5,8 +5,8 @@ import { QUERY_USER_PROMPT, SUMMARY_SYSTEM_PROMPT, SUMMARY_USER_PROMPT } from ".
 import { logger } from "../utils/logger.js";
 import { STORE_QUERY_OPERATORS, type ObjectStoreProvider } from "../core/store/object-store.types.js";
 import { generateId } from "../utils/id-utils.js";
-import { MessageRoles, type TextGenerationOptions } from "../services/text-generation/text-generation-service.types.js";
-import { streamTextGeneration } from "../services/text-generation/text-generation-service.js";
+import { MessageRoles, type TextGenerationOptions } from "../services/content-generation/content-generation.types.js";
+import { textGeneration } from "../services/content-generation/text-generation-service.js";
 import { env } from "../config/env.js";
 import { createMessageContentFromTemplate, createModelMessage } from "../utils/message-template.js";
 import { container } from "../container.js";
@@ -629,20 +629,13 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
   }
 
   private async generateResponse(prompt: string, options: TextGenerationOptions): Promise<string> {
-    const stream = streamTextGeneration(
+    const response = await textGeneration(
       env.FEED_TEXT_GENERATION_MODEL ?? "default",
       [createModelMessage(prompt, MessageRoles.user)],
       { ...options, provider: container.feedTextGenProvider }
     );
 
-    let result = "";
-    for await (const event of stream) {
-      if (event.type === "messagedone") {
-        result = event.content;
-      }
-    }
-
-    return result;
+    return response.message.content ?? "";
   }
 
   private createFeed(feedUrl: string): Feed {

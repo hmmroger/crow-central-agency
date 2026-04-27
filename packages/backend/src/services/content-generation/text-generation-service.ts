@@ -6,12 +6,28 @@ import {
   MessageRoles,
   StreamEventTypes,
   type ChatMessage,
+  type ContentGenerationTextResponse,
   type StreamEvent,
   type TextGenerationOptions,
   type TokenTimingStats,
   type TokenUsage,
   type ToolUseInfo,
-} from "./text-generation-service.types.js";
+} from "./content-generation.types.js";
+
+export async function textGeneration(
+  model: string,
+  messages: ChatMessage[],
+  options?: TextGenerationOptions
+): Promise<ContentGenerationTextResponse> {
+  const provider = options?.provider ?? container.textGenProvider;
+  const activeMessages = options?.systemPrompt
+    ? [createModelMessageFromTemplate(options.systemPrompt, options.customPromptContext)].concat(
+        messages.filter((message) => message.role !== MessageRoles.system)
+      )
+    : messages;
+
+  return provider.chatCompletion(model, activeMessages, options);
+}
 
 export async function* streamTextGeneration(
   model: string,

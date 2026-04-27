@@ -30,7 +30,7 @@ import {
   getDefaultPromptContext,
   userMessageForAgent,
 } from "../utils/message-template.js";
-import { MessageRoles } from "../services/text-generation/text-generation-service.types.js";
+import { MessageRoles } from "../services/content-generation/content-generation.types.js";
 import { INVOKE_AGENT_TOOL_NAME } from "../mcp/agents/invoke-agent.js";
 import { FEED_MCP_SERVER_NAME } from "../mcp/feed/feed-mcp-server.js";
 import {

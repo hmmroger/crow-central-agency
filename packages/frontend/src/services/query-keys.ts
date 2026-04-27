@@ -114,6 +114,14 @@ export const systemSettingsKeys = {
 };
 
 /**
+ * Query key factory for system-level queries (capabilities, etc.).
+ */
+export const systemKeys = {
+  all: ["system"] as const,
+  capabilities: () => [...systemKeys.all, "capabilities"] as const,
+};
+
+/**
  * Query key factory for MCP config queries.
  */
 export const mcpConfigKeys = {

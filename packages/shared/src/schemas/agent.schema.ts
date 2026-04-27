@@ -150,6 +150,13 @@ export const ToolConfigSchema = z.object({
 
 export type ToolConfig = z.infer<typeof ToolConfigSchema>;
 
+export const AgentVoiceConfigSchema = z.object({
+  voiceName: z.string().optional(),
+  stylePrompt: z.string().optional(),
+});
+
+export type AgentVoiceConfig = z.infer<typeof AgentVoiceConfigSchema>;
+
 /**
  * Full agent configuration - persisted to disk in agents.json
  */
@@ -165,6 +172,7 @@ export const AgentConfigSchema = z.object({
   settingSources: z.array(SettingSourceSchema).default([...DEFAULT_SETTING_SOURCES]),
   availableTools: z.array(z.string()).optional(),
   toolConfig: ToolConfigSchema.default({ mode: TOOL_MODE.UNRESTRICTED }),
+  agentVoiceConfig: AgentVoiceConfigSchema.optional(),
   /** IDs of user-configured MCP servers enabled for this agent */
   mcpServerIds: z.array(z.string()).optional(),
   configuredFeeds: z.array(ConfiguredFeedSchema).optional(),
@@ -196,6 +204,7 @@ export const CreateAgentInputSchema = z.object({
   permissionMode: PermissionModeSchema.optional(),
   settingSources: z.array(SettingSourceSchema).optional(),
   toolConfig: ToolConfigSchema.optional(),
+  agentVoiceConfig: AgentVoiceConfigSchema.optional(),
   mcpServerIds: z.array(z.string()).optional(),
   configuredFeeds: z.array(ConfiguredFeedSchema).optional(),
   sensorIds: z.array(z.string()).optional(),
@@ -219,6 +228,7 @@ export const UpdateAgentInputSchema = z.object({
   permissionMode: PermissionModeSchema.optional(),
   settingSources: z.array(SettingSourceSchema).optional(),
   toolConfig: ToolConfigSchema.optional(),
+  agentVoiceConfig: AgentVoiceConfigSchema.optional(),
   mcpServerIds: z.array(z.string()).optional(),
   configuredFeeds: z.array(ConfiguredFeedSchema).optional(),
   sensorIds: z.array(z.string()).optional(),

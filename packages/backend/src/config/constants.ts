@@ -30,6 +30,12 @@ export const CIRCLES_DIR_NAME = "circles";
 /** Subdirectory name under each agent's folder for artifact files */
 export const AGENT_ARTIFACTS_DIR_NAME = "artifacts";
 
+/** Subdirectory name under CROW_SYSTEM_PATH for per-session proprietary data (annotations, audio) */
+export const SESSIONS_DIR_NAME = "sessions";
+
+/** Subdirectory name under each session's folder for audio binaries associated with messages */
+export const SESSION_AUDIO_DIR_NAME = "audio";
+
 /** Filename for the per-agent instruction file */
 export const AGENT_MD_FILENAME = "AGENT.md";
 

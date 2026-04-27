@@ -1,4 +1,4 @@
-import type { MessageRole } from "../services/text-generation/text-generation-service.types.js";
+import type { MessageRole } from "../services/content-generation/content-generation.types.js";
 
 type TemplateMessageContent = { content: string[]; keys?: string[] };
 

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { isString } from "es-toolkit";
-import { generatePersona, generateAgentMd } from "../services/text-generation/md-generation.js";
+import { generatePersona, generateAgentMd } from "../services/content-generation/md-generation.js";
 
 export const GENERATION_TYPE = {
   PERSONA: "persona",

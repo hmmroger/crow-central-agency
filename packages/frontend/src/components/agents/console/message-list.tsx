@@ -7,6 +7,7 @@ import { MarkdownRenderer } from "../../common/markdown-renderer.js";
 import { StreamingIndicator } from "./streaming-indicator.js";
 
 interface MessageListProps {
+  agentId: string;
   messages: AgentMessage[];
   streamingText: string;
   isStreaming: boolean;
@@ -17,7 +18,7 @@ interface MessageListProps {
  * Scrollable message area for the agent console.
  * Centered chat layout with auto-scroll to bottom.
  */
-export function MessageList({ messages, streamingText, isStreaming, activeToolUse }: MessageListProps) {
+export function MessageList({ agentId, messages, streamingText, isStreaming, activeToolUse }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export function MessageList({ messages, streamingText, isStreaming, activeToolUs
     <div className="flex-1 overflow-y-auto px-5 py-5">
       <div className="max-w-3xl mx-auto space-y-3">
         {messages.map((message) => (
-          <AgentMessageView key={message.id} message={message} />
+          <AgentMessageView key={message.id} agentId={agentId} message={message} />
         ))}
 
         {streamingText && (

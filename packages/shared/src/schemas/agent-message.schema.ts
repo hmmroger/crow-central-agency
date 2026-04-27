@@ -15,6 +15,17 @@ export const AGENT_MESSAGE_TYPE = {
 } as const;
 export type AgentMessageType = (typeof AGENT_MESSAGE_TYPE)[keyof typeof AGENT_MESSAGE_TYPE];
 
+export const MessageAnnotationSchema = z.object({
+  id: z.string(),
+  hasAudioMessage: z.boolean().optional(),
+  voiceName: z.string().optional(),
+  audioMimeType: z.string().optional(),
+  audioSampleRate: z.number().optional(),
+  durationMs: z.number().optional(),
+});
+
+export type MessageAnnotation = z.infer<typeof MessageAnnotationSchema>;
+
 /** Shared base fields for all agent messages */
 const AgentMessageBase = z.object({
   /** Unique message identifier (derived from SDK SessionMessage uuid) */
@@ -23,6 +34,7 @@ const AgentMessageBase = z.object({
   content: z.string(),
   /** Timestamp for ordering */
   timestamp: z.number(),
+  annotations: MessageAnnotationSchema.omit({ id: true }).optional(),
 });
 
 /** User or agent text message */

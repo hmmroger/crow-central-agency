@@ -1,18 +1,22 @@
-import { OpenAI } from "openai";
+import { OpenAI, APIError, APIUserAbortError } from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import type {
+  ContentGenerationTextResponse,
   ChatCompletionStreamChunk,
   ChatMessage,
   ChatMessageDelta,
   ProviderTextGenerationOptions,
   TextGenerationProviderInterface,
   TokenTimingStats,
-} from "../text-generation-service.types.js";
-import { MessageRoles } from "../text-generation-service.types.js";
+  TokenUsage,
+  ToolUseInfo,
+} from "../content-generation.types.js";
+import { CONTENT_MODALITY, MessageRoles } from "../content-generation.types.js";
 import { logger } from "../../../utils/logger.js";
 import { isString } from "es-toolkit";
 import { AppError } from "../../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../../core/error/app-error.types.js";
+import { RequestError } from "../../../core/error/request-error.js";
 
 interface LlamaTimingStats {
   prompt_n: number;
@@ -48,29 +52,10 @@ export class OpenAIProvider implements TextGenerationProviderInterface {
     messages: ChatMessage[],
     options?: ProviderTextGenerationOptions
   ): AsyncGenerator<ChatCompletionStreamChunk, void, unknown> {
-    const reasoning_effort = options?.reasoningEffort;
-    const tools: OpenAI.ChatCompletionTool[] | undefined = options?.toolDefs?.map((def) => ({
-      type: "function" as const,
-      function: {
-        name: def.name,
-        description: def.description,
-        parameters: def.parameters as Record<string, unknown>,
-      },
-    }));
-
     const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
-      ...options?.extraParams,
-      model,
-      messages: this.convertMessages(messages),
+      ...this.buildBaseParams(model, messages, options),
       stream: true,
       stream_options: { include_usage: true },
-      ...(reasoning_effort !== undefined && { reasoning_effort }),
-      ...(options?.useJsonSchema && {
-        response_format: { type: "json_schema" as const, json_schema: options.useJsonSchema },
-      }),
-      ...(options?.temperature !== undefined && { temperature: options.temperature }),
-      ...(options?.maxOutputTokens !== undefined && { max_completion_tokens: options.maxOutputTokens }),
-      ...(tools && tools.length > 0 && { tools }),
     };
 
     try {
@@ -135,10 +120,100 @@ export class OpenAIProvider implements TextGenerationProviderInterface {
     }
   }
 
+  public async chatCompletion(
+    model: string,
+    messages: ChatMessage[],
+    options?: ProviderTextGenerationOptions
+  ): Promise<ContentGenerationTextResponse> {
+    const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
+      ...this.buildBaseParams(model, messages, options),
+      stream: false,
+    };
+
+    try {
+      const response = await this.client.chat.completions.create(params, {
+        signal: options?.abortSignal,
+      });
+
+      const choice = response.choices[0];
+      const responseMessage = choice?.message;
+      const messageRaw = responseMessage as unknown as Record<string, unknown>;
+
+      const toolCalls: ToolUseInfo[] =
+        responseMessage?.tool_calls?.map((toolCall, index) => ({
+          index,
+          id: toolCall.id,
+          name: toolCall.type === "function" ? toolCall.function.name : "",
+          arguments: toolCall.type === "function" ? toolCall.function.arguments : undefined,
+        })) ?? [];
+
+      const usage: TokenUsage | undefined = response.usage
+        ? {
+            promptTokens: response.usage.prompt_tokens,
+            completionTokens: response.usage.completion_tokens,
+            totalTokens: response.usage.total_tokens,
+          }
+        : undefined;
+
+      const message: ChatMessage = {
+        role: MessageRoles.assistant,
+        content: responseMessage?.content ?? "",
+        reasoningContent: isString(messageRaw?.reasoning_content) ? messageRaw.reasoning_content : undefined,
+        thoughtSignature: isString(messageRaw?.thought_signature) ? messageRaw.thought_signature : undefined,
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        tokenUsage: usage,
+        timestamp: Date.now(),
+      };
+
+      return {
+        model,
+        modality: CONTENT_MODALITY.TEXT,
+        message,
+        finishReason: choice?.finish_reason ?? "stop",
+        usage,
+      };
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+
+  private buildBaseParams(
+    model: string,
+    messages: ChatMessage[],
+    options?: ProviderTextGenerationOptions
+  ): Omit<OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming, "stream"> {
+    const reasoning_effort = options?.reasoningEffort;
+    const tools: OpenAI.ChatCompletionTool[] | undefined = options?.toolDefs?.map((def) => ({
+      type: "function" as const,
+      function: {
+        name: def.name,
+        description: def.description,
+        parameters: def.parameters as Record<string, unknown>,
+      },
+    }));
+
+    return {
+      ...options?.extraParams,
+      model,
+      messages: this.convertMessages(messages),
+      ...(reasoning_effort !== undefined && { reasoning_effort }),
+      ...(options?.useJsonSchema && {
+        response_format: { type: "json_schema" as const, json_schema: options.useJsonSchema },
+      }),
+      ...(options?.temperature !== undefined && { temperature: options.temperature }),
+      ...(options?.maxOutputTokens !== undefined && { max_completion_tokens: options.maxOutputTokens }),
+      ...(tools && tools.length > 0 && { tools }),
+    };
+  }
+
   private handleError(error: unknown): never {
     // Re-throw abort errors as-is so callers can detect cancellation
-    if (error instanceof DOMException && error.name === "AbortError") {
+    if (error instanceof APIUserAbortError || (error instanceof DOMException && error.name === "AbortError")) {
       throw error;
+    }
+
+    if (error instanceof APIError && typeof error.status === "number") {
+      throw new RequestError(error.message, error.status, error.code ?? undefined);
     }
 
     if (error instanceof Error) {
