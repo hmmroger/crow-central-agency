@@ -1,15 +1,17 @@
 import { useContext } from "react";
 import { ChevronDown, GripVertical, Maximize2, Pin, PinOff, Settings } from "lucide-react";
-import { AGENT_STATUS, type AgentConfig, type AgentStatus } from "@crow-central-agency/shared";
+import { AGENT_STATUS, type AgentConfig, type AgentMessage, type AgentStatus } from "@crow-central-agency/shared";
 import { useAppStore } from "../../../stores/app-store.js";
 import { useOpenAgentEditor } from "../../../hooks/dialogs/use-open-agent-editor.js";
 import { useUpdateAgent } from "../../../hooks/queries/use-agent-mutations.js";
-import { STATUS_DOT_COLOR, STATUS_TEXT_COLOR, STATUS_LABEL } from "../../../utils/agent-status-display.js";
+import { STATUS_DOT_COLOR, STATUS_LABEL } from "../../../utils/agent-status-display.js";
 import { AgentDragHandleContext } from "../context/agent-drag-handle-context.js";
+import { AgentCardAudioButton } from "./agent-card-audio-button.js";
 
 interface AgentCardHeaderProps {
   agent: AgentConfig;
   status: AgentStatus;
+  messages: AgentMessage[];
   expanded: boolean;
   onToggleExpand: () => void;
 }
@@ -17,7 +19,7 @@ interface AgentCardHeaderProps {
 /**
  * Agent card header - name (click to toggle expand/collapse), status indicator, actions.
  */
-export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: AgentCardHeaderProps) {
+export function AgentCardHeader({ agent, status, messages, expanded, onToggleExpand }: AgentCardHeaderProps) {
   const openAgentEditor = useOpenAgentEditor();
   const goToAgentConsole = useAppStore((state) => state.goToAgentConsole);
   const updateAgent = useUpdateAgent(agent.id);
@@ -47,16 +49,16 @@ export function AgentCardHeader({ agent, status, expanded, onToggleExpand }: Age
         />
       </div>
 
-      {/* Status badge */}
-      <div className="flex items-center gap-1.5 mr-2 shrink-0">
+      {/* Status dot */}
+      <div className="mr-2 shrink-0" title={STATUS_LABEL[status]} aria-label={STATUS_LABEL[status]}>
         <span
-          className={`shrink-0 w-2 h-2 rounded-full ${STATUS_DOT_COLOR[status]} ${status === AGENT_STATUS.STREAMING ? "animate-pulse" : ""}`}
+          className={`block w-2 h-2 rounded-full ${STATUS_DOT_COLOR[status]} ${status === AGENT_STATUS.STREAMING ? "animate-pulse" : ""}`}
         />
-        <span className={`text-xs font-medium ${STATUS_TEXT_COLOR[status]}`}>{STATUS_LABEL[status]}</span>
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-1 shrink-0">
+        <AgentCardAudioButton agentId={agent.id} messages={messages} isStreaming={status === AGENT_STATUS.STREAMING} />
         {!agent.isSystemAgent && (
           <button
             type="button"

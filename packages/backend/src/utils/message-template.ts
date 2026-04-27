@@ -1,4 +1,4 @@
-import type { ChatMessage, MessageRole } from "../services/text-generation/text-generation-service.types.js";
+import type { ChatMessage, MessageRole } from "../services/content-generation/content-generation.types.js";
 import type { MessageTemplate, PromptContext } from "./message-template.types.js";
 
 export const USER_AGENT_MESSAGE_PREFIX = "[__## ";

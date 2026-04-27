@@ -14,6 +14,7 @@ interface BasicInfoSectionProps {
   onModelChange: (value: string) => void;
   onPersonaChange: (value: string) => void;
   onGeneratePersona: () => void;
+  canGenerate: boolean;
 }
 
 /** Basic agent info fields: name, description, workspace, model, persona */
@@ -29,6 +30,7 @@ export function BasicInfoSection({
   onModelChange,
   onPersonaChange,
   onGeneratePersona,
+  canGenerate,
 }: BasicInfoSectionProps) {
   return (
     <>
@@ -73,9 +75,10 @@ export function BasicInfoSection({
         action={
           <button
             type="button"
-            className="text-text-muted hover:text-secondary transition-colors"
+            className="text-text-muted hover:text-secondary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-text-muted transition-colors"
             onClick={onGeneratePersona}
-            title="Generate with AI"
+            disabled={!canGenerate}
+            title={canGenerate ? "Generate with AI" : "Text generation is not configured"}
           >
             <Sparkles className="h-3.5 w-3.5" />
           </button>

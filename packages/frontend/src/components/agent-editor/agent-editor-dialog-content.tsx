@@ -12,6 +12,7 @@ import { useConfirmDialog } from "../../hooks/dialogs/use-confirm-dialog.js";
 import { useConfirmDiscard } from "../../hooks/dialogs/use-confirm-discard.js";
 import { usePromptDialog } from "../../hooks/dialogs/use-prompt-dialog.js";
 import { useAgentQuery } from "../../hooks/queries/use-agent-query.js";
+import { useSystemCapabilitiesQuery } from "../../hooks/queries/use-system-capabilities-query.js";
 import {
   useCreateAgent,
   useDeleteAgent,
@@ -23,6 +24,7 @@ import type { ModalDialogHandle } from "../../providers/modal-dialog-provider.ty
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { useAgentEditorForm } from "./use-agent-editor-form.js";
 import { BasicInfoSection } from "./basic-info-section.js";
+import { VoiceConfigSection } from "./voice-config-section.js";
 import { SystemPromptSection } from "./system-prompt-section.js";
 import { PermissionModeSection } from "./permission-mode-section.js";
 import { SettingSourcesSection } from "./setting-sources-section.js";
@@ -58,6 +60,8 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
 
   // Query for loading existing agent when editing
   const agentQuery = useAgentQuery(agentId);
+  const { data: capabilities } = useSystemCapabilitiesQuery();
+  const canGenerate = capabilities?.textGeneration === true;
 
   // Mutations
   const createAgent = useCreateAgent();
@@ -110,6 +114,19 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
       syncBotName: form.discordSyncBotName,
     };
 
+    const trimmedVoiceName = form.voiceName.trim();
+    const trimmedVoiceStylePrompt = form.voiceStylePrompt.trim();
+    const existingVoiceConfig = agentQuery.data?.agentVoiceConfig;
+    const hadVoiceConfigData = !!(existingVoiceConfig?.voiceName || existingVoiceConfig?.stylePrompt);
+    const agentVoiceConfig = form.voiceConfigEnabled
+      ? {
+          voiceName: trimmedVoiceName || undefined,
+          stylePrompt: trimmedVoiceStylePrompt || undefined,
+        }
+      : hadVoiceConfigData
+        ? {}
+        : undefined;
+
     try {
       if (isEditing) {
         const input: UpdateAgentInput = {
@@ -126,6 +143,7 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
             autoApprovedTools: form.autoApprovedTools.length > 0 ? form.autoApprovedTools : undefined,
             disallowedTools: form.disallowedTools.length > 0 ? form.disallowedTools : undefined,
           },
+          agentVoiceConfig,
           mcpServerIds: form.mcpServerIds,
           sensorIds: form.sensorIds,
           configuredFeeds: form.configuredFeeds,
@@ -151,6 +169,7 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
             autoApprovedTools: form.autoApprovedTools.length > 0 ? form.autoApprovedTools : undefined,
             disallowedTools: form.disallowedTools.length > 0 ? form.disallowedTools : undefined,
           },
+          agentVoiceConfig,
           mcpServerIds: form.mcpServerIds,
           sensorIds: form.sensorIds,
           configuredFeeds: form.configuredFeeds,
@@ -167,7 +186,7 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
     } catch {
       // Error is surfaced via mutation.error in the UI
     }
-  }, [form, isEditing, updateMutateAsync, createMutateAsync, onClose]);
+  }, [form, isEditing, updateMutateAsync, createMutateAsync, onClose, agentQuery.data?.agentVoiceConfig]);
 
   /** Prompt for a template name and save the current agent as a template */
   const handleSaveAsTemplate = useCallback(() => {
@@ -276,6 +295,16 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
               onModelChange={editorForm.setModel}
               onPersonaChange={editorForm.setPersona}
               onGeneratePersona={() => setGenerateModalType("persona")}
+              canGenerate={canGenerate}
+            />
+
+            <VoiceConfigSection
+              enabled={form.voiceConfigEnabled}
+              voiceName={form.voiceName}
+              voiceStylePrompt={form.voiceStylePrompt}
+              onEnabledChange={editorForm.setVoiceConfigEnabled}
+              onVoiceNameChange={editorForm.setVoiceName}
+              onVoiceStylePromptChange={editorForm.setVoiceStylePrompt}
             />
 
             <SystemPromptSection
@@ -316,9 +345,10 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
               <label className="text-sm font-medium text-text-neutral">AGENT.md</label>
               <button
                 type="button"
-                className="text-text-muted hover:text-secondary transition-colors"
+                className="text-text-muted hover:text-secondary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-text-muted transition-colors"
                 onClick={() => setGenerateModalType("agentmd")}
-                title="Generate with AI"
+                disabled={!canGenerate}
+                title={canGenerate ? "Generate with AI" : "Text generation is not configured"}
               >
                 <Sparkles className="h-3.5 w-3.5" />
               </button>

@@ -10,7 +10,7 @@ import { logger } from "../utils/logger.js";
 import { MESSAGE_SOURCE_TYPE } from "../services/message-queue-manager.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
 import type { MessageTemplate } from "../utils/message-template.types.js";
-import { MessageRoles } from "../services/text-generation/text-generation-service.types.js";
+import { MessageRoles } from "../services/content-generation/content-generation.types.js";
 
 const ROUTINE_ID = "task-dispatch";
 

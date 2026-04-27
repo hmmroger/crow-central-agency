@@ -28,6 +28,7 @@ export const APP_ERROR_CODES = {
   CIRCULAR_MEMBERSHIP: "circular_membership",
   LAST_CIRCLE_MEMBERSHIP: "last_circle_membership",
   TEXT_GEN_PROVIDER_ERROR: "text_gen_provider_error",
+  AUDIO_GEN_NO_DATA: "audio_gen_no_data",
   FEED_ERROR: "feed_error",
   FEED_FETCH_ERROR: "feed_fetch_error",
   FEED_INVALID: "feed_invalid",

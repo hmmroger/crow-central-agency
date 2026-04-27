@@ -147,6 +147,31 @@ export async function registerAgentRoutes(
     return { success: true, data: messages };
   });
 
+  /** Generate audio for a specific message in the agent's current session */
+  server.post<{ Params: { id: string; messageId: string } }>(
+    "/api/agents/:id/messages/:messageId/audio",
+    async (request) => {
+      const agentId = validateAgentIdParam(request.params.id);
+      const message = await runtimeManager.generateAudioForMessage(agentId, request.params.messageId);
+      return { success: true, data: message };
+    }
+  );
+
+  /** Stream the audio binary for a specific message in the agent's current session */
+  server.get<{ Params: { id: string; messageId: string } }>(
+    "/api/agents/:id/messages/:messageId/audio",
+    async (request, reply) => {
+      const agentId = validateAgentIdParam(request.params.id);
+      const state = runtimeManager.getState(agentId);
+      if (!state?.sessionId) {
+        throw new AppError(`Agent ${agentId} has no active session`, APP_ERROR_CODES.SESSION_NOT_FOUND);
+      }
+
+      const audio = await sessionManager.getAudioMessage(state.sessionId, request.params.messageId);
+      return reply.type(audio.mimeType ?? "application/octet-stream").send(audio.data);
+    }
+  );
+
   /** Start a new session for an agent */
   server.post<{ Params: { id: string } }>("/api/agents/:id/session/new", async (request) => {
     const agentId = validateAgentIdParam(request.params.id);

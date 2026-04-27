@@ -1,4 +1,4 @@
-import { MessageRoles } from "../services/text-generation/text-generation-service.types.js";
+import { MessageRoles } from "../services/content-generation/content-generation.types.js";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 
 export const SUMMARY_SYSTEM_PROMPT: MessageTemplate = {

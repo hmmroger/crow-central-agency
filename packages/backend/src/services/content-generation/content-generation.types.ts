@@ -5,6 +5,19 @@ export const messageRoleSchema = z.enum(["user", "assistant", "system", "functio
 export type MessageRole = z.infer<typeof messageRoleSchema>;
 export const MessageRoles = messageRoleSchema.enum;
 
+export const CONTENT_MODALITY = {
+  AUDIO: "AUDIO",
+  TEXT: "TEXT",
+} as const;
+export type ContentModality = (typeof CONTENT_MODALITY)[keyof typeof CONTENT_MODALITY];
+
+export const REASONING_EFFORT = {
+  LOW: "low",
+  MEDIUM: "medium",
+  HIGH: "high",
+} as const;
+export type ReasoningEffort = (typeof REASONING_EFFORT)[keyof typeof REASONING_EFFORT];
+
 export type FunctionParameters = Record<string, unknown>;
 export interface ToolFunctionDefinition {
   name: string;
@@ -68,14 +81,6 @@ export interface ChatCompletionStreamChunk {
   timings?: TokenTimingStats;
 }
 
-export interface ChatCompletionResponse {
-  model: string;
-  message: ChatMessage;
-  finishReason: string;
-  usage?: TokenUsage;
-  timings?: TokenTimingStats;
-}
-
 export const streamEventTypeSchema = z.enum([
   "content",
   "thinking",
@@ -113,10 +118,56 @@ export interface TextGenerationOptions {
   maxOutputTokens?: number;
   useJsonSchema?: ResponseJSONSchema;
   toolDefs?: ToolFunctionDefinition[];
-  reasoningEffort?: "low" | "medium" | "high";
+  reasoningEffort?: ReasoningEffort;
   abortSignal?: AbortSignal;
   customPromptContext?: { [key: string]: string | undefined };
   extraParams?: Record<string, unknown>;
+}
+
+export interface AudioMessage {
+  role: MessageRole;
+
+  data?: Buffer;
+  mimeType?: string;
+  sampleRate?: number;
+  durationMs?: number;
+
+  transcript?: string;
+  voice?: string;
+
+  tokenUsage?: TokenUsage;
+
+  timestamp: number;
+}
+
+export interface AudioGenerationOptions {
+  provider?: AudioGenerationProviderInterface;
+  stylePrompt?: string;
+  mimeType?: string;
+  voice?: string;
+  abortSignal?: AbortSignal;
+  extraParams?: Record<string, unknown>;
+}
+
+export type ContentGenerationResponse = ContentGenerationTextResponse | ContentGenerationAudioResponse;
+
+export interface ContentGenerationResponseCommon {
+  model: string;
+  modality: ContentModality;
+  finishReason?: string;
+}
+
+export interface ContentGenerationTextResponse extends ContentGenerationResponseCommon {
+  modality: (typeof CONTENT_MODALITY)["TEXT"];
+  message: ChatMessage;
+  usage?: TokenUsage;
+  timings?: TokenTimingStats;
+}
+
+export interface ContentGenerationAudioResponse extends ContentGenerationResponseCommon {
+  modality: (typeof CONTENT_MODALITY)["AUDIO"];
+  message: AudioMessage;
+  usage?: TokenUsage;
 }
 
 export type ProviderTextGenerationOptions = Omit<TextGenerationOptions, "systemPrompt">;
@@ -130,4 +181,23 @@ export interface TextGenerationProviderInterface {
     messages: ChatMessage[],
     options?: ProviderTextGenerationOptions
   ): AsyncGenerator<ChatCompletionStreamChunk, void, unknown>;
+
+  chatCompletion(
+    model: string,
+    messages: ChatMessage[],
+    options?: ProviderTextGenerationOptions
+  ): Promise<ContentGenerationTextResponse>;
+}
+
+export type ProviderAudioGenerationOptions = AudioGenerationOptions;
+
+export interface AudioGenerationProviderInterface {
+  /** Provider display name */
+  readonly name: string;
+
+  synthesizeAudio(
+    model: string,
+    text: string,
+    options?: ProviderAudioGenerationOptions
+  ): Promise<ContentGenerationAudioResponse>;
 }

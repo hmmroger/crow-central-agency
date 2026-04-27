@@ -34,6 +34,7 @@ export type {
   SettingSource,
   ToolMode,
   AgentType,
+  AgentVoiceConfig,
 } from "./schemas/agent.schema.js";
 
 export {
@@ -142,11 +143,13 @@ export {
 
 export {
   AgentMessageSchema,
+  MessageAnnotationSchema,
   AGENT_MESSAGE_ROLE,
   AGENT_MESSAGE_TYPE,
   type AgentMessage,
   type AgentMessageRole,
   type AgentMessageType,
+  type MessageAnnotation,
 } from "./schemas/agent-message.schema.js";
 export {
   ARTIFACT_TYPE,
@@ -213,6 +216,8 @@ export {
   type DashboardSettings,
   type UpdateDashboardSettingsInput,
 } from "./schemas/system-settings.schema.js";
+
+export { SystemCapabilitiesSchema, type SystemCapabilities } from "./schemas/system-capabilities.schema.js";
 
 export { applyAgentOrder } from "./utils/apply-agent-order.js";
 export { MODEL_ALIASES, resolveModel } from "./utils/resolve-model.js";

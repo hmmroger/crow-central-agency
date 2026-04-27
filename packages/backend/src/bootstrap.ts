@@ -3,6 +3,7 @@ import { logger } from "./utils/logger.js";
 import { createServer } from "./server/create-server.js";
 import { registerAuthRoutes } from "./routes/auth.routes.js";
 import { registerHealthRoutes } from "./routes/health.routes.js";
+import { registerSystemRoutes } from "./routes/system.routes.js";
 import { registerAgentRoutes } from "./routes/agent.routes.js";
 import { AgentRegistry } from "./services/agent-registry.js";
 import { AgentRuntimeManager } from "./services/runtime/agent-runtime-manager.js";
@@ -85,7 +86,7 @@ export async function bootstrap(options: BootstrapOptions) {
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
 
-  const sessionManager = new SessionManager();
+  const sessionManager = new SessionManager(storeProvider);
   const messageQueue = new MessageQueueManager();
   const mcpManager = new CrowMcpManager(storeProvider, systemSettingsManager, registry);
   await mcpManager.initialize();
@@ -163,6 +164,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await setupWebSocket(server, broadcaster, runtimeManager);
   await registerAuthRoutes(server);
   await registerHealthRoutes(server);
+  await registerSystemRoutes(server);
   await registerAgentRoutes(server, registry, runtimeManager, sessionManager, storeProvider);
   await registerArtifactRoutes(server, artifactManager);
   await registerTaskRoutes(server, taskManager, registry);

@@ -2,7 +2,7 @@ import { env } from "../../config/env.js";
 import { createModelMessage } from "../../utils/message-template.js";
 import type { MessageTemplate } from "../../utils/message-template.types.js";
 import { streamTextGeneration } from "./text-generation-service.js";
-import { MessageRoles } from "./text-generation-service.types.js";
+import { MessageRoles } from "./content-generation.types.js";
 
 const PERSONA_SYSTEM_PROMPT: MessageTemplate = {
   role: MessageRoles.system,

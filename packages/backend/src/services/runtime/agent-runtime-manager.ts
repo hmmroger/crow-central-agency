@@ -14,6 +14,7 @@ import {
   type AgentActivity,
   AGENT_ACTIVITY_TYPE,
   type PermissionDecision,
+  type AgentMessage,
 } from "@crow-central-agency/shared";
 import type { AgentRegistry } from "../agent-registry.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
@@ -46,6 +47,8 @@ import { WRITE_CIRCLE_ARTIFACT_TOOL_NAME } from "../../mcp/artifacts/write-circl
 import type { AgentCircleManager } from "../agent-circle-manager.js";
 import { generateId } from "../../utils/id-utils.js";
 import { AGENTS_DIR_NAME } from "../../config/constants.js";
+import { env } from "../../config/env.js";
+import { audioGeneration } from "../content-generation/audio-generation-service.js";
 
 const MAX_ACTIVITIES_RECORDS = 300;
 
@@ -182,6 +185,36 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   /** Resolve a pending permission request with the user's decision. */
   public resolvePermission(toolUseId: string, decision: PermissionDecision, message?: string): void {
     this.permissionHandler.resolvePermission(toolUseId, decision, message);
+  }
+
+  /**
+   * Generate audio for an existing agent message and attach it via the session manager.
+   * Reads the message content from the agent's current session, synthesizes audio with
+   * the configured audio generation provider, then persists the audio binary and
+   * annotation. Returns the updated AgentMessage.
+   */
+  public async generateAudioForMessage(agentId: string, messageId: string): Promise<AgentMessage> {
+    const model = env.AUDIO_GENERATION_MODEL;
+    if (!model) {
+      throw new AppError("Audio generation model is not configured", APP_ERROR_CODES.NOT_SUPPORTED);
+    }
+
+    const state = this.getState(agentId);
+    if (!state?.sessionId) {
+      throw new AppError(`Agent ${agentId} has no active session`, APP_ERROR_CODES.SESSION_NOT_FOUND);
+    }
+
+    const message = this.sessionManager.getMessage(state.sessionId, messageId);
+    if (!message.content.trim()) {
+      throw new AppError(`Message ${messageId} has no content to synthesize`, APP_ERROR_CODES.VALIDATION);
+    }
+
+    const voiceConfig = this.registry.getAgent(agentId).agentVoiceConfig;
+    const response = await audioGeneration(model, message.content, {
+      voice: voiceConfig?.voiceName,
+      stylePrompt: voiceConfig?.stylePrompt,
+    });
+    return this.sessionManager.associateAudioMessage(state.sessionId, messageId, response.message);
   }
 
   private async runAgent(

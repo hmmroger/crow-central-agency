@@ -39,6 +39,7 @@ export function AgentCard({ agent }: AgentCardProps) {
         <AgentCardHeader
           agent={agent}
           status={status}
+          messages={messages}
           expanded={expanded}
           onToggleExpand={() => setExpanded(!expanded)}
         />

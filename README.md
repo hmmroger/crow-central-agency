@@ -92,11 +92,45 @@ See `.env.example` for the full list, including:
 
 - `HOST` / `PORT` — server bind address (defaults: `localhost:3101`). Keep `HOST=localhost` and front the server with a secure tunnel for remote access rather than binding to `0.0.0.0`.
 - `CORS_ORIGINS` — only needed when the frontend is served from a different origin (e.g. during frontend dev). Single-box deployments can leave it unset.
+- `LOG_LEVEL` — log verbosity (defaults to `debug` in development, `info` otherwise).
 - `CROW_SYSTEM_PATH` — directory for Crow's file-based storage. Defaults to `~/.crow`.
+- `CROW_SYSTEM_AGENT_NAME` — display name for the built-in Crow system agent (default: `Crow`).
+- `STATIC_PATH` — override the directory served as frontend assets (auto-detected from the published bundle).
+- `CLAUDE_CLI_PATH` — explicit path to the Claude Code CLI binary when it is not on `PATH`.
+- `CLOSED_TASK_RETENTION_DAYS` — how long to keep closed tasks before pruning on startup (default: `30`).
+- `FEED_ITEM_RETENTION_DAYS` / `FEED_REFRESH_IN_MINUTES` — feed item retention window and refresh cadence.
 - `TEXT_GENERATION_*` — optional OpenAI-compatible endpoint that enables the AI-assisted persona / `AGENT.md` generation features in the agent editor.
 - `FEED_TEXT_GENERATION_*` — optional OpenAI-compatible endpoint used by the feed manager to summarize feed items into a consistent length for better agent consumption.
+- `AUDIO_GENERATION_*` — optional Gemini TTS configuration that powers the play-message button on the agent console. See [Audio generation](#audio-generation) below.
 - `OTEL_*` — optional OpenTelemetry export.
-- `ANTHROPIC_API_KEY` — Anthropic API key.
+
+## Audio generation
+
+Crow can synthesize agent text messages to speech and play them back in the
+agent console (per-message play button) or dashboard.
+
+### Configuration
+
+The feature is **opt-in** — the play button only works when all three audio
+env vars are set. Add to `.env`:
+
+```bash
+AUDIO_GENERATION_PROVIDER=GOOGLE
+AUDIO_GENERATION_API_KEY=<your Google API key>
+AUDIO_GENERATION_MODEL=gemini-2.5-flash-preview-tts
+```
+
+Per-agent overrides (voice name + style prompt) live in the **Voice Config**
+section of the agent editor. When the agent's voice is changed after audio
+was already generated, the next play regenerates with the new voice.
+
+### Google API key requirements
+
+The `AUDIO_GENERATION_API_KEY` must be a Google API key with access to the
+**Gemini API**.
+
+You can use the same key as `TEXT_GENERATION_API_KEY` if that is also a
+Gemini-backed configuration, but the two are read independently.
 
 ## OpenTelemetry
 
