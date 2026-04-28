@@ -211,7 +211,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
     const voiceConfig = this.registry.getAgent(agentId).agentVoiceConfig;
     const response = await audioGeneration(model, message.content, {
-      voice: voiceConfig?.voiceName,
+      voice: [{ voice: voiceConfig?.voiceName }],
       stylePrompt: voiceConfig?.stylePrompt,
     });
     return this.sessionManager.associateAudioMessage(state.sessionId, messageId, response.message);

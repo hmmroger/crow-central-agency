@@ -17,6 +17,7 @@ import {
   type ToolUseInfo,
   type TokenUsage,
   type ReasoningEffort,
+  type VoiceConfig,
   REASONING_EFFORT,
 } from "../content-generation.types.js";
 import { logger } from "../../../utils/logger.js";
@@ -24,6 +25,7 @@ import { AppError } from "../../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../../core/error/app-error.types.js";
 import { RequestError } from "../../../core/error/request-error.js";
 import { generateRandomString } from "../../../utils/id-utils.js";
+import { isPcmMime, parsePcmFormat } from "../audio-format.js";
 
 const TEXT_BATCH_SIZE = 4;
 const TEXT_BATCH_DELAY_MS = 10;
@@ -183,12 +185,8 @@ export class GoogleAIProvider implements TextGenerationProviderInterface, AudioG
   ): Promise<ContentGenerationAudioResponse> {
     const instruction = options?.stylePrompt ?? DEFAULT_TTS_INSTRUCTION;
     const promptText = `${instruction}\n${text}`;
-    const voiceName = options?.voice ?? DEFAULT_VOICE;
-    const speechConfig = {
-      voiceConfig: {
-        prebuiltVoiceConfig: { voiceName },
-      },
-    };
+    const speechConfig = this.buildSpeechConfig(options?.voice);
+    const voiceName = speechConfig.voiceConfig?.prebuiltVoiceConfig.voiceName;
 
     try {
       const response = await this.client.models.generateContent({
@@ -197,7 +195,7 @@ export class GoogleAIProvider implements TextGenerationProviderInterface, AudioG
         config: {
           abortSignal: options?.abortSignal,
           responseModalities: [Modality.AUDIO],
-          ...(speechConfig && { speechConfig }),
+          speechConfig,
         },
       });
 
@@ -218,12 +216,15 @@ export class GoogleAIProvider implements TextGenerationProviderInterface, AudioG
         throw new AppError("Google audio generation returned no audio data", APP_ERROR_CODES.AUDIO_GEN_NO_DATA);
       }
 
-      const sampleRate = this.parseSampleRateFromMimeType(mimeType);
-      const bytesPerSample = this.parsePcmBytesPerSampleFromMimeType(mimeType);
-      const durationMs =
-        sampleRate && bytesPerSample
-          ? Math.round((audioData.byteLength / (sampleRate * bytesPerSample)) * MS_PER_SECOND)
-          : undefined;
+      const pcmFormat = isPcmMime(mimeType) ? parsePcmFormat(mimeType) : undefined;
+      const sampleRate = pcmFormat?.sampleRate;
+      const durationMs = pcmFormat
+        ? Math.round(
+            (audioData.byteLength /
+              (pcmFormat.sampleRate * pcmFormat.channels * (pcmFormat.bitDepth / BITS_PER_BYTE))) *
+              MS_PER_SECOND
+          )
+        : undefined;
 
       const usage = this.toTokenUsage(response.usageMetadata);
 
@@ -251,6 +252,35 @@ export class GoogleAIProvider implements TextGenerationProviderInterface, AudioG
     }
   }
 
+  private buildSpeechConfig(voices: VoiceConfig[] | undefined) {
+    if (!voices || voices.length <= 1) {
+      const voiceName = voices?.[0]?.voice ?? DEFAULT_VOICE;
+      return {
+        voiceConfig: {
+          prebuiltVoiceConfig: { voiceName },
+        },
+      };
+    }
+
+    return {
+      multiSpeakerVoiceConfig: {
+        speakerVoiceConfigs: voices.map((entry) => {
+          if (!entry.speakerName || !entry.voice) {
+            throw new AppError(
+              "Multi-speaker voice config requires both speakerName and voice on every entry",
+              APP_ERROR_CODES.VALIDATION
+            );
+          }
+
+          return {
+            speaker: entry.speakerName,
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: entry.voice } },
+          };
+        }),
+      },
+    };
+  }
+
   private toTokenUsage(usageMetadata: GenerateContentResponseUsageMetadata | undefined): TokenUsage | undefined {
     if (!usageMetadata) {
       return undefined;
@@ -264,28 +294,6 @@ export class GoogleAIProvider implements TextGenerationProviderInterface, AudioG
       completionTokens,
       totalTokens: usageMetadata.totalTokenCount ?? promptTokens + completionTokens,
     };
-  }
-
-  private parseSampleRateFromMimeType(mimeType: string | undefined): number | undefined {
-    if (!mimeType) {
-      return undefined;
-    }
-
-    const match = mimeType.match(/rate=(\d+)/);
-    return match ? Number(match[1]) : undefined;
-  }
-
-  private parsePcmBytesPerSampleFromMimeType(mimeType: string | undefined): number | undefined {
-    if (!mimeType) {
-      return undefined;
-    }
-
-    const match = mimeType.match(/audio\/L(\d+)/i);
-    if (!match) {
-      return undefined;
-    }
-
-    return Math.ceil(Number(match[1]) / BITS_PER_BYTE);
   }
 
   private buildRequest(messages: ChatMessage[], options?: ProviderTextGenerationOptions) {

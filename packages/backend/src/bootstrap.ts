@@ -53,6 +53,7 @@ import { SimplyFeedManager } from "./feed/simply-feed-manager.js";
 import { registerFeedRoutes } from "./routes/feed.routes.js";
 import { registerSystemSettingsRoutes } from "./routes/system-settings.routes.js";
 import { createFeedMcpServer, FEED_MCP_SERVER_NAME } from "./mcp/feed/feed-mcp-server.js";
+import { createAudioMcpServer, CROW_AUDIO_MCP_SERVER_NAME } from "./mcp/audio/audio-mcp-server.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -139,6 +140,9 @@ export async function bootstrap(options: BootstrapOptions) {
   );
   mcpManager.registerMcpServer(FEED_MCP_SERVER_NAME, (agentId) =>
     createFeedMcpServer(agentId, registry, feedManager, sensorManager, systemSettingsManager)
+  );
+  mcpManager.registerMcpServer(CROW_AUDIO_MCP_SERVER_NAME, (agentId) =>
+    createAudioMcpServer(agentId, registry, artifactManager)
   );
   mcpManager.registerMcpServer(
     CROW_SUPER_TASKS_MCP_SERVER_NAME,

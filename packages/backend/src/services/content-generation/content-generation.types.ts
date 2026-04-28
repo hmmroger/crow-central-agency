@@ -140,11 +140,18 @@ export interface AudioMessage {
   timestamp: number;
 }
 
+export interface VoiceConfig {
+  speakerName?: string;
+  voice?: string;
+}
+
 export interface AudioGenerationOptions {
   provider?: AudioGenerationProviderInterface;
   stylePrompt?: string;
   mimeType?: string;
-  voice?: string;
+  voice?: VoiceConfig[];
+  /** Max characters per provider call. When text exceeds this, the service splits on sentence boundaries and concatenates the resulting audio. */
+  maxChunkChars?: number;
   abortSignal?: AbortSignal;
   extraParams?: Record<string, unknown>;
 }
@@ -189,7 +196,7 @@ export interface TextGenerationProviderInterface {
   ): Promise<ContentGenerationTextResponse>;
 }
 
-export type ProviderAudioGenerationOptions = AudioGenerationOptions;
+export type ProviderAudioGenerationOptions = Omit<AudioGenerationOptions, "maxChunkChars">;
 
 export interface AudioGenerationProviderInterface {
   /** Provider display name */

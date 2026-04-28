@@ -4,6 +4,7 @@ import { useArtifactContentQuery } from "../../../hooks/queries/use-artifact-con
 import type { ArtifactContent } from "../../../hooks/queries/use-artifact-content-query.js";
 import { MarkdownRenderer } from "../../common/markdown-renderer.js";
 import { ImageViewer } from "../../common/image-viewer.js";
+import { AudioPlayer } from "../../common/audio-player.js";
 
 const MARKDOWN_RENDERED_EXTENSIONS = new Set([".md", ".docx"]);
 
@@ -59,6 +60,10 @@ function ArtifactContentView({ data, filename }: ArtifactContentViewProps) {
 
   if (data.mimeType.startsWith("image/")) {
     return <ImageViewer src={data.blobUrl} alt={filename} filename={filename} />;
+  }
+
+  if (data.mimeType.startsWith("audio/")) {
+    return <AudioPlayer src={data.blobUrl} filename={filename} />;
   }
 
   return (

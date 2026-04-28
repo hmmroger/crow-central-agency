@@ -7,8 +7,6 @@ import { playAudio, type PlaybackController } from "../../services/audio-player.
 import { MESSAGE_AUDIO_STATUS, useMessageAudioStore } from "../../stores/message-audio-store.js";
 import { useAgentQuery } from "./use-agent-query.js";
 
-const DEFAULT_AUDIO_MIME = "application/octet-stream";
-
 /** Module-level so a new playback always supersedes any previous one across the app. */
 let activeController: PlaybackController | undefined;
 
@@ -41,10 +39,9 @@ export function useMessageAudio(agentId: string): MessageAudioActions {
         throw new Error(`Failed to fetch audio: HTTP ${response.status}`);
       }
 
-      const mimeType = response.headers.get("content-type") ?? DEFAULT_AUDIO_MIME;
       const blob = await response.blob();
       stopActive();
-      const controller = await playAudio(blob, mimeType);
+      const controller = await playAudio(blob);
       activeController = controller;
       useMessageAudioStore.getState().setActive(messageId, MESSAGE_AUDIO_STATUS.PLAYING);
       controller.ended.then(() => {
