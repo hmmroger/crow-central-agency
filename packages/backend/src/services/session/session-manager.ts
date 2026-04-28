@@ -11,6 +11,7 @@ import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
 import type { AudioMessage } from "../content-generation/content-generation.types.js";
+import { isPcmMime } from "../content-generation/audio-format.js";
 
 const log = logger.child({ context: "session-manager" });
 
@@ -178,7 +179,11 @@ export class SessionManager {
     for (const message of messages) {
       const entry = annotations.get(message.id);
       if (entry) {
-        message.annotations = this.toEmbeddedAnnotation(entry.value);
+        const stored = entry.value;
+        const isLegacyPcm = stored.hasAudioMessage === true && isPcmMime(stored.audioMimeType);
+        message.annotations = this.toEmbeddedAnnotation(
+          isLegacyPcm ? { ...stored, hasAudioMessage: undefined } : stored
+        );
       }
     }
   }
