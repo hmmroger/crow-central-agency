@@ -17,6 +17,7 @@ import {
   type ToolUseInfo,
   type TokenUsage,
   type ReasoningEffort,
+  type VoiceConfig,
   REASONING_EFFORT,
 } from "../content-generation.types.js";
 import { logger } from "../../../utils/logger.js";
@@ -184,12 +185,8 @@ export class GoogleAIProvider implements TextGenerationProviderInterface, AudioG
   ): Promise<ContentGenerationAudioResponse> {
     const instruction = options?.stylePrompt ?? DEFAULT_TTS_INSTRUCTION;
     const promptText = `${instruction}\n${text}`;
-    const voiceName = options?.voice ?? DEFAULT_VOICE;
-    const speechConfig = {
-      voiceConfig: {
-        prebuiltVoiceConfig: { voiceName },
-      },
-    };
+    const speechConfig = this.buildSpeechConfig(options?.voice);
+    const voiceName = speechConfig.voiceConfig?.prebuiltVoiceConfig.voiceName;
 
     try {
       const response = await this.client.models.generateContent({
@@ -198,7 +195,7 @@ export class GoogleAIProvider implements TextGenerationProviderInterface, AudioG
         config: {
           abortSignal: options?.abortSignal,
           responseModalities: [Modality.AUDIO],
-          ...(speechConfig && { speechConfig }),
+          speechConfig,
         },
       });
 
@@ -253,6 +250,35 @@ export class GoogleAIProvider implements TextGenerationProviderInterface, AudioG
     } catch (error) {
       this.handleError(error);
     }
+  }
+
+  private buildSpeechConfig(voices: VoiceConfig[] | undefined) {
+    if (!voices || voices.length <= 1) {
+      const voiceName = voices?.[0]?.voice ?? DEFAULT_VOICE;
+      return {
+        voiceConfig: {
+          prebuiltVoiceConfig: { voiceName },
+        },
+      };
+    }
+
+    return {
+      multiSpeakerVoiceConfig: {
+        speakerVoiceConfigs: voices.map((entry) => {
+          if (!entry.speakerName || !entry.voice) {
+            throw new AppError(
+              "Multi-speaker voice config requires both speakerName and voice on every entry",
+              APP_ERROR_CODES.VALIDATION
+            );
+          }
+
+          return {
+            speaker: entry.speakerName,
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: entry.voice } },
+          };
+        }),
+      },
+    };
   }
 
   private toTokenUsage(usageMetadata: GenerateContentResponseUsageMetadata | undefined): TokenUsage | undefined {
