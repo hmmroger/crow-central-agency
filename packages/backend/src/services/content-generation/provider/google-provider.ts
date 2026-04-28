@@ -24,6 +24,7 @@ import { AppError } from "../../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../../core/error/app-error.types.js";
 import { RequestError } from "../../../core/error/request-error.js";
 import { generateRandomString } from "../../../utils/id-utils.js";
+import { isPcmMime, parsePcmFormat } from "../audio-format.js";
 
 const TEXT_BATCH_SIZE = 4;
 const TEXT_BATCH_DELAY_MS = 10;
@@ -218,12 +219,15 @@ export class GoogleAIProvider implements TextGenerationProviderInterface, AudioG
         throw new AppError("Google audio generation returned no audio data", APP_ERROR_CODES.AUDIO_GEN_NO_DATA);
       }
 
-      const sampleRate = this.parseSampleRateFromMimeType(mimeType);
-      const bytesPerSample = this.parsePcmBytesPerSampleFromMimeType(mimeType);
-      const durationMs =
-        sampleRate && bytesPerSample
-          ? Math.round((audioData.byteLength / (sampleRate * bytesPerSample)) * MS_PER_SECOND)
-          : undefined;
+      const pcmFormat = isPcmMime(mimeType) ? parsePcmFormat(mimeType) : undefined;
+      const sampleRate = pcmFormat?.sampleRate;
+      const durationMs = pcmFormat
+        ? Math.round(
+            (audioData.byteLength /
+              (pcmFormat.sampleRate * pcmFormat.channels * (pcmFormat.bitDepth / BITS_PER_BYTE))) *
+              MS_PER_SECOND
+          )
+        : undefined;
 
       const usage = this.toTokenUsage(response.usageMetadata);
 
@@ -264,28 +268,6 @@ export class GoogleAIProvider implements TextGenerationProviderInterface, AudioG
       completionTokens,
       totalTokens: usageMetadata.totalTokenCount ?? promptTokens + completionTokens,
     };
-  }
-
-  private parseSampleRateFromMimeType(mimeType: string | undefined): number | undefined {
-    if (!mimeType) {
-      return undefined;
-    }
-
-    const match = mimeType.match(/rate=(\d+)/);
-    return match ? Number(match[1]) : undefined;
-  }
-
-  private parsePcmBytesPerSampleFromMimeType(mimeType: string | undefined): number | undefined {
-    if (!mimeType) {
-      return undefined;
-    }
-
-    const match = mimeType.match(/audio\/L(\d+)/i);
-    if (!match) {
-      return undefined;
-    }
-
-    return Math.ceil(Number(match[1]) / BITS_PER_BYTE);
   }
 
   private buildRequest(messages: ChatMessage[], options?: ProviderTextGenerationOptions) {
