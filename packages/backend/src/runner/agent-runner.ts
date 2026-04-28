@@ -46,6 +46,7 @@ import type { SensorManager } from "../sensors/sensor-manager.js";
 import type { SensorContext } from "../sensors/sensor-manager.types.js";
 import type { MessageSource } from "../services/message-queue-manager.types.js";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
+import { ADD_REMINDER_TOOL_NAME } from "../mcp/reminders/add-reminder.js";
 
 const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
   role: MessageRoles.system,
@@ -58,6 +59,7 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
         "",
         "Avoid speculation and never fabricate data or sources. Be transparent if you do not have enough information.",
         "You have artifact tools for storing and retrieving information that can be referenced later by you or other agents.",
+        `If you commit to follow up on something later or need to act at a specific time, use ${ADD_REMINDER_TOOL_NAME} to schedule a reminder that surfaces the work back to you when due.`,
         "",
       ],
     },
@@ -130,6 +132,7 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
         "",
         "You have access to `crow-tasks` tools for getting task details by ID, create task, and assign task.",
         "You have artifact tools for storing and retrieving information that can be referenced later by you or other agents.",
+        `If you commit to follow up on something later or need to act at a specific time, use ${ADD_REMINDER_TOOL_NAME} to schedule a reminder that surfaces the work back to you when due.`,
         "",
       ],
     },

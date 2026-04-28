@@ -33,12 +33,38 @@ interface VoiceResolutionInput {
   additionalSpeakerGender?: SpeakerGender;
 }
 
+interface DirectionalPromptInput {
+  scene: string;
+  directorsNotes: string;
+  speakerName?: string;
+  speakerProfile?: string;
+  additionalSpeakerName?: string;
+  additionalSpeakerProfile?: string;
+}
+
 export function getGenerateAudioToolConfig(agentId: string, registry: AgentRegistry, artifactManager: ArtifactManager) {
   const inputSchema = {
-    directionalPrompt: z
+    scene: z
       .string()
       .describe(
-        `This prompt should include audio profile for each speaker (specified in speakerName and additionalSpeakerName) (## AUDIO PROFILE), setting the scene (## SCENE), and director's notes (## DIRECTOR'S NOTES). Audio profile for each speaker should be under a section with format "## AUDIO PROFILE: {speakerName}" then follow by audio profile of the speaker.`
+        "Setting and situation for the performance: where, when, and what is happening. e.g. 'Late-night radio interview in a dimly-lit studio.'"
+      ),
+    directorsNotes: z
+      .string()
+      .describe(
+        "How the performance should unfold: pacing, emphasis, emotional arc, transitions across the transcript. e.g. 'Start measured and contemplative; energy builds in the middle; end softly and conclusive.'"
+      ),
+    speakerProfile: z
+      .string()
+      .optional()
+      .describe(
+        "Audio profile of the primary speaker — voice character, age, accent, emotional baseline. Required when speakerName is set."
+      ),
+    additionalSpeakerProfile: z
+      .string()
+      .optional()
+      .describe(
+        "Audio profile of the second speaker — voice character, age, accent, emotional baseline. Required when additionalSpeakerName is set."
       ),
     transcript: z
       .string()
@@ -67,9 +93,9 @@ export function getGenerateAudioToolConfig(agentId: string, registry: AgentRegis
 
       const agentVoiceName = registry.getAgent(agentId).agentVoiceConfig?.voiceName;
       const voices = resolveVoices(args, agentVoiceName);
-
+      const directionalPrompt = buildDirectionalPrompt(args);
       const response = await audioGeneration(model, args.transcript, {
-        stylePrompt: args.directionalPrompt,
+        stylePrompt: directionalPrompt,
         voice: voices,
       });
 
@@ -107,6 +133,12 @@ export function getGenerateAudioToolConfig(agentId: string, registry: AgentRegis
 
 function resolveVoices(input: VoiceResolutionInput, agentVoiceName: string | undefined): VoiceConfig[] {
   const { speakerName, speakerGender, additionalSpeakerName, additionalSpeakerGender } = input;
+  if (additionalSpeakerName && !speakerName) {
+    throw new AppError(
+      "additionalSpeakerName requires speakerName to be set for multi-speaker synthesis",
+      APP_ERROR_CODES.VALIDATION
+    );
+  }
 
   if (speakerName && additionalSpeakerName) {
     return [
@@ -116,6 +148,33 @@ function resolveVoices(input: VoiceResolutionInput, agentVoiceName: string | und
   }
 
   return [{ voice: agentVoiceName }];
+}
+
+function buildDirectionalPrompt(input: DirectionalPromptInput): string {
+  const { scene, directorsNotes, speakerName, speakerProfile, additionalSpeakerName, additionalSpeakerProfile } = input;
+  if (speakerName && !speakerProfile) {
+    throw new AppError("speakerProfile is required when speakerName is set", APP_ERROR_CODES.VALIDATION);
+  }
+
+  if (additionalSpeakerName && !additionalSpeakerProfile) {
+    throw new AppError(
+      "additionalSpeakerProfile is required when additionalSpeakerName is set",
+      APP_ERROR_CODES.VALIDATION
+    );
+  }
+
+  const sections: string[] = [];
+  if (speakerName && speakerProfile) {
+    sections.push("", `## AUDIO PROFILE: ${speakerName}`, speakerProfile);
+  }
+
+  if (additionalSpeakerName && additionalSpeakerProfile) {
+    sections.push("", `## AUDIO PROFILE: ${additionalSpeakerName}`, additionalSpeakerProfile);
+  }
+
+  sections.push("## SCENE", scene, "", "## DIRECTOR'S NOTES", directorsNotes);
+
+  return sections.join("\n");
 }
 
 function pickVoice(gender: SpeakerGender | undefined, slot: SpeakerSlot): string {
