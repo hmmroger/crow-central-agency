@@ -49,7 +49,7 @@ export function chunkText(text: string, maxChars: number): string[] {
   }
 
   flush();
-  return chunks;
+  return chunks.length > 0 ? chunks : [text];
 }
 
 function packSentences(text: string, maxChars: number): string[] {

@@ -53,7 +53,7 @@ export async function audioGeneration(
   };
 
   if (chunks.length === 1) {
-    const response = await synthesizeChunk(text);
+    const response = await synthesizeChunk(chunks[0]);
     return normalizeAudioResponse(response);
   }
 
@@ -104,7 +104,7 @@ function mergeChunkedResponses(
     if (mimeType !== referenceMime) {
       throw new AppError(
         `Chunked audio synthesis returned inconsistent mime types: ${referenceMime} vs ${mimeType}`,
-        APP_ERROR_CODES.AUDIO_GEN_NO_DATA
+        APP_ERROR_CODES.VALIDATION
       );
     }
 
