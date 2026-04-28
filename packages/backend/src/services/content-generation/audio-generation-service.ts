@@ -1,4 +1,5 @@
 import { container } from "../../container.js";
+import { isPcmMime, wrapPcmAsWav, WAV_MIME_TYPE } from "./audio-format.js";
 import type { AudioGenerationOptions, ContentGenerationAudioResponse } from "./content-generation.types.js";
 
 const DEFAULT_STYLE_PROMPT = [
@@ -26,8 +27,26 @@ export async function audioGeneration(
   options?: AudioGenerationOptions
 ): Promise<ContentGenerationAudioResponse> {
   const provider = options?.provider ?? container.audioGenProvider;
-  return provider.synthesizeAudio(model, text, {
+  const response = await provider.synthesizeAudio(model, text, {
     ...options,
     stylePrompt: options?.stylePrompt ?? DEFAULT_STYLE_PROMPT,
   });
+
+  return normalizeAudioResponse(response);
+}
+
+function normalizeAudioResponse(response: ContentGenerationAudioResponse): ContentGenerationAudioResponse {
+  const { data, mimeType } = response.message;
+  if (!data || !isPcmMime(mimeType)) {
+    return response;
+  }
+
+  return {
+    ...response,
+    message: {
+      ...response.message,
+      data: wrapPcmAsWav(data, mimeType),
+      mimeType: WAV_MIME_TYPE,
+    },
+  };
 }
