@@ -165,15 +165,14 @@ function buildDirectionalPrompt(input: DirectionalPromptInput): string {
 
   const sections: string[] = [];
   if (speakerName && speakerProfile) {
-    sections.push("", `## AUDIO PROFILE: ${speakerName}`, speakerProfile);
+    sections.push(`## AUDIO PROFILE: ${speakerName}`, speakerProfile);
   }
 
   if (additionalSpeakerName && additionalSpeakerProfile) {
     sections.push("", `## AUDIO PROFILE: ${additionalSpeakerName}`, additionalSpeakerProfile);
   }
 
-  sections.push("## SCENE", scene, "", "## DIRECTOR'S NOTES", directorsNotes);
-
+  sections.push("", "## SCENE", scene, "", "## DIRECTOR'S NOTES", directorsNotes);
   return sections.join("\n");
 }
 
