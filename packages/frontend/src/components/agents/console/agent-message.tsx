@@ -26,7 +26,7 @@ export function AgentMessageView({ agentId, message }: AgentMessageProps) {
               </pre>
             </div>
           </div>
-          <MessageActions agentId={agentId} message={message} />
+          <MessageActions agentId={agentId} message={message} align="end" />
         </div>
       );
 

@@ -1,5 +1,6 @@
 import { CrowIcon } from "../common/icons/crow.js";
 import { useHeader } from "../../hooks/use-header.js";
+import { ConnectionStatus } from "./connection-status.js";
 
 /**
  * Top bar - logo (branding only) + title (set by views via HeaderPortal).
@@ -24,6 +25,8 @@ export function AppHeader() {
       <div className="flex-1 min-w-0">
         {title && <span className="text-sm font-medium text-text-base truncate">{title}</span>}
       </div>
+
+      <ConnectionStatus />
     </header>
   );
 }
