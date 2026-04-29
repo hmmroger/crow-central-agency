@@ -6,7 +6,9 @@ import {
   CircleDeletedWsMessageSchema,
   RelationshipCreatedWsMessageSchema,
   RelationshipDeletedWsMessageSchema,
+  AgentCreatedWsMessageSchema,
   AgentUpdatedWsMessageSchema,
+  AgentDeletedWsMessageSchema,
   type GraphData,
 } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
@@ -41,7 +43,9 @@ export function useGraphQuery() {
         CircleDeletedWsMessageSchema.safeParse(raw).success ||
         RelationshipCreatedWsMessageSchema.safeParse(raw).success ||
         RelationshipDeletedWsMessageSchema.safeParse(raw).success ||
-        AgentUpdatedWsMessageSchema.safeParse(raw).success;
+        AgentCreatedWsMessageSchema.safeParse(raw).success ||
+        AgentUpdatedWsMessageSchema.safeParse(raw).success ||
+        AgentDeletedWsMessageSchema.safeParse(raw).success;
 
       if (isGraphRelevant) {
         void queryClient.invalidateQueries({ queryKey: graphKeys.data() });
