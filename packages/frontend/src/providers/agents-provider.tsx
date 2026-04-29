@@ -22,10 +22,6 @@ const AgentsContext = createContext<AgentsContextValue | undefined>(undefined);
  * `agent_created` / `agent_updated` / `agent_deleted` WS events, and
  * refetches when the WS recovers from a disconnect to backfill any
  * events missed during the outage.
- *
- * Consumers should read from this context instead of calling the per-agent
- * detail query for fields that already exist on AgentConfig — e.g. voice
- * config — to avoid spawning a fetch per visible card.
  */
 export function AgentsProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
@@ -48,6 +44,7 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
   });
 
   // WS listener — apply create/update/delete directly to the cache.
+  // TODO: consider doing away with mutation invalidate and centralize update here.
   useEffect(() => {
     const unregister = onMessage((raw) => {
       const updatedResult = AgentUpdatedWsMessageSchema.safeParse(raw);
@@ -62,7 +59,6 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
           if (index >= 0) {
             const next = [...prev];
             next[index] = config;
-
             return next;
           }
 
@@ -155,7 +151,6 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
  */
 export function useAgentsContext(): AgentsContextValue {
   const context = useContext(AgentsContext);
-
   if (!context) {
     throw new Error("useAgentsContext must be used within an AgentsProvider");
   }
