@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ENTITY_TYPE, RELATIONSHIP_TYPE, type EntityType } from "@crow-central-agency/shared";
-import { useAgentsQuery } from "../../../hooks/queries/use-agents-query.js";
+import { useAgentsContext } from "../../../providers/agents-provider.js";
 import { useCirclesQuery } from "../../../hooks/queries/use-circles-query.js";
 import { useCircleMembersQuery } from "../../../hooks/queries/use-circle-members-query.js";
 import { useCreateRelationship, useDeleteRelationship } from "../../../hooks/queries/use-relationship-mutations.js";
@@ -43,7 +43,7 @@ interface CircleMembershipEditorResult {
 export function useCircleMembershipEditor(circleId: string, enabled: boolean): CircleMembershipEditorResult {
   const createRelationship = useCreateRelationship();
   const deleteRelationship = useDeleteRelationship();
-  const { data: allAgents = [] } = useAgentsQuery();
+  const { agents: allAgents } = useAgentsContext();
   const { data: allCircles = [] } = useCirclesQuery();
   const { data: members = [] } = useCircleMembersQuery(circleId, enabled);
 

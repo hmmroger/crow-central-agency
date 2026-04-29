@@ -8,7 +8,7 @@ import {
   type AgentCircle,
   type Relationship,
 } from "@crow-central-agency/shared";
-import { useAgentsQuery } from "../../hooks/queries/use-agents-query.js";
+import { useAgentsContext } from "../../providers/agents-provider.js";
 import { useCirclesQuery } from "../../hooks/queries/use-circles-query.js";
 import { useUpdateCircle } from "../../hooks/queries/use-circle-mutations.js";
 import { useDashboardSettingsQuery, useUpdateDashboardSettings } from "../../hooks/queries/use-dashboard-settings.js";
@@ -28,7 +28,7 @@ import { useAppStore } from "../../stores/app-store.js";
  * Dashboard - task stats, actions, and agent cards grouped by circle.
  */
 export function Dashboard() {
-  const { data: agents = [], isLoading: agentsLoading, error: agentsError, refetch } = useAgentsQuery();
+  const { agents, isLoading: agentsLoading, error: agentsError, refetch } = useAgentsContext();
   const { data: circles = [], isLoading: circlesLoading, error: circlesError } = useCirclesQuery();
   const { data: relationships = [] } = useRelationshipsQuery();
   const { data: dashboardSettings } = useDashboardSettingsQuery();
@@ -126,7 +126,7 @@ export function Dashboard() {
           <button
             type="button"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-elevated text-text-base text-sm font-medium hover:opacity-90 transition-opacity"
-            onClick={() => void refetch()}
+            onClick={refetch}
           >
             <RefreshCw className="h-3.5 w-3.5" />
             Retry

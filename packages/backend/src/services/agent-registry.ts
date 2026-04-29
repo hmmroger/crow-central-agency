@@ -14,6 +14,7 @@ import {
   type UpdateAgentInput,
   CROW_SYSTEM_AGENT_ID,
   CROW_TASK_DISPATCHER_AGENT_ID,
+  SERVER_MESSAGE_TYPE,
 } from "@crow-central-agency/shared";
 import { EventBus } from "../core/event-bus/event-bus.js";
 import type { AgentRegistryEvents } from "./agent-registry.types.js";
@@ -178,6 +179,11 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
     log.info({ agentId: id, name: agent.name }, "Agent created");
     this.emit("agentCreated", { agent });
+    this.broadcaster.broadcast({
+      type: SERVER_MESSAGE_TYPE.AGENT_CREATED,
+      agentId: id,
+      config: sanitizeAgentConfig(agent),
+    });
 
     return agent;
   }
@@ -225,7 +231,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     log.info({ agentId, name: updated.name }, "Agent updated");
     this.emit("agentUpdated", { agent: updated });
     this.broadcaster.broadcast({
-      type: "agent_updated",
+      type: SERVER_MESSAGE_TYPE.AGENT_UPDATED,
       agentId,
       config: sanitizeAgentConfig(updated),
     });
@@ -254,7 +260,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     this.agents.set(agentId, updated);
     await this.store.set(AGENT_STORE_TABLE, agentId, updated);
     this.broadcaster.broadcast({
-      type: "agent_updated",
+      type: SERVER_MESSAGE_TYPE.AGENT_UPDATED,
       agentId,
       config: sanitizeAgentConfig(updated),
     });
@@ -278,6 +284,10 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
     log.info({ agentId, name: existing.name }, "Agent deleted");
     this.emit("agentDeleted", { agentId });
+    this.broadcaster.broadcast({
+      type: SERVER_MESSAGE_TYPE.AGENT_DELETED,
+      agentId,
+    });
   }
 
   /**

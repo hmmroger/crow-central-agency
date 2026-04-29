@@ -1,7 +1,7 @@
 import { useCallback, useState, type ChangeEvent } from "react";
 import { AGENT_TASK_SOURCE_TYPE } from "@crow-central-agency/shared";
 import { useCreateTask } from "../../hooks/queries/use-task-mutations.js";
-import { useAgentsQuery } from "../../hooks/queries/use-agents-query.js";
+import { useAgentsContext } from "../../providers/agents-provider.js";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../common/action-button.js";
 import { AgentSelector, USER_SELF_SELECTION } from "../common/agent-selector.js";
 import { cn } from "../../utils/cn.js";
@@ -19,7 +19,7 @@ export function CreateTaskDialog({ onClose }: CreateTaskDialogProps) {
   const [taskContent, setTaskContent] = useState("");
   const [selectedOwner, setSelectedOwner] = useState("");
   const createTask = useCreateTask();
-  const { data: agents = [] } = useAgentsQuery();
+  const { agents } = useAgentsContext();
 
   const canSubmit = taskContent.trim().length > 0 && !createTask.isPending;
 

@@ -1,4 +1,4 @@
-import { useAgentsQuery } from "../../hooks/queries/use-agents-query.js";
+import { useAgentsContext } from "../../providers/agents-provider.js";
 import { useAppStore } from "../../stores/app-store.js";
 import { AgentCommandPill } from "./agent-command-pill.js";
 
@@ -8,7 +8,7 @@ import { AgentCommandPill } from "./agent-command-pill.js";
  * Sits to the left of the agent console in the Agents view.
  */
 export function AgentCommandStrip() {
-  const { data: agents = [] } = useAgentsQuery();
+  const { agents } = useAgentsContext();
   const selectedAgentId = useAppStore((state) => state.selectedAgentId);
   const selectAgent = useAppStore((state) => state.selectAgent);
 
