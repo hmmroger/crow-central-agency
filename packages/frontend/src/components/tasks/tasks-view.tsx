@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { AGENT_TASK_STATE, type AgentTaskItem, type AgentTaskState } from "@crow-central-agency/shared";
 import { Plus, RefreshCw, List, CircleDot, Zap, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { useTasksContext } from "../../providers/tasks-provider.js";
-import { useAgentsQuery } from "../../hooks/queries/use-agents-query.js";
+import { useAgentsContext } from "../../providers/agents-provider.js";
 import { useModalDialog } from "../../providers/modal-dialog-provider.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
@@ -80,7 +80,7 @@ function filterTasks(tasks: AgentTaskItem[], filter: TaskFilter): AgentTaskItem[
  */
 export function TasksView() {
   const { tasks, isLoading, error, refetch } = useTasksContext();
-  const { data: agents = [] } = useAgentsQuery();
+  const { agents } = useAgentsContext();
   const { showDialog } = useModalDialog();
   const [activeFilter, setActiveFilter] = useState<TaskFilter>(() => {
     const filter = useAppStore.getState().initialTaskFilter;

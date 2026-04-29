@@ -131,15 +131,19 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
     [agents]
   );
 
+  const handleRefetch = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+
   const value = useMemo<AgentsContextValue>(
     () => ({
       agents,
       isLoading,
       error: error ?? undefined,
-      refetch: () => void refetch(),
+      refetch: handleRefetch,
       getAgent,
     }),
-    [agents, isLoading, error, refetch, getAgent]
+    [agents, isLoading, error, handleRefetch, getAgent]
   );
 
   return <AgentsContext.Provider value={value}>{children}</AgentsContext.Provider>;

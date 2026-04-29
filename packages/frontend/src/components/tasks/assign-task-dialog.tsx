@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { Bot, User } from "lucide-react";
 import { AGENT_TASK_SOURCE_TYPE } from "@crow-central-agency/shared";
 import { useAssignTask } from "../../hooks/queries/use-task-mutations.js";
-import { useAgentsQuery } from "../../hooks/queries/use-agents-query.js";
+import { useAgentsContext } from "../../providers/agents-provider.js";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../common/action-button.js";
 import { USER_SELF_SELECTION } from "../common/agent-selector.js";
 import { AssigneeItem } from "./assignee-item.js";
@@ -21,7 +21,7 @@ interface AssignTaskDialogProps {
 export function AssignTaskDialog({ taskId, onClose }: AssignTaskDialogProps) {
   const [selectedTarget, setSelectedTarget] = useState("");
   const assignTask = useAssignTask();
-  const { data: agents = [] } = useAgentsQuery();
+  const { agents } = useAgentsContext();
 
   const canSubmit = selectedTarget.length > 0 && !assignTask.isPending;
 

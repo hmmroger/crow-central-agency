@@ -5,7 +5,7 @@ import { apiClient, fetchRaw, unwrapResponse } from "../../services/api-client.j
 import { agentKeys } from "../../services/query-keys.js";
 import { playAudio, type PlaybackController } from "../../services/audio-player.js";
 import { MESSAGE_AUDIO_STATUS, useMessageAudioStore } from "../../stores/message-audio-store.js";
-import { useAgentQuery } from "./use-agent-query.js";
+import { useAgentsContext } from "../../providers/agents-provider.js";
 
 /** Module-level so a new playback always supersedes any previous one across the app. */
 let activeController: PlaybackController | undefined;
@@ -29,8 +29,8 @@ interface MessageAudioActions {
 
 export function useMessageAudio(agentId: string): MessageAudioActions {
   const queryClient = useQueryClient();
-  const { data: agent } = useAgentQuery(agentId);
-  const currentVoiceName = agent?.agentVoiceConfig?.voiceName;
+  const { getAgent } = useAgentsContext();
+  const currentVoiceName = getAgent(agentId)?.agentVoiceConfig?.voiceName;
 
   const playFromServer = useCallback(
     async (messageId: string) => {

@@ -1,5 +1,5 @@
 import { AGENT_STATUS } from "@crow-central-agency/shared";
-import { useAgentsQuery } from "../../../hooks/queries/use-agents-query.js";
+import { useAgentsContext } from "../../../providers/agents-provider.js";
 import { useAgentMessagesQuery } from "../../../hooks/queries/use-agent-messages-query.js";
 import { useAgentStateQuery } from "../../../hooks/queries/use-agent-state-query.js";
 import { useAgentStreamState } from "../../../hooks/queries/use-agent-stream-state.js";
@@ -19,8 +19,8 @@ interface AgentConsoleProps {
  * Status, session actions, and artifacts are handled by the side panel.
  */
 export function AgentConsole({ agentId }: AgentConsoleProps) {
-  const { data: agents = [], isLoading } = useAgentsQuery();
-  const agent = agents.find((item) => item.id === agentId);
+  const { isLoading, getAgent } = useAgentsContext();
+  const agent = getAgent(agentId);
   const { data: messages = [] } = useAgentMessagesQuery(agentId);
   const { data: agentState } = useAgentStateQuery(agentId);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
