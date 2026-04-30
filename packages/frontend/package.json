@@ -27,7 +27,7 @@
     "mermaid": "^11.13.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "sigma": "^3.0.2",
+    "sigma": "^3.0.3",
     "tailwind-merge": "^3.5.0",
     "zustand": "^5.0.12"
   },
