@@ -1,6 +1,6 @@
 {
   "name": "crow-central-agency",
-  "version": "0.25.4",
+  "version": "0.25.5",
   "description": "Multi-instance Claude Code manager with a bundled web UI for orchestrating multiple Claude Code agents from one place.",
   "homepage": "https://github.com/hmmroger/crow-central-agency#readme",
   "bugs": {
