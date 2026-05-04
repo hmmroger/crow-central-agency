@@ -1,21 +1,25 @@
 import { useLayoutEffect } from "react";
 import { useHeader } from "../../hooks/use-header.js";
-import type { HeaderDropdownConfig } from "../../providers/header-provider.types.js";
+import type { HeaderAction, HeaderDropdownConfig } from "../../providers/header-provider.types.js";
 
 interface HeaderPortalProps {
   /** Page/view title displayed in the header */
   title: string;
   /** Optional dropdown attached to the end of the title. Pass a memoized value to avoid churn. */
   dropdown?: HeaderDropdownConfig;
+  /** Optional action buttons rendered on the right edge of the header below the side-panel breakpoint. Pass a memoized array. */
+  actions?: HeaderAction[];
 }
+
+const EMPTY_ACTIONS: HeaderAction[] = [];
 
 /**
  * Declarative header registration - renders nothing.
- * Place in a view's render tree to push the title (and optional dropdown) into the app header.
+ * Place in a view's render tree to push the title (and optional dropdown / actions) into the app header.
  * Uses useLayoutEffect to sync before paint, avoiding flash on view transitions.
  */
-export function HeaderPortal({ title, dropdown }: HeaderPortalProps) {
-  const { setTitle, setDropdown } = useHeader();
+export function HeaderPortal({ title, dropdown, actions }: HeaderPortalProps) {
+  const { setTitle, setDropdown, setActions } = useHeader();
 
   useLayoutEffect(() => {
     setTitle(title);
@@ -25,6 +29,11 @@ export function HeaderPortal({ title, dropdown }: HeaderPortalProps) {
     setDropdown(dropdown);
     return () => setDropdown(undefined);
   }, [setDropdown, dropdown]);
+
+  useLayoutEffect(() => {
+    setActions(actions ?? EMPTY_ACTIONS);
+    return () => setActions(EMPTY_ACTIONS);
+  }, [setActions, actions]);
 
   return null;
 }

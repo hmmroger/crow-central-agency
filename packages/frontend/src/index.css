@@ -73,6 +73,8 @@
   --max-height-editor-dialog: 85vh;
   --max-height-agentmd-editor: 32rem;
 
+  --header-height: 3rem;
+
   --z-modal-base: 50;
   --z-modal-step: 10;
 

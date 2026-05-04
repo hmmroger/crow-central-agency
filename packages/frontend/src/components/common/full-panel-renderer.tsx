@@ -23,7 +23,7 @@ export function FullPanelRenderer({ config, onClose }: FullPanelRendererProps) {
       aria-modal="false"
       aria-labelledby={config.title ? titleId : undefined}
       className={cn(
-        "fixed inset-x-0 top-12 bottom-0 lg:hidden flex flex-col",
+        "fixed inset-x-0 top-[var(--header-height)] bottom-0 lg:hidden flex flex-col",
         "bg-surface border-t border-border-subtle/30"
       )}
       style={{ zIndex: "var(--z-modal-base)" }}

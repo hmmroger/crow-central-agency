@@ -17,7 +17,7 @@ const LOGO_NAV_MENU_ID = "header-logo-nav";
  * When a view registers a header dropdown, a chevron button is rendered after the title.
  */
 export function AppHeader() {
-  const { title, dropdown } = useHeader();
+  const { title, dropdown, actions } = useHeader();
   const { toggleMenu, isMenuOpen } = useContextMenu();
   const viewMode = useAppStore((state) => state.viewMode);
   const setViewMode = useAppStore((state) => state.setViewMode);
@@ -76,7 +76,7 @@ export function AppHeader() {
   );
 
   return (
-    <header className="flex items-center h-12 px-4 border-b border-border-subtle/20 bg-surface/80 backdrop-blur-sm shrink-0">
+    <header className="flex items-center h-[var(--header-height)] px-4 border-b border-border-subtle/20 bg-surface/80 backdrop-blur-sm shrink-0">
       {/* Mobile: logo doubles as nav menu trigger (sidebar is hidden below md) */}
       <button
         type="button"
@@ -129,7 +129,35 @@ export function AppHeader() {
         )}
       </div>
 
-      <ConnectionStatus />
+      {actions.length > 0 && (
+        <div className="flex items-center gap-1 mr-1 lg:hidden">
+          {actions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.id}
+                type="button"
+                onClick={action.onClick}
+                title={action.label}
+                aria-label={action.label}
+                aria-pressed={action.selected ?? false}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  action.selected
+                    ? "text-text-base bg-surface-hover"
+                    : "text-text-muted hover:text-text-base hover:bg-surface-hover"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="hidden lg:flex items-center">
+        <ConnectionStatus />
+      </div>
     </header>
   );
 }
