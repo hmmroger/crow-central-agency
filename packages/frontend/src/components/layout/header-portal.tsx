@@ -1,5 +1,6 @@
 import { useLayoutEffect } from "react";
 import { useHeader } from "../../hooks/use-header.js";
+import { EMPTY_HEADER_ACTIONS } from "../../providers/header-provider.js";
 import type { HeaderAction, HeaderDropdownConfig } from "../../providers/header-provider.types.js";
 
 interface HeaderPortalProps {
@@ -10,8 +11,6 @@ interface HeaderPortalProps {
   /** Optional action buttons rendered on the right edge of the header below the side-panel breakpoint. Pass a memoized array. */
   actions?: HeaderAction[];
 }
-
-const EMPTY_ACTIONS: HeaderAction[] = [];
 
 /**
  * Declarative header registration - renders nothing.
@@ -31,8 +30,8 @@ export function HeaderPortal({ title, dropdown, actions }: HeaderPortalProps) {
   }, [setDropdown, dropdown]);
 
   useLayoutEffect(() => {
-    setActions(actions ?? EMPTY_ACTIONS);
-    return () => setActions(EMPTY_ACTIONS);
+    setActions(actions ?? EMPTY_HEADER_ACTIONS);
+    return () => setActions(EMPTY_HEADER_ACTIONS);
   }, [setActions, actions]);
 
   return null;
