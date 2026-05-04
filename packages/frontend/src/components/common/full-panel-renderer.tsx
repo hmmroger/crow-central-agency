@@ -23,10 +23,10 @@ export function FullPanelRenderer({ config, onClose }: FullPanelRendererProps) {
       aria-modal="false"
       aria-labelledby={config.title ? titleId : undefined}
       className={cn(
-        "fixed inset-x-0 top-[var(--header-height)] bottom-0 lg:hidden flex flex-col",
+        "fixed inset-x-0 top-(--header-height) bottom-0 lg:hidden flex flex-col",
         "bg-surface border-t border-border-subtle/30"
       )}
-      style={{ zIndex: "var(--z-modal-base)" }}
+      style={{ zIndex: "var(--z-full-panel)" }}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 8 }}

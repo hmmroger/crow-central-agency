@@ -21,7 +21,7 @@ export function useOpenCircleEditor() {
         component: CircleEditorDialog,
         componentProps: circle ? { circle } : {},
         title: circle ? "Edit Circle" : "New Circle",
-        className: "w-fit",
+        className: "w-[95vw] md:w-md",
         listNavigation: true,
       });
     },

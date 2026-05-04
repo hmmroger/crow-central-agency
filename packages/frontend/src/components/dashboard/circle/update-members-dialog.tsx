@@ -30,8 +30,8 @@ export function UpdateMembersDialog({ circleId, onClose }: UpdateMembersDialogPr
   }, [membership, circleId, onClose]);
 
   return (
-    <div className="flex flex-col">
-      <div className="p-3 space-y-3 w-sm">
+    <div className="flex flex-col overflow-hidden">
+      <div className="p-3 space-y-3">
         <div className="flex flex-col gap-3 max-h-72 overflow-y-auto p-1">
           {!hasOptions && <p className="text-xs text-text-muted text-center py-3">No agents or circles available</p>}
 

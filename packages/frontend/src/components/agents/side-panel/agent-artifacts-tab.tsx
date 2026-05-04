@@ -18,7 +18,7 @@ export function AgentArtifactsTab({ agentId }: AgentArtifactsTabProps) {
       component: AddArtifactDialog,
       componentProps: { agentId, onUploaded: () => void refetch() },
       title: "Add Artifact",
-      className: "w-fit",
+      className: "w-[95vw] md:w-sm",
     });
   };
 

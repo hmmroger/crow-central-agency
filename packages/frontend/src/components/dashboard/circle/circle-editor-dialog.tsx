@@ -74,8 +74,8 @@ export function CircleEditorDialog({ circle, onClose }: CircleEditorDialogProps)
   const mutationError = createCircle.error ?? updateCircle.error ?? membership.membershipError;
 
   return (
-    <div className="flex flex-col">
-      <div className="p-3 space-y-3 w-md">
+    <div className="flex flex-col overflow-hidden">
+      <div className="p-3 space-y-3">
         {/* Name */}
         <div className="space-y-1.5">
           <label htmlFor="circle-name" className="text-xs font-medium text-text-neutral uppercase tracking-wide">

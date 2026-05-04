@@ -76,7 +76,7 @@ export function AppHeader() {
   );
 
   return (
-    <header className="flex items-center h-[var(--header-height)] px-4 border-b border-border-subtle/20 bg-surface/80 backdrop-blur-sm shrink-0">
+    <header className="flex items-center h-(--header-height) px-4 border-b border-border-subtle/20 bg-surface/80 backdrop-blur-sm shrink-0">
       {/* Mobile: logo doubles as nav menu trigger (sidebar is hidden below md) */}
       <button
         type="button"

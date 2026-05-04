@@ -75,6 +75,7 @@
 
   --header-height: 3rem;
 
+  --z-full-panel: 40;
   --z-modal-base: 50;
   --z-modal-step: 10;
 

@@ -56,10 +56,9 @@ export function TemplatePickerDialog({ onSelect, onClose }: TemplatePickerDialog
   );
 
   return (
-    <div className="flex flex-col">
-      <div className="p-3 space-y-3 w-md">
+    <div className="flex flex-col overflow-hidden">
+      <div className="p-3 space-y-3">
         <p className="text-xs text-text-muted">Start a new agent pre-filled from a saved template.</p>
-
         <div className="flex flex-col gap-1 max-h-80 overflow-y-auto p-1">
           {isLoading && <p className="text-sm text-text-muted px-3 py-2">Loading templates...</p>}
           {error && <p className="text-sm text-error px-3 py-2">Failed to load templates: {error.message}</p>}

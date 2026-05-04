@@ -73,7 +73,7 @@ export function AddArtifactDialog({ agentId, isCircle, onClose, onUploaded }: Ad
 
   return (
     <div className="flex flex-col">
-      <div className="p-3 space-y-3 w-[24rem]">
+      <div className="p-3 space-y-3">
         {/* Circle selector (circle mode only) */}
         {isCircle && (
           <div className="space-y-1.5">

@@ -8,7 +8,6 @@ import type { FullPanelContextValue } from "../providers/full-panel-provider.typ
  */
 export function useFullPanel(): FullPanelContextValue {
   const context = useContext(FullPanelContext);
-
   if (!context) {
     throw new Error("useFullPanel must be used within FullPanelProvider");
   }
