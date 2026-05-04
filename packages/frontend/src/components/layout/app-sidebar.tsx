@@ -1,27 +1,19 @@
-import { Bot, LayoutDashboard, ListTodo, Network, Settings } from "lucide-react";
-import { useAppStore, VIEW_MODE, type ViewMode } from "../../stores/app-store.js";
+import { useAppStore } from "../../stores/app-store.js";
 import { cn } from "../../utils/cn.js";
-
-/** Sidebar navigation items - icon + target view mode. Items with pinBottom render at the bottom. */
-const SIDEBAR_ITEMS: { mode: ViewMode; icon: typeof LayoutDashboard; label: string; pinBottom?: boolean }[] = [
-  { mode: VIEW_MODE.DASHBOARD, icon: LayoutDashboard, label: "Dashboard" },
-  { mode: VIEW_MODE.AGENTS, icon: Bot, label: "Agents" },
-  { mode: VIEW_MODE.TASKS, icon: ListTodo, label: "Tasks" },
-  { mode: VIEW_MODE.GRAPH, icon: Network, label: "Circles Map" },
-  { mode: VIEW_MODE.SETTINGS, icon: Settings, label: "Settings", pinBottom: true },
-];
+import { APP_NAV_ITEMS } from "./app-nav-items.js";
 
 /**
  * Fixed icon sidebar - switches between views.
  * Items with pinBottom are visually separated at the bottom of the nav.
+ * Hidden below the md breakpoint; on mobile, the AppHeader logo opens the same nav menu.
  */
 export function AppSidebar() {
   const viewMode = useAppStore((state) => state.viewMode);
   const setViewMode = useAppStore((state) => state.setViewMode);
 
   return (
-    <nav className="flex flex-col items-center gap-8 w-14 pt-10 shrink-0 border-r border-border-subtle/20 bg-surface">
-      {SIDEBAR_ITEMS.map(({ mode, icon: Icon, label, pinBottom }) => {
+    <nav className="hidden md:flex flex-col items-center gap-8 w-14 pt-10 shrink-0 border-r border-border-subtle/20 bg-surface">
+      {APP_NAV_ITEMS.map(({ mode, icon: Icon, label, pinBottom }) => {
         const isActive = viewMode === mode;
 
         return (

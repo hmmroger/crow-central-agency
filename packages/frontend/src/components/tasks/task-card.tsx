@@ -44,7 +44,7 @@ export function TaskCard({ task, agents }: TaskCardProps) {
       component: MarkdownViewerDialog,
       componentProps: { content: task.task },
       title: "Task Content",
-      className: "w-fit",
+      className: "w-[95vw] md:w-3xl h-[60vh] flex flex-col",
     });
   };
 
@@ -58,7 +58,7 @@ export function TaskCard({ task, agents }: TaskCardProps) {
       component: MarkdownViewerDialog,
       componentProps: { content: task.taskResult },
       title: "Task Result",
-      className: "w-fit",
+      className: "w-[95vw] md:w-3xl h-[60vh] flex flex-col",
     });
   };
 

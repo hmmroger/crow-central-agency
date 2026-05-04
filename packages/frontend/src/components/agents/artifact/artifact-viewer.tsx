@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import type { EntityType } from "@crow-central-agency/shared";
 import { ArtifactContentRenderer } from "./artifact-content-renderer.js";
 
@@ -17,15 +17,17 @@ export function ArtifactViewer({ entityType, entityId, filename, onClose }: Arti
   return (
     <div className="flex flex-col h-full border-l border-border-subtle bg-surface">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle">
-        <span className="text-sm font-mono text-text-neutral truncate">{filename}</span>
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border-subtle">
         <button
           type="button"
-          className="p-1 rounded text-text-muted hover:text-text-base hover:bg-surface-elevated transition-colors"
+          className="shrink-0 p-1 rounded text-text-muted hover:text-text-base hover:bg-surface-elevated transition-colors"
           onClick={onClose}
+          aria-label="Back"
+          title="Back"
         >
-          <X className="h-3.5 w-3.5" />
+          <ArrowLeft className="h-3.5 w-3.5" />
         </button>
+        <span className="text-sm font-mono text-text-neutral truncate">{filename}</span>
       </div>
 
       {/* Content */}

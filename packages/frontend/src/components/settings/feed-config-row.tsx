@@ -58,7 +58,7 @@ export function FeedConfigRow({ feed, isSuperCrow, onSuperCrowToggle, isSuperCro
       </td>
 
       {/* Domain */}
-      <td className="py-1.5 pr-3">
+      <td className="hidden md:table-cell py-1.5 pr-3">
         <span className="text-xs text-text-muted truncate block">{formatUrlDomain(feed.feedUrl)}</span>
       </td>
 

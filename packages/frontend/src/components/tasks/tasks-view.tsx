@@ -100,7 +100,7 @@ export function TasksView() {
       id: "create-task",
       component: CreateTaskDialog,
       title: "New Task",
-      className: "w-fit",
+      className: "w-[95vw] md:w-md",
     });
   };
 

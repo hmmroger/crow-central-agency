@@ -18,7 +18,7 @@ export function CircleArtifactsTab({ agentId }: CircleArtifactsTabProps) {
       component: AddArtifactDialog,
       componentProps: { agentId, isCircle: true, onUploaded: () => void refetch() },
       title: "Add Circle Artifact",
-      className: "w-fit",
+      className: "w-[95vw] md:w-sm",
     });
   };
 

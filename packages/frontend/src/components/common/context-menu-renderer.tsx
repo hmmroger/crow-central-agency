@@ -16,7 +16,11 @@ import type { VirtualElement } from "@floating-ui/react";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import { cn } from "../../utils/cn";
-import type { ContextMenuConfig, ContextMenuItem } from "../../providers/context-menu-provider.types";
+import {
+  ContextMenuTypes,
+  type ContextMenuConfig,
+  type ContextMenuItem,
+} from "../../providers/context-menu-provider.types";
 
 interface ContextMenuRendererProps {
   config: ContextMenuConfig;
@@ -132,10 +136,10 @@ export function ContextMenuRenderer({ config, onClose }: ContextMenuRendererProp
 
   const renderItem = (item: ContextMenuItem, index: number) => {
     switch (item.type) {
-      case "separator":
+      case ContextMenuTypes.separator:
         return <div key={`sep-${index}`} role="separator" className="my-1 border-t border-border" />;
 
-      case "header":
+      case ContextMenuTypes.header:
         return (
           <div
             key={`hdr-${index}`}
@@ -146,7 +150,7 @@ export function ContextMenuRenderer({ config, onClose }: ContextMenuRendererProp
           </div>
         );
 
-      case "custom":
+      case ContextMenuTypes.custom:
         return (
           <item.render
             key={`custom-${index}`}
@@ -159,7 +163,7 @@ export function ContextMenuRenderer({ config, onClose }: ContextMenuRendererProp
           />
         );
 
-      case "action": {
+      case ContextMenuTypes.action: {
         const isDanger = item.variant === "danger";
         const isActive = activeIndex === index;
         const hasSelection = item.selected !== undefined;

@@ -14,7 +14,7 @@ interface MarkdownViewerDialogProps {
  */
 export function MarkdownViewerDialog({ content, onClose }: MarkdownViewerDialogProps) {
   return (
-    <div className="w-3xl h-[50vh] flex flex-col">
+    <div className="flex flex-col flex-1 overflow-hidden">
       {/* Content area with inset background */}
       <div className="flex-1 overflow-y-auto m-3 p-3 rounded-md bg-surface-inset border border-border-subtle">
         <MarkdownRenderer content={content} />

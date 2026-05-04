@@ -10,6 +10,7 @@ import { RequestError } from "../core/error/request-error.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { logger } from "../utils/logger.js";
+import { getTableCustomTranslator } from "../utils/nhm-extensions/table-custom-translator.js";
 
 const log = logger.child({ context: "feed-reader" });
 
@@ -147,7 +148,13 @@ export async function fetchItemsAndUpdateFeed(feed: Feed): Promise<FeedItem[]> {
     feed.categories = extractCategories(channel, nsMap);
 
     // Extract feed items
-    const nhm = new NodeHtmlMarkdown();
+    const nhm = new NodeHtmlMarkdown(
+      {
+        bulletMarker: "-",
+        useInlineLinks: true,
+      },
+      { ...getTableCustomTranslator() }
+    );
     const rawItems = channel[XmlTags.item] || channel[XmlTags.entry];
     const items = rawItems ? extractFeedItems(feed.id, rawItems, nsMap, nhm) : [];
 

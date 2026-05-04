@@ -20,7 +20,7 @@ export function useOpenTemplatePicker() {
         component: TemplatePickerDialog,
         componentProps: { onSelect },
         title: "New Agent from Template",
-        className: "w-fit",
+        className: "w-[95vw] md:w-md",
         listNavigation: true,
       });
     },

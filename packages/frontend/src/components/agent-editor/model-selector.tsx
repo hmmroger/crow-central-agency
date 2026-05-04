@@ -2,7 +2,7 @@ import { useCallback, useMemo, type MouseEvent } from "react";
 import { ChevronDown } from "lucide-react";
 import { CLAUDE_CODE_MODEL_OPTIONS, resolveModel } from "@crow-central-agency/shared";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
-import type { ContextMenuItem } from "../../providers/context-menu-provider.types.js";
+import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import { cn } from "../../utils/cn.js";
 
 interface ModelSelectorProps {
@@ -25,7 +25,7 @@ export function ModelSelector({ value, onChange, menuId, buttonId }: ModelSelect
   const menuItems = useMemo<ContextMenuItem[]>(
     () =>
       CLAUDE_CODE_MODEL_OPTIONS.map((option) => ({
-        type: "action",
+        type: ContextMenuTypes.action,
         label: option.label,
         onClick: () => onChange(option.value),
         selected: option.value === resolvedValue,

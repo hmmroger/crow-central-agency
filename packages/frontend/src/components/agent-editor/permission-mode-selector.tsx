@@ -2,7 +2,7 @@ import { useCallback, useMemo, type MouseEvent } from "react";
 import { ChevronDown } from "lucide-react";
 import { PERMISSION_MODE, type PermissionMode } from "@crow-central-agency/shared";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
-import type { ContextMenuItem } from "../../providers/context-menu-provider.types.js";
+import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import { cn } from "../../utils/cn.js";
 
 const PERMISSION_MODE_OPTIONS: { value: PermissionMode; label: string }[] = [
@@ -32,7 +32,7 @@ export function PermissionModeSelector({ value, onChange, menuId, buttonId }: Pe
   const menuItems = useMemo<ContextMenuItem[]>(
     () =>
       PERMISSION_MODE_OPTIONS.map((option) => ({
-        type: "action",
+        type: ContextMenuTypes.action,
         label: option.label,
         onClick: () => onChange(option.value),
         selected: option.value === value,

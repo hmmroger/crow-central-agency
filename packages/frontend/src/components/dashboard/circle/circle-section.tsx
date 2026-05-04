@@ -65,7 +65,7 @@ export function CircleSection({
       component: UpdateMembersDialog,
       componentProps: { circleId: circle.id },
       title: `Update Members - ${circle.name}`,
-      className: "w-fit",
+      className: "w-[95vw] md:w-md",
       listNavigation: true,
     });
   }, [showDialog, circle.id, circle.name]);

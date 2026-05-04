@@ -4,7 +4,6 @@ import { useAgentMessagesQuery } from "../../../hooks/queries/use-agent-messages
 import { useAgentStateQuery } from "../../../hooks/queries/use-agent-state-query.js";
 import { useAgentStreamState } from "../../../hooks/queries/use-agent-stream-state.js";
 import { useAgentActions } from "../../../hooks/queries/use-agent-actions.js";
-import { HeaderPortal } from "../../layout/header-portal.js";
 import { MessageList } from "./message-list.js";
 import { MessageInput } from "../../common/message-input.js";
 import { PermissionQueue } from "./permission-queue.js";
@@ -41,8 +40,6 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <HeaderPortal title={agent.name} />
-
       {/* Main console area */}
       <div className="flex flex-col flex-1 min-h-0">
         <MessageList

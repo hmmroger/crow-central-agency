@@ -43,8 +43,8 @@ export function AssignTaskDialog({ taskId, onClose }: AssignTaskDialogProps) {
   }, [canSubmit, selectedTarget, assignTask, taskId, onClose]);
 
   return (
-    <div className="flex flex-col">
-      <div className="p-3 space-y-3 w-[24rem]">
+    <div className="flex flex-col overflow-hidden">
+      <div className="p-3 space-y-3">
         <p className="text-xs text-text-muted">Select who should handle this task.</p>
 
         {/* Assignee list */}

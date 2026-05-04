@@ -6,6 +6,9 @@ import { registerErrorHandler } from "./error-handler.js";
 import { registerAuthHook } from "./auth-hook.js";
 import { registerRequestContextHook } from "./request-context-hook.js";
 import { fastifyOtelInstrumentation } from "../telemetry/setup.js";
+import { statFile } from "../utils/fs-utils.js";
+import { AppError } from "../core/error/app-error.js";
+import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 
 /**
  * Create and configure the Fastify server instance.
@@ -53,16 +56,17 @@ export async function createServer(options: { serveStatic: boolean }) {
  */
 async function setupStatic(server: FastifyInstance) {
   const fastifyStatic = await import("@fastify/static");
-  const { access } = await import("node:fs/promises");
-
   const staticPath = env.STATIC_PATH;
 
   try {
-    await access(staticPath);
-  } catch {
-    logger.warn({ staticPath }, "Static path does not exist, skipping static file serving");
+    await statFile(staticPath);
+  } catch (error) {
+    if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
+      logger.warn({ staticPath }, "Static path does not exist, skipping static file serving");
+      return;
+    }
 
-    return;
+    throw error;
   }
 
   await server.register(fastifyStatic.default, {

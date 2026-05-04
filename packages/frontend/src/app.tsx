@@ -7,6 +7,7 @@ import { ErrorBoundary } from "./components/common/error-boundary.js";
 import { AppLayout } from "./components/layout/app-layout.js";
 import { AppContent } from "./components/layout/app-content.js";
 import { ModalDialogProvider } from "./providers/modal-dialog-provider.js";
+import { FullPanelProvider } from "./providers/full-panel-provider.js";
 import { ContextMenuProvider } from "./providers/context-menu-provider.js";
 import { AgentsProvider } from "./providers/agents-provider.js";
 import { TasksProvider } from "./providers/tasks-provider.js";
@@ -41,11 +42,13 @@ export function App() {
             <TasksProvider>
               <ContextMenuProvider>
                 <ModalDialogProvider>
-                  <HeaderProvider>
-                    <AppLayout>
-                      <AppContent />
-                    </AppLayout>
-                  </HeaderProvider>
+                  <FullPanelProvider>
+                    <HeaderProvider>
+                      <AppLayout>
+                        <AppContent />
+                      </AppLayout>
+                    </HeaderProvider>
+                  </FullPanelProvider>
                 </ModalDialogProvider>
               </ContextMenuProvider>
             </TasksProvider>

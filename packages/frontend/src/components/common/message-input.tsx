@@ -116,7 +116,7 @@ export function MessageInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className="flex-1 px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+          className="flex-1 px-2 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs placeholder:text-text-muted focus:outline-none focus:border-border-focus"
         />
         {action}
       </div>
@@ -124,8 +124,8 @@ export function MessageInput({
   }
 
   return (
-    <div className="px-5 pb-5 pt-2 shrink-0">
-      <div className="max-w-3xl mx-auto flex gap-2 items-end bg-surface/70 backdrop-blur-md border border-border-subtle rounded-lg p-2 focus-within:border-border-focus">
+    <div className="px-3 py-2 shrink-0">
+      <div className="max-w-3xl mx-auto flex gap-2 items-center bg-surface/70 backdrop-blur-md border border-border-subtle rounded-lg px-2 py-1.5 focus-within:border-border-focus">
         <textarea
           ref={textareaRef}
           value={text}

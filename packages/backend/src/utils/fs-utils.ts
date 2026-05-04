@@ -44,8 +44,8 @@ export async function readJsonFile<T>(filePath: string): Promise<T> {
  * Creates parent directories if they don't exist.
  */
 export async function writeJsonFile(filePath: string, data: unknown): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(data, undefined, 2), "utf-8");
+  await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  await fs.writeFile(filePath, JSON.stringify(data, undefined, 2), { encoding: "utf-8", mode: 0o600 });
 }
 
 /**
@@ -69,8 +69,8 @@ export async function readTextFile(filePath: string): Promise<string> {
  * Creates parent directories if they don't exist.
  */
 export async function writeTextFile(filePath: string, content: string): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, content, "utf-8");
+  await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  await fs.writeFile(filePath, content, { encoding: "utf-8", mode: 0o600 });
 }
 
 /**
@@ -94,8 +94,8 @@ export async function readBinaryFile(filePath: string): Promise<Buffer> {
  * Creates parent directories if they don't exist.
  */
 export async function writeBinaryFile(filePath: string, content: Buffer): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, content);
+  await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  await fs.writeFile(filePath, content, { mode: 0o600 });
 }
 
 /**
@@ -141,7 +141,7 @@ export async function statFile(filePath: string): Promise<Stats> {
  * Ensure a directory exists, creating it if necessary.
  */
 export async function ensureDir(dirPath: string): Promise<void> {
-  await fs.mkdir(dirPath, { recursive: true });
+  await fs.mkdir(dirPath, { recursive: true, mode: 0o700 });
 }
 
 /**

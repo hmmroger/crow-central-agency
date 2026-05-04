@@ -1,8 +1,7 @@
 import path from "node:path";
-import fs from "node:fs/promises";
 import { env } from "../config/env.js";
 import { AGENTS_DIR_NAME, MESSAGE_QUEUE_FILENAME } from "../config/constants.js";
-import { readJsonFile, writeJsonFile, assertWithinBase } from "../utils/fs-utils.js";
+import { readJsonFile, writeJsonFile, assertWithinBase, deleteFile } from "../utils/fs-utils.js";
 import { generateId } from "../utils/id-utils.js";
 import { logger } from "../utils/logger.js";
 import { AppError } from "../core/error/app-error.js";
@@ -116,7 +115,7 @@ export class MessageQueueManager {
   /** Delete the queue file (no-op if it doesn't exist) */
   private async deleteQueueFile(agentId: string): Promise<void> {
     try {
-      await fs.rm(this.getQueueFilePath(agentId), { force: true });
+      await deleteFile(this.getQueueFilePath(agentId));
     } catch (error) {
       log.warn({ agentId, error }, "Failed to delete queue file");
     }

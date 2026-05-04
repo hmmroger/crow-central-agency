@@ -32,7 +32,10 @@ export function SidePanel() {
   }
 
   return (
-    <div className="relative shrink-0" style={{ width: sidePanelOpen ? sidePanelWidth : 0 }}>
+    <div
+      className="relative hidden shrink-0 lg:block animate-fade-in"
+      style={{ width: sidePanelOpen ? sidePanelWidth : 0 }}
+    >
       {/* Floating toggle when panel is closed */}
       {!sidePanelOpen && (
         <button

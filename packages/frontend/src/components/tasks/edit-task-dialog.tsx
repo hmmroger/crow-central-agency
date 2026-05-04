@@ -41,8 +41,8 @@ export function EditTaskDialog({ taskId, currentContent, onClose }: EditTaskDial
   }, [canSubmit, updateTask, taskId, taskContent, onClose]);
 
   return (
-    <div className="flex flex-col">
-      <div className="p-3 space-y-3 w-md">
+    <div className="flex flex-col overflow-hidden">
+      <div className="p-3 space-y-3">
         <div className="space-y-1.5">
           <label htmlFor="edit-task-content" className="text-xs font-medium text-text-neutral uppercase tracking-wide">
             Task Description
