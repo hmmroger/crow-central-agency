@@ -2,7 +2,7 @@ import { useCallback, useMemo, type MouseEvent } from "react";
 import { ChevronDown } from "lucide-react";
 import { MCP_CONFIG_TYPE, type McpConfigType } from "@crow-central-agency/shared";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
-import type { ContextMenuItem } from "../../providers/context-menu-provider.types.js";
+import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import { cn } from "../../utils/cn.js";
 
 const TYPE_OPTIONS: { value: McpConfigType; label: string }[] = [
@@ -29,7 +29,7 @@ export function McpTypeSelector({ value, onChange, menuId }: McpTypeSelectorProp
   const menuItems = useMemo<ContextMenuItem[]>(
     () =>
       TYPE_OPTIONS.map((option) => ({
-        type: "action",
+        type: ContextMenuTypes.action,
         label: option.label,
         onClick: () => onChange(option.value),
         selected: option.value === value,

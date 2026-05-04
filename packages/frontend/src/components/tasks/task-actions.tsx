@@ -47,7 +47,7 @@ export function TaskActions({ task }: TaskActionsProps) {
       component: EditTaskDialog,
       componentProps: { taskId: task.id, currentContent: task.task },
       title: "Edit Task",
-      className: "w-fit",
+      className: "w-[95vw] md:w-md",
     });
   };
 
@@ -57,7 +57,7 @@ export function TaskActions({ task }: TaskActionsProps) {
       component: AssignTaskDialog,
       componentProps: { taskId: task.id },
       title: "Assign Task",
-      className: "w-fit",
+      className: "w-[95vw] md:w-md",
       listNavigation: true,
     });
   };

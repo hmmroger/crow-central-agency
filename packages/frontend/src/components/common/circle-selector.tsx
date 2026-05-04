@@ -2,7 +2,7 @@ import { useCallback, useMemo, type MouseEvent } from "react";
 import { ChevronDown, CircleDot } from "lucide-react";
 import type { AgentCircle } from "@crow-central-agency/shared";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
-import type { ContextMenuItem } from "../../providers/context-menu-provider.types.js";
+import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import { cn } from "../../utils/cn.js";
 
 interface CircleSelectorProps {
@@ -36,7 +36,7 @@ export function CircleSelector({
   const menuItems = useMemo<ContextMenuItem[]>(
     () =>
       circles.map((circle) => ({
-        type: "action",
+        type: ContextMenuTypes.action,
         label: circle.name,
         icon: CircleDot,
         onClick: () => onChange(circle.id),

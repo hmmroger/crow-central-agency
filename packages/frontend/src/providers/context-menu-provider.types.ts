@@ -10,7 +10,7 @@ export interface ContextMenuRect {
 }
 
 // --- Menu item discriminated union ---
-export type ContextMenuType = keyof typeof ContextMenuTypes;
+export type ContextMenuType = (typeof ContextMenuTypes)[keyof typeof ContextMenuTypes];
 export const ContextMenuTypes = {
   action: "action",
   separator: "separator",
@@ -23,7 +23,7 @@ export interface ContextMenuCommon {
 }
 
 export interface ContextMenuAction extends ContextMenuCommon {
-  type: "action";
+  type: (typeof ContextMenuTypes)["action"];
   label: string;
   icon?: LucideIcon;
   onClick: () => void;
@@ -34,11 +34,11 @@ export interface ContextMenuAction extends ContextMenuCommon {
 }
 
 export interface ContextMenuSeparator extends ContextMenuCommon {
-  type: "separator";
+  type: (typeof ContextMenuTypes)["separator"];
 }
 
 export interface ContextMenuHeader extends ContextMenuCommon {
-  type: "header";
+  type: (typeof ContextMenuTypes)["header"];
   label: string;
 }
 
@@ -50,7 +50,7 @@ export interface ContextMenuCustomRenderProps extends React.HTMLAttributes<HTMLE
 }
 
 export interface ContextMenuCustom extends ContextMenuCommon {
-  type: "custom";
+  type: (typeof ContextMenuTypes)["custom"];
   render: React.ComponentType<ContextMenuCustomRenderProps>;
 }
 

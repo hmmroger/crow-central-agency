@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import {
   ENTITY_TYPE,
@@ -6,6 +6,7 @@ import {
   applyAgentOrder,
   type AgentConfig,
   type AgentCircle,
+  type AgentTaskItem,
   type Relationship,
 } from "@crow-central-agency/shared";
 import { useAgentsContext } from "../../providers/agents-provider.js";
@@ -25,6 +26,21 @@ import { TasksWidget } from "./tasks-widget.js";
 import { useAppStore } from "../../stores/app-store.js";
 
 /**
+ * Viewport-driven layout tiers for the dashboard top overview.
+ */
+const TOP_LAYOUT = {
+  ACTIONS_ONLY: "actions-only",
+  COMPACT: "compact",
+  THREE_WIDGET: "three-widget",
+  FULL: "full",
+} as const;
+type TopLayout = (typeof TOP_LAYOUT)[keyof typeof TOP_LAYOUT];
+
+const MD_QUERY = "(min-width: 768px)";
+const LG_QUERY = "(min-width: 1024px)";
+const XL_QUERY = "(min-width: 1280px)";
+
+/**
  * Dashboard - task stats, actions, and agent cards grouped by circle.
  */
 export function Dashboard() {
@@ -40,6 +56,14 @@ export function Dashboard() {
   const toggleCircle = useAppStore((state) => state.toggleCircleCollapsed);
   const topCollapsed = useAppStore((state) => state.dashboardTopCollapsed);
   const toggleTopCollapsed = useAppStore((state) => state.toggleDashboardTopCollapsed);
+
+  const viewportTier = useSyncExternalStore(subscribeToTopLayoutQueries, getTopLayoutTier);
+  const topLayout: TopLayout =
+    viewportTier === TOP_LAYOUT.ACTIONS_ONLY
+      ? TOP_LAYOUT.ACTIONS_ONLY
+      : viewportTier === TOP_LAYOUT.COMPACT || topCollapsed
+        ? TOP_LAYOUT.COMPACT
+        : viewportTier;
 
   const pinnedAgents = useMemo(() => {
     const filtered = agents.filter((agent) => agent.isPinned);
@@ -153,34 +177,23 @@ export function Dashboard() {
     <div className="flex flex-col h-full">
       <HeaderPortal title="Dashboard" />
 
-      {/* Top section: stats + tasks + circles map + actions. Collapses to a summary strip. */}
+      {/* Top section: layout adapts to viewport tier; user toggle (lg+) drops to COMPACT. */}
       <div
         className={
-          topCollapsed
-            ? "relative flex gap-4 items-center px-4 py-3 bg-surface/25 border-b border-border-subtle/75"
-            : "relative flex gap-6 items-start px-4 py-3 bg-surface/25 border-b border-border-subtle/75"
+          topLayout === TOP_LAYOUT.THREE_WIDGET || topLayout === TOP_LAYOUT.FULL
+            ? "relative flex gap-6 items-start px-4 py-3 bg-surface/25 border-b border-border-subtle/75"
+            : "relative flex gap-4 items-center px-4 py-3 bg-surface/25 border-b border-border-subtle/75"
         }
       >
-        {topCollapsed ? (
-          <>
-            <TaskStatsPanel tasks={tasks} compact />
-            <DashboardActions compact className="ml-auto" />
-          </>
-        ) : (
-          <>
-            <TaskStatsPanel tasks={tasks} className="min-w-80 max-w-md" />
-            <TasksWidget tasks={tasks} className="min-w-xs max-w-lg" />
-            <MiniGraph className="min-w-sm" />
-            <DashboardActions className="shrink-0 ml-auto" />
-          </>
-        )}
+        {renderTopSection(topLayout, tasks)}
 
+        {/* Toggle is only available at lg+; below lg the overview is force-collapsed. */}
         <button
           type="button"
           onClick={toggleTopCollapsed}
           aria-label={topCollapsed ? "Expand dashboard overview" : "Collapse dashboard overview"}
           title={topCollapsed ? "Expand" : "Collapse"}
-          className="absolute left-1/2 -translate-x-1/2 -bottom-2 z-10 flex items-center justify-center h-4 w-12 rounded-full bg-surface-elevated/75 border border-border-subtle/75 text-text-muted hover:text-text-base hover:bg-surface-elevated hover:border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          className="hidden absolute left-1/2 -translate-x-1/2 -bottom-2 z-10 lg:flex items-center justify-center h-4 w-12 rounded-full bg-surface-elevated/75 border border-border-subtle/75 text-text-muted hover:text-text-base hover:bg-surface-elevated hover:border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         >
           {topCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
         </button>
@@ -211,6 +224,42 @@ export function Dashboard() {
       </div>
     </div>
   );
+}
+
+/**
+ * Pick which widgets to render in the dashboard top section based on layout tier.
+ * Each tier owns a distinct subtree so unused widgets (notably MiniGraph -> Cytoscape)
+ * never mount on small viewports.
+ */
+function renderTopSection(layout: TopLayout, tasks: AgentTaskItem[]): ReactNode {
+  switch (layout) {
+    case TOP_LAYOUT.ACTIONS_ONLY:
+      return <DashboardActions compact className="ml-auto" />;
+    case TOP_LAYOUT.COMPACT:
+      return (
+        <>
+          <TaskStatsPanel tasks={tasks} compact />
+          <DashboardActions compact className="ml-auto" />
+        </>
+      );
+    case TOP_LAYOUT.THREE_WIDGET:
+      return (
+        <>
+          <TaskStatsPanel tasks={tasks} className="min-w-xs max-w-md" />
+          <MiniGraph className="min-w-xs" />
+          <DashboardActions className="shrink-0 ml-auto" />
+        </>
+      );
+    case TOP_LAYOUT.FULL:
+      return (
+        <>
+          <TaskStatsPanel tasks={tasks} className="min-w-xs max-w-md" />
+          <TasksWidget tasks={tasks} className="min-w-xs max-w-lg" />
+          <MiniGraph className="min-w-xs" />
+          <DashboardActions className="shrink-0 ml-auto" />
+        </>
+      );
+  }
 }
 
 /**
@@ -261,3 +310,22 @@ function groupAgentsByCircle(
 
   return groups;
 }
+
+const subscribeToTopLayoutQueries = (notify: () => void) => {
+  const queries = [window.matchMedia(MD_QUERY), window.matchMedia(LG_QUERY), window.matchMedia(XL_QUERY)];
+  queries.forEach((mql) => mql.addEventListener("change", notify));
+
+  return () => queries.forEach((mql) => mql.removeEventListener("change", notify));
+};
+
+const getTopLayoutTier = (): TopLayout => {
+  if (window.matchMedia(XL_QUERY).matches) {
+    return TOP_LAYOUT.FULL;
+  }
+
+  if (window.matchMedia(LG_QUERY).matches) {
+    return TOP_LAYOUT.THREE_WIDGET;
+  }
+
+  return TOP_LAYOUT.ACTIONS_ONLY;
+};

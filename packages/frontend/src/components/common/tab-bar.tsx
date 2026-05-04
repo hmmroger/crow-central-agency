@@ -71,9 +71,11 @@ export function TabBar<T extends string>({
                   type="button"
                   className={`${textStyle} rounded-l ${isActive ? activeText : inactiveText}`}
                   onClick={() => onTabChange(tab.id)}
+                  title={tab.label}
+                  aria-label={tab.label}
                 >
                   <Icon className="h-4 w-4" />
-                  <span>{tab.label}</span>
+                  <span className="sr-only sm:not-sr-only">{tab.label}</span>
                 </button>
 
                 {tab.menuId && tab.onDropdownClick && (
@@ -99,9 +101,11 @@ export function TabBar<T extends string>({
                 type="button"
                 className={`relative ${textStyle} rounded ${isActive ? `${activeText}` : inactiveText}`}
                 onClick={() => onTabChange(tab.id)}
+                title={tab.label}
+                aria-label={tab.label}
               >
                 <Icon className="h-3.5 w-3.5" />
-                <span>{tab.label}</span>
+                <span className="sr-only sm:not-sr-only">{tab.label}</span>
                 {isActive && indicator}
               </button>
             )}

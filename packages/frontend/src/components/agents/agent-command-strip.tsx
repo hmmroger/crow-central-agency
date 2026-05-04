@@ -13,7 +13,7 @@ export function AgentCommandStrip() {
   const selectAgent = useAppStore((state) => state.selectAgent);
 
   return (
-    <div className="flex flex-col items-center gap-4 w-14 py-3 shrink-0 overflow-y-auto border-r border-border-subtle/20 bg-surface">
+    <div className="hidden md:flex flex-col items-center gap-4 w-14 py-3 shrink-0 overflow-y-auto border-r border-border-subtle/20 bg-surface">
       {agents.map((agent) => (
         <AgentCommandPill
           key={agent.id}

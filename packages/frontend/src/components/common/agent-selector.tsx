@@ -2,7 +2,7 @@ import { useCallback, useMemo, type MouseEvent } from "react";
 import { Bot, ChevronDown, User } from "lucide-react";
 import type { AgentConfig } from "@crow-central-agency/shared";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
-import type { ContextMenuItem } from "../../providers/context-menu-provider.types.js";
+import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import { cn } from "../../utils/cn.js";
 
 /** Sentinel value representing user self-selection. Use this to check if "Myself" was chosen. */
@@ -51,17 +51,17 @@ export function AgentSelector({
 
     if (allowClear) {
       items.push({
-        type: "action",
+        type: ContextMenuTypes.action,
         label: placeholder,
         onClick: () => onChange(""),
         selected: value === "",
       });
-      items.push({ type: "separator" });
+      items.push({ type: ContextMenuTypes.separator });
     }
 
     if (showUserOption) {
       items.push({
-        type: "action",
+        type: ContextMenuTypes.action,
         label: "Myself",
         icon: User,
         onClick: () => onChange(USER_SELF_SELECTION),
@@ -71,7 +71,7 @@ export function AgentSelector({
 
     for (const agent of agents) {
       items.push({
-        type: "action",
+        type: ContextMenuTypes.action,
         label: agent.name,
         icon: Bot,
         onClick: () => onChange(agent.id),

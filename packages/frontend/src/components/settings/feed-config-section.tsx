@@ -81,7 +81,7 @@ export function FeedConfigSection() {
           <table className="w-full table-fixed">
             <colgroup>
               <col />
-              <col className="w-44" />
+              <col className="hidden md:table-column w-44" />
               <col className="w-24" />
               <col className="w-10" />
               <col className="w-6" />
@@ -89,7 +89,9 @@ export function FeedConfigSection() {
             <thead>
               <tr className="border-b border-border-subtle/60 text-left">
                 <th className="py-1.5 pl-3 pr-3 text-3xs font-medium text-text-muted uppercase tracking-wider">Feed</th>
-                <th className="py-1.5 pr-3 text-3xs font-medium text-text-muted uppercase tracking-wider">Source</th>
+                <th className="hidden md:table-cell py-1.5 pr-3 text-3xs font-medium text-text-muted uppercase tracking-wider">
+                  Source
+                </th>
                 <th className="py-1.5 pr-3 text-3xs font-medium text-text-muted uppercase tracking-wider">Last Item</th>
                 <th
                   className="py-1.5 pr-3 text-text-muted"
