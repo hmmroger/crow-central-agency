@@ -8,7 +8,8 @@ import { SidePanelTabContent } from "./side-panel-tab-content.js";
 /**
  * Side panel content for the Agents view.
  * TabBar with close action is always rendered; the body delegates to
- * SidePanelTabContent which handles the no-agent-selected empty state.
+ * SidePanelTabContent which handles the no-agent-selected empty state and
+ * its own enter animation.
  */
 export function AgentsViewSidePanel() {
   const toggleSidePanel = useAppStore((state) => state.toggleSidePanel);
@@ -28,7 +29,7 @@ export function AgentsViewSidePanel() {
         />
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col animate-fade-in">
+      <div className="flex-1 min-h-0">
         <SidePanelTabContent tab={activeTab} />
       </div>
     </div>

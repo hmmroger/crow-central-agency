@@ -8,7 +8,7 @@ import { useFullPanel } from "../../hooks/use-full-panel.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { AgentCommandStrip } from "./agent-command-strip.js";
 import { AgentConsole } from "./console/agent-console.js";
-import { SIDE_PANEL_TABS } from "./side-panel/side-panel-tabs.js";
+import { SIDE_PANEL_TABS, type SidePanelTab } from "./side-panel/side-panel-tabs.js";
 import { SidePanelTabContent } from "./side-panel/side-panel-tab-content.js";
 
 const HEADER_AGENT_DROPDOWN_ID = "header-agent-selector";
@@ -45,7 +45,7 @@ export function AgentsView() {
   }, [agents, selectedAgentId, selectAgent]);
 
   const toggleFullPanel = useCallback(
-    (id: string, title: string, tabId: (typeof SIDE_PANEL_TABS)[number]["id"]) => {
+    (id: string, title: string, tabId: SidePanelTab) => {
       if (isOpen(id)) {
         hide();
         return;
