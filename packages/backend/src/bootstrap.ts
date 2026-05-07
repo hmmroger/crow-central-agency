@@ -153,12 +153,12 @@ export async function bootstrap(options: BootstrapOptions) {
   mcpManager.registerMcpServer(
     CROW_SUPER_TASKS_MCP_SERVER_NAME,
     (agentId) => createSuperTasksMcpServer(agentId, taskManager, registry, circleManager, sensorManager),
-    [CROW_SYSTEM_AGENT_ID, CROW_TASK_DISPATCHER_AGENT_ID]
+    { allowedAgentIds: [CROW_SYSTEM_AGENT_ID, CROW_TASK_DISPATCHER_AGENT_ID] }
   );
   mcpManager.registerMcpServer(
     CROW_SUPER_AGENT_MCP_SERVER_NAME,
     (agentId) => createSuperAgentMcpServer(agentId, registry, runtimeManager, sessionManager),
-    [CROW_SYSTEM_AGENT_ID]
+    { allowedAgentIds: [CROW_SYSTEM_AGENT_ID] }
   );
   mcpManager.registerMcpServer(REMINDERS_MCP_SERVER_NAME, (agentId) =>
     createRemindersMcpServer(agentId, crowScheduler, sensorManager)
@@ -175,7 +175,15 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerAuthRoutes(server);
   await registerHealthRoutes(server);
   await registerSystemRoutes(server);
-  await registerAgentRoutes(server, registry, runtimeManager, sessionManager, storeProvider, connectorManager);
+  await registerAgentRoutes(
+    server,
+    registry,
+    runtimeManager,
+    sessionManager,
+    storeProvider,
+    connectorManager,
+    mcpManager
+  );
   await registerArtifactRoutes(server, artifactManager);
   await registerTaskRoutes(server, taskManager, registry);
   await registerGenerationRoutes(server);

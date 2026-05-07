@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MCP_CONFIG_TYPE, type McpConfigType, type McpServerConfig } from "@crow-central-agency/shared";
+import { MCP_CONFIG_TYPE, type UserMcpConfigType, type McpServerConfig } from "@crow-central-agency/shared";
 import type { KeyValuePair, McpConfigEditorFormState } from "./mcp-config-editor.types.js";
 
 /** Default form state for a new MCP config */
@@ -131,7 +131,7 @@ export function useMcpConfigEditorForm(config?: McpServerConfig) {
 
   /** Set type — clears type-specific fields when switching */
   const setType = useCallback(
-    (value: McpConfigType) =>
+    (value: UserMcpConfigType) =>
       setForm((prev) => {
         if (prev.type === value) {
           return prev;

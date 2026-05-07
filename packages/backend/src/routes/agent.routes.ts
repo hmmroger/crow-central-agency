@@ -4,6 +4,7 @@ import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-mana
 import type { SessionManager } from "../services/session/session-manager.js";
 import { AGENT_STATUS, AgentConfigTemplateSchema, type AgentRuntimeState } from "@crow-central-agency/shared";
 import type { ConnectorManager } from "../connectors/connector-manager.js";
+import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { logger } from "../utils/logger.js";
@@ -22,7 +23,8 @@ export async function registerAgentRoutes(
   runtimeManager: AgentRuntimeManager,
   sessionManager: SessionManager,
   store: ObjectStoreProvider,
-  connectorManager: ConnectorManager
+  connectorManager: ConnectorManager,
+  mcpManager: CrowMcpManager
 ) {
   /** List all agents */
   server.get("/api/agents", async () => {
@@ -223,6 +225,13 @@ export async function registerAgentRoutes(
   server.get<{ Params: { agentId: string } }>("/api/agents/:agentId/connectors", async (request) => {
     const connectors = await connectorManager.listConnectorsForAgent(request.params.agentId);
     return { success: true, data: connectors };
+  });
+
+  /** List MCP configs visible to this agent (persisted user configs + internal configurable servers). */
+  server.get<{ Params: { agentId: string } }>("/api/agents/:agentId/mcp-configs", async (request) => {
+    const agentId = validateAgentIdParam(request.params.agentId);
+    const configs = await mcpManager.getMcpConfigsForAgent(agentId);
+    return { success: true, data: configs };
   });
 
   /** Disconnect a connector for the given agent. */

@@ -1,4 +1,4 @@
-import type { McpConfigType } from "@crow-central-agency/shared";
+import type { UserMcpConfigType } from "@crow-central-agency/shared";
 
 /** A key-value pair for env vars and headers */
 export interface KeyValuePair {
@@ -10,7 +10,7 @@ export interface KeyValuePair {
 export interface McpConfigEditorFormState {
   name: string;
   description: string;
-  type: McpConfigType;
+  type: UserMcpConfigType;
   isDisabled: boolean;
   enableForCrow: boolean;
   /** stdio: command to execute */

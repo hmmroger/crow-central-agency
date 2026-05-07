@@ -1,9 +1,9 @@
-import type { McpServerConfig } from "@crow-central-agency/shared";
+import type { AgentMcpConfig } from "../../hooks/queries/use-agent-mcp-configs-query.js";
 import { Toggle } from "../common/toggle.js";
 import { FieldGroup } from "./field-group.js";
 
 interface McpServersSectionProps {
-  configs: McpServerConfig[];
+  configs: AgentMcpConfig[];
   mcpServerIds: string[];
   onToggle: (serverId: string) => void;
 }
@@ -42,7 +42,7 @@ export function McpServersSection({ configs, mcpServerIds, onToggle }: McpServer
 }
 
 interface McpServerRowProps {
-  config: McpServerConfig;
+  config: AgentMcpConfig;
   checked: boolean;
   onToggle: () => void;
 }

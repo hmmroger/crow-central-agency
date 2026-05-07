@@ -5,9 +5,20 @@ import type { ZodRawShape } from "zod";
 export type McpServerFactory = (agentId: string) => McpServerConfig;
 
 export interface McpServerRegistration {
+  name: string;
   factory: McpServerFactory;
+  hasRequiredConnections?: (agentId: string) => Promise<boolean>;
   /** When set, the server is only available to these agent IDs */
   allowedAgentIds?: Set<string>;
+  isConfigurable?: boolean;
+}
+
+/** Optional registration metadata accepted by {@link CrowMcpManager.registerMcpServer}. */
+export interface RegisterMcpServerOptions {
+  /** When set, the server is only available to these agent IDs */
+  allowedAgentIds?: string[];
+  isConfigurable?: boolean;
+  hasRequiredConnections?: (agentId: string) => Promise<boolean>;
 }
 
 export type ToolHandler<InputArgs extends ZodRawShape> = (

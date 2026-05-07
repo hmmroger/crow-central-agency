@@ -1,19 +1,19 @@
 import { useCallback, useMemo, type MouseEvent } from "react";
 import { ChevronDown } from "lucide-react";
-import { MCP_CONFIG_TYPE, type McpConfigType } from "@crow-central-agency/shared";
+import { MCP_CONFIG_TYPE, type UserMcpConfigType } from "@crow-central-agency/shared";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
 import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import { cn } from "../../utils/cn.js";
 
-const TYPE_OPTIONS: { value: McpConfigType; label: string }[] = [
+const TYPE_OPTIONS: { value: UserMcpConfigType; label: string }[] = [
   { value: MCP_CONFIG_TYPE.STDIO, label: "Local (stdio)" },
   { value: MCP_CONFIG_TYPE.SSE, label: "Remote (SSE)" },
   { value: MCP_CONFIG_TYPE.HTTP, label: "Remote (HTTP)" },
 ];
 
 interface McpTypeSelectorProps {
-  value: McpConfigType;
-  onChange: (value: McpConfigType) => void;
+  value: UserMcpConfigType;
+  onChange: (value: UserMcpConfigType) => void;
   menuId: string;
 }
 

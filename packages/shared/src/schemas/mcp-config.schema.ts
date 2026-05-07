@@ -2,12 +2,21 @@ import { z } from "zod";
 
 /** MCP server configuration transport types */
 export const MCP_CONFIG_TYPE = {
+  INTERNAL: "internal",
   STDIO: "stdio",
   SSE: "sse",
   HTTP: "http",
 } as const;
 
 export type McpConfigType = (typeof MCP_CONFIG_TYPE)[keyof typeof MCP_CONFIG_TYPE];
+
+export const InternalMcpConfigSchema = z.object({
+  type: z.literal(MCP_CONFIG_TYPE.INTERNAL),
+  id: z.string(),
+  name: z.string(),
+  isDisabled: z.boolean().optional(),
+});
+export type InternalMcpConfig = z.infer<typeof InternalMcpConfigSchema>;
 
 /** Zod schema for local (stdio) MCP server config */
 const LocalMcpConfigSchema = z.object({
@@ -41,6 +50,9 @@ export type RemoteMcpConfig = z.infer<typeof RemoteMcpConfigSchema>;
 /** Discriminated union schema for any MCP server config */
 export const McpServerConfigSchema = z.discriminatedUnion("type", [LocalMcpConfigSchema, RemoteMcpConfigSchema]);
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
+
+/** Transport types that user CRUD endpoints accept (excludes the internal projection). */
+export type UserMcpConfigType = McpServerConfig["type"];
 
 /** Input for creating a new MCP config - id is generated server-side */
 const CreateLocalMcpConfigInputSchema = LocalMcpConfigSchema.omit({ id: true });

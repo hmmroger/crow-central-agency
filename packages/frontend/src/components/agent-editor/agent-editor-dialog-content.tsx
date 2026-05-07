@@ -20,6 +20,7 @@ import {
   useUpdateAgent,
 } from "../../hooks/queries/use-agent-mutations.js";
 import { useMcpConfigsQuery } from "../../hooks/queries/use-mcp-configs-query.js";
+import { useAgentMcpConfigsQuery } from "../../hooks/queries/use-agent-mcp-configs-query.js";
 import type { ModalDialogHandle } from "../../providers/modal-dialog-provider.types.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { useAgentEditorForm } from "./use-agent-editor-form.js";
@@ -77,7 +78,9 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
   const mutationError = saveMutation.error?.message ?? agentQuery.error?.message;
 
   // MCP configs for server selection
-  const { data: mcpConfigs = [] } = useMcpConfigsQuery();
+  const { data: agentMcpConfigs = [] } = useAgentMcpConfigsQuery(agentId);
+  const { data: globalMcpConfigs = [] } = useMcpConfigsQuery({ enabled: !isEditing });
+  const mcpConfigs = isEditing ? agentMcpConfigs : globalMcpConfigs;
 
   // Form state with dirty tracking
   const editorForm = useAgentEditorForm(agentQuery.data, templatePreset);

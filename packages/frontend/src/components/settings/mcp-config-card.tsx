@@ -1,5 +1,5 @@
 import { Pencil, Trash2 } from "lucide-react";
-import { MCP_CONFIG_TYPE, type McpConfigType, type McpServerConfig } from "@crow-central-agency/shared";
+import { MCP_CONFIG_TYPE, type UserMcpConfigType, type McpServerConfig } from "@crow-central-agency/shared";
 import { useDeleteMcpConfig } from "../../hooks/queries/use-mcp-config-mutations.js";
 import { useConfirmDialog } from "../../hooks/dialogs/use-confirm-dialog.js";
 import { cn } from "../../utils/cn.js";
@@ -10,7 +10,7 @@ interface McpConfigCardProps {
 }
 
 /** Type badge label mapping */
-const TYPE_LABELS: Record<McpConfigType, string> = {
+const TYPE_LABELS: Record<UserMcpConfigType, string> = {
   [MCP_CONFIG_TYPE.STDIO]: "stdio",
   [MCP_CONFIG_TYPE.SSE]: "sse",
   [MCP_CONFIG_TYPE.HTTP]: "http",
