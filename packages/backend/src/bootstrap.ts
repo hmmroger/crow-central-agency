@@ -54,6 +54,9 @@ import { registerFeedRoutes } from "./routes/feed.routes.js";
 import { registerSystemSettingsRoutes } from "./routes/system-settings.routes.js";
 import { createFeedMcpServer, FEED_MCP_SERVER_NAME } from "./mcp/feed/feed-mcp-server.js";
 import { createAudioMcpServer, CROW_AUDIO_MCP_SERVER_NAME } from "./mcp/audio/audio-mcp-server.js";
+import { ConnectorManager } from "./connectors/connector-manager.js";
+import { GoogleConnector } from "./connectors/google-connector.js";
+import { registerConnectorsRoutes } from "./routes/connectors.routes.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -122,6 +125,9 @@ export async function bootstrap(options: BootstrapOptions) {
   const feedNewItemsRoutine = createFeedNewItemsRoutine(registry, taskManager, systemSettingsManager);
   routineManager.addRoutine(feedNewItemsRoutine);
 
+  const connectorManager = new ConnectorManager(storeProvider, registry, crowScheduler);
+  connectorManager.registerConnector(new GoogleConnector());
+
   // Discord bot manager — creates per-agent bots for agents with discordConfig
   const discordBotManager = new DiscordBotManager(registry, runtimeManager);
   await discordBotManager.initialize();
@@ -169,7 +175,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerAuthRoutes(server);
   await registerHealthRoutes(server);
   await registerSystemRoutes(server);
-  await registerAgentRoutes(server, registry, runtimeManager, sessionManager, storeProvider);
+  await registerAgentRoutes(server, registry, runtimeManager, sessionManager, storeProvider, connectorManager);
   await registerArtifactRoutes(server, artifactManager);
   await registerTaskRoutes(server, taskManager, registry);
   await registerGenerationRoutes(server);
@@ -179,6 +185,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerGraphRoutes(server, circleManager, registry, runtimeManager);
   await registerFeedRoutes(server, feedManager);
   await registerSystemSettingsRoutes(server, systemSettingsManager);
+  await registerConnectorsRoutes(server, connectorManager);
 
   // Start listening
   await server.listen({ host: env.HOST, port: env.PORT });

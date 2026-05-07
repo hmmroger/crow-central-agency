@@ -33,7 +33,11 @@ function readRequired(key: string): string {
 
 const nodeEnv = getOptional("NODE_ENV") ?? "development";
 const isDev = nodeEnv === "development";
-const corsOrigins = getOptional("CORS_ORIGINS") ?? "http://localhost:5101";
+const host = getOptional("HOST") ?? "localhost";
+const port = getOptionalNumber("PORT") ?? 3101;
+// Default value for single-box deployment.
+const backendOrigin = `http://${host}:${port}`;
+const corsOrigins = getOptional("CORS_ORIGINS") ?? backendOrigin;
 const crowSysPath = getOptional("CROW_SYSTEM_PATH") ?? path.join(os.homedir(), ".crow");
 
 let cachedAccessKey: string | undefined;
@@ -53,8 +57,8 @@ export const env = {
   NODE_ENV: nodeEnv,
   IS_DEV: isDev,
   LOG_LEVEL: getOptional("LOG_LEVEL") ?? (isDev ? "debug" : "info"),
-  HOST: getOptional("HOST") ?? "localhost",
-  PORT: getOptionalNumber("PORT") ?? 3101,
+  HOST: host,
+  PORT: port,
   CORS_ORIGINS: corsOrigins.split(",").map((origin) => origin.trim()),
   CROW_SYSTEM_PATH: expandPath(crowSysPath),
   STATIC_PATH: expandPath(getOptional("STATIC_PATH") ?? DEFAULT_STATIC_DIR),
@@ -74,6 +78,10 @@ export const env = {
   AUDIO_GENERATION_PROVIDER: getOptional("AUDIO_GENERATION_PROVIDER"),
   AUDIO_GENERATION_API_KEY: getOptional("AUDIO_GENERATION_API_KEY"),
   AUDIO_GENERATION_MODEL: getOptional("AUDIO_GENERATION_MODEL", "gemini-3.1-flash-tts-preview"),
+  CONNECTOR_CALLBACK_URL: getOptional("CONNECTOR_CALLBACK_URL") ?? `${backendOrigin}/auth/callback`,
+  GOOGLE_CONNECTOR_CLIENT_ID: getOptional("GOOGLE_CONNECTOR_CLIENT_ID"),
+  GOOGLE_CONNECTOR_CLIENT_SECRET: getOptional("GOOGLE_CONNECTOR_CLIENT_SECRET"),
+  OAUTH_PENDING_STATE_TTL_MS: getOptionalNumber("OAUTH_PENDING_STATE_TTL_MS", 600_000),
 };
 
 /**

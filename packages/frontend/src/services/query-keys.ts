@@ -132,3 +132,13 @@ export const mcpConfigKeys = {
   /** Single MCP config detail */
   detail: (configId: string) => [...mcpConfigKeys.all, "detail", configId] as const,
 };
+
+/**
+ * Query key factory for connector queries.
+ */
+export const connectorKeys = {
+  /** Root key for all connector queries */
+  all: ["connectors"] as const,
+  /** Per-agent connector list */
+  listForAgent: (agentId: string) => [...connectorKeys.all, "list", agentId] as const,
+};

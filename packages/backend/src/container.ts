@@ -1,5 +1,7 @@
 import { LLM_PROVIDER_TYPE } from "./config/constants.js";
 import { env } from "./config/env.js";
+import type { CredentialStore } from "./core/credential-store/credential-store.types.js";
+import { KeyringCredentialStore } from "./core/credential-store/keyring-credential-store.js";
 import { AppError } from "./core/error/app-error.js";
 import { APP_ERROR_CODES } from "./core/error/app-error.types.js";
 import { GoogleAIProvider } from "./services/content-generation/provider/google-provider.js";
@@ -56,6 +58,10 @@ class Container {
 
       return new GoogleAIProvider(apiKey);
     });
+  }
+
+  public get credentialStore(): CredentialStore {
+    return this.singleton("credentialStore", () => new KeyringCredentialStore());
   }
 
   public get feedTextGenProvider(): TextGenerationProviderInterface {

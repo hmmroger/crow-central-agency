@@ -19,6 +19,7 @@ interface ConfirmDialogOptions {
   onConfirm: () => void | Promise<void>;
   /** Called when the dialog is dismissed without confirming (Escape, backdrop, Cancel button) */
   onClose?: () => void;
+  confirmOnly?: boolean;
 }
 
 /**
@@ -44,6 +45,7 @@ export function useConfirmDialog() {
           cancelLabel: options.cancelLabel,
           destructive: options.destructive,
           onConfirm: options.onConfirm,
+          confirmOnly: options.confirmOnly,
         },
         onClose: options.onClose,
         role: "alertdialog",

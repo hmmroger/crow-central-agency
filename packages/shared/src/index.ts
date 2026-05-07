@@ -266,3 +266,12 @@ export {
   type GraphEdge,
   type GraphData,
 } from "./schemas/graph.schema.js";
+
+export {
+  ConnectorConnectionSchema,
+  ConnectorInfoSchema,
+  ConnectConnectorResponseSchema,
+  type ConnectorConnection,
+  type ConnectorInfo,
+  type ConnectConnectorResponse,
+} from "./schemas/connector.schema.js";

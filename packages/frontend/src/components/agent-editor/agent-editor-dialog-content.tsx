@@ -35,6 +35,7 @@ import { FeedsSection } from "./feeds-section.js";
 import { LoopConfigPanel } from "./loop-config-panel.js";
 import { AgentMdEditor } from "./agentmd-editor.js";
 import { DiscordConfigSection } from "./discord-config-section.js";
+import { ConnectorsSection } from "./connectors-section.js";
 import { GenerateModal } from "./generate-modal.js";
 
 interface AgentEditorDialogContentProps {
@@ -362,6 +363,8 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
               mcpServerIds={form.mcpServerIds}
               onToggle={editorForm.toggleMcpServer}
             />
+
+            <ConnectorsSection agentId={agentId} />
 
             <SensorsSection sensorIds={form.sensorIds} onToggle={editorForm.toggleSensor} />
 
