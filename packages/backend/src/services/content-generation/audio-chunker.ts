@@ -133,6 +133,9 @@ function isCjkChar(char: string): boolean {
     (code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs
     (code >= 0x3400 && code <= 0x4dbf) || // CJK Extension A
     (code >= 0x20000 && code <= 0x2a6df) || // CJK Extension B
+    (code >= 0x2a700 && code <= 0x2ee5f) || // CJK Extensions C–F, I
+    (code >= 0x2f800 && code <= 0x2fa1f) || // CJK Compatibility Ideographs Supplement
+    (code >= 0x30000 && code <= 0x323af) || // CJK Extensions G, H
     (code >= 0x3040 && code <= 0x309f) || // Hiragana
     (code >= 0x30a0 && code <= 0x30ff) || // Katakana
     (code >= 0xac00 && code <= 0xd7af) || // Hangul Syllables
