@@ -35,6 +35,7 @@ const TRANSCRIPT_OPEN_TAG = "<TRANSCRIPT>";
 const TRANSCRIPT_CLOSE_TAG = "</TRANSCRIPT>";
 
 const DEFAULT_MAX_CHUNK_CHARS = 1000;
+const DEFAULT_MAX_CHUNK_SECONDS = 60;
 
 export async function audioGeneration(
   model: string,
@@ -43,9 +44,11 @@ export async function audioGeneration(
 ): Promise<ContentGenerationAudioResponse> {
   const provider = options?.provider ?? container.audioGenProvider;
   const stylePrompt = options?.stylePrompt ?? DEFAULT_STYLE_PROMPT;
-  const maxChunkChars = options?.maxChunkChars ?? DEFAULT_MAX_CHUNK_CHARS;
 
-  const chunks = chunkText(text, maxChunkChars);
+  const chunks = chunkText(text, {
+    maxChars: options?.maxChunkChars ?? DEFAULT_MAX_CHUNK_CHARS,
+    maxSeconds: options?.maxChunkSeconds ?? DEFAULT_MAX_CHUNK_SECONDS,
+  });
   const synthesizeChunk = async (chunk: string) => {
     const response = await provider.synthesizeAudio(model, wrapTranscript(chunk), { ...options, stylePrompt });
     response.message.transcript = chunk;
