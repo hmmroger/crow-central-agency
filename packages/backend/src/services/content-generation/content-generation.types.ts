@@ -150,8 +150,10 @@ export interface AudioGenerationOptions {
   stylePrompt?: string;
   mimeType?: string;
   voice?: VoiceConfig[];
-  /** Max characters per provider call. When text exceeds this, the service splits on sentence boundaries and concatenates the resulting audio. */
+  /** Hard cap on characters per provider call. When text exceeds this, the service splits on paragraph/sentence boundaries and concatenates the resulting audio. */
   maxChunkChars?: number;
+  /** Estimated spoken-seconds budget per provider call. CJK characters weight ~0.20s and other characters ~0.06s, so dense scripts close earlier than the char cap suggests. */
+  maxChunkSeconds?: number;
   abortSignal?: AbortSignal;
   extraParams?: Record<string, unknown>;
 }
@@ -196,7 +198,7 @@ export interface TextGenerationProviderInterface {
   ): Promise<ContentGenerationTextResponse>;
 }
 
-export type ProviderAudioGenerationOptions = Omit<AudioGenerationOptions, "maxChunkChars">;
+export type ProviderAudioGenerationOptions = Omit<AudioGenerationOptions, "maxChunkChars" | "maxChunkSeconds">;
 
 export interface AudioGenerationProviderInterface {
   /** Provider display name */
