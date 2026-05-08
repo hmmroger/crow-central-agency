@@ -15,7 +15,7 @@ import {
   type GmailRawThread,
   type ReplyParentHeaders,
 } from "./gmail-message-parser.js";
-import { buildMimeMessage, encodeRawForGmail } from "./gmail-mime-builder.js";
+import { buildMimeMessage, encodeRawForGmail, formatFromHeader } from "./gmail-mime-builder.js";
 import { buildGmailListQuery } from "./gmail-query-builder.js";
 import {
   buildReferencesChain,
@@ -108,8 +108,10 @@ export class GoogleClient {
   }
 
   public async sendGmailMessage(options: SendGmailMessageOptions): Promise<SendGmailMessageResult> {
+    const profile = await this.connectorManager.getProfile(this.agentId, CONNECTOR_ID.GOOGLE);
     const html = markdownToHtml(options.body);
     const rfc822 = buildMimeMessage({
+      from: formatFromHeader(profile.username, profile.displayName),
       to: options.to,
       cc: options.cc,
       bcc: options.bcc,
@@ -141,11 +143,11 @@ export class GoogleClient {
       );
     }
 
+    const profile = await this.connectorManager.getProfile(this.agentId, CONNECTOR_ID.GOOGLE);
+    const selfEmail = profile.username.toLowerCase();
     const to: string[] = [primaryReplyAddress];
     const cc: string[] = [];
     if (options.replyAll === true) {
-      const profile = await this.connectorManager.getProfile(this.agentId, CONNECTOR_ID.GOOGLE);
-      const selfEmail = profile.username.toLowerCase();
       const primaryEmail = extractEmailAddress(primaryReplyAddress);
       for (const address of splitAddressList(parent.to)) {
         const email = extractEmailAddress(address);
@@ -155,7 +157,8 @@ export class GoogleClient {
       }
 
       for (const address of splitAddressList(parent.cc)) {
-        if (extractEmailAddress(address) !== selfEmail) {
+        const email = extractEmailAddress(address);
+        if (email !== selfEmail && email !== primaryEmail) {
           cc.push(address);
         }
       }
@@ -163,6 +166,7 @@ export class GoogleClient {
 
     const html = markdownToHtml(options.body);
     const rfc822 = buildMimeMessage({
+      from: formatFromHeader(profile.username, profile.displayName),
       to,
       cc: cc.length > 0 ? cc : undefined,
       subject: deriveReplySubject(parent.subject),

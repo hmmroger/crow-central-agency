@@ -5,12 +5,8 @@ import { GOOGLE_SERVICE_NAME } from "./google-request.js";
 
 const GMAIL_QUOTE_REQUIRED_PATTERN = /[\s"():&|]/;
 
-/**
- * Build a Gmail q-syntax search string from structured options.
- *
- * `userTimezone` is required when `afterDateTime` or `beforeDateTime` is set
- */
-export function buildGmailListQuery(options: ListGmailMessagesOptions, userTimezone: string | undefined): string {
+/** Build a Gmail q-syntax search string from structured options. */
+export function buildGmailListQuery(options: ListGmailMessagesOptions, userTimezone: string): string {
   const parts: string[] = [];
   if (options.from) {
     parts.push(`from:${quoteGmailValue(options.from)}`);
@@ -45,23 +41,12 @@ export function buildGmailListQuery(options: ListGmailMessagesOptions, userTimez
     parts.push(`newer_than:${options.newerThanDays}d`);
   }
 
-  if (options.afterDateTime !== undefined || options.beforeDateTime !== undefined) {
-    if (userTimezone === undefined) {
-      throw new RequestError(
-        "userTimezone is required when afterDateTime or beforeDateTime is set",
-        undefined,
-        undefined,
-        GOOGLE_SERVICE_NAME
-      );
-    }
+  if (options.afterDateTime !== undefined) {
+    parts.push(`after:${toGmailEpochSeconds(options.afterDateTime, userTimezone, "afterDateTime")}`);
+  }
 
-    if (options.afterDateTime !== undefined) {
-      parts.push(`after:${toGmailEpochSeconds(options.afterDateTime, userTimezone, "afterDateTime")}`);
-    }
-
-    if (options.beforeDateTime !== undefined) {
-      parts.push(`before:${toGmailEpochSeconds(options.beforeDateTime, userTimezone, "beforeDateTime")}`);
-    }
+  if (options.beforeDateTime !== undefined) {
+    parts.push(`before:${toGmailEpochSeconds(options.beforeDateTime, userTimezone, "beforeDateTime")}`);
   }
 
   return parts.join(" ");

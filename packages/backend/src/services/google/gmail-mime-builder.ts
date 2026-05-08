@@ -7,6 +7,8 @@ const BASE64_LINE_WIDTH = 76;
 const NON_ASCII_PATTERN = /\P{ASCII}/u;
 
 export interface BuildMimeMessageOptions {
+  /** Already-formatted RFC 2822 mailbox (e.g. produced by `formatFromHeader`). */
+  from?: string;
   to: string[];
   cc?: string[];
   bcc?: string[];
@@ -25,6 +27,10 @@ export interface BuildMimeMessageOptions {
 export function buildMimeMessage(options: BuildMimeMessageOptions): string {
   const boundary = createBoundary();
   const lines: string[] = [];
+
+  if (options.from) {
+    lines.push(`From: ${sanitizeHeaderValue(options.from)}`);
+  }
 
   lines.push(`To: ${buildAddressList(options.to)}`);
   if (options.cc && options.cc.length > 0) {
@@ -73,6 +79,25 @@ export function buildMimeMessage(options: BuildMimeMessageOptions): string {
  */
 export function encodeRawForGmail(rfc822: string): string {
   return Buffer.from(rfc822, "utf-8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * Build an RFC 2822 mailbox from an email address and optional display name.
+ * Display name is included only if ASCII; non-ASCII display names are dropped
+ * for v1 (would need RFC 2047 phrase encoding to be safe alongside the addr).
+ */
+export function formatFromHeader(emailAddress: string, displayName: string | undefined): string {
+  if (displayName === undefined) {
+    return emailAddress;
+  }
+
+  const sanitized = displayName.replace(/[\r\n]+/g, " ").trim();
+  if (sanitized.length === 0 || NON_ASCII_PATTERN.test(sanitized)) {
+    return emailAddress;
+  }
+
+  const escaped = sanitized.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `"${escaped}" <${emailAddress}>`;
 }
 
 function buildAddressList(addresses: string[]): string {
