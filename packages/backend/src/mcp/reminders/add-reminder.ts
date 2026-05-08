@@ -3,7 +3,8 @@ import type { CrowScheduler } from "../../services/crow-scheduler.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
-import { formatReminder, parseDateTimeWithTimezone } from "./reminders-mcp-server-utils.js";
+import { parseDateTimeWithTimezone } from "../../utils/date-utils.js";
+import { formatReminder } from "./reminders-mcp-server-utils.js";
 
 export const ADD_REMINDER_TOOL_NAME = "add_reminder";
 

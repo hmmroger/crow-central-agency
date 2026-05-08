@@ -164,7 +164,7 @@ export async function bootstrap(options: BootstrapOptions) {
   mcpManager.registerMcpServer(REMINDERS_MCP_SERVER_NAME, (agentId) =>
     createRemindersMcpServer(agentId, crowScheduler, sensorManager)
   );
-  const gmailMcpDefinition = getGmailMcpServerDefinition(connectorManager);
+  const gmailMcpDefinition = getGmailMcpServerDefinition(connectorManager, sensorManager);
   mcpManager.registerMcpServer(GMAIL_MCP_SERVER_NAME, gmailMcpDefinition.serverFactory, {
     hasRequiredConnections: gmailMcpDefinition.hasRequiredConnections,
     isConfigurable: gmailMcpDefinition.isConfigurable,
