@@ -1,10 +1,9 @@
 import { z } from "zod";
-import type { GoogleClient } from "../../services/google/google-client.js";
+import { DEFAULT_GMAIL_LIST_LIMIT, type GoogleClient } from "../../services/google/google-client.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { formatGmailMessageSummary } from "./gmail-format-utils.js";
 
-const DEFAULT_GMAIL_MESSAGES_LIMIT = 25;
 const MAX_GMAIL_MESSAGES_LIMIT = 100;
 
 export const LIST_GMAIL_MESSAGES_TOOL_NAME = "list_gmail_messages";
@@ -48,7 +47,7 @@ export function getListGmailMessagesToolConfig(googleClient: GoogleClient) {
       .max(MAX_GMAIL_MESSAGES_LIMIT)
       .optional()
       .describe(
-        `Number of messages to return per page (default: ${DEFAULT_GMAIL_MESSAGES_LIMIT}, max: ${MAX_GMAIL_MESSAGES_LIMIT}).`
+        `Number of messages to return per page (default: ${DEFAULT_GMAIL_LIST_LIMIT}, max: ${MAX_GMAIL_MESSAGES_LIMIT}).`
       ),
     pageToken: z
       .string()
@@ -68,7 +67,7 @@ export function getListGmailMessagesToolConfig(googleClient: GoogleClient) {
         afterDateTime: args.afterDateTime,
         beforeDateTime: args.beforeDateTime,
         labelIds: args.labelIds,
-        limit: args.limit ?? DEFAULT_GMAIL_MESSAGES_LIMIT,
+        limit: args.limit ?? DEFAULT_GMAIL_LIST_LIMIT,
         pageToken: args.pageToken,
       });
       if (result.messages.length === 0) {

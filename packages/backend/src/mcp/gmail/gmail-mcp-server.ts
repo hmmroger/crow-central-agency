@@ -9,6 +9,9 @@ import type { McpServerConnectionsFunc, McpServerDefinition, McpServerFactory } 
 import { getGetGmailMessageContentToolConfig } from "./get-gmail-message-content.js";
 import { getGetGmailThreadToolConfig } from "./get-gmail-thread.js";
 import { getListGmailMessagesToolConfig } from "./list-gmail-messages.js";
+import { getMoveGmailMessageToTrashToolConfig } from "./move-gmail-message-to-trash.js";
+import { getReplyToGmailMessageToolConfig } from "./reply-to-gmail-message.js";
+import { getSendGmailMessageToolConfig } from "./send-gmail-message.js";
 
 export const GMAIL_MCP_SERVER_NAME = "crow-gmail";
 
@@ -16,6 +19,9 @@ export function createGmailMcpServer(googleClient: GoogleClient): McpSdkServerCo
   const listMessages = getListGmailMessagesToolConfig(googleClient);
   const getMessageContent = getGetGmailMessageContentToolConfig(googleClient);
   const getThread = getGetGmailThreadToolConfig(googleClient);
+  const sendMessage = getSendGmailMessageToolConfig(googleClient);
+  const replyToMessage = getReplyToGmailMessageToolConfig(googleClient);
+  const moveToTrash = getMoveGmailMessageToTrashToolConfig(googleClient);
 
   return createSdkMcpServer({
     name: GMAIL_MCP_SERVER_NAME,
@@ -32,6 +38,15 @@ export function createGmailMcpServer(googleClient: GoogleClient): McpSdkServerCo
       ),
       tool(getThread.name, getThread.description, getThread.inputSchema, getThread.handler, {
         annotations: getThread.annotations,
+      }),
+      tool(sendMessage.name, sendMessage.description, sendMessage.inputSchema, sendMessage.handler, {
+        annotations: sendMessage.annotations,
+      }),
+      tool(replyToMessage.name, replyToMessage.description, replyToMessage.inputSchema, replyToMessage.handler, {
+        annotations: replyToMessage.annotations,
+      }),
+      tool(moveToTrash.name, moveToTrash.description, moveToTrash.inputSchema, moveToTrash.handler, {
+        annotations: moveToTrash.annotations,
       }),
     ],
   });

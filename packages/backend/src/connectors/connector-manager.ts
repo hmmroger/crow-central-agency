@@ -15,6 +15,7 @@ import {
   type ConnectionRecord,
   type Connector,
   type ConnectorAccess,
+  type ConnectorProfile,
   type OAuthTokens,
   type PendingOAuthState,
 } from "./connector-manager.types.js";
@@ -238,6 +239,27 @@ export class ConnectorManager {
     });
     this.refreshInFlight.set(inflightKey, refreshPromise);
     return refreshPromise;
+  }
+
+  /**
+   * Return the connected account's profile (id, username, displayName,
+   * profilePicture) without touching tokens or refresh logic. Profile is
+   * captured at connect time and re-read from the metadata store on each
+   * call so a reconnect with a different account is reflected immediately.
+   */
+  public async getProfile(agentId: string, connectorId: string): Promise<ConnectorProfile> {
+    this.agentRegistry.getAgent(agentId);
+    this.getConnector(connectorId);
+
+    const recordEntry = await this.connectionStore.get<ConnectionRecord>(
+      CONNECTOR_CONNECTIONS_TABLE,
+      buildConnectionKey(agentId, connectorId)
+    );
+    if (!recordEntry) {
+      throw new AppError(`Connector ${connectorId} is not connected for agent ${agentId}`, APP_ERROR_CODES.NOT_FOUND);
+    }
+
+    return recordEntry.value.profile;
   }
 
   /**

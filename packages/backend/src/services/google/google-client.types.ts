@@ -50,3 +50,30 @@ export interface ListGmailMessagesResult {
   resultSizeEstimate: number;
   nextPageToken?: string;
 }
+
+export interface SendGmailMessageOptions {
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  /** Markdown body */
+  body: string;
+}
+
+export interface SendGmailMessageResult {
+  id: string;
+  threadId: string;
+}
+
+export interface ReplyToGmailMessageOptions {
+  /** ID of the message being replied to. */
+  parentMessageId: string;
+  /** Markdown body */
+  body: string;
+  replyAll?: boolean;
+}
+
+export interface MoveGmailMessageToTrashResult {
+  id: string;
+  threadId: string;
+}
