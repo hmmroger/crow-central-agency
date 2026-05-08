@@ -34,7 +34,6 @@ import {
   GOOGLE_SERVICE_NAME,
   type CreateGmailUserLabelOptions,
   type GmailLabel,
-  type GmailLabelColorHex,
   type GmailMessage,
   type GmailMessageSummary,
   type GmailThread,
@@ -151,11 +150,10 @@ export class GoogleClient {
   }
 
   public async createGmailUserLabel(options: CreateGmailUserLabelOptions): Promise<GmailLabel> {
-    const body: { name: string; color?: GmailLabelColorHex } = { name: options.name };
-    if (options.color !== undefined) {
-      body.color = GMAIL_LABEL_COLOR_PALETTE[options.color];
-    }
-
+    const body =
+      options.color === undefined
+        ? { name: options.name }
+        : { name: options.name, color: GMAIL_LABEL_COLOR_PALETTE[options.color] };
     const response = await this.request<GmailRawLabel>({
       url: GMAIL_LABELS_URL,
       method: "POST",
@@ -166,7 +164,7 @@ export class GoogleClient {
 
   public async deleteGmailUserLabel(labelId: string): Promise<void> {
     assertUserLabelIds([labelId], "labelId");
-    await this.request<void>({
+    await this.requestVoid({
       url: `${GMAIL_LABELS_URL}/${encodeURIComponent(labelId)}`,
       method: "DELETE",
     });
@@ -325,6 +323,16 @@ export class GoogleClient {
   }
 
   private async request<T>(options: GoogleRequestOptions): Promise<T> {
+    const response = await this.requestRaw(options);
+    return (await response.json()) as T;
+  }
+
+  /** For endpoints that return 204 No Content (e.g. DELETE label). */
+  private async requestVoid(options: GoogleRequestOptions): Promise<void> {
+    await this.requestRaw(options);
+  }
+
+  private async requestRaw(options: GoogleRequestOptions): Promise<Response> {
     const access = await this.connectorManager.getAccess(this.agentId, CONNECTOR_ID.GOOGLE);
     const url = buildGoogleUrl(options.url, options.query);
 
@@ -354,10 +362,6 @@ export class GoogleClient {
       throw new RequestError(message, response.status, errorBody?.error?.status, GOOGLE_SERVICE_NAME);
     }
 
-    if (response.status === 204) {
-      return undefined as T;
-    }
-
-    return (await response.json()) as T;
+    return response;
   }
 }
