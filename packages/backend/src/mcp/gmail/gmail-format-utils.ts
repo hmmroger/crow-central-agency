@@ -1,4 +1,8 @@
-import type { GmailMessageSummary } from "../../services/google/google-client.types.js";
+import {
+  GMAIL_LABEL_TYPE,
+  type GmailLabel,
+  type GmailMessageSummary,
+} from "../../services/google/google-client.types.js";
 
 /**
  * Render a Gmail message summary (headers + snippet) as agent-readable text.
@@ -30,4 +34,31 @@ export function formatGmailMessageSummary(message: GmailMessageSummary): string 
   }
 
   return lines.join("\n");
+}
+
+/**
+ * Render a list of Gmail labels grouped by type. System labels (INBOX,
+ * UNREAD, STARRED, ...) are listed before user-defined labels.
+ */
+export function formatGmailLabelList(labels: GmailLabel[]): string {
+  if (labels.length === 0) {
+    return "(no labels)";
+  }
+
+  const systemLabels = labels.filter((label) => label.type === GMAIL_LABEL_TYPE.SYSTEM);
+  const userLabels = labels.filter((label) => label.type === GMAIL_LABEL_TYPE.USER);
+  const sections: string[] = [];
+  if (systemLabels.length > 0) {
+    sections.push(["System labels:", ...systemLabels.map(formatGmailLabelLine)].join("\n"));
+  }
+
+  if (userLabels.length > 0) {
+    sections.push(["User labels:", ...userLabels.map(formatGmailLabelLine)].join("\n"));
+  }
+
+  return sections.join("\n\n");
+}
+
+function formatGmailLabelLine(label: GmailLabel): string {
+  return `  ${label.id} - ${label.name}`;
 }

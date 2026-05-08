@@ -6,12 +6,17 @@ import { SCOPE_GMAIL_MODIFY } from "../../connectors/google-connector.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import { GoogleClient } from "../../services/google/google-client.js";
 import type { McpServerConnectionsFunc, McpServerDefinition, McpServerFactory } from "../crow-mcp-manager.types.js";
+import { getCreateGmailUserLabelToolConfig } from "./create-gmail-user-label.js";
+import { getDeleteGmailUserLabelToolConfig } from "./delete-gmail-user-label.js";
 import { getGetGmailMessageContentToolConfig } from "./get-gmail-message-content.js";
 import { getGetGmailThreadToolConfig } from "./get-gmail-thread.js";
+import { getListGmailLabelsToolConfig } from "./list-gmail-labels.js";
 import { getListGmailMessagesToolConfig } from "./list-gmail-messages.js";
 import { getMoveGmailMessageToTrashToolConfig } from "./move-gmail-message-to-trash.js";
 import { getReplyToGmailMessageToolConfig } from "./reply-to-gmail-message.js";
 import { getSendGmailMessageToolConfig } from "./send-gmail-message.js";
+import { getUpdateGmailMessageStateToolConfig } from "./update-gmail-message-state.js";
+import { getUpdateGmailMessageUserLabelsToolConfig } from "./update-gmail-message-user-labels.js";
 
 export const GMAIL_MCP_SERVER_NAME = "crow-gmail";
 
@@ -22,6 +27,11 @@ export function createGmailMcpServer(googleClient: GoogleClient): McpSdkServerCo
   const sendMessage = getSendGmailMessageToolConfig(googleClient);
   const replyToMessage = getReplyToGmailMessageToolConfig(googleClient);
   const moveToTrash = getMoveGmailMessageToTrashToolConfig(googleClient);
+  const listLabels = getListGmailLabelsToolConfig(googleClient);
+  const updateUserLabels = getUpdateGmailMessageUserLabelsToolConfig(googleClient);
+  const updateState = getUpdateGmailMessageStateToolConfig(googleClient);
+  const createUserLabel = getCreateGmailUserLabelToolConfig(googleClient);
+  const deleteUserLabel = getDeleteGmailUserLabelToolConfig(googleClient);
 
   return createSdkMcpServer({
     name: GMAIL_MCP_SERVER_NAME,
@@ -47,6 +57,25 @@ export function createGmailMcpServer(googleClient: GoogleClient): McpSdkServerCo
       }),
       tool(moveToTrash.name, moveToTrash.description, moveToTrash.inputSchema, moveToTrash.handler, {
         annotations: moveToTrash.annotations,
+      }),
+      tool(listLabels.name, listLabels.description, listLabels.inputSchema, listLabels.handler, {
+        annotations: listLabels.annotations,
+      }),
+      tool(
+        updateUserLabels.name,
+        updateUserLabels.description,
+        updateUserLabels.inputSchema,
+        updateUserLabels.handler,
+        { annotations: updateUserLabels.annotations }
+      ),
+      tool(updateState.name, updateState.description, updateState.inputSchema, updateState.handler, {
+        annotations: updateState.annotations,
+      }),
+      tool(createUserLabel.name, createUserLabel.description, createUserLabel.inputSchema, createUserLabel.handler, {
+        annotations: createUserLabel.annotations,
+      }),
+      tool(deleteUserLabel.name, deleteUserLabel.description, deleteUserLabel.inputSchema, deleteUserLabel.handler, {
+        annotations: deleteUserLabel.annotations,
       }),
     ],
   });

@@ -1,17 +1,4 @@
-export const GOOGLE_SERVICE_NAME = "google";
-
-export type GoogleRequestMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
-
-export interface GoogleRequestOptions {
-  url: string;
-  method?: GoogleRequestMethod;
-  query?: Record<string, string | string[] | undefined>;
-  body?: unknown;
-}
-
-export interface GoogleErrorResponseBody {
-  error?: { code?: number; message?: string; status?: string };
-}
+import type { GoogleErrorResponseBody } from "./google-request.types.js";
 
 export function buildGoogleUrl(baseUrl: string, query: Record<string, string | string[] | undefined> | undefined): URL {
   const url = new URL(baseUrl);

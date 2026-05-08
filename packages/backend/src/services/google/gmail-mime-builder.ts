@@ -1,3 +1,5 @@
+import type { BuildMimeMessageOptions } from "./gmail-mime-builder.types.js";
+
 const CRLF = "\r\n";
 const MIME_VERSION = "1.0";
 const TEXT_PLAIN_CONTENT_TYPE = 'text/plain; charset="UTF-8"';
@@ -5,19 +7,6 @@ const TEXT_HTML_CONTENT_TYPE = 'text/html; charset="UTF-8"';
 const BASE64_TRANSFER_ENCODING = "base64";
 const BASE64_LINE_WIDTH = 76;
 const NON_ASCII_PATTERN = /\P{ASCII}/u;
-
-export interface BuildMimeMessageOptions {
-  /** Already-formatted RFC 2822 mailbox (e.g. produced by `formatFromHeader`). */
-  from?: string;
-  to: string[];
-  cc?: string[];
-  bcc?: string[];
-  subject: string;
-  inReplyTo?: string;
-  references?: string[];
-  plainText: string;
-  html: string;
-}
 
 /**
  * Build an RFC 2822 message with a multipart/alternative body

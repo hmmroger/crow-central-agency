@@ -4,17 +4,20 @@ import { RequestError } from "../../core/error/request-error.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import { markdownToHtml } from "../../utils/markdown-to-html.js";
 import {
-  GMAIL_LIST_METADATA_HEADERS,
-  GMAIL_REPLY_METADATA_HEADERS,
   parseGmailFullMessage,
+  parseGmailLabel,
   parseGmailMessageSummary,
   parseReplyParentHeaders,
-  type GmailMessageRef,
-  type GmailMessagesListResponse,
-  type GmailRawMessage,
-  type GmailRawThread,
-  type ReplyParentHeaders,
 } from "./gmail-message-parser.js";
+import type {
+  GmailLabelsListResponse,
+  GmailMessageRef,
+  GmailMessagesListResponse,
+  GmailRawLabel,
+  GmailRawMessage,
+  GmailRawThread,
+  ReplyParentHeaders,
+} from "./gmail-message-parser.types.js";
 import { buildMimeMessage, encodeRawForGmail, formatFromHeader } from "./gmail-mime-builder.js";
 import { buildGmailListQuery } from "./gmail-query-builder.js";
 import {
@@ -23,26 +26,36 @@ import {
   extractEmailAddress,
   splitAddressList,
 } from "./gmail-reply-utils.js";
-import type {
-  GmailMessage,
-  GmailMessageSummary,
-  GmailThread,
-  ListGmailMessagesOptions,
-  ListGmailMessagesResult,
-  MoveGmailMessageToTrashResult,
-  ReplyToGmailMessageOptions,
-  SendGmailMessageOptions,
-  SendGmailMessageResult,
-} from "./google-client.types.js";
+import { assertUserLabelIds, buildStateLabelDiff, deriveStateFromLabelIds } from "./gmail-label-utils.js";
 import {
-  buildGoogleUrl,
+  GMAIL_LIST_METADATA_HEADERS,
+  GMAIL_REPLY_METADATA_HEADERS,
+  GMAIL_LABEL_COLOR_PALETTE,
   GOOGLE_SERVICE_NAME,
-  safeReadGoogleError,
-  type GoogleRequestOptions,
-} from "./google-request.js";
+  type CreateGmailUserLabelOptions,
+  type GmailLabel,
+  type GmailLabelColorHex,
+  type GmailMessage,
+  type GmailMessageSummary,
+  type GmailThread,
+  type ListGmailLabelsResult,
+  type ListGmailMessagesOptions,
+  type ListGmailMessagesResult,
+  type MoveGmailMessageToTrashResult,
+  type ReplyToGmailMessageOptions,
+  type SendGmailMessageOptions,
+  type SendGmailMessageResult,
+  type UpdateGmailMessageStateOptions,
+  type UpdateGmailMessageStateResult,
+  type UpdateGmailMessageUserLabelsOptions,
+  type UpdateGmailMessageUserLabelsResult,
+} from "./google-client.types.js";
+import { buildGoogleUrl, safeReadGoogleError } from "./google-request.js";
+import type { GoogleRequestOptions } from "./google-request.types.js";
 
 const GMAIL_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const GMAIL_THREADS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/threads";
+const GMAIL_LABELS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
 export const DEFAULT_GMAIL_LIST_LIMIT = 25;
 
 /**
@@ -131,6 +144,54 @@ export class GoogleClient {
     return { id: response.id, threadId: response.threadId };
   }
 
+  public async listGmailLabels(): Promise<ListGmailLabelsResult> {
+    const response = await this.request<GmailLabelsListResponse>({ url: GMAIL_LABELS_URL });
+    const labels = (response.labels ?? []).map(parseGmailLabel);
+    return { labels };
+  }
+
+  public async createGmailUserLabel(options: CreateGmailUserLabelOptions): Promise<GmailLabel> {
+    const body: { name: string; color?: GmailLabelColorHex } = { name: options.name };
+    if (options.color !== undefined) {
+      body.color = GMAIL_LABEL_COLOR_PALETTE[options.color];
+    }
+
+    const response = await this.request<GmailRawLabel>({
+      url: GMAIL_LABELS_URL,
+      method: "POST",
+      body,
+    });
+    return parseGmailLabel(response);
+  }
+
+  public async deleteGmailUserLabel(labelId: string): Promise<void> {
+    assertUserLabelIds([labelId], "labelId");
+    await this.request<void>({
+      url: `${GMAIL_LABELS_URL}/${encodeURIComponent(labelId)}`,
+      method: "DELETE",
+    });
+  }
+
+  public async updateGmailMessageUserLabels(
+    options: UpdateGmailMessageUserLabelsOptions
+  ): Promise<UpdateGmailMessageUserLabelsResult> {
+    assertUserLabelIds(options.addLabelIds, "addLabelIds");
+    assertUserLabelIds(options.removeLabelIds, "removeLabelIds");
+    return this.applyGmailMessageLabelDiff(options.messageId, options.addLabelIds ?? [], options.removeLabelIds ?? []);
+  }
+
+  public async updateGmailMessageState(
+    options: UpdateGmailMessageStateOptions
+  ): Promise<UpdateGmailMessageStateResult> {
+    const diff = buildStateLabelDiff(options);
+    const result = await this.applyGmailMessageLabelDiff(options.messageId, diff.addLabelIds, diff.removeLabelIds);
+    return {
+      id: result.id,
+      threadId: result.threadId,
+      ...deriveStateFromLabelIds(result.labelIds),
+    };
+  }
+
   public async replyToGmailMessage(options: ReplyToGmailMessageOptions): Promise<SendGmailMessageResult> {
     const parent = await this.fetchReplyParentHeaders(options.parentMessageId);
     const primaryReplyAddress = parent.replyTo ?? parent.from;
@@ -206,6 +267,51 @@ export class GoogleClient {
     return parseReplyParentHeaders(raw);
   }
 
+  /**
+   * Read the message's current labels, filter the requested add/remove arrays
+   * against them (drop already-present additions and absent removals), and
+   * issue messages.modify only when the filtered diff is non-empty. Shared
+   * by the user-labels and state tools.
+   */
+  private async applyGmailMessageLabelDiff(
+    messageId: string,
+    requestedAdds: string[],
+    requestedRemoves: string[]
+  ): Promise<UpdateGmailMessageUserLabelsResult> {
+    const current = await this.request<GmailRawMessage>({
+      url: `${GMAIL_MESSAGES_URL}/${encodeURIComponent(messageId)}`,
+      query: { format: "minimal" },
+    });
+    const currentLabelIds = current.labelIds ?? [];
+    const currentSet = new Set(currentLabelIds);
+    const addedLabelIds = requestedAdds.filter((id) => !currentSet.has(id));
+    const removedLabelIds = requestedRemoves.filter((id) => currentSet.has(id));
+
+    if (addedLabelIds.length === 0 && removedLabelIds.length === 0) {
+      return {
+        id: current.id,
+        threadId: current.threadId,
+        labelIds: currentLabelIds,
+        addedLabelIds,
+        removedLabelIds,
+      };
+    }
+
+    const response = await this.request<GmailRawMessage>({
+      url: `${GMAIL_MESSAGES_URL}/${encodeURIComponent(messageId)}/modify`,
+      method: "POST",
+      body: { addLabelIds: addedLabelIds, removeLabelIds: removedLabelIds },
+    });
+
+    return {
+      id: response.id,
+      threadId: response.threadId,
+      labelIds: response.labelIds ?? [],
+      addedLabelIds,
+      removedLabelIds,
+    };
+  }
+
   private async fetchGmailMessageSummary(messageId: string, userTimezone: string): Promise<GmailMessageSummary> {
     const raw = await this.request<GmailRawMessage>({
       url: `${GMAIL_MESSAGES_URL}/${encodeURIComponent(messageId)}`,
@@ -246,6 +352,10 @@ export class GoogleClient {
       const errorBody = await safeReadGoogleError(response);
       const message = errorBody?.error?.message ?? `HTTP ${response.status}`;
       throw new RequestError(message, response.status, errorBody?.error?.status, GOOGLE_SERVICE_NAME);
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
     }
 
     return (await response.json()) as T;

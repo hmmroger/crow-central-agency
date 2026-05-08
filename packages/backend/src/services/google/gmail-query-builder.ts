@@ -1,7 +1,6 @@
 import { RequestError } from "../../core/error/request-error.js";
 import { parseDateTimeWithTimezone } from "../../utils/date-utils.js";
-import type { ListGmailMessagesOptions } from "./google-client.types.js";
-import { GOOGLE_SERVICE_NAME } from "./google-request.js";
+import { GOOGLE_SERVICE_NAME, type ListGmailMessagesOptions } from "./google-client.types.js";
 
 const GMAIL_QUOTE_REQUIRED_PATTERN = /[\s"():&|]/;
 

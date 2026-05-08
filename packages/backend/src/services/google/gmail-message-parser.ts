@@ -1,88 +1,22 @@
 import { formatLocalDateTime } from "../../utils/date-utils.js";
 import { htmlToMarkdown, plainTextToHtmlParagraphs } from "../../utils/html-to-markdown.js";
-import type { GmailMessage, GmailMessageSummary } from "./google-client.types.js";
-
-export const GMAIL_HEADER_FROM = "From";
-export const GMAIL_HEADER_TO = "To";
-export const GMAIL_HEADER_CC = "Cc";
-export const GMAIL_HEADER_BCC = "Bcc";
-export const GMAIL_HEADER_SUBJECT = "Subject";
-export const GMAIL_HEADER_DATE = "Date";
-export const GMAIL_HEADER_MESSAGE_ID = "Message-ID";
-export const GMAIL_HEADER_REPLY_TO = "Reply-To";
-export const GMAIL_HEADER_REFERENCES = "References";
-
-export const GMAIL_LIST_METADATA_HEADERS = [
-  GMAIL_HEADER_FROM,
-  GMAIL_HEADER_TO,
-  GMAIL_HEADER_CC,
-  GMAIL_HEADER_BCC,
-  GMAIL_HEADER_SUBJECT,
-  GMAIL_HEADER_DATE,
-];
-
-export const GMAIL_REPLY_METADATA_HEADERS = [
-  GMAIL_HEADER_MESSAGE_ID,
-  GMAIL_HEADER_FROM,
-  GMAIL_HEADER_REPLY_TO,
-  GMAIL_HEADER_TO,
-  GMAIL_HEADER_CC,
-  GMAIL_HEADER_SUBJECT,
-  GMAIL_HEADER_REFERENCES,
-];
+import type {
+  GmailRawHeader,
+  GmailRawLabel,
+  GmailRawMessage,
+  GmailRawPayload,
+  ReplyParentHeaders,
+} from "./gmail-message-parser.types.js";
+import {
+  GMAIL_HEADER,
+  GMAIL_LABEL_TYPE,
+  type GmailLabel,
+  type GmailMessage,
+  type GmailMessageSummary,
+} from "./google-client.types.js";
 
 const GMAIL_MIME_TEXT_PLAIN = "text/plain";
 const GMAIL_MIME_TEXT_HTML = "text/html";
-
-export interface GmailMessageRef {
-  id: string;
-  threadId: string;
-}
-
-export interface GmailMessagesListResponse {
-  messages?: GmailMessageRef[];
-  nextPageToken?: string;
-  resultSizeEstimate: number;
-}
-
-export interface GmailRawHeader {
-  name: string;
-  value: string;
-}
-
-export interface GmailRawPayload {
-  mimeType?: string;
-  filename?: string;
-  headers?: GmailRawHeader[];
-  body?: { size?: number; data?: string; attachmentId?: string };
-  parts?: GmailRawPayload[];
-}
-
-export interface GmailRawMessage {
-  id: string;
-  threadId: string;
-  labelIds?: string[];
-  snippet?: string;
-  internalDate?: string;
-  payload?: GmailRawPayload;
-}
-
-export interface GmailRawThread {
-  id: string;
-  historyId?: string;
-  messages?: GmailRawMessage[];
-}
-
-export interface ReplyParentHeaders {
-  threadId: string;
-  messageIdHeader?: string;
-  from?: string;
-  replyTo?: string;
-  to?: string;
-  cc?: string;
-  subject?: string;
-  references?: string;
-}
 
 interface ExtractedBody {
   bodyText?: string;
@@ -97,12 +31,12 @@ export function parseGmailMessageSummary(raw: GmailRawMessage, userTimezone: str
     labelIds: raw.labelIds ?? [],
     snippet: raw.snippet,
     receivedTimestamp: parseInternalDate(raw.internalDate),
-    from: findHeader(headers, GMAIL_HEADER_FROM),
-    to: findHeader(headers, GMAIL_HEADER_TO),
-    cc: findHeader(headers, GMAIL_HEADER_CC),
-    bcc: findHeader(headers, GMAIL_HEADER_BCC),
-    subject: findHeader(headers, GMAIL_HEADER_SUBJECT),
-    date: formatGmailDateHeader(findHeader(headers, GMAIL_HEADER_DATE), userTimezone),
+    from: findHeader(headers, GMAIL_HEADER.FROM),
+    to: findHeader(headers, GMAIL_HEADER.TO),
+    cc: findHeader(headers, GMAIL_HEADER.CC),
+    bcc: findHeader(headers, GMAIL_HEADER.BCC),
+    subject: findHeader(headers, GMAIL_HEADER.SUBJECT),
+    date: formatGmailDateHeader(findHeader(headers, GMAIL_HEADER.DATE), userTimezone),
   };
 }
 
@@ -116,13 +50,13 @@ export function parseReplyParentHeaders(raw: GmailRawMessage): ReplyParentHeader
   const headers = raw.payload?.headers ?? [];
   return {
     threadId: raw.threadId,
-    messageIdHeader: findHeader(headers, GMAIL_HEADER_MESSAGE_ID),
-    from: findHeader(headers, GMAIL_HEADER_FROM),
-    replyTo: findHeader(headers, GMAIL_HEADER_REPLY_TO),
-    to: findHeader(headers, GMAIL_HEADER_TO),
-    cc: findHeader(headers, GMAIL_HEADER_CC),
-    subject: findHeader(headers, GMAIL_HEADER_SUBJECT),
-    references: findHeader(headers, GMAIL_HEADER_REFERENCES),
+    messageIdHeader: findHeader(headers, GMAIL_HEADER.MESSAGE_ID),
+    from: findHeader(headers, GMAIL_HEADER.FROM),
+    replyTo: findHeader(headers, GMAIL_HEADER.REPLY_TO),
+    to: findHeader(headers, GMAIL_HEADER.TO),
+    cc: findHeader(headers, GMAIL_HEADER.CC),
+    subject: findHeader(headers, GMAIL_HEADER.SUBJECT),
+    references: findHeader(headers, GMAIL_HEADER.REFERENCES),
   };
 }
 
@@ -211,4 +145,12 @@ function decodeGmailBodyData(data: string): string {
   const base64 = data.replace(/-/g, "+").replace(/_/g, "/");
   const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
   return Buffer.from(padded, "base64").toString("utf-8");
+}
+
+export function parseGmailLabel(raw: GmailRawLabel): GmailLabel {
+  return {
+    id: raw.id,
+    name: raw.name,
+    type: raw.type === GMAIL_LABEL_TYPE.SYSTEM ? GMAIL_LABEL_TYPE.SYSTEM : GMAIL_LABEL_TYPE.USER,
+  };
 }
