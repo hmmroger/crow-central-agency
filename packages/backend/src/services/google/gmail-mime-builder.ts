@@ -87,17 +87,18 @@ export function encodeRawForGmail(rfc822: string): string {
  * for v1 (would need RFC 2047 phrase encoding to be safe alongside the addr).
  */
 export function formatFromHeader(emailAddress: string, displayName: string | undefined): string {
+  const sanitizedAddress = emailAddress.replace(/[\r\n]+/g, "").trim();
   if (displayName === undefined) {
-    return emailAddress;
+    return sanitizedAddress;
   }
 
-  const sanitized = displayName.replace(/[\r\n]+/g, " ").trim();
-  if (sanitized.length === 0 || NON_ASCII_PATTERN.test(sanitized)) {
-    return emailAddress;
+  const sanitizedName = displayName.replace(/[\r\n]+/g, " ").trim();
+  if (sanitizedName.length === 0 || NON_ASCII_PATTERN.test(sanitizedName)) {
+    return sanitizedAddress;
   }
 
-  const escaped = sanitized.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  return `"${escaped}" <${emailAddress}>`;
+  const escaped = sanitizedName.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `"${escaped}" <${sanitizedAddress}>`;
 }
 
 function buildAddressList(addresses: string[]): string {
