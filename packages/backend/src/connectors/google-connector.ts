@@ -1,14 +1,14 @@
 import { env } from "../config/env.js";
 import {
   CONNECTOR_AUTH_TYPE,
+  CONNECTOR_ID,
   ConnectorRevokedError,
   type ConnectorProfile,
   type OAuthConnector,
   type OAuthTokens,
 } from "./connector-manager.types.js";
 
-const GOOGLE_PROVIDER_ID = "google";
-const GOOGLE_PROVIDER_LABEL = "Google";
+const GOOGLE_CONNECTOR_LABEL = "Google";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -16,7 +16,7 @@ const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 
 const SCOPE_USERINFO_EMAIL = "https://www.googleapis.com/auth/userinfo.email";
 const SCOPE_USERINFO_PROFILE = "https://www.googleapis.com/auth/userinfo.profile";
-const SCOPE_GMAIL_MODIFY = "https://www.googleapis.com/auth/gmail.modify";
+export const SCOPE_GMAIL_MODIFY = "https://www.googleapis.com/auth/gmail.modify";
 const SCOPE_CALENDAR_EVENTS = "https://www.googleapis.com/auth/calendar.events";
 const SCOPE_CALENDAR_CALENDARLIST_READONLY = "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
 const SCOPE_CONTACTS = "https://www.googleapis.com/auth/contacts";
@@ -57,8 +57,8 @@ interface GoogleTokenError {
 }
 
 export class GoogleConnector implements OAuthConnector {
-  public readonly id = GOOGLE_PROVIDER_ID;
-  public readonly label = GOOGLE_PROVIDER_LABEL;
+  public readonly id = CONNECTOR_ID.GOOGLE;
+  public readonly label = GOOGLE_CONNECTOR_LABEL;
   public readonly authType = CONNECTOR_AUTH_TYPE.OAUTH;
 
   public isConfigured(): boolean {
@@ -125,7 +125,7 @@ export class GoogleConnector implements OAuthConnector {
       // revoked access. Distinguish that from generic failures so the
       // manager can clear the connection cleanly.
       if (response.status === 400 && errorBody?.error === "invalid_grant") {
-        throw new ConnectorRevokedError(GOOGLE_PROVIDER_ID, errorBody.error_description ?? errorBody.error);
+        throw new ConnectorRevokedError(CONNECTOR_ID.GOOGLE, errorBody.error_description ?? errorBody.error);
       }
 
       const detail = errorBody?.error_description ?? errorBody?.error ?? `HTTP ${response.status}`;

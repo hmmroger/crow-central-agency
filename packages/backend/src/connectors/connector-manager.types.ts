@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+export const CONNECTOR_ID = {
+  GOOGLE: "GOOGLE",
+} as const;
+
+export type ConnectorId = (typeof CONNECTOR_ID)[keyof typeof CONNECTOR_ID];
+
 /**
  * Profile of the connected account.
  */
@@ -67,7 +73,7 @@ export interface ConnectorAccess {
 }
 
 export interface BaseConnector {
-  readonly id: string;
+  readonly id: ConnectorId;
   readonly label: string;
   readonly authType: ConnectorAuthType;
   isConfigured(): boolean;

@@ -57,6 +57,7 @@ import { createAudioMcpServer, CROW_AUDIO_MCP_SERVER_NAME } from "./mcp/audio/au
 import { ConnectorManager } from "./connectors/connector-manager.js";
 import { GoogleConnector } from "./connectors/google-connector.js";
 import { registerConnectorsRoutes } from "./routes/connectors.routes.js";
+import { getGmailMcpServerDefinition, GMAIL_MCP_SERVER_NAME } from "./mcp/gmail/gmail-mcp-server.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -163,6 +164,12 @@ export async function bootstrap(options: BootstrapOptions) {
   mcpManager.registerMcpServer(REMINDERS_MCP_SERVER_NAME, (agentId) =>
     createRemindersMcpServer(agentId, crowScheduler, sensorManager)
   );
+  const gmailMcpDefinition = getGmailMcpServerDefinition(connectorManager);
+  mcpManager.registerMcpServer(GMAIL_MCP_SERVER_NAME, gmailMcpDefinition.serverFactory, {
+    hasRequiredConnections: gmailMcpDefinition.hasRequiredConnections,
+    isConfigurable: gmailMcpDefinition.isConfigurable,
+    displayName: gmailMcpDefinition.displayName,
+  });
 
   // Start scheduler
   crowScheduler.start();

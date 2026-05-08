@@ -67,6 +67,7 @@ export class CrowMcpManager {
       allowedAgentIds: options?.allowedAgentIds ? new Set(options.allowedAgentIds) : undefined,
       isConfigurable: options?.isConfigurable,
       hasRequiredConnections: options?.hasRequiredConnections,
+      displayName: options?.displayName,
     });
     log.info(
       { name, restricted: !!options?.allowedAgentIds, configurable: !!options?.isConfigurable },
@@ -159,6 +160,7 @@ export class CrowMcpManager {
         type: MCP_CONFIG_TYPE.INTERNAL,
         id: registration.name,
         name: registration.name,
+        displayName: registration.displayName,
         isDisabled: !hasConnections,
       });
     }

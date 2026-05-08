@@ -14,6 +14,7 @@ export const InternalMcpConfigSchema = z.object({
   type: z.literal(MCP_CONFIG_TYPE.INTERNAL),
   id: z.string(),
   name: z.string(),
+  displayName: z.string().optional(),
   isDisabled: z.boolean().optional(),
 });
 export type InternalMcpConfig = z.infer<typeof InternalMcpConfigSchema>;
@@ -23,6 +24,7 @@ const LocalMcpConfigSchema = z.object({
   type: z.literal(MCP_CONFIG_TYPE.STDIO),
   id: z.uuid(),
   name: z.string().min(1).max(64),
+  displayName: z.string().optional(),
   description: z.string().optional(),
   isDisabled: z.boolean().optional(),
   /** When true, this server is automatically available to the Crow system agent */
@@ -38,6 +40,7 @@ const RemoteMcpConfigSchema = z.object({
   type: z.enum([MCP_CONFIG_TYPE.SSE, MCP_CONFIG_TYPE.HTTP]),
   id: z.uuid(),
   name: z.string().min(1).max(64),
+  displayName: z.string().optional(),
   description: z.string().optional(),
   isDisabled: z.boolean().optional(),
   /** When true, this server is automatically available to the Crow system agent */
