@@ -1,17 +1,21 @@
 import { NodeHtmlMarkdown } from "node-html-markdown";
-import { sanitizeHtml } from "./html-sanitizer.js";
-import { getTableCustomTranslator } from "./nhm-extensions/table-custom-translator.js";
+import { sanitizeEmailHtml } from "../../utils/html-sanitizer.js";
+import { getAnchorCustomTranslator } from "../../utils/nhm-extensions/anchor-custom-translator.js";
+import { getTableCustomTranslator } from "../../utils/nhm-extensions/table-custom-translator.js";
 
 const nhm = new NodeHtmlMarkdown(
   {
     bulletMarker: "-",
     useInlineLinks: true,
   },
-  { ...getTableCustomTranslator() }
+  {
+    ...getTableCustomTranslator(),
+    ...getAnchorCustomTranslator(),
+  }
 );
 
 export function htmlToMarkdown(html: string): string {
-  return nhm.translate(sanitizeHtml(html));
+  return nhm.translate(sanitizeEmailHtml(html));
 }
 
 /**

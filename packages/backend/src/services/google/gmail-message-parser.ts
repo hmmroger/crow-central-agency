@@ -1,5 +1,5 @@
 import { formatLocalDateTime } from "../../utils/date-utils.js";
-import { htmlToMarkdown, plainTextToHtmlParagraphs } from "../../utils/html-to-markdown.js";
+import { htmlToMarkdown, plainTextToHtmlParagraphs } from "./email-html-to-markdown.js";
 import type {
   GmailRawHeader,
   GmailRawLabel,
