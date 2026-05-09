@@ -324,7 +324,17 @@ export class GoogleClient {
 
   private async request<T>(options: GoogleRequestOptions): Promise<T> {
     const response = await this.requestRaw(options);
-    return (await response.json()) as T;
+    const jsonResponse = (await response.json()) as T | null;
+    if (jsonResponse === null) {
+      throw new RequestError(
+        "Google API returned an empty response body.",
+        response.status,
+        undefined,
+        GOOGLE_SERVICE_NAME
+      );
+    }
+
+    return jsonResponse;
   }
 
   /** For endpoints that return 204 No Content (e.g. DELETE label). */

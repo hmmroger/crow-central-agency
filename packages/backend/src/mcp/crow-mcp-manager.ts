@@ -95,7 +95,8 @@ export class CrowMcpManager {
         agentMcpMap.set(registration.name, {
           name: registration.name,
           serverFactory: registration.factory,
-          isInternal: true,
+          // configurable MCPs are not hidden and tools can be configured
+          isInternal: !registration.isConfigurable,
         });
       }
     }

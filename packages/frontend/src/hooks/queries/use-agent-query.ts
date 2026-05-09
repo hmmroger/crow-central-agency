@@ -19,5 +19,6 @@ export function useAgentQuery(agentId: string | undefined) {
       return unwrapResponse(response);
     },
     enabled: agentId !== undefined,
+    refetchOnMount: "always",
   });
 }
