@@ -190,15 +190,18 @@ export {
 
 export {
   MCP_CONFIG_TYPE,
+  InternalMcpConfigSchema,
   McpServerConfigSchema,
   CreateMcpConfigInputSchema,
   UpdateMcpConfigInputSchema,
   type McpServerConfig,
+  type InternalMcpConfig,
   type LocalMcpConfig,
   type RemoteMcpConfig,
   type CreateMcpConfigInput,
   type UpdateMcpConfigInput,
   type McpConfigType,
+  type UserMcpConfigType,
 } from "./schemas/mcp-config.schema.js";
 
 export { SensorInfoSchema, type SensorInfo } from "./schemas/sensor.schema.js";
@@ -266,3 +269,12 @@ export {
   type GraphEdge,
   type GraphData,
 } from "./schemas/graph.schema.js";
+
+export {
+  ConnectorConnectionSchema,
+  ConnectorInfoSchema,
+  ConnectConnectorResponseSchema,
+  type ConnectorConnection,
+  type ConnectorInfo,
+  type ConnectConnectorResponse,
+} from "./schemas/connector.schema.js";

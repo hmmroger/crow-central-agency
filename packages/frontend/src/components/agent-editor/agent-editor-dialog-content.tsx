@@ -20,6 +20,7 @@ import {
   useUpdateAgent,
 } from "../../hooks/queries/use-agent-mutations.js";
 import { useMcpConfigsQuery } from "../../hooks/queries/use-mcp-configs-query.js";
+import { useAgentMcpConfigsQuery } from "../../hooks/queries/use-agent-mcp-configs-query.js";
 import type { ModalDialogHandle } from "../../providers/modal-dialog-provider.types.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { useAgentEditorForm } from "./use-agent-editor-form.js";
@@ -35,6 +36,7 @@ import { FeedsSection } from "./feeds-section.js";
 import { LoopConfigPanel } from "./loop-config-panel.js";
 import { AgentMdEditor } from "./agentmd-editor.js";
 import { DiscordConfigSection } from "./discord-config-section.js";
+import { ConnectorsSection } from "./connectors-section.js";
 import { GenerateModal } from "./generate-modal.js";
 
 interface AgentEditorDialogContentProps {
@@ -76,7 +78,9 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
   const mutationError = saveMutation.error?.message ?? agentQuery.error?.message;
 
   // MCP configs for server selection
-  const { data: mcpConfigs = [] } = useMcpConfigsQuery();
+  const { data: agentMcpConfigs = [] } = useAgentMcpConfigsQuery(agentId);
+  const { data: globalMcpConfigs = [] } = useMcpConfigsQuery({ enabled: !isEditing });
+  const mcpConfigs = isEditing ? agentMcpConfigs : globalMcpConfigs;
 
   // Form state with dirty tracking
   const editorForm = useAgentEditorForm(agentQuery.data, templatePreset);
@@ -362,6 +366,8 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
               mcpServerIds={form.mcpServerIds}
               onToggle={editorForm.toggleMcpServer}
             />
+
+            <ConnectorsSection agentId={agentId} />
 
             <SensorsSection sensorIds={form.sensorIds} onToggle={editorForm.toggleSensor} />
 

@@ -26,6 +26,8 @@ export const agentKeys = {
   circleArtifacts: (agentId: string) => [...agentKeys.all, "detail", agentId, "circle-artifacts"] as const,
   /** Circles that an agent is a direct member of */
   circles: (agentId: string) => [...agentKeys.all, "detail", agentId, "circles"] as const,
+  /** MCP configs visible to an agent (persisted user configs + internal configurable servers) */
+  mcpConfigs: (agentId: string) => [...agentKeys.all, "detail", agentId, "mcp-configs"] as const,
 };
 
 /**
@@ -131,4 +133,14 @@ export const mcpConfigKeys = {
   list: () => [...mcpConfigKeys.all, "list"] as const,
   /** Single MCP config detail */
   detail: (configId: string) => [...mcpConfigKeys.all, "detail", configId] as const,
+};
+
+/**
+ * Query key factory for connector queries.
+ */
+export const connectorKeys = {
+  /** Root key for all connector queries */
+  all: ["connectors"] as const,
+  /** Per-agent connector list */
+  listForAgent: (agentId: string) => [...connectorKeys.all, "list", agentId] as const,
 };

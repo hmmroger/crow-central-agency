@@ -7,13 +7,15 @@ import {
   type UpdateMcpConfigInput,
   MCP_CONFIG_TYPE,
   CROW_SYSTEM_AGENT_ID,
+  type InternalMcpConfig,
+  type AgentConfig,
 } from "@crow-central-agency/shared";
 import { logger } from "../utils/logger.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { generateId, isCrowSystemAgent } from "../utils/id-utils.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
-import type { McpServerFactory, McpServerRegistration } from "./crow-mcp-manager.types.js";
+import type { McpServerFactory, McpServerRegistration, RegisterMcpServerOptions } from "./crow-mcp-manager.types.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { SystemSettingsManager } from "../services/system-settings-manager.js";
 import { FEED_MCP_SERVER_NAME } from "./feed/feed-mcp-server.js";
@@ -57,20 +59,20 @@ export class CrowMcpManager {
     log.info({ count: this.mcpConfigs.size }, "MCP configs loaded");
   }
 
-  // ---------------------------------------------------------------------------
-  // Built-in MCP server factory registration (unchanged)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Register an MCP server factory.
-   * @param allowedAgentIds - When provided, restricts the server to only these agent IDs.
-   */
-  public registerMcpServer(name: string, factory: McpServerFactory, allowedAgentIds?: string[]): void {
+  /** Register an MCP server factory. */
+  public registerMcpServer(name: string, factory: McpServerFactory, options?: RegisterMcpServerOptions): void {
     this.mcpServers.set(name, {
+      name,
       factory,
-      allowedAgentIds: allowedAgentIds ? new Set(allowedAgentIds) : undefined,
+      allowedAgentIds: options?.allowedAgentIds ? new Set(options.allowedAgentIds) : undefined,
+      isConfigurable: options?.isConfigurable,
+      hasRequiredConnections: options?.hasRequiredConnections,
+      displayName: options?.displayName,
     });
-    log.info({ name, restricted: !!allowedAgentIds }, "MCP server factory registered");
+    log.info(
+      { name, restricted: !!options?.allowedAgentIds, configurable: !!options?.isConfigurable },
+      "MCP server factory registered"
+    );
   }
 
   public deregisterMcpServer(name: string): void {
@@ -84,42 +86,54 @@ export class CrowMcpManager {
   ): Promise<{ name: string; serverFactory: McpServerFactory; isInternal: boolean }[]> {
     const agentConfig = this.registry.getAgent(agentId);
     const configuredMcpIds = new Set(agentConfig.mcpServerIds ?? []);
-    const hasConfiguredFeedIds =
-      agentId === CROW_SYSTEM_AGENT_ID
-        ? (await this.systemSettingsManager.getSuperCrowSettings()).configuredFeeds.length > 0
-        : !!agentConfig.configuredFeeds?.length;
-    const mcpConfigs = this.getAllMcpConfigs()
-      .filter((config) => {
-        return (isCrowSystemAgent(agentId) && config.enableForCrow) || configuredMcpIds.has(config.id);
-      })
-      .map((config) => {
-        return {
-          name: this.normalizeMcpName(config.name),
-          serverFactory: () => {
-            if (config.type === MCP_CONFIG_TYPE.STDIO) {
-              return {
-                type: config.type,
-                command: config.command,
-                args: config.args,
-                env: config.env,
-              };
-            }
+    const agentMcpMap = new Map<string, { name: string; serverFactory: McpServerFactory; isInternal: boolean }>();
+    const serverRegistrations = await this.getInternalServerRegistrationsForAgent(agentId, agentConfig);
+    for (const registration of serverRegistrations) {
+      const hasConnections =
+        !registration.hasRequiredConnections || (await registration.hasRequiredConnections(agentId));
+      if (hasConnections && (!registration.isConfigurable || configuredMcpIds.has(registration.name))) {
+        agentMcpMap.set(registration.name, {
+          name: registration.name,
+          serverFactory: registration.factory,
+          // configurable MCPs are not hidden and tools can be configured
+          isInternal: !registration.isConfigurable,
+        });
+      }
+    }
 
+    const userMcpConfigs = this.getUserMcpConfigs().filter((config) => {
+      return (isCrowSystemAgent(agentId) && config.enableForCrow) || configuredMcpIds.has(config.id);
+    });
+    for (const config of userMcpConfigs) {
+      const name = this.normalizeMcpName(config.name);
+      if (agentMcpMap.has(name)) {
+        log.warn({ configId: config.id, name }, "User MCP config name collides with an internal server, skipping");
+        continue;
+      }
+
+      agentMcpMap.set(name, {
+        name,
+        serverFactory: () => {
+          if (config.type === MCP_CONFIG_TYPE.STDIO) {
             return {
               type: config.type,
-              url: config.url,
-              headers: config.headers,
+              command: config.command,
+              args: config.args,
+              env: config.env,
             };
-          },
-          isInternal: false,
-        };
-      });
+          }
 
-    return Array.from(this.mcpServers.entries())
-      .filter(([_name, registration]) => !registration.allowedAgentIds || registration.allowedAgentIds.has(agentId))
-      .map(([name, registration]) => ({ name, serverFactory: registration.factory, isInternal: true }))
-      .filter((server) => (hasConfiguredFeedIds ? true : server.name !== FEED_MCP_SERVER_NAME))
-      .concat(mcpConfigs);
+          return {
+            type: config.type,
+            url: config.url,
+            headers: config.headers,
+          };
+        },
+        isInternal: false,
+      });
+    }
+
+    return Array.from(agentMcpMap.values());
   }
 
   /** Get MCP tool prefixes for a specific agent */
@@ -132,12 +146,31 @@ export class CrowMcpManager {
     return `mcp__${serverName}__${toolName}`;
   }
 
-  // ---------------------------------------------------------------------------
-  // User-configured MCP server CRUD
-  // ---------------------------------------------------------------------------
+  public async getMcpConfigsForAgent(agentId: string): Promise<(McpServerConfig | InternalMcpConfig)[]> {
+    const agentConfig = this.registry.getAgent(agentId);
+    const serverRegistrations = await this.getInternalServerRegistrationsForAgent(agentId, agentConfig);
+    const internalConfigs: InternalMcpConfig[] = [];
+    for (const registration of serverRegistrations) {
+      if (!registration.isConfigurable) {
+        continue;
+      }
 
-  /** Get all user-configured MCP server configs */
-  public getAllMcpConfigs(): McpServerConfig[] {
+      const hasConnections =
+        !registration.hasRequiredConnections || (await registration.hasRequiredConnections(agentId));
+      internalConfigs.push({
+        type: MCP_CONFIG_TYPE.INTERNAL,
+        id: registration.name,
+        name: registration.name,
+        displayName: registration.displayName,
+        isDisabled: !hasConnections,
+      });
+    }
+
+    return [...internalConfigs, ...this.getUserMcpConfigs()];
+  }
+
+  /** Get user-configured MCP server configs persisted to the object store */
+  public getUserMcpConfigs(): McpServerConfig[] {
     return Array.from(this.mcpConfigs.values());
   }
 
@@ -211,5 +244,23 @@ export class CrowMcpManager {
 
   private normalizeMcpName(name: string): string {
     return name.toLowerCase().replaceAll(" ", "_");
+  }
+
+  private async getInternalServerRegistrationsForAgent(
+    agentId: string,
+    agentConfig: AgentConfig
+  ): Promise<McpServerRegistration[]> {
+    const hasConfiguredFeedIds =
+      agentId === CROW_SYSTEM_AGENT_ID
+        ? (await this.systemSettingsManager.getSuperCrowSettings()).configuredFeeds.length > 0
+        : !!agentConfig.configuredFeeds?.length;
+
+    const serverRegistrations = Array.from(this.mcpServers.values()).filter(
+      (registration) =>
+        (!registration.allowedAgentIds || registration.allowedAgentIds.has(agentId)) &&
+        (registration.name !== FEED_MCP_SERVER_NAME || hasConfiguredFeedIds)
+    );
+
+    return serverRegistrations;
   }
 }

@@ -9,7 +9,7 @@ import type { ApiError } from "../../services/api-client.types.js";
  * No WebSocket integration — MCP configs only change from the Settings UI,
  * so simple invalidation on mutation success is sufficient.
  */
-export function useMcpConfigsQuery() {
+export function useMcpConfigsQuery(options?: { enabled?: boolean }) {
   return useQuery<McpServerConfig[], ApiError>({
     queryKey: mcpConfigKeys.list(),
     queryFn: async () => {
@@ -17,5 +17,6 @@ export function useMcpConfigsQuery() {
       return unwrapResponse(response);
     },
     refetchOnMount: "always",
+    enabled: options?.enabled ?? true,
   });
 }

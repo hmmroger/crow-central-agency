@@ -10,6 +10,8 @@ interface ConfirmationDialogProps {
   cancelLabel?: string;
   /** When true, styles the confirm button as destructive */
   destructive?: boolean;
+  /** When true, only the confirm button is shown */
+  confirmOnly?: boolean;
   /** Called when the user confirms - if async, dialog stays open until resolved */
   onConfirm: () => void | Promise<void>;
   /** Injected by ModalDialogRenderer */
@@ -21,6 +23,7 @@ export function ConfirmationDialog({
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   destructive = false,
+  confirmOnly = false,
   onConfirm,
   onClose,
 }: ConfirmationDialogProps) {
@@ -49,7 +52,7 @@ export function ConfirmationDialog({
         {error && <p className="text-xs text-error">{error}</p>}
       </div>
       <div className="flex justify-end gap-2 px-3 py-2 bg-surface-elevated">
-        <ActionButton label={cancelLabel} onClick={onClose} disabled={isPending} />
+        {!confirmOnly && <ActionButton label={cancelLabel} onClick={onClose} disabled={isPending} />}
         <ActionButton
           label={isPending ? "..." : confirmLabel}
           variant={destructive ? ACTION_BUTTON_VARIANT.DESTRUCTIVE : ACTION_BUTTON_VARIANT.PRIMARY}

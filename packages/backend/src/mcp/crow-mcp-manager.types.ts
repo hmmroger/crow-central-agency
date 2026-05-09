@@ -3,11 +3,32 @@ import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/clie
 import type { ZodRawShape } from "zod";
 
 export type McpServerFactory = (agentId: string) => McpServerConfig;
+export type McpServerConnectionsFunc = (agentId: string) => Promise<boolean>;
+
+export interface McpServerDefinition {
+  displayName?: string;
+  isConfigurable?: boolean;
+  serverFactory: McpServerFactory;
+  hasRequiredConnections?: McpServerConnectionsFunc;
+}
 
 export interface McpServerRegistration {
-  factory: McpServerFactory;
+  name: string;
+  displayName?: string;
+  isConfigurable?: boolean;
   /** When set, the server is only available to these agent IDs */
   allowedAgentIds?: Set<string>;
+  factory: McpServerFactory;
+  hasRequiredConnections?: McpServerConnectionsFunc;
+}
+
+/** Optional registration metadata accepted by {@link CrowMcpManager.registerMcpServer}. */
+export interface RegisterMcpServerOptions {
+  displayName?: string;
+  isConfigurable?: boolean;
+  /** When set, the server is only available to these agent IDs */
+  allowedAgentIds?: string[];
+  hasRequiredConnections?: McpServerConnectionsFunc;
 }
 
 export type ToolHandler<InputArgs extends ZodRawShape> = (

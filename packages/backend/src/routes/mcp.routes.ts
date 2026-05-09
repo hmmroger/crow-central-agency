@@ -10,8 +10,7 @@ import { wrapZodError } from "./route-utils.js";
 export async function registerMcpRoutes(server: FastifyInstance, mcpManager: CrowMcpManager) {
   /** List all MCP configs */
   server.get("/api/mcp/configs", async () => {
-    const configs = mcpManager.getAllMcpConfigs();
-
+    const configs = mcpManager.getUserMcpConfigs();
     return { success: true, data: configs };
   });
 

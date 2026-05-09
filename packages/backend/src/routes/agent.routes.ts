@@ -3,6 +3,8 @@ import type { AgentRegistry } from "../services/agent-registry.js";
 import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
 import type { SessionManager } from "../services/session/session-manager.js";
 import { AGENT_STATUS, AgentConfigTemplateSchema, type AgentRuntimeState } from "@crow-central-agency/shared";
+import type { ConnectorManager } from "../connectors/connector-manager.js";
+import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { logger } from "../utils/logger.js";
@@ -20,7 +22,9 @@ export async function registerAgentRoutes(
   registry: AgentRegistry,
   runtimeManager: AgentRuntimeManager,
   sessionManager: SessionManager,
-  store: ObjectStoreProvider
+  store: ObjectStoreProvider,
+  connectorManager: ConnectorManager,
+  mcpManager: CrowMcpManager
 ) {
   /** List all agents */
   server.get("/api/agents", async () => {
@@ -216,4 +220,40 @@ export async function registerAgentRoutes(
 
     return { success: true, data: activities };
   });
+
+  /** List the registered connectors with this agent's connection status. */
+  server.get<{ Params: { agentId: string } }>("/api/agents/:agentId/connectors", async (request) => {
+    const connectors = await connectorManager.listConnectorsForAgent(request.params.agentId);
+    return { success: true, data: connectors };
+  });
+
+  /** List MCP configs visible to this agent (persisted user configs + internal configurable servers). */
+  server.get<{ Params: { agentId: string } }>("/api/agents/:agentId/mcp-configs", async (request) => {
+    const agentId = validateAgentIdParam(request.params.agentId);
+    const configs = await mcpManager.getMcpConfigsForAgent(agentId);
+    return { success: true, data: configs };
+  });
+
+  /** Disconnect a connector for the given agent. */
+  server.delete<{ Params: { agentId: string; connectorId: string } }>(
+    "/api/agents/:agentId/connectors/:connectorId",
+    async (request) => {
+      await connectorManager.disconnect(request.params.agentId, request.params.connectorId);
+      return { success: true, data: { disconnected: true } };
+    }
+  );
+
+  /** Begin a connection flow for (agent, connector) pair and return the auth URL. */
+  server.post<{ Params: { agentId: string; connectorId: string } }>(
+    "/api/agents/:agentId/connectors/:connectorId/connect",
+    async (request) => {
+      const returnOrigin = request.headers.origin;
+      if (!returnOrigin) {
+        throw new AppError("Connect requires a browser Origin header", APP_ERROR_CODES.VALIDATION);
+      }
+
+      const result = await connectorManager.connect(request.params.agentId, request.params.connectorId, returnOrigin);
+      return { success: true, data: result };
+    }
+  );
 }

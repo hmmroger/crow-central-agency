@@ -5,6 +5,7 @@ import { AgentsView } from "../agents/agents-view.js";
 import { TasksView } from "../tasks/tasks-view.js";
 import { SettingsView } from "../settings/settings-view.js";
 import { GraphView } from "../graph/graph-view.js";
+import { useConnectorCallbackHandler } from "../../hooks/use-connector-callback-handler.js";
 
 /**
  * App content - reads viewMode from app-store and renders the active view.
@@ -13,6 +14,7 @@ import { GraphView } from "../graph/graph-view.js";
  */
 export function AppContent() {
   const viewMode = useAppStore((state) => state.viewMode);
+  useConnectorCallbackHandler();
 
   let view: JSX.Element;
   switch (viewMode) {

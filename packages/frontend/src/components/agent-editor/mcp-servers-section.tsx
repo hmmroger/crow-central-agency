@@ -1,9 +1,9 @@
-import type { McpServerConfig } from "@crow-central-agency/shared";
+import type { AgentMcpConfig } from "../../hooks/queries/use-agent-mcp-configs-query.js";
 import { Toggle } from "../common/toggle.js";
 import { FieldGroup } from "./field-group.js";
 
 interface McpServersSectionProps {
-  configs: McpServerConfig[];
+  configs: AgentMcpConfig[];
   mcpServerIds: string[];
   onToggle: (serverId: string) => void;
 }
@@ -11,12 +11,9 @@ interface McpServersSectionProps {
 /**
  * MCP server selection section in the agent editor.
  * Shows a toggle for each user-configured MCP server.
- * Only non-disabled servers are shown.
  */
 export function McpServersSection({ configs, mcpServerIds, onToggle }: McpServersSectionProps) {
-  const enabledConfigs = configs.filter((config) => !config.isDisabled);
-
-  if (enabledConfigs.length === 0) {
+  if (configs.length === 0) {
     return (
       <FieldGroup label="MCP Servers">
         <p className="text-xs text-text-muted">No MCP servers configured. Add servers in Settings.</p>
@@ -28,7 +25,7 @@ export function McpServersSection({ configs, mcpServerIds, onToggle }: McpServer
     <FieldGroup label="MCP Servers">
       <p className="mb-1.5 text-xs text-text-muted">External MCP servers available to this agent.</p>
       <div className="flex flex-col gap-1.5">
-        {enabledConfigs.map((config) => (
+        {configs.map((config) => (
           <McpServerRow
             key={config.id}
             config={config}
@@ -42,19 +39,26 @@ export function McpServersSection({ configs, mcpServerIds, onToggle }: McpServer
 }
 
 interface McpServerRowProps {
-  config: McpServerConfig;
+  config: AgentMcpConfig;
   checked: boolean;
   onToggle: () => void;
 }
 
-/** Single MCP server toggle row with name and type badge */
 function McpServerRow({ config, checked, onToggle }: McpServerRowProps) {
+  const isDisabled = config.isDisabled ?? false;
   return (
     <div className="flex items-center gap-2">
-      <Toggle checked={checked} onChange={onToggle} label={config.name} variant="secondary" />
+      <Toggle
+        checked={checked}
+        onChange={onToggle}
+        label={config.displayName ?? config.name}
+        variant="secondary"
+        disabled={isDisabled}
+      />
       <span className="px-1 py-0.5 rounded text-3xs font-mono text-text-muted bg-surface-inset border border-border-subtle">
         {config.type}
       </span>
+      {isDisabled && <span className="text-3xs text-text-muted">Needs connection</span>}
     </div>
   );
 }
