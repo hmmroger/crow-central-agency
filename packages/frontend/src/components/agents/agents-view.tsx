@@ -1,10 +1,11 @@
 import { useCallback, useMemo } from "react";
-import { Bot } from "lucide-react";
+import { Bot, Settings } from "lucide-react";
 import { useAgentsContext } from "../../providers/agents-provider.js";
 import type { HeaderAction, HeaderDropdownConfig } from "../../providers/header-provider.types.js";
 import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import { useAppStore } from "../../stores/app-store.js";
 import { useFullPanel } from "../../hooks/use-full-panel.js";
+import { useOpenAgentEditor } from "../../hooks/dialogs/use-open-agent-editor.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { AgentCommandStrip } from "./agent-command-strip.js";
 import { AgentConsole } from "./console/agent-console.js";
@@ -29,6 +30,15 @@ export function AgentsView() {
   const selectedAgent = getAgent(selectedAgentId);
   const headerTitle = selectedAgent?.name ?? "Agents";
   const { show, hide, isOpen } = useFullPanel();
+  const openAgentEditor = useOpenAgentEditor();
+
+  const handleOpenAgentSettings = useCallback(() => {
+    if (!selectedAgentId) {
+      return;
+    }
+
+    openAgentEditor({ agentId: selectedAgentId });
+  }, [openAgentEditor, selectedAgentId]);
 
   const headerDropdown = useMemo<HeaderDropdownConfig>(() => {
     const items: ContextMenuItem[] = agents
@@ -56,20 +66,31 @@ export function AgentsView() {
     [isOpen, hide, show]
   );
 
-  const headerActions = useMemo<HeaderAction[]>(
-    () =>
-      SIDE_PANEL_TABS.map((tab) => {
-        const id = `${FULL_PANEL_ID_PREFIX}${tab.id}`;
-        return {
-          id,
-          label: tab.label,
-          icon: tab.icon,
-          selected: isOpen(id),
-          onClick: () => toggleFullPanel(id, tab.label, tab.id),
-        };
-      }),
-    [isOpen, toggleFullPanel]
-  );
+  const headerActions = useMemo<HeaderAction[]>(() => {
+    const panelActions = SIDE_PANEL_TABS.map((tab) => {
+      const id = `${FULL_PANEL_ID_PREFIX}${tab.id}`;
+      return {
+        id,
+        label: tab.label,
+        icon: tab.icon,
+        selected: isOpen(id),
+        onClick: () => toggleFullPanel(id, tab.label, tab.id),
+      };
+    });
+
+    if (!selectedAgent || selectedAgent.isSystemAgent) {
+      return panelActions;
+    }
+
+    const settingsAction: HeaderAction = {
+      id: "agent-settings",
+      label: "Agent settings",
+      icon: Settings,
+      onClick: handleOpenAgentSettings,
+      alwaysVisible: true,
+    };
+    return [...panelActions, settingsAction];
+  }, [isOpen, toggleFullPanel, selectedAgent, handleOpenAgentSettings]);
 
   return (
     <div className="flex h-full">
