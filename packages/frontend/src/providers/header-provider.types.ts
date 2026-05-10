@@ -9,7 +9,7 @@ export interface HeaderDropdownConfig {
   items: ContextMenuItem[];
 }
 
-/** Header action button rendered on the right of the header below the side-panel breakpoint. */
+/** Header action button rendered on the right of the header. By default visible only below the side-panel breakpoint. */
 export interface HeaderAction {
   /** Unique id used as React key and for selected-state matching. */
   id: string;
@@ -21,6 +21,8 @@ export interface HeaderAction {
   onClick: () => void;
   /** When true, the action button shows an active highlight. */
   selected?: boolean;
+  /** When true, the action renders at all breakpoints. Defaults to false (visible only below the side-panel breakpoint). */
+  alwaysVisible?: boolean;
 }
 
 /** Value exposed by the HeaderProvider context. */

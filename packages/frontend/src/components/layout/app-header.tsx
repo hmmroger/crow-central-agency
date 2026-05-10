@@ -4,10 +4,33 @@ import { CrowIcon } from "../common/icons/crow.js";
 import { useHeader } from "../../hooks/use-header.js";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
 import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
+import type { HeaderAction } from "../../providers/header-provider.types.js";
 import { useAppStore } from "../../stores/app-store.js";
 import { cn } from "../../utils/cn.js";
 import { APP_NAV_ITEMS } from "./app-nav-items.js";
 import { ConnectionStatus } from "./connection-status.js";
+import { partition } from "es-toolkit";
+
+function HeaderActionButton({ action }: { action: HeaderAction }) {
+  const Icon = action.icon;
+  return (
+    <button
+      type="button"
+      onClick={action.onClick}
+      title={action.label}
+      aria-label={action.label}
+      aria-pressed={action.selected ?? false}
+      className={cn(
+        "p-1.5 rounded-md transition-colors",
+        action.selected
+          ? "text-text-base bg-surface-hover"
+          : "text-text-muted hover:text-text-base hover:bg-surface-hover"
+      )}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
 
 const LOGO_NAV_MENU_ID = "header-logo-nav";
 
@@ -23,6 +46,32 @@ export function AppHeader() {
   const setViewMode = useAppStore((state) => state.setViewMode);
   const isDropdownOpen = dropdown ? isMenuOpen(dropdown.menuId) : false;
   const isLogoMenuOpen = isMenuOpen(LOGO_NAV_MENU_ID);
+  const renderedActions = useMemo(() => {
+    if (actions.length === 0) {
+      return null;
+    }
+
+    const [persistent, narrow] = partition(actions, (action) => action.alwaysVisible === true);
+
+    return (
+      <>
+        {narrow.length > 0 && (
+          <div className="flex items-center gap-1 mr-1 lg:hidden">
+            {narrow.map((action) => (
+              <HeaderActionButton key={action.id} action={action} />
+            ))}
+          </div>
+        )}
+        {persistent.length > 0 && (
+          <div className="flex items-center gap-1 mr-1">
+            {persistent.map((action) => (
+              <HeaderActionButton key={action.id} action={action} />
+            ))}
+          </div>
+        )}
+      </>
+    );
+  }, [actions]);
 
   const logoMenuItems = useMemo<ContextMenuItem[]>(() => {
     const items: ContextMenuItem[] = [];
@@ -129,31 +178,7 @@ export function AppHeader() {
         )}
       </div>
 
-      {actions.length > 0 && (
-        <div className="flex items-center gap-1 mr-1 lg:hidden">
-          {actions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <button
-                key={action.id}
-                type="button"
-                onClick={action.onClick}
-                title={action.label}
-                aria-label={action.label}
-                aria-pressed={action.selected ?? false}
-                className={cn(
-                  "p-1.5 rounded-md transition-colors",
-                  action.selected
-                    ? "text-text-base bg-surface-hover"
-                    : "text-text-muted hover:text-text-base hover:bg-surface-hover"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {renderedActions}
 
       <div className="hidden lg:flex items-center">
         <ConnectionStatus />
