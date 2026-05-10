@@ -11,27 +11,6 @@ import { APP_NAV_ITEMS } from "./app-nav-items.js";
 import { ConnectionStatus } from "./connection-status.js";
 import { partition } from "es-toolkit";
 
-function HeaderActionButton({ action }: { action: HeaderAction }) {
-  const Icon = action.icon;
-  return (
-    <button
-      type="button"
-      onClick={action.onClick}
-      title={action.label}
-      aria-label={action.label}
-      aria-pressed={action.selected ?? false}
-      className={cn(
-        "p-1.5 rounded-md transition-colors",
-        action.selected
-          ? "text-text-base bg-surface-hover"
-          : "text-text-muted hover:text-text-base hover:bg-surface-hover"
-      )}
-    >
-      <Icon className="h-4 w-4" />
-    </button>
-  );
-}
-
 const LOGO_NAV_MENU_ID = "header-logo-nav";
 
 /**
@@ -184,5 +163,26 @@ export function AppHeader() {
         <ConnectionStatus />
       </div>
     </header>
+  );
+}
+
+function HeaderActionButton({ action }: { action: HeaderAction }) {
+  const Icon = action.icon;
+  return (
+    <button
+      type="button"
+      onClick={action.onClick}
+      title={action.label}
+      aria-label={action.label}
+      aria-pressed={action.selected}
+      className={cn(
+        "p-1.5 rounded-md transition-colors",
+        action.selected
+          ? "text-text-base bg-surface-hover"
+          : "text-text-muted hover:text-text-base hover:bg-surface-hover"
+      )}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
   );
 }
