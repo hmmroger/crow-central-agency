@@ -168,6 +168,7 @@ export class GoogleClient {
    * search and re-warm once `GOOGLE_CONTACTS_WARMUP_TTL_MS` has elapsed.
    */
   private contactsWarmupAt = 0;
+  private contactsWarmupInFlight: Promise<void> | undefined;
 
   constructor(
     private readonly connectorManager: ConnectorManager,
@@ -628,6 +629,20 @@ export class GoogleClient {
       return;
     }
 
+    if (this.contactsWarmupInFlight !== undefined) {
+      await this.contactsWarmupInFlight;
+      return;
+    }
+
+    this.contactsWarmupInFlight = this.runContactsWarmup();
+    try {
+      await this.contactsWarmupInFlight;
+    } finally {
+      this.contactsWarmupInFlight = undefined;
+    }
+  }
+
+  private async runContactsWarmup(): Promise<void> {
     await this.request<GoogleSearchContactsResponse>({
       url: GOOGLE_PEOPLE_SEARCH_URL,
       query: {
