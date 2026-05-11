@@ -62,6 +62,10 @@ import {
   getGoogleCalendarMcpServerDefinition,
   GOOGLE_CALENDAR_MCP_SERVER_NAME,
 } from "./mcp/google-calendar/google-calendar-mcp-server.js";
+import {
+  getGoogleContactsMcpServerDefinition,
+  GOOGLE_CONTACTS_MCP_SERVER_NAME,
+} from "./mcp/google-contacts/google-contacts-mcp-server.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -179,6 +183,12 @@ export async function bootstrap(options: BootstrapOptions) {
     hasRequiredConnections: googleCalendarMcpDefinition.hasRequiredConnections,
     isConfigurable: googleCalendarMcpDefinition.isConfigurable,
     displayName: googleCalendarMcpDefinition.displayName,
+  });
+  const googleContactsMcpDefinition = getGoogleContactsMcpServerDefinition(connectorManager, sensorManager);
+  mcpManager.registerMcpServer(GOOGLE_CONTACTS_MCP_SERVER_NAME, googleContactsMcpDefinition.serverFactory, {
+    hasRequiredConnections: googleContactsMcpDefinition.hasRequiredConnections,
+    isConfigurable: googleContactsMcpDefinition.isConfigurable,
+    displayName: googleContactsMcpDefinition.displayName,
   });
 
   // Start scheduler

@@ -516,3 +516,92 @@ export interface GoogleCalendarListResponse {
   items?: GoogleRawCalendarListEntry[];
   nextPageToken?: string;
 }
+
+export interface GoogleContactEmail {
+  value: string;
+  /** "home", "work", "other", or a custom label. */
+  type?: string;
+}
+
+export interface GoogleContactPhone {
+  value: string;
+  /** "home", "mobile", "work", or a custom label. */
+  type?: string;
+}
+
+export interface GoogleContactOrganization {
+  name?: string;
+  title?: string;
+  department?: string;
+}
+
+export interface GoogleContact {
+  /** Stable People-API identifier (e.g. "people/c123..."). */
+  resourceName: string;
+  /** Primary display name when Google supplied one. */
+  displayName?: string;
+  givenName?: string;
+  familyName?: string;
+  emails: GoogleContactEmail[];
+  phones: GoogleContactPhone[];
+  organizations: GoogleContactOrganization[];
+}
+
+export interface SearchGoogleContactsOptions {
+  /** Free-text fragment matched server-side against name, email, phone, and organization. */
+  query: string;
+  /** Max results to return (1-30). Defaults to 10 - the People API's own default. */
+  limit?: number;
+}
+
+export interface SearchGoogleContactsResult {
+  contacts: GoogleContact[];
+}
+
+export interface GoogleRawContactName {
+  displayName?: string;
+  displayNameLastFirst?: string;
+  givenName?: string;
+  familyName?: string;
+  middleName?: string;
+  honorificPrefix?: string;
+  honorificSuffix?: string;
+}
+
+export interface GoogleRawContactEmail {
+  value?: string;
+  type?: string;
+  formattedType?: string;
+  displayName?: string;
+}
+
+export interface GoogleRawContactPhone {
+  value?: string;
+  type?: string;
+  canonicalForm?: string;
+  formattedType?: string;
+}
+
+export interface GoogleRawContactOrganization {
+  type?: string;
+  formattedType?: string;
+  name?: string;
+  current?: boolean;
+  title?: string;
+  department?: string;
+  jobDescription?: string;
+  domain?: string;
+  location?: string;
+}
+
+export interface GoogleRawContactPerson {
+  resourceName: string;
+  names?: GoogleRawContactName[];
+  emailAddresses?: GoogleRawContactEmail[];
+  phoneNumbers?: GoogleRawContactPhone[];
+  organizations?: GoogleRawContactOrganization[];
+}
+
+export interface GoogleSearchContactsResponse {
+  results?: { person?: GoogleRawContactPerson }[];
+}

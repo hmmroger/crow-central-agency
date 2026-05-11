@@ -6,6 +6,7 @@ import { parseDateTimeWithTimezone } from "../../utils/date-utils.js";
 import { generateId } from "../../utils/id-utils.js";
 import { markdownToHtml } from "../../utils/markdown-to-html.js";
 import { parseGoogleCalendarEventFull, parseGoogleCalendarEventSummary } from "./google-calendar-event-parser.js";
+import { parseGoogleContact } from "./google-contact-parser.js";
 import {
   parseGmailFullMessage,
   parseGmailLabel,
@@ -63,6 +64,10 @@ import {
   type ListGoogleCalendarsOptions,
   type ListGoogleCalendarsResult,
   type MoveGmailMessageToTrashResult,
+  type SearchGoogleContactsOptions,
+  type SearchGoogleContactsResult,
+  type GoogleRawContactPerson,
+  type GoogleSearchContactsResponse,
   type UpdateGoogleCalendarEventOptions,
   type ReplyToGmailMessageOptions,
   type SendGmailMessageOptions,
@@ -80,11 +85,16 @@ const GMAIL_THREADS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/thread
 const GMAIL_LABELS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
 const GOOGLE_CALENDAR_LIST_URL = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
 const GOOGLE_CALENDAR_EVENTS_BASE_URL = "https://www.googleapis.com/calendar/v3/calendars";
+const GOOGLE_PEOPLE_SEARCH_URL = "https://people.googleapis.com/v1/people:searchContacts";
+const GOOGLE_CONTACTS_READ_MASK = "names,emailAddresses,phoneNumbers,organizations";
+const GOOGLE_CONTACTS_WARMUP_TTL_MS = 25 * 60 * 1000;
 export const DEFAULT_GMAIL_LIST_LIMIT = 25;
 export const DEFAULT_GOOGLE_CALENDAR_LIST_LIMIT = 50;
 export const DEFAULT_GOOGLE_CALENDAR_EVENTS_LIST_LIMIT = 25;
+export const DEFAULT_GOOGLE_CONTACTS_SEARCH_LIMIT = 10;
 const GOOGLE_CALENDAR_LIST_MAX_PAGE_SIZE = 250;
 const GOOGLE_CALENDAR_EVENTS_MAX_PAGE_SIZE = 2500;
+export const GOOGLE_CONTACTS_SEARCH_MAX_PAGE_SIZE = 30;
 
 const ALL_DAY_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -151,6 +161,14 @@ function parseGoogleCalendar(raw: GoogleRawCalendarListEntry): GoogleCalendar {
  * and the agent's user-timezone-aware datetime conversions.
  */
 export class GoogleClient {
+  /**
+   * Last successful `people:searchContacts` warmup timestamp. Google's contacts
+   * search hits a server-side cache that needs to be hydrated per identity
+   * before queries return useful results; we lazily warm it on the first
+   * search and re-warm once `GOOGLE_CONTACTS_WARMUP_TTL_MS` has elapsed.
+   */
+  private contactsWarmupAt = 0;
+
   constructor(
     private readonly connectorManager: ConnectorManager,
     private readonly sensorManager: SensorManager,
@@ -488,6 +506,25 @@ export class GoogleClient {
     });
   }
 
+  public async searchGoogleContacts(options: SearchGoogleContactsOptions): Promise<SearchGoogleContactsResult> {
+    await this.ensureContactsCacheWarm();
+    const limit = options.limit ?? DEFAULT_GOOGLE_CONTACTS_SEARCH_LIMIT;
+    const pageSize = Math.min(limit, GOOGLE_CONTACTS_SEARCH_MAX_PAGE_SIZE);
+    const response = await this.request<GoogleSearchContactsResponse>({
+      url: GOOGLE_PEOPLE_SEARCH_URL,
+      query: {
+        query: options.query,
+        readMask: GOOGLE_CONTACTS_READ_MASK,
+        pageSize: String(pageSize),
+      },
+    });
+    const contacts = (response.results ?? [])
+      .map((entry) => entry.person)
+      .filter((person): person is GoogleRawContactPerson => person !== undefined)
+      .map(parseGoogleContact);
+    return { contacts };
+  }
+
   public async listGmailLabels(): Promise<ListGmailLabelsResult> {
     const response = await this.request<GmailLabelsListResponse>({ url: GMAIL_LABELS_URL });
     const labels = (response.labels ?? []).map(parseGmailLabel);
@@ -581,6 +618,24 @@ export class GoogleClient {
     });
 
     return this.sendRawMessage(encodeRawForGmail(rfc822), parent.threadId);
+  }
+
+  /**
+   * Hydrate (or refresh) Google's per-identity contacts search cache.
+   */
+  private async ensureContactsCacheWarm(): Promise<void> {
+    if (Date.now() - this.contactsWarmupAt < GOOGLE_CONTACTS_WARMUP_TTL_MS) {
+      return;
+    }
+
+    await this.request<GoogleSearchContactsResponse>({
+      url: GOOGLE_PEOPLE_SEARCH_URL,
+      query: {
+        query: "",
+        readMask: GOOGLE_CONTACTS_READ_MASK,
+      },
+    });
+    this.contactsWarmupAt = Date.now();
   }
 
   private async sendRawMessage(raw: string, threadId?: string): Promise<SendGmailMessageResult> {
