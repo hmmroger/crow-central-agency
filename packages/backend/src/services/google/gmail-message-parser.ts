@@ -1,5 +1,5 @@
 import { formatLocalDateTime } from "../../utils/date-utils.js";
-import { htmlToMarkdown, plainTextToHtmlParagraphs } from "./email-html-to-markdown.js";
+import { htmlToMarkdown, plainTextToHtmlParagraphs } from "./html-to-markdown.js";
 import type {
   GmailRawHeader,
   GmailRawLabel,
@@ -101,11 +101,11 @@ function walkPayloadParts(payload: GmailRawPayload, result: ExtractedBody): void
  */
 function renderMessageContent(body: ExtractedBody): string | undefined {
   if (body.bodyHtml) {
-    return htmlToMarkdown(body.bodyHtml);
+    return htmlToMarkdown(body.bodyHtml, true);
   }
 
   if (body.bodyText) {
-    return htmlToMarkdown(plainTextToHtmlParagraphs(body.bodyText));
+    return htmlToMarkdown(plainTextToHtmlParagraphs(body.bodyText), true);
   }
 
   return undefined;

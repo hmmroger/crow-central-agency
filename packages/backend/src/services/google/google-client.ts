@@ -2,7 +2,11 @@ import type { ConnectorManager } from "../../connectors/connector-manager.js";
 import { CONNECTOR_ID } from "../../connectors/connector-manager.types.js";
 import { RequestError } from "../../core/error/request-error.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
+import { parseDateTimeWithTimezone } from "../../utils/date-utils.js";
+import { generateId } from "../../utils/id-utils.js";
 import { markdownToHtml } from "../../utils/markdown-to-html.js";
+import { parseGoogleCalendarEventFull, parseGoogleCalendarEventSummary } from "./google-calendar-event-parser.js";
+import { parseGoogleContact } from "./google-contact-parser.js";
 import {
   parseGmailFullMessage,
   parseGmailLabel,
@@ -28,19 +32,43 @@ import {
 } from "./gmail-reply-utils.js";
 import { assertUserLabelIds, buildStateLabelDiff, deriveStateFromLabelIds } from "./gmail-label-utils.js";
 import {
+  DEFAULT_GOOGLE_CALENDAR_ID,
   GMAIL_LIST_METADATA_HEADERS,
   GMAIL_REPLY_METADATA_HEADERS,
   GMAIL_LABEL_COLOR_PALETTE,
+  GOOGLE_CALENDAR_ACCESS_ROLE,
   GOOGLE_SERVICE_NAME,
+  GOOGLE_CONFERENCE_SOLUTION_TYPE,
   type CreateGmailUserLabelOptions,
+  type CreateGoogleCalendarEventOptions,
+  type DeleteGoogleCalendarEventOptions,
+  type GetGoogleCalendarEventOptions,
+  type GoogleCalendarEventInsertBody,
   type GmailLabel,
   type GmailMessage,
   type GmailMessageSummary,
   type GmailThread,
+  type GoogleCalendar,
+  type GoogleCalendarAccessRole,
+  type GoogleCalendarEvent,
+  type GoogleCalendarEventsListResponse,
+  type GoogleCalendarListResponse,
+  type GoogleRawCalendarEvent,
+  type GoogleRawCalendarEventAttendee,
+  type GoogleRawCalendarListEntry,
   type ListGmailLabelsResult,
+  type ListGoogleCalendarEventsOptions,
+  type ListGoogleCalendarEventsResult,
   type ListGmailMessagesOptions,
   type ListGmailMessagesResult,
+  type ListGoogleCalendarsOptions,
+  type ListGoogleCalendarsResult,
   type MoveGmailMessageToTrashResult,
+  type SearchGoogleContactsOptions,
+  type SearchGoogleContactsResult,
+  type GoogleRawContactPerson,
+  type GoogleSearchContactsResponse,
+  type UpdateGoogleCalendarEventOptions,
   type ReplyToGmailMessageOptions,
   type SendGmailMessageOptions,
   type SendGmailMessageResult,
@@ -55,7 +83,77 @@ import type { GoogleRequestOptions } from "./google-request.types.js";
 const GMAIL_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const GMAIL_THREADS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/threads";
 const GMAIL_LABELS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
+const GOOGLE_CALENDAR_LIST_URL = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
+const GOOGLE_CALENDAR_EVENTS_BASE_URL = "https://www.googleapis.com/calendar/v3/calendars";
+const GOOGLE_PEOPLE_SEARCH_URL = "https://people.googleapis.com/v1/people:searchContacts";
+const GOOGLE_CONTACTS_READ_MASK = "names,emailAddresses,phoneNumbers,organizations";
+const GOOGLE_CONTACTS_WARMUP_TTL_MS = 25 * 60 * 1000;
 export const DEFAULT_GMAIL_LIST_LIMIT = 25;
+export const DEFAULT_GOOGLE_CALENDAR_LIST_LIMIT = 50;
+export const DEFAULT_GOOGLE_CALENDAR_EVENTS_LIST_LIMIT = 25;
+export const DEFAULT_GOOGLE_CONTACTS_SEARCH_LIMIT = 10;
+const GOOGLE_CALENDAR_LIST_MAX_PAGE_SIZE = 250;
+const GOOGLE_CALENDAR_EVENTS_MAX_PAGE_SIZE = 2500;
+export const GOOGLE_CONTACTS_SEARCH_MAX_PAGE_SIZE = 30;
+
+const ALL_DAY_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function calendarEventsUrl(calendarId: string): string {
+  return `${GOOGLE_CALENDAR_EVENTS_BASE_URL}/${encodeURIComponent(calendarId)}/events`;
+}
+
+function isAllDayDate(value: string): boolean {
+  return ALL_DAY_DATE_PATTERN.test(value.trim());
+}
+
+/** Add one calendar day to a YYYY-MM-DD string. Used to convert an inclusive end-date to Google's exclusive-end convention. */
+function bumpDateByOneDay(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function toCalendarApiRfc3339(dateTimeStr: string, userTimezone: string, fieldName: string): string {
+  const epochMs = parseDateTimeWithTimezone(dateTimeStr, userTimezone);
+  if (!Number.isFinite(epochMs)) {
+    throw new RequestError(`Invalid ${fieldName}: ${dateTimeStr}`, undefined, undefined, GOOGLE_SERVICE_NAME);
+  }
+
+  return new Date(epochMs).toISOString();
+}
+
+function isCalendarAccessRole(value: string): value is GoogleCalendarAccessRole {
+  return (
+    value === GOOGLE_CALENDAR_ACCESS_ROLE.OWNER ||
+    value === GOOGLE_CALENDAR_ACCESS_ROLE.WRITER ||
+    value === GOOGLE_CALENDAR_ACCESS_ROLE.READER ||
+    value === GOOGLE_CALENDAR_ACCESS_ROLE.FREE_BUSY_READER
+  );
+}
+
+function parseGoogleCalendar(raw: GoogleRawCalendarListEntry): GoogleCalendar {
+  // Defensively fall back to the lowest-privilege role if Google ever
+  // introduces a new value we don't yet model.
+  const accessRole = isCalendarAccessRole(raw.accessRole)
+    ? raw.accessRole
+    : GOOGLE_CALENDAR_ACCESS_ROLE.FREE_BUSY_READER;
+  const calendar: GoogleCalendar = {
+    id: raw.id,
+    summary: raw.summary,
+    accessRole,
+    timeZone: raw.timeZone,
+  };
+  if (raw.description !== undefined) {
+    calendar.description = raw.description;
+  }
+
+  if (raw.primary === true) {
+    calendar.primary = true;
+  }
+
+  return calendar;
+}
 
 /**
  * Per-agent runtime client for Google REST APIs (Gmail, Calendar, Contacts...).
@@ -63,6 +161,15 @@ export const DEFAULT_GMAIL_LIST_LIMIT = 25;
  * and the agent's user-timezone-aware datetime conversions.
  */
 export class GoogleClient {
+  /**
+   * Last successful `people:searchContacts` warmup timestamp. Google's contacts
+   * search hits a server-side cache that needs to be hydrated per identity
+   * before queries return useful results; we lazily warm it on the first
+   * search and re-warm once `GOOGLE_CONTACTS_WARMUP_TTL_MS` has elapsed.
+   */
+  private contactsWarmupAt = 0;
+  private contactsWarmupInFlight: Promise<void> | undefined;
+
   constructor(
     private readonly connectorManager: ConnectorManager,
     private readonly sensorManager: SensorManager,
@@ -141,6 +248,282 @@ export class GoogleClient {
     });
 
     return { id: response.id, threadId: response.threadId };
+  }
+
+  public async listGoogleCalendars(options: ListGoogleCalendarsOptions = {}): Promise<ListGoogleCalendarsResult> {
+    const limit = options.limit ?? DEFAULT_GOOGLE_CALENDAR_LIST_LIMIT;
+    const calendars: GoogleCalendar[] = [];
+    let pageToken: string | undefined;
+    while (calendars.length < limit) {
+      const remaining = limit - calendars.length;
+      const pageSize = Math.min(remaining, GOOGLE_CALENDAR_LIST_MAX_PAGE_SIZE);
+      const page = await this.request<GoogleCalendarListResponse>({
+        url: GOOGLE_CALENDAR_LIST_URL,
+        query: { pageToken, maxResults: String(pageSize) },
+      });
+      for (const item of page.items ?? []) {
+        if (calendars.length >= limit) {
+          break;
+        }
+
+        calendars.push(parseGoogleCalendar(item));
+      }
+
+      if (page.nextPageToken === undefined) {
+        break;
+      }
+
+      pageToken = page.nextPageToken;
+    }
+
+    return { calendars };
+  }
+
+  public async listGoogleCalendarEvents(
+    options: ListGoogleCalendarEventsOptions = {}
+  ): Promise<ListGoogleCalendarEventsResult> {
+    const userTimezone = await this.sensorManager.getUserTimezone();
+    const calendarId = options.calendarId ?? DEFAULT_GOOGLE_CALENDAR_ID;
+    const limit = options.limit ?? DEFAULT_GOOGLE_CALENDAR_EVENTS_LIST_LIMIT;
+    const pageSize = Math.min(limit, GOOGLE_CALENDAR_EVENTS_MAX_PAGE_SIZE);
+    const timeMin =
+      options.startDateTime !== undefined
+        ? toCalendarApiRfc3339(options.startDateTime, userTimezone, "startDateTime")
+        : new Date().toISOString();
+    const timeMax =
+      options.endDateTime !== undefined
+        ? toCalendarApiRfc3339(options.endDateTime, userTimezone, "endDateTime")
+        : undefined;
+
+    const response = await this.request<GoogleCalendarEventsListResponse>({
+      url: calendarEventsUrl(calendarId),
+      query: {
+        timeMin,
+        timeMax,
+        q: options.contains,
+        maxResults: String(pageSize),
+        // Expand recurring events into individual instances and order by start
+        // time so listings read chronologically; the API requires singleEvents
+        // for orderBy=startTime.
+        singleEvents: "true",
+        orderBy: "startTime",
+        pageToken: options.pageToken,
+      },
+    });
+
+    const events = (response.items ?? []).map((item) => parseGoogleCalendarEventSummary(item, userTimezone));
+    const result: ListGoogleCalendarEventsResult = { events };
+    if (response.nextPageToken !== undefined) {
+      result.nextPageToken = response.nextPageToken;
+    }
+
+    return result;
+  }
+
+  public async getGoogleCalendarEvent(options: GetGoogleCalendarEventOptions): Promise<GoogleCalendarEvent> {
+    const userTimezone = await this.sensorManager.getUserTimezone();
+    const calendarId = options.calendarId ?? DEFAULT_GOOGLE_CALENDAR_ID;
+    const raw = await this.request<GoogleRawCalendarEvent>({
+      url: `${calendarEventsUrl(calendarId)}/${encodeURIComponent(options.eventId)}`,
+    });
+
+    return parseGoogleCalendarEventFull(raw, userTimezone);
+  }
+
+  public async createGoogleCalendarEvent(options: CreateGoogleCalendarEventOptions): Promise<GoogleCalendarEvent> {
+    const userTimezone = await this.sensorManager.getUserTimezone();
+    const calendarId = options.calendarId ?? DEFAULT_GOOGLE_CALENDAR_ID;
+    const startIsAllDay = isAllDayDate(options.startDateTime);
+    const endIsAllDay = isAllDayDate(options.endDateTime);
+    if (startIsAllDay !== endIsAllDay) {
+      throw new RequestError(
+        "startDateTime and endDateTime must both be date-only (YYYY-MM-DD) or both be datetimes.",
+        undefined,
+        undefined,
+        GOOGLE_SERVICE_NAME
+      );
+    }
+
+    const body: GoogleCalendarEventInsertBody = {
+      summary: options.title,
+      start: startIsAllDay
+        ? { date: options.startDateTime.trim() }
+        : {
+            dateTime: toCalendarApiRfc3339(options.startDateTime, userTimezone, "startDateTime"),
+            timeZone: userTimezone,
+          },
+      end: endIsAllDay
+        ? { date: bumpDateByOneDay(options.endDateTime.trim()) }
+        : { dateTime: toCalendarApiRfc3339(options.endDateTime, userTimezone, "endDateTime"), timeZone: userTimezone },
+    };
+    if (options.description !== undefined && options.description.length > 0) {
+      body.description = markdownToHtml(options.description);
+    }
+
+    if (options.location !== undefined && options.location.length > 0) {
+      body.location = options.location;
+    }
+
+    if (options.attendees !== undefined && options.attendees.length > 0) {
+      body.attendees = options.attendees.map((email) => ({ email }));
+    }
+
+    if (options.addMeetLink === true) {
+      body.conferenceData = {
+        createRequest: {
+          requestId: generateId(),
+          conferenceSolutionKey: { type: GOOGLE_CONFERENCE_SOLUTION_TYPE.HANGOUTS_MEET },
+        },
+      };
+    }
+
+    const query: Record<string, string> = {};
+    if (body.attendees !== undefined) {
+      query.sendUpdates = "all";
+    }
+
+    if (body.conferenceData !== undefined) {
+      query.conferenceDataVersion = "1";
+    }
+
+    const raw = await this.request<GoogleRawCalendarEvent>({
+      url: calendarEventsUrl(calendarId),
+      method: "POST",
+      query: Object.keys(query).length > 0 ? query : undefined,
+      body,
+    });
+
+    return parseGoogleCalendarEventFull(raw, userTimezone);
+  }
+
+  public async updateGoogleCalendarEvent(options: UpdateGoogleCalendarEventOptions): Promise<GoogleCalendarEvent> {
+    const userTimezone = await this.sensorManager.getUserTimezone();
+    const calendarId = options.calendarId ?? DEFAULT_GOOGLE_CALENDAR_ID;
+    const { startDateTime, endDateTime } = options;
+    if ((startDateTime === undefined) !== (endDateTime === undefined)) {
+      throw new RequestError(
+        "startDateTime and endDateTime must be provided together.",
+        undefined,
+        undefined,
+        GOOGLE_SERVICE_NAME
+      );
+    }
+
+    const hasAnyChange =
+      options.title !== undefined ||
+      options.description !== undefined ||
+      options.location !== undefined ||
+      startDateTime !== undefined ||
+      (options.addAttendees !== undefined && options.addAttendees.length > 0) ||
+      (options.removeAttendees !== undefined && options.removeAttendees.length > 0);
+    if (!hasAnyChange) {
+      throw new RequestError(
+        "updateGoogleCalendarEvent requires at least one field to change.",
+        undefined,
+        undefined,
+        GOOGLE_SERVICE_NAME
+      );
+    }
+
+    const eventUrl = `${calendarEventsUrl(calendarId)}/${encodeURIComponent(options.eventId)}`;
+    const current = await this.request<GoogleRawCalendarEvent>({ url: eventUrl });
+    const body: GoogleRawCalendarEvent = { ...current };
+    if (options.title !== undefined) {
+      body.summary = options.title;
+    }
+
+    if (options.description !== undefined) {
+      body.description = options.description.length > 0 ? markdownToHtml(options.description) : "";
+    }
+
+    if (options.location !== undefined) {
+      body.location = options.location;
+    }
+
+    if (startDateTime !== undefined && endDateTime !== undefined) {
+      const startIsAllDay = isAllDayDate(startDateTime);
+      const endIsAllDay = isAllDayDate(endDateTime);
+      if (startIsAllDay !== endIsAllDay) {
+        throw new RequestError(
+          "startDateTime and endDateTime must both be date-only (YYYY-MM-DD) or both be datetimes.",
+          undefined,
+          undefined,
+          GOOGLE_SERVICE_NAME
+        );
+      }
+
+      body.start = startIsAllDay
+        ? { date: startDateTime.trim() }
+        : { dateTime: toCalendarApiRfc3339(startDateTime, userTimezone, "startDateTime"), timeZone: userTimezone };
+      body.end = endIsAllDay
+        ? { date: bumpDateByOneDay(endDateTime.trim()) }
+        : { dateTime: toCalendarApiRfc3339(endDateTime, userTimezone, "endDateTime"), timeZone: userTimezone };
+    }
+
+    const hasAttendeeChange =
+      (options.addAttendees !== undefined && options.addAttendees.length > 0) ||
+      (options.removeAttendees !== undefined && options.removeAttendees.length > 0);
+    if (hasAttendeeChange) {
+      const attendeesMap = new Map<string, GoogleRawCalendarEventAttendee>();
+      for (const existingAttendee of current.attendees ?? []) {
+        attendeesMap.set(existingAttendee.email.toLowerCase(), existingAttendee);
+      }
+
+      for (const emailToRemove of options.removeAttendees ?? []) {
+        attendeesMap.delete(emailToRemove.toLowerCase());
+      }
+
+      for (const emailToAdd of options.addAttendees ?? []) {
+        const key = emailToAdd.toLowerCase();
+        if (!attendeesMap.has(key)) {
+          attendeesMap.set(key, { email: emailToAdd });
+        }
+      }
+
+      body.attendees = Array.from(attendeesMap.values());
+    }
+
+    const query: Record<string, string> = { sendUpdates: "all" };
+    if (body.conferenceData !== undefined) {
+      query.conferenceDataVersion = "1";
+    }
+
+    const raw = await this.request<GoogleRawCalendarEvent>({
+      url: eventUrl,
+      method: "PUT",
+      query,
+      body,
+    });
+
+    return parseGoogleCalendarEventFull(raw, userTimezone);
+  }
+
+  public async deleteGoogleCalendarEvent(options: DeleteGoogleCalendarEventOptions): Promise<void> {
+    const calendarId = options.calendarId ?? DEFAULT_GOOGLE_CALENDAR_ID;
+    await this.requestVoid({
+      url: `${calendarEventsUrl(calendarId)}/${encodeURIComponent(options.eventId)}`,
+      method: "DELETE",
+      query: { sendUpdates: "all" },
+    });
+  }
+
+  public async searchGoogleContacts(options: SearchGoogleContactsOptions): Promise<SearchGoogleContactsResult> {
+    await this.ensureContactsCacheWarm();
+    const limit = options.limit ?? DEFAULT_GOOGLE_CONTACTS_SEARCH_LIMIT;
+    const pageSize = Math.min(limit, GOOGLE_CONTACTS_SEARCH_MAX_PAGE_SIZE);
+    const response = await this.request<GoogleSearchContactsResponse>({
+      url: GOOGLE_PEOPLE_SEARCH_URL,
+      query: {
+        query: options.query,
+        readMask: GOOGLE_CONTACTS_READ_MASK,
+        pageSize: String(pageSize),
+      },
+    });
+    const contacts = (response.results ?? [])
+      .map((entry) => entry.person)
+      .filter((person): person is GoogleRawContactPerson => person !== undefined)
+      .map(parseGoogleContact);
+    return { contacts };
   }
 
   public async listGmailLabels(): Promise<ListGmailLabelsResult> {
@@ -236,6 +619,38 @@ export class GoogleClient {
     });
 
     return this.sendRawMessage(encodeRawForGmail(rfc822), parent.threadId);
+  }
+
+  /**
+   * Hydrate (or refresh) Google's per-identity contacts search cache.
+   */
+  private async ensureContactsCacheWarm(): Promise<void> {
+    if (Date.now() - this.contactsWarmupAt < GOOGLE_CONTACTS_WARMUP_TTL_MS) {
+      return;
+    }
+
+    if (this.contactsWarmupInFlight !== undefined) {
+      await this.contactsWarmupInFlight;
+      return;
+    }
+
+    this.contactsWarmupInFlight = this.runContactsWarmup();
+    try {
+      await this.contactsWarmupInFlight;
+    } finally {
+      this.contactsWarmupInFlight = undefined;
+    }
+  }
+
+  private async runContactsWarmup(): Promise<void> {
+    await this.request<GoogleSearchContactsResponse>({
+      url: GOOGLE_PEOPLE_SEARCH_URL,
+      query: {
+        query: "",
+        readMask: GOOGLE_CONTACTS_READ_MASK,
+      },
+    });
+    this.contactsWarmupAt = Date.now();
   }
 
   private async sendRawMessage(raw: string, threadId?: string): Promise<SendGmailMessageResult> {

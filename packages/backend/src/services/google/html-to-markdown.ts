@@ -1,5 +1,5 @@
 import { NodeHtmlMarkdown } from "node-html-markdown";
-import { sanitizeEmailHtml } from "../../utils/html-sanitizer.js";
+import { sanitizeEmailHtml, sanitizeHtml } from "../../utils/html-sanitizer.js";
 import { getAnchorCustomTranslator } from "../../utils/nhm-extensions/anchor-custom-translator.js";
 import { getTableCustomTranslator } from "../../utils/nhm-extensions/table-custom-translator.js";
 
@@ -14,8 +14,8 @@ const nhm = new NodeHtmlMarkdown(
   }
 );
 
-export function htmlToMarkdown(html: string): string {
-  return nhm.translate(sanitizeEmailHtml(html));
+export function htmlToMarkdown(html: string, isEmail?: boolean): string {
+  return nhm.translate(isEmail ? sanitizeEmailHtml(html) : sanitizeHtml(html));
 }
 
 /**
