@@ -24,7 +24,7 @@ export function getListGoogleCalendarsToolConfig(googleClient: GoogleClient) {
   const config: McpToolConfig<typeof inputSchema> = {
     name: LIST_GOOGLE_CALENDARS_TOOL_NAME,
     description:
-      "List all Google calendars the connected account has access to. Returns each calendar's ID, name (summary), access role (owner, writer, reader, freeBusyReader), IANA timezone, and description when set. The user's primary calendar is flagged separately. Use the calendar ID as input to other calendar tools (e.g. to list or create events on a specific calendar). Access role indicates what the agent can do: 'owner' and 'writer' allow event creation/modification, 'reader' is read-only, and 'freeBusyReader' only exposes busy/free times without event details.",
+      "List Google calendars the connected account can access. Use this to discover calendar IDs for the other calendar tools; the primary calendar is flagged. Access roles ('owner'/'writer' allow event modification, 'reader' is read-only, 'freeBusyReader' exposes only busy/free).",
     inputSchema,
     handler,
   };

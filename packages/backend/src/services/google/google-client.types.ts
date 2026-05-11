@@ -241,6 +241,137 @@ export interface ListGoogleCalendarsResult {
   calendars: GoogleCalendar[];
 }
 
+export const DEFAULT_GOOGLE_CALENDAR_ID = "primary";
+
+export const GOOGLE_CALENDAR_EVENT_STATUS = {
+  CONFIRMED: "confirmed",
+  TENTATIVE: "tentative",
+  CANCELLED: "cancelled",
+} as const;
+
+export type GoogleCalendarEventStatus =
+  (typeof GOOGLE_CALENDAR_EVENT_STATUS)[keyof typeof GOOGLE_CALENDAR_EVENT_STATUS];
+
+export const GOOGLE_CALENDAR_EVENT_ATTENDEE_RESPONSE = {
+  NEEDS_ACTION: "needsAction",
+  DECLINED: "declined",
+  TENTATIVE: "tentative",
+  ACCEPTED: "accepted",
+} as const;
+
+export type GoogleCalendarEventAttendeeResponse =
+  (typeof GOOGLE_CALENDAR_EVENT_ATTENDEE_RESPONSE)[keyof typeof GOOGLE_CALENDAR_EVENT_ATTENDEE_RESPONSE];
+
+export interface GoogleCalendarEventTime {
+  /** Original RFC3339 timestamp ("2025-05-10T14:30:00-07:00") or YYYY-MM-DD for all-day events. */
+  raw: string;
+  /** Human-readable representation in the user's timezone (or the raw date for all-day events). */
+  display: string;
+  /** true when this is an all-day event (date only, no time). */
+  isAllDay: boolean;
+  /** IANA timezone the event was scheduled in, if specified. */
+  timeZone?: string;
+}
+
+export interface GoogleCalendarEventAttendee {
+  email: string;
+  displayName?: string;
+  responseStatus: GoogleCalendarEventAttendeeResponse;
+  optional?: boolean;
+  organizer?: boolean;
+  self?: boolean;
+}
+
+export interface GoogleCalendarEventSummary {
+  id: string;
+  status: GoogleCalendarEventStatus;
+  summary?: string;
+  start: GoogleCalendarEventTime;
+  end: GoogleCalendarEventTime;
+  location?: string;
+  /** true when this event is an instance of a recurring series (has recurringEventId). */
+  isRecurringInstance: boolean;
+  organizerEmail?: string;
+  htmlLink?: string;
+  attendeeCount: number;
+}
+
+export interface GoogleCalendarEvent extends GoogleCalendarEventSummary {
+  description?: string;
+  attendees?: GoogleCalendarEventAttendee[];
+  hangoutLink?: string;
+  /** Present when this event is an instance of a recurring series. */
+  recurringEventId?: string;
+}
+
+export interface ListGoogleCalendarEventsOptions {
+  /** Calendar to query; defaults to the user's primary calendar. */
+  calendarId?: string;
+  /** Inclusive lower bound. ISO datetime in user's local time (or with offset). Defaults to "now". */
+  startDateTime?: string;
+  /** Exclusive upper bound. ISO datetime in user's local time (or with offset). */
+  endDateTime?: string;
+  /** Free-text query matched across summary/description/location/attendees. */
+  contains?: string;
+  limit?: number;
+  pageToken?: string;
+}
+
+export interface ListGoogleCalendarEventsResult {
+  events: GoogleCalendarEventSummary[];
+  nextPageToken?: string;
+}
+
+export interface GetGoogleCalendarEventOptions {
+  /** Calendar to read from; defaults to the user's primary calendar. */
+  calendarId?: string;
+  eventId: string;
+}
+
+export interface GoogleRawCalendarEventTime {
+  /** Present for all-day events (YYYY-MM-DD). */
+  date?: string;
+  /** Present for timed events (RFC3339). */
+  dateTime?: string;
+  /** IANA timezone the event creator picked. */
+  timeZone?: string;
+}
+
+export interface GoogleRawCalendarEventPerson {
+  email?: string;
+  displayName?: string;
+  self?: boolean;
+}
+
+export interface GoogleRawCalendarEventAttendee {
+  email: string;
+  displayName?: string;
+  responseStatus?: string;
+  optional?: boolean;
+  organizer?: boolean;
+  self?: boolean;
+}
+
+export interface GoogleRawCalendarEvent {
+  id: string;
+  status?: string;
+  htmlLink?: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  organizer?: GoogleRawCalendarEventPerson;
+  start: GoogleRawCalendarEventTime;
+  end: GoogleRawCalendarEventTime;
+  recurringEventId?: string;
+  attendees?: GoogleRawCalendarEventAttendee[];
+  hangoutLink?: string;
+}
+
+export interface GoogleCalendarEventsListResponse {
+  items?: GoogleRawCalendarEvent[];
+  nextPageToken?: string;
+}
+
 /** Raw item shape from Google Calendar v3 `calendarList.list`. */
 export interface GoogleRawCalendarListEntry {
   id: string;

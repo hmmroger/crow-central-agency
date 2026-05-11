@@ -2,7 +2,9 @@ import type { ConnectorManager } from "../../connectors/connector-manager.js";
 import { CONNECTOR_ID } from "../../connectors/connector-manager.types.js";
 import { RequestError } from "../../core/error/request-error.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
+import { parseDateTimeWithTimezone } from "../../utils/date-utils.js";
 import { markdownToHtml } from "../../utils/markdown-to-html.js";
+import { parseGoogleCalendarEventFull, parseGoogleCalendarEventSummary } from "./google-calendar-event-parser.js";
 import {
   parseGmailFullMessage,
   parseGmailLabel,
@@ -28,21 +30,28 @@ import {
 } from "./gmail-reply-utils.js";
 import { assertUserLabelIds, buildStateLabelDiff, deriveStateFromLabelIds } from "./gmail-label-utils.js";
 import {
+  DEFAULT_GOOGLE_CALENDAR_ID,
   GMAIL_LIST_METADATA_HEADERS,
   GMAIL_REPLY_METADATA_HEADERS,
   GMAIL_LABEL_COLOR_PALETTE,
   GOOGLE_CALENDAR_ACCESS_ROLE,
   GOOGLE_SERVICE_NAME,
   type CreateGmailUserLabelOptions,
+  type GetGoogleCalendarEventOptions,
   type GmailLabel,
   type GmailMessage,
   type GmailMessageSummary,
   type GmailThread,
   type GoogleCalendar,
   type GoogleCalendarAccessRole,
+  type GoogleCalendarEvent,
+  type GoogleCalendarEventsListResponse,
   type GoogleCalendarListResponse,
+  type GoogleRawCalendarEvent,
   type GoogleRawCalendarListEntry,
   type ListGmailLabelsResult,
+  type ListGoogleCalendarEventsOptions,
+  type ListGoogleCalendarEventsResult,
   type ListGmailMessagesOptions,
   type ListGmailMessagesResult,
   type ListGoogleCalendarsOptions,
@@ -63,9 +72,25 @@ const GMAIL_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messa
 const GMAIL_THREADS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/threads";
 const GMAIL_LABELS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
 const GOOGLE_CALENDAR_LIST_URL = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
+const GOOGLE_CALENDAR_EVENTS_BASE_URL = "https://www.googleapis.com/calendar/v3/calendars";
 export const DEFAULT_GMAIL_LIST_LIMIT = 25;
 export const DEFAULT_GOOGLE_CALENDAR_LIST_LIMIT = 50;
+export const DEFAULT_GOOGLE_CALENDAR_EVENTS_LIST_LIMIT = 25;
 const GOOGLE_CALENDAR_LIST_MAX_PAGE_SIZE = 250;
+const GOOGLE_CALENDAR_EVENTS_MAX_PAGE_SIZE = 2500;
+
+function calendarEventsUrl(calendarId: string): string {
+  return `${GOOGLE_CALENDAR_EVENTS_BASE_URL}/${encodeURIComponent(calendarId)}/events`;
+}
+
+function toCalendarApiRfc3339(dateTimeStr: string, userTimezone: string, fieldName: string): string {
+  const epochMs = parseDateTimeWithTimezone(dateTimeStr, userTimezone);
+  if (!Number.isFinite(epochMs)) {
+    throw new RequestError(`Invalid ${fieldName}: ${dateTimeStr}`, undefined, undefined, GOOGLE_SERVICE_NAME);
+  }
+
+  return new Date(epochMs).toISOString();
+}
 
 function isCalendarAccessRole(value: string): value is GoogleCalendarAccessRole {
   return (
@@ -212,6 +237,57 @@ export class GoogleClient {
     }
 
     return { calendars };
+  }
+
+  public async listGoogleCalendarEvents(
+    options: ListGoogleCalendarEventsOptions = {}
+  ): Promise<ListGoogleCalendarEventsResult> {
+    const userTimezone = await this.sensorManager.getUserTimezone();
+    const calendarId = options.calendarId ?? DEFAULT_GOOGLE_CALENDAR_ID;
+    const limit = options.limit ?? DEFAULT_GOOGLE_CALENDAR_EVENTS_LIST_LIMIT;
+    const pageSize = Math.min(limit, GOOGLE_CALENDAR_EVENTS_MAX_PAGE_SIZE);
+    const timeMin =
+      options.startDateTime !== undefined
+        ? toCalendarApiRfc3339(options.startDateTime, userTimezone, "startDateTime")
+        : new Date().toISOString();
+    const timeMax =
+      options.endDateTime !== undefined
+        ? toCalendarApiRfc3339(options.endDateTime, userTimezone, "endDateTime")
+        : undefined;
+
+    const response = await this.request<GoogleCalendarEventsListResponse>({
+      url: calendarEventsUrl(calendarId),
+      query: {
+        timeMin,
+        timeMax,
+        q: options.contains,
+        maxResults: String(pageSize),
+        // Expand recurring events into individual instances and order by start
+        // time so listings read chronologically; the API requires singleEvents
+        // for orderBy=startTime.
+        singleEvents: "true",
+        orderBy: "startTime",
+        pageToken: options.pageToken,
+      },
+    });
+
+    const events = (response.items ?? []).map((item) => parseGoogleCalendarEventSummary(item, userTimezone));
+    const result: ListGoogleCalendarEventsResult = { events };
+    if (response.nextPageToken !== undefined) {
+      result.nextPageToken = response.nextPageToken;
+    }
+
+    return result;
+  }
+
+  public async getGoogleCalendarEvent(options: GetGoogleCalendarEventOptions): Promise<GoogleCalendarEvent> {
+    const userTimezone = await this.sensorManager.getUserTimezone();
+    const calendarId = options.calendarId ?? DEFAULT_GOOGLE_CALENDAR_ID;
+    const raw = await this.request<GoogleRawCalendarEvent>({
+      url: `${calendarEventsUrl(calendarId)}/${encodeURIComponent(options.eventId)}`,
+    });
+
+    return parseGoogleCalendarEventFull(raw, userTimezone);
   }
 
   public async listGmailLabels(): Promise<ListGmailLabelsResult> {
