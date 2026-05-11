@@ -150,12 +150,11 @@ sees the other's credentials.
 
 ### Google connector
 
-**Status**: Gmail tool family is live (list / read / thread / send / reply /
-trash, plus full label management - see below). Calendar and Contacts scopes
-are granted at sign-in time so agents can reuse the same connection once
-their tool families ship.
+**Status**: Gmail and Google Calendar tool families are live.
 
-**Tools shipped today** (Gmail):
+**Tools powered by the Google connector:**
+
+_Gmail_
 
 - `list_gmail_messages`, `get_gmail_message_content`, `get_gmail_thread` — read
   inbox, message bodies (rendered as markdown), and conversation threads.
@@ -167,6 +166,17 @@ their tool families ship.
 - `update_gmail_message_state` — flip read / archived / starred / important flag on a message.
 - `create_gmail_user_label`, `delete_gmail_user_label` — manage user-defined
   labels (folders/tags).
+
+_Google Calendar_
+
+- `list_google_calendars` — discover the calendars the connected account
+  can access.
+- `list_google_calendar_events` — browse events on a calendar.
+- `get_google_calendar_event` — fetch the full description, per-attendee RSVP status, and Meet/Hangout link.
+- `create_google_calendar_event` — schedule an event.
+- `update_google_calendar_event` — edit an existing event in place.
+- `delete_google_calendar_event` — cancel and remove an event; Google
+  sends cancellation emails to any attendees.
 
 ### Setup (Google)
 
