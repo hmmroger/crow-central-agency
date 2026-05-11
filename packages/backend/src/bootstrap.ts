@@ -58,6 +58,10 @@ import { ConnectorManager } from "./connectors/connector-manager.js";
 import { GoogleConnector } from "./connectors/google-connector.js";
 import { registerConnectorsRoutes } from "./routes/connectors.routes.js";
 import { getGmailMcpServerDefinition, GMAIL_MCP_SERVER_NAME } from "./mcp/gmail/gmail-mcp-server.js";
+import {
+  getGoogleCalendarMcpServerDefinition,
+  GOOGLE_CALENDAR_MCP_SERVER_NAME,
+} from "./mcp/google-calendar/google-calendar-mcp-server.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -169,6 +173,12 @@ export async function bootstrap(options: BootstrapOptions) {
     hasRequiredConnections: gmailMcpDefinition.hasRequiredConnections,
     isConfigurable: gmailMcpDefinition.isConfigurable,
     displayName: gmailMcpDefinition.displayName,
+  });
+  const googleCalendarMcpDefinition = getGoogleCalendarMcpServerDefinition(connectorManager, sensorManager);
+  mcpManager.registerMcpServer(GOOGLE_CALENDAR_MCP_SERVER_NAME, googleCalendarMcpDefinition.serverFactory, {
+    hasRequiredConnections: googleCalendarMcpDefinition.hasRequiredConnections,
+    isConfigurable: googleCalendarMcpDefinition.isConfigurable,
+    displayName: googleCalendarMcpDefinition.displayName,
   });
 
   // Start scheduler

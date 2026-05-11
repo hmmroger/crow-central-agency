@@ -31,15 +31,22 @@ import {
   GMAIL_LIST_METADATA_HEADERS,
   GMAIL_REPLY_METADATA_HEADERS,
   GMAIL_LABEL_COLOR_PALETTE,
+  GOOGLE_CALENDAR_ACCESS_ROLE,
   GOOGLE_SERVICE_NAME,
   type CreateGmailUserLabelOptions,
   type GmailLabel,
   type GmailMessage,
   type GmailMessageSummary,
   type GmailThread,
+  type GoogleCalendar,
+  type GoogleCalendarAccessRole,
+  type GoogleCalendarListResponse,
+  type GoogleRawCalendarListEntry,
   type ListGmailLabelsResult,
   type ListGmailMessagesOptions,
   type ListGmailMessagesResult,
+  type ListGoogleCalendarsOptions,
+  type ListGoogleCalendarsResult,
   type MoveGmailMessageToTrashResult,
   type ReplyToGmailMessageOptions,
   type SendGmailMessageOptions,
@@ -55,7 +62,42 @@ import type { GoogleRequestOptions } from "./google-request.types.js";
 const GMAIL_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const GMAIL_THREADS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/threads";
 const GMAIL_LABELS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
+const GOOGLE_CALENDAR_LIST_URL = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
 export const DEFAULT_GMAIL_LIST_LIMIT = 25;
+export const DEFAULT_GOOGLE_CALENDAR_LIST_LIMIT = 50;
+const GOOGLE_CALENDAR_LIST_MAX_PAGE_SIZE = 250;
+
+function isCalendarAccessRole(value: string): value is GoogleCalendarAccessRole {
+  return (
+    value === GOOGLE_CALENDAR_ACCESS_ROLE.OWNER ||
+    value === GOOGLE_CALENDAR_ACCESS_ROLE.WRITER ||
+    value === GOOGLE_CALENDAR_ACCESS_ROLE.READER ||
+    value === GOOGLE_CALENDAR_ACCESS_ROLE.FREE_BUSY_READER
+  );
+}
+
+function parseGoogleCalendar(raw: GoogleRawCalendarListEntry): GoogleCalendar {
+  // Defensively fall back to the lowest-privilege role if Google ever
+  // introduces a new value we don't yet model.
+  const accessRole = isCalendarAccessRole(raw.accessRole)
+    ? raw.accessRole
+    : GOOGLE_CALENDAR_ACCESS_ROLE.FREE_BUSY_READER;
+  const calendar: GoogleCalendar = {
+    id: raw.id,
+    summary: raw.summary,
+    accessRole,
+    timeZone: raw.timeZone,
+  };
+  if (raw.description !== undefined) {
+    calendar.description = raw.description;
+  }
+
+  if (raw.primary === true) {
+    calendar.primary = true;
+  }
+
+  return calendar;
+}
 
 /**
  * Per-agent runtime client for Google REST APIs (Gmail, Calendar, Contacts...).
@@ -141,6 +183,35 @@ export class GoogleClient {
     });
 
     return { id: response.id, threadId: response.threadId };
+  }
+
+  public async listGoogleCalendars(options: ListGoogleCalendarsOptions = {}): Promise<ListGoogleCalendarsResult> {
+    const limit = options.limit ?? DEFAULT_GOOGLE_CALENDAR_LIST_LIMIT;
+    const calendars: GoogleCalendar[] = [];
+    let pageToken: string | undefined;
+    while (calendars.length < limit) {
+      const remaining = limit - calendars.length;
+      const pageSize = Math.min(remaining, GOOGLE_CALENDAR_LIST_MAX_PAGE_SIZE);
+      const page = await this.request<GoogleCalendarListResponse>({
+        url: GOOGLE_CALENDAR_LIST_URL,
+        query: { pageToken, maxResults: String(pageSize) },
+      });
+      for (const item of page.items ?? []) {
+        if (calendars.length >= limit) {
+          break;
+        }
+
+        calendars.push(parseGoogleCalendar(item));
+      }
+
+      if (page.nextPageToken === undefined) {
+        break;
+      }
+
+      pageToken = page.nextPageToken;
+    }
+
+    return { calendars };
   }
 
   public async listGmailLabels(): Promise<ListGmailLabelsResult> {

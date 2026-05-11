@@ -17,8 +17,8 @@ const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 const SCOPE_USERINFO_EMAIL = "https://www.googleapis.com/auth/userinfo.email";
 const SCOPE_USERINFO_PROFILE = "https://www.googleapis.com/auth/userinfo.profile";
 export const SCOPE_GMAIL_MODIFY = "https://www.googleapis.com/auth/gmail.modify";
-const SCOPE_CALENDAR_EVENTS = "https://www.googleapis.com/auth/calendar.events";
-const SCOPE_CALENDAR_CALENDARLIST_READONLY = "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
+export const SCOPE_CALENDAR_EVENTS = "https://www.googleapis.com/auth/calendar.events";
+export const SCOPE_CALENDAR_CALENDARLIST_READONLY = "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
 const SCOPE_CONTACTS = "https://www.googleapis.com/auth/contacts";
 const SCOPE_CONTACTS_OTHER_READONLY = "https://www.googleapis.com/auth/contacts.other.readonly";
 

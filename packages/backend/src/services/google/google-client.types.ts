@@ -208,3 +208,50 @@ export interface UpdateGmailMessageStateResult extends GmailMessageState {
   id: string;
   threadId: string;
 }
+
+export const GOOGLE_CALENDAR_ACCESS_ROLE = {
+  OWNER: "owner",
+  WRITER: "writer",
+  READER: "reader",
+  FREE_BUSY_READER: "freeBusyReader",
+} as const;
+
+export type GoogleCalendarAccessRole = (typeof GOOGLE_CALENDAR_ACCESS_ROLE)[keyof typeof GOOGLE_CALENDAR_ACCESS_ROLE];
+
+export interface GoogleCalendar {
+  id: string;
+  /** Display name. For the primary calendar this is the user's email. */
+  summary: string;
+  /** User-provided description; absent for most calendars. */
+  description?: string;
+  /** Present and true on the user's primary calendar. */
+  primary?: boolean;
+  /** Access level the caller has on this calendar. */
+  accessRole: GoogleCalendarAccessRole;
+  /** IANA timezone of the calendar (e.g. "America/Los_Angeles"). */
+  timeZone: string;
+}
+
+export interface ListGoogleCalendarsOptions {
+  /** Max calendars to return. Defaults to `DEFAULT_GOOGLE_CALENDAR_LIST_LIMIT`. */
+  limit?: number;
+}
+
+export interface ListGoogleCalendarsResult {
+  calendars: GoogleCalendar[];
+}
+
+/** Raw item shape from Google Calendar v3 `calendarList.list`. */
+export interface GoogleRawCalendarListEntry {
+  id: string;
+  summary: string;
+  description?: string;
+  primary?: boolean;
+  accessRole: string;
+  timeZone: string;
+}
+
+export interface GoogleCalendarListResponse {
+  items?: GoogleRawCalendarListEntry[];
+  nextPageToken?: string;
+}
