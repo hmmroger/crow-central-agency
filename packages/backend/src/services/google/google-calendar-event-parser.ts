@@ -3,6 +3,7 @@ import { formatLocalDateTime } from "../../utils/date-utils.js";
 import {
   GOOGLE_CALENDAR_EVENT_ATTENDEE_RESPONSE,
   GOOGLE_CALENDAR_EVENT_STATUS,
+  GOOGLE_CALENDAR_EVENT_TYPE,
   GOOGLE_SERVICE_NAME,
   type GoogleCalendarEvent,
   type GoogleCalendarEventAttendee,
@@ -10,6 +11,7 @@ import {
   type GoogleCalendarEventStatus,
   type GoogleCalendarEventSummary,
   type GoogleCalendarEventTime,
+  type GoogleCalendarEventType,
   type GoogleRawCalendarEvent,
   type GoogleRawCalendarEventAttendee,
   type GoogleRawCalendarEventTime,
@@ -23,6 +25,7 @@ export function parseGoogleCalendarEventSummary(
   const summary: GoogleCalendarEventSummary = {
     id: raw.id,
     status: parseStatus(raw.status),
+    eventType: parseEventType(raw.eventType),
     start: parseEventTime(raw.start, userTimezone),
     end: parseEventTime(raw.end, userTimezone),
     isRecurringInstance: raw.recurringEventId !== undefined,
@@ -143,6 +146,25 @@ function parseStatus(raw: string | undefined): GoogleCalendarEventStatus {
   }
 
   return GOOGLE_CALENDAR_EVENT_STATUS.CONFIRMED;
+}
+
+function isGoogleCalendarEventType(value: string): value is GoogleCalendarEventType {
+  return (
+    value === GOOGLE_CALENDAR_EVENT_TYPE.DEFAULT ||
+    value === GOOGLE_CALENDAR_EVENT_TYPE.OUT_OF_OFFICE ||
+    value === GOOGLE_CALENDAR_EVENT_TYPE.FOCUS_TIME ||
+    value === GOOGLE_CALENDAR_EVENT_TYPE.WORKING_LOCATION ||
+    value === GOOGLE_CALENDAR_EVENT_TYPE.BIRTHDAY ||
+    value === GOOGLE_CALENDAR_EVENT_TYPE.FROM_GMAIL
+  );
+}
+
+function parseEventType(raw: string | undefined): GoogleCalendarEventType {
+  if (raw !== undefined && isGoogleCalendarEventType(raw)) {
+    return raw;
+  }
+
+  return GOOGLE_CALENDAR_EVENT_TYPE.DEFAULT;
 }
 
 function isGoogleCalendarEventAttendeeResponse(value: string): value is GoogleCalendarEventAttendeeResponse {

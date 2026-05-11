@@ -262,6 +262,17 @@ export const GOOGLE_CALENDAR_EVENT_ATTENDEE_RESPONSE = {
 export type GoogleCalendarEventAttendeeResponse =
   (typeof GOOGLE_CALENDAR_EVENT_ATTENDEE_RESPONSE)[keyof typeof GOOGLE_CALENDAR_EVENT_ATTENDEE_RESPONSE];
 
+export const GOOGLE_CALENDAR_EVENT_TYPE = {
+  DEFAULT: "default",
+  OUT_OF_OFFICE: "outOfOffice",
+  FOCUS_TIME: "focusTime",
+  WORKING_LOCATION: "workingLocation",
+  BIRTHDAY: "birthday",
+  FROM_GMAIL: "fromGmail",
+} as const;
+
+export type GoogleCalendarEventType = (typeof GOOGLE_CALENDAR_EVENT_TYPE)[keyof typeof GOOGLE_CALENDAR_EVENT_TYPE];
+
 export interface GoogleCalendarEventTime {
   /** Original RFC3339 timestamp ("2025-05-10T14:30:00-07:00") or YYYY-MM-DD for all-day events. */
   raw: string;
@@ -285,6 +296,7 @@ export interface GoogleCalendarEventAttendee {
 export interface GoogleCalendarEventSummary {
   id: string;
   status: GoogleCalendarEventStatus;
+  eventType: GoogleCalendarEventType;
   summary?: string;
   start: GoogleCalendarEventTime;
   end: GoogleCalendarEventTime;
@@ -328,6 +340,74 @@ export interface GetGoogleCalendarEventOptions {
   eventId: string;
 }
 
+export interface CreateGoogleCalendarEventOptions {
+  /** Calendar to create the event on; defaults to the user's primary calendar. */
+  calendarId?: string;
+  /** Event title (mapped to Google's `summary` field). */
+  title: string;
+  /**
+   * Inclusive start. For timed events pass an ISO datetime (e.g. "2025-05-10T14:00:00")
+   * interpreted in the user's local timezone if no offset is present. For all-day events
+   * pass a date-only string ("YYYY-MM-DD").
+   */
+  startDateTime: string;
+  /**
+   * Inclusive end. Same format rules as startDateTime. For all-day events pass the LAST
+   * day of the event (inclusive) - the client converts to Google's exclusive-end format
+   * internally.
+   */
+  endDateTime: string;
+  /** Markdown body; converted to HTML before sending. */
+  description?: string;
+  location?: string;
+  /** Email addresses of attendees. When non-empty, Google sends invitation emails. */
+  attendees?: string[];
+  /** When true, request a Google Meet conference; the response's hangoutLink will carry the URL. */
+  addMeetLink?: boolean;
+}
+
+/** Wire body shape for events.insert. */
+export interface GoogleCalendarEventInsertBody {
+  summary: string;
+  description?: string;
+  location?: string;
+  start: GoogleRawCalendarEventTime;
+  end: GoogleRawCalendarEventTime;
+  attendees?: { email: string }[];
+  conferenceData?: GoogleRawCalendarEventConferenceData;
+}
+
+export interface UpdateGoogleCalendarEventOptions {
+  /** Calendar the event lives on; defaults to the user's primary calendar. */
+  calendarId?: string;
+  eventId: string;
+  /** Event title. */
+  title?: string;
+  /**
+   * Inclusive start. Must be provided together with endDateTime and use the same format
+   * (both date-only YYYY-MM-DD for all-day events, or both ISO datetimes for timed).
+   */
+  startDateTime?: string;
+  /**
+   * Inclusive end. For all-day events, pass the LAST day (inclusive); the client converts
+   * to Google's exclusive-end format internally.
+   */
+  endDateTime?: string;
+  /** Markdown body; converted to HTML before sending. */
+  description?: string;
+  location?: string;
+  /** Email addresses to invite. Already-present attendees are silently skipped. */
+  addAttendees?: string[];
+  /** Email addresses to detach. Emails not currently on the event are silently skipped. */
+  removeAttendees?: string[];
+}
+
+export interface DeleteGoogleCalendarEventOptions {
+  /** Calendar the event lives on; defaults to the user's primary calendar. */
+  calendarId?: string;
+  eventId: string;
+}
+
 export interface GoogleRawCalendarEventTime {
   /** Present for all-day events (YYYY-MM-DD). */
   date?: string;
@@ -352,9 +432,58 @@ export interface GoogleRawCalendarEventAttendee {
   self?: boolean;
 }
 
+export const GOOGLE_CONFERENCE_SOLUTION_TYPE = {
+  EVENT_HANGOUT: "eventHangout", // deprecated
+  EVENT_NAME_HANGOUT: "eventNamedHangout", // deprecated
+  HANGOUTS_MEET: "hangoutsMeet",
+  ADD_ON: "addOn",
+} as const;
+
+export type GoogleConferenceSolutionType =
+  (typeof GOOGLE_CONFERENCE_SOLUTION_TYPE)[keyof typeof GOOGLE_CONFERENCE_SOLUTION_TYPE];
+
+export interface GoogleRawConferenceSolutionKey {
+  type: string;
+}
+
+export interface GoogleRawConferenceCreateRequest {
+  requestId: string;
+  conferenceSolutionKey: GoogleRawConferenceSolutionKey;
+  status?: { statusCode?: string };
+}
+
+export interface GoogleRawConferenceEntryPoint {
+  entryPointType?: string;
+  uri?: string;
+  label?: string;
+  pin?: string;
+  accessCode?: string;
+  meetingCode?: string;
+  passcode?: string;
+  password?: string;
+}
+
+export interface GoogleRawConferenceSolution {
+  key?: GoogleRawConferenceSolutionKey;
+  name?: string;
+  iconUri?: string;
+}
+
+export interface GoogleRawCalendarEventConferenceData {
+  /** Stable conference ID Google assigns after createRequest succeeds. */
+  conferenceId?: string;
+  /** Populated when asking Google to create a conference (insert request) and echoed back on the response. */
+  createRequest?: GoogleRawConferenceCreateRequest;
+  /** Phone/video/sip entry points the conference exposes. */
+  entryPoints?: GoogleRawConferenceEntryPoint[];
+  /** The conference solution (e.g. Google Meet) the conference belongs to. */
+  conferenceSolution?: GoogleRawConferenceSolution;
+}
+
 export interface GoogleRawCalendarEvent {
   id: string;
   status?: string;
+  eventType?: string;
   htmlLink?: string;
   summary?: string;
   description?: string;
@@ -363,6 +492,7 @@ export interface GoogleRawCalendarEvent {
   start: GoogleRawCalendarEventTime;
   end: GoogleRawCalendarEventTime;
   recurringEventId?: string;
+  conferenceData?: GoogleRawCalendarEventConferenceData;
   attendees?: GoogleRawCalendarEventAttendee[];
   hangoutLink?: string;
 }

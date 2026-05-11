@@ -1,5 +1,6 @@
 import {
   GOOGLE_CALENDAR_EVENT_ATTENDEE_RESPONSE,
+  GOOGLE_CALENDAR_EVENT_TYPE,
   type GoogleCalendarEvent,
   type GoogleCalendarEventAttendee,
   type GoogleCalendarEventSummary,
@@ -22,6 +23,12 @@ export function formatGoogleCalendarEventSummary(event: GoogleCalendarEventSumma
     `    - Start: ${formatEventTime(event.start)}`,
     `    - End: ${formatEventTime(event.end)}`,
   ];
+
+  // Default events are the common case - skip the line to keep output lean.
+  if (event.eventType !== GOOGLE_CALENDAR_EVENT_TYPE.DEFAULT) {
+    lines.push(`    - Event type: ${event.eventType}`);
+  }
+
   if (event.location !== undefined && event.location.length > 0) {
     lines.push(`    - Location: ${event.location}`);
   }

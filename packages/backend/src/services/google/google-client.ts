@@ -3,6 +3,7 @@ import { CONNECTOR_ID } from "../../connectors/connector-manager.types.js";
 import { RequestError } from "../../core/error/request-error.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import { parseDateTimeWithTimezone } from "../../utils/date-utils.js";
+import { generateId } from "../../utils/id-utils.js";
 import { markdownToHtml } from "../../utils/markdown-to-html.js";
 import { parseGoogleCalendarEventFull, parseGoogleCalendarEventSummary } from "./google-calendar-event-parser.js";
 import {
@@ -36,8 +37,12 @@ import {
   GMAIL_LABEL_COLOR_PALETTE,
   GOOGLE_CALENDAR_ACCESS_ROLE,
   GOOGLE_SERVICE_NAME,
+  GOOGLE_CONFERENCE_SOLUTION_TYPE,
   type CreateGmailUserLabelOptions,
+  type CreateGoogleCalendarEventOptions,
+  type DeleteGoogleCalendarEventOptions,
   type GetGoogleCalendarEventOptions,
+  type GoogleCalendarEventInsertBody,
   type GmailLabel,
   type GmailMessage,
   type GmailMessageSummary,
@@ -48,6 +53,7 @@ import {
   type GoogleCalendarEventsListResponse,
   type GoogleCalendarListResponse,
   type GoogleRawCalendarEvent,
+  type GoogleRawCalendarEventAttendee,
   type GoogleRawCalendarListEntry,
   type ListGmailLabelsResult,
   type ListGoogleCalendarEventsOptions,
@@ -57,6 +63,7 @@ import {
   type ListGoogleCalendarsOptions,
   type ListGoogleCalendarsResult,
   type MoveGmailMessageToTrashResult,
+  type UpdateGoogleCalendarEventOptions,
   type ReplyToGmailMessageOptions,
   type SendGmailMessageOptions,
   type SendGmailMessageResult,
@@ -79,8 +86,22 @@ export const DEFAULT_GOOGLE_CALENDAR_EVENTS_LIST_LIMIT = 25;
 const GOOGLE_CALENDAR_LIST_MAX_PAGE_SIZE = 250;
 const GOOGLE_CALENDAR_EVENTS_MAX_PAGE_SIZE = 2500;
 
+const ALL_DAY_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 function calendarEventsUrl(calendarId: string): string {
   return `${GOOGLE_CALENDAR_EVENTS_BASE_URL}/${encodeURIComponent(calendarId)}/events`;
+}
+
+function isAllDayDate(value: string): boolean {
+  return ALL_DAY_DATE_PATTERN.test(value.trim());
+}
+
+/** Add one calendar day to a YYYY-MM-DD string. Used to convert an inclusive end-date to Google's exclusive-end convention. */
+function bumpDateByOneDay(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
 }
 
 function toCalendarApiRfc3339(dateTimeStr: string, userTimezone: string, fieldName: string): string {
@@ -288,6 +309,183 @@ export class GoogleClient {
     });
 
     return parseGoogleCalendarEventFull(raw, userTimezone);
+  }
+
+  public async createGoogleCalendarEvent(options: CreateGoogleCalendarEventOptions): Promise<GoogleCalendarEvent> {
+    const userTimezone = await this.sensorManager.getUserTimezone();
+    const calendarId = options.calendarId ?? DEFAULT_GOOGLE_CALENDAR_ID;
+    const startIsAllDay = isAllDayDate(options.startDateTime);
+    const endIsAllDay = isAllDayDate(options.endDateTime);
+    if (startIsAllDay !== endIsAllDay) {
+      throw new RequestError(
+        "startDateTime and endDateTime must both be date-only (YYYY-MM-DD) or both be datetimes.",
+        undefined,
+        undefined,
+        GOOGLE_SERVICE_NAME
+      );
+    }
+
+    const body: GoogleCalendarEventInsertBody = {
+      summary: options.title,
+      start: startIsAllDay
+        ? { date: options.startDateTime.trim() }
+        : {
+            dateTime: toCalendarApiRfc3339(options.startDateTime, userTimezone, "startDateTime"),
+            timeZone: userTimezone,
+          },
+      end: endIsAllDay
+        ? { date: bumpDateByOneDay(options.endDateTime.trim()) }
+        : { dateTime: toCalendarApiRfc3339(options.endDateTime, userTimezone, "endDateTime"), timeZone: userTimezone },
+    };
+    if (options.description !== undefined && options.description.length > 0) {
+      body.description = markdownToHtml(options.description);
+    }
+
+    if (options.location !== undefined && options.location.length > 0) {
+      body.location = options.location;
+    }
+
+    if (options.attendees !== undefined && options.attendees.length > 0) {
+      body.attendees = options.attendees.map((email) => ({ email }));
+    }
+
+    if (options.addMeetLink === true) {
+      body.conferenceData = {
+        createRequest: {
+          requestId: generateId(),
+          conferenceSolutionKey: { type: GOOGLE_CONFERENCE_SOLUTION_TYPE.HANGOUTS_MEET },
+        },
+      };
+    }
+
+    const query: Record<string, string> = {};
+    if (body.attendees !== undefined) {
+      query.sendUpdates = "all";
+    }
+
+    if (body.conferenceData !== undefined) {
+      query.conferenceDataVersion = "1";
+    }
+
+    const raw = await this.request<GoogleRawCalendarEvent>({
+      url: calendarEventsUrl(calendarId),
+      method: "POST",
+      query: Object.keys(query).length > 0 ? query : undefined,
+      body,
+    });
+
+    return parseGoogleCalendarEventFull(raw, userTimezone);
+  }
+
+  public async updateGoogleCalendarEvent(options: UpdateGoogleCalendarEventOptions): Promise<GoogleCalendarEvent> {
+    const userTimezone = await this.sensorManager.getUserTimezone();
+    const calendarId = options.calendarId ?? DEFAULT_GOOGLE_CALENDAR_ID;
+    const { startDateTime, endDateTime } = options;
+    if ((startDateTime === undefined) !== (endDateTime === undefined)) {
+      throw new RequestError(
+        "startDateTime and endDateTime must be provided together.",
+        undefined,
+        undefined,
+        GOOGLE_SERVICE_NAME
+      );
+    }
+
+    const hasAnyChange =
+      options.title !== undefined ||
+      options.description !== undefined ||
+      options.location !== undefined ||
+      startDateTime !== undefined ||
+      (options.addAttendees !== undefined && options.addAttendees.length > 0) ||
+      (options.removeAttendees !== undefined && options.removeAttendees.length > 0);
+    if (!hasAnyChange) {
+      throw new RequestError(
+        "updateGoogleCalendarEvent requires at least one field to change.",
+        undefined,
+        undefined,
+        GOOGLE_SERVICE_NAME
+      );
+    }
+
+    const eventUrl = `${calendarEventsUrl(calendarId)}/${encodeURIComponent(options.eventId)}`;
+    const current = await this.request<GoogleRawCalendarEvent>({ url: eventUrl });
+    const body: GoogleRawCalendarEvent = { ...current };
+    if (options.title !== undefined) {
+      body.summary = options.title;
+    }
+
+    if (options.description !== undefined) {
+      body.description = options.description.length > 0 ? markdownToHtml(options.description) : "";
+    }
+
+    if (options.location !== undefined) {
+      body.location = options.location;
+    }
+
+    if (startDateTime !== undefined && endDateTime !== undefined) {
+      const startIsAllDay = isAllDayDate(startDateTime);
+      const endIsAllDay = isAllDayDate(endDateTime);
+      if (startIsAllDay !== endIsAllDay) {
+        throw new RequestError(
+          "startDateTime and endDateTime must both be date-only (YYYY-MM-DD) or both be datetimes.",
+          undefined,
+          undefined,
+          GOOGLE_SERVICE_NAME
+        );
+      }
+
+      body.start = startIsAllDay
+        ? { date: startDateTime.trim() }
+        : { dateTime: toCalendarApiRfc3339(startDateTime, userTimezone, "startDateTime"), timeZone: userTimezone };
+      body.end = endIsAllDay
+        ? { date: bumpDateByOneDay(endDateTime.trim()) }
+        : { dateTime: toCalendarApiRfc3339(endDateTime, userTimezone, "endDateTime"), timeZone: userTimezone };
+    }
+
+    const hasAttendeeChange =
+      (options.addAttendees !== undefined && options.addAttendees.length > 0) ||
+      (options.removeAttendees !== undefined && options.removeAttendees.length > 0);
+    if (hasAttendeeChange) {
+      const attendeesMap = new Map<string, GoogleRawCalendarEventAttendee>();
+      for (const existingAttendee of current.attendees ?? []) {
+        attendeesMap.set(existingAttendee.email.toLowerCase(), existingAttendee);
+      }
+
+      for (const emailToRemove of options.removeAttendees ?? []) {
+        attendeesMap.delete(emailToRemove.toLowerCase());
+      }
+
+      for (const emailToAdd of options.addAttendees ?? []) {
+        const key = emailToAdd.toLowerCase();
+        if (!attendeesMap.has(key)) {
+          attendeesMap.set(key, { email: emailToAdd });
+        }
+      }
+
+      body.attendees = Array.from(attendeesMap.values());
+    }
+
+    const query: Record<string, string> = { sendUpdates: "all" };
+    if (body.conferenceData !== undefined) {
+      query.conferenceDataVersion = "1";
+    }
+
+    const raw = await this.request<GoogleRawCalendarEvent>({
+      url: eventUrl,
+      method: "PUT",
+      query,
+      body,
+    });
+
+    return parseGoogleCalendarEventFull(raw, userTimezone);
+  }
+
+  public async deleteGoogleCalendarEvent(options: DeleteGoogleCalendarEventOptions): Promise<void> {
+    const calendarId = options.calendarId ?? DEFAULT_GOOGLE_CALENDAR_ID;
+    await this.requestVoid({
+      url: `${calendarEventsUrl(calendarId)}/${encodeURIComponent(options.eventId)}`,
+      method: "DELETE",
+      query: { sendUpdates: "all" },
+    });
   }
 
   public async listGmailLabels(): Promise<ListGmailLabelsResult> {
