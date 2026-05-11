@@ -62,9 +62,18 @@ function formatPhone(phone: GoogleContactPhone): string {
 }
 
 function formatOrganization(org: GoogleContactOrganization): string | undefined {
-  if (org.name !== undefined && org.title !== undefined) {
-    return `${org.name} Title: ${org.title} ${org.department ? `(${org.department})` : ""}`;
+  const parts: string[] = [];
+  if (org.name !== undefined) {
+    parts.push(org.name);
   }
 
-  return org.title ?? org.name;
+  if (org.title !== undefined) {
+    parts.push(`Title: ${org.title}`);
+  }
+
+  if (org.department !== undefined) {
+    parts.push(`(${org.department})`);
+  }
+
+  return parts.length > 0 ? parts.join(" ") : undefined;
 }
