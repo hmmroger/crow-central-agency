@@ -150,7 +150,7 @@ sees the other's credentials.
 
 ### Google connector
 
-**Status**: Gmail and Google Calendar tool families are live.
+**Status**: Gmail, Google Calendar, and Google Contacts tool families are live.
 
 **Tools powered by the Google connector:**
 
@@ -177,6 +177,12 @@ _Google Calendar_
 - `update_google_calendar_event` — edit an existing event in place.
 - `delete_google_calendar_event` — cancel and remove an event; Google
   sends cancellation emails to any attendees.
+
+_Google Contacts_
+
+- `search_google_contacts` — look up the user's saved contacts by name,
+  email, phone, or organization fragment; returns the full email and
+  phone lists per match plus primary organization details.
 
 ### Setup (Google)
 
