@@ -8,6 +8,7 @@ import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { CrowScheduler } from "../services/crow-scheduler.js";
 import { logger } from "../utils/logger.js";
+import { arraysEqualUnordered } from "../utils/array-utils.js";
 import {
   ConnectorRevokedError,
   OAuthTokensSchema,
@@ -327,7 +328,7 @@ export class ConnectorManager {
     };
     await container.credentialStore.set(record.credentialKey, JSON.stringify(merged));
 
-    if (merged.grantedScopes.length > 0 && !scopeSetsEqual(merged.grantedScopes, record.grantedScopes)) {
+    if (merged.grantedScopes.length > 0 && !arraysEqualUnordered(merged.grantedScopes, record.grantedScopes)) {
       const updated: ConnectionRecord = { ...record, grantedScopes: merged.grantedScopes };
       const connectionKey = buildConnectionKey(record.agentId, connector.id);
       await this.connectionStore.set<ConnectionRecord>(CONNECTOR_CONNECTIONS_TABLE, connectionKey, updated);
@@ -397,14 +398,4 @@ function buildCredentialKey(agentId: string, connectorId: string): string {
 
 function grantCovers(granted: string[], required: string[]): boolean {
   return required.every((scope) => granted.includes(scope));
-}
-
-function scopeSetsEqual(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  const leftSorted = [...left].sort();
-  const rightSorted = [...right].sort();
-  return leftSorted.every((scope, index) => scope === rightSorted[index]);
 }

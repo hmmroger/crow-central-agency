@@ -15,7 +15,12 @@ import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { generateId, isCrowSystemAgent } from "../utils/id-utils.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
-import type { McpServerFactory, McpServerRegistration, RegisterMcpServerOptions } from "./crow-mcp-manager.types.js";
+import type {
+  CrowMcpServerConfig,
+  McpServerFactory,
+  McpServerRegistration,
+  RegisterMcpServerOptions,
+} from "./crow-mcp-manager.types.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { SystemSettingsManager } from "../services/system-settings-manager.js";
 import { FEED_MCP_SERVER_NAME } from "./feed/feed-mcp-server.js";
@@ -67,6 +72,7 @@ export class CrowMcpManager {
       allowedAgentIds: options?.allowedAgentIds ? new Set(options.allowedAgentIds) : undefined,
       isConfigurable: options?.isConfigurable,
       hasRequiredConnections: options?.hasRequiredConnections,
+      getConnectionProfiles: options?.getConnectionProfiles,
       displayName: options?.displayName,
     });
     log.info(
@@ -81,22 +87,25 @@ export class CrowMcpManager {
   }
 
   /** Get MCP servers available to a specific agent */
-  public async getMcpServersForAgent(
-    agentId: string
-  ): Promise<{ name: string; serverFactory: McpServerFactory; isInternal: boolean }[]> {
+  public async getMcpServersForAgent(agentId: string): Promise<CrowMcpServerConfig[]> {
     const agentConfig = this.registry.getAgent(agentId);
     const configuredMcpIds = new Set(agentConfig.mcpServerIds ?? []);
-    const agentMcpMap = new Map<string, { name: string; serverFactory: McpServerFactory; isInternal: boolean }>();
+    const agentMcpMap = new Map<string, CrowMcpServerConfig>();
     const serverRegistrations = await this.getInternalServerRegistrationsForAgent(agentId, agentConfig);
     for (const registration of serverRegistrations) {
       const hasConnections =
         !registration.hasRequiredConnections || (await registration.hasRequiredConnections(agentId));
+      const connectionProfiles =
+        hasConnections && registration.getConnectionProfiles
+          ? await registration.getConnectionProfiles(agentId)
+          : undefined;
       if (hasConnections && (!registration.isConfigurable || configuredMcpIds.has(registration.name))) {
         agentMcpMap.set(registration.name, {
           name: registration.name,
           serverFactory: registration.factory,
           // configurable MCPs are not hidden and tools can be configured
           isInternal: !registration.isConfigurable,
+          connectionProfiles,
         });
       }
     }

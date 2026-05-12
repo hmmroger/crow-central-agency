@@ -47,11 +47,21 @@ import type { SensorContext } from "../sensors/sensor-manager.types.js";
 import type { MessageSource } from "../services/message-queue-manager.types.js";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
 import { ADD_REMINDER_TOOL_NAME } from "../mcp/reminders/add-reminder.js";
+import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
+import { GMAIL_MCP_SERVER_NAME } from "../mcp/gmail/gmail-mcp-server.js";
+import { CONNECTOR_ID } from "../connectors/connector-manager.types.js";
 
 const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
   role: MessageRoles.system,
   content: [
-    { content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your agent name is: {agentName}", ""] },
+    {
+      content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your name is: {agentName}"],
+    },
+    {
+      content: ["Your email is: {agentEmail}"],
+      keys: ["agentEmail"],
+    },
+    { content: [""] },
     { content: ["## Core persona", "", "{persona}", ""], keys: ["persona"] },
     {
       content: [
@@ -112,6 +122,7 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
     "currentTime",
     "agentId",
     "agentName",
+    "agentEmail",
     "persona",
     "agentCircles",
     "peerAgents",
@@ -124,7 +135,7 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
 const CROW_SYSTEM_PROMPT: MessageTemplate = {
   role: MessageRoles.system,
   content: [
-    { content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your agent name is: {agentName}", ""] },
+    { content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your name is: {agentName}", ""] },
     { content: ["## Core persona", "", "{persona}", ""], keys: ["persona"] },
     {
       content: [
@@ -271,10 +282,10 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
     // Track running agent
     this.abortController = new AbortController();
 
-    const mcpServers = await this.buildMcpServers();
-    const hasFeedMcp = mcpServers[FEED_MCP_SERVER_NAME] ? "true" : undefined;
+    const serverConfigs = await this.mcpManager.getMcpServersForAgent(this.agentId);
+    const mcpServers = await this.buildMcpServers(serverConfigs);
     const sensorContext = await this.sensorManager.getSensorContext();
-    const systemPrompt = await this.buildSystemPrompt(agentConfig, sensorContext, hasFeedMcp);
+    const systemPrompt = await this.buildSystemPrompt(agentConfig, sensorContext, serverConfigs);
     const systemPromptOption = systemPrompt
       ? agentConfig.excludeClaudeCodeSystemPrompt
         ? systemPrompt
@@ -391,9 +402,9 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
   }
 
   /** Build MCP servers for a query — only includes servers the agent has access to */
-  private async buildMcpServers(): Promise<Record<string, McpServerConfig>> {
+  private async buildMcpServers(serverConfigs: CrowMcpServerConfig[]): Promise<Record<string, McpServerConfig>> {
     const servers: Record<string, McpServerConfig> = {};
-    for (const { name, serverFactory } of await this.mcpManager.getMcpServersForAgent(this.agentId)) {
+    for (const { name, serverFactory } of serverConfigs) {
       servers[name] = serverFactory(this.agentId);
     }
 
@@ -515,7 +526,7 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
   private async buildSystemPrompt(
     agent: AgentConfig,
     sensorContext: SensorContext,
-    hasFeedMcp?: string
+    serverConfigs: CrowMcpServerConfig[]
   ): Promise<string> {
     const agentMd = await this.registry.getAgentMd(this.agentId);
     const circles = this.circleManager.getCirclesForEntity(this.agentId, ENTITY_TYPE.AGENT);
@@ -566,12 +577,17 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
       }
     }
 
+    const gmailServerProfiles = serverConfigs.find(
+      (server) => server.name === GMAIL_MCP_SERVER_NAME
+    )?.connectionProfiles;
+    const hasFeedMcp = serverConfigs.find((server) => server.name === FEED_MCP_SERVER_NAME) ? "true" : undefined;
     const content = createMessageContentFromTemplate(
       isCrowSystemAgent(this.agentId) ? CROW_SYSTEM_PROMPT : DEFAULT_SYSTEM_PROMPT,
       getDefaultPromptContext(
         {
           agentId: agent.id,
           agentName: agent.name,
+          agentEmail: gmailServerProfiles && gmailServerProfiles[CONNECTOR_ID.GOOGLE]?.username,
           persona: agent.persona || undefined,
           agentCircles,
           peerAgents: peerAgents || undefined,
