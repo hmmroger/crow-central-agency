@@ -5,7 +5,12 @@ import { CONNECTOR_ID } from "../../connectors/connector-manager.types.js";
 import { SCOPE_CALENDAR_CALENDARLIST_READONLY, SCOPE_CALENDAR_EVENTS } from "../../connectors/google-connector.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import { GoogleClient } from "../../services/google/google-client.js";
-import type { McpServerConnectionsFunc, McpServerDefinition, McpServerFactory } from "../crow-mcp-manager.types.js";
+import type {
+  McpServerConnectionProfilesFunc,
+  McpServerConnectionsFunc,
+  McpServerDefinition,
+  McpServerFactory,
+} from "../crow-mcp-manager.types.js";
 import { getCreateGoogleCalendarEventToolConfig } from "./create-google-calendar-event.js";
 import { getDeleteGoogleCalendarEventToolConfig } from "./delete-google-calendar-event.js";
 import { getGetGoogleCalendarEventToolConfig } from "./get-google-calendar-event.js";
@@ -71,9 +76,22 @@ export function getGoogleCalendarMcpServerDefinition(
     }
   };
 
+  const getConnectionProfiles: McpServerConnectionProfilesFunc = async (agentId) => {
+    try {
+      const profile = await connectorManager.getProfile(agentId, CONNECTOR_ID.GOOGLE);
+      return {
+        [CONNECTOR_ID.GOOGLE]: profile,
+      };
+    } catch {
+      // not an issue if failed
+      return undefined;
+    }
+  };
+
   return {
     serverFactory,
     hasRequiredConnections,
+    getConnectionProfiles,
     isConfigurable: true,
     displayName: "Google Calendar",
   };

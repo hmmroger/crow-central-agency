@@ -258,7 +258,6 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
               userMessageAdded = true;
             }
 
-            // 3. Discovered tools → filter internal MCP tools, update registry
             if (event.discoveredTools && event.discoveredTools.length > 0) {
               await this.registry.setAvailableTools(agentId, event.discoveredTools);
             }

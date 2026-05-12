@@ -175,18 +175,21 @@ export async function bootstrap(options: BootstrapOptions) {
   const gmailMcpDefinition = getGmailMcpServerDefinition(connectorManager, sensorManager);
   mcpManager.registerMcpServer(GMAIL_MCP_SERVER_NAME, gmailMcpDefinition.serverFactory, {
     hasRequiredConnections: gmailMcpDefinition.hasRequiredConnections,
+    getConnectionProfiles: gmailMcpDefinition.getConnectionProfiles,
     isConfigurable: gmailMcpDefinition.isConfigurable,
     displayName: gmailMcpDefinition.displayName,
   });
   const googleCalendarMcpDefinition = getGoogleCalendarMcpServerDefinition(connectorManager, sensorManager);
   mcpManager.registerMcpServer(GOOGLE_CALENDAR_MCP_SERVER_NAME, googleCalendarMcpDefinition.serverFactory, {
     hasRequiredConnections: googleCalendarMcpDefinition.hasRequiredConnections,
+    getConnectionProfiles: googleCalendarMcpDefinition.getConnectionProfiles,
     isConfigurable: googleCalendarMcpDefinition.isConfigurable,
     displayName: googleCalendarMcpDefinition.displayName,
   });
   const googleContactsMcpDefinition = getGoogleContactsMcpServerDefinition(connectorManager, sensorManager);
   mcpManager.registerMcpServer(GOOGLE_CONTACTS_MCP_SERVER_NAME, googleContactsMcpDefinition.serverFactory, {
     hasRequiredConnections: googleContactsMcpDefinition.hasRequiredConnections,
+    getConnectionProfiles: googleContactsMcpDefinition.getConnectionProfiles,
     isConfigurable: googleContactsMcpDefinition.isConfigurable,
     displayName: googleContactsMcpDefinition.displayName,
   });
