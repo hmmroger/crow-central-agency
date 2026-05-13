@@ -35,7 +35,8 @@ export function getWriteArtifactToolConfig(
       ),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ filename, content, type, content_type }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ filename: rawFilename, content, type, content_type }) => {
+    const filename = rawFilename.trim();
     try {
       const isBinary = content_type && content_type !== ARTIFACT_CONTENT_TYPE.TEXT;
       const artifactContent: string | Buffer = isBinary ? Buffer.from(content, "base64") : content;
@@ -45,9 +46,13 @@ export function getWriteArtifactToolConfig(
         createdBy: { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId },
       });
       const userTimezone = await sensorManager.getUserTimezone();
+      const normalizedNote =
+        metadata.filename !== filename
+          ? ` (normalized from "${filename}" - use this exact filename on subsequent reads)`
+          : "";
 
       return textToolResult([
-        `Artifact written: ${filename} (type: ${metadata.type}, modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)})`,
+        `Artifact written: ${metadata.filename}${normalizedNote} (type: ${metadata.type}, modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)})`,
       ]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to write artifact.");

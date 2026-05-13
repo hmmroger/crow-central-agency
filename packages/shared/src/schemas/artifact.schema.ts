@@ -43,6 +43,7 @@ export const ArtifactContentTypeSchema = z.enum([
  * Schema for artifact file metadata
  */
 export const ArtifactMetadataSchema = z.object({
+  id: z.string(),
   filename: z.string(),
   type: ArtifactTypeSchema,
   contentType: ArtifactContentTypeSchema,

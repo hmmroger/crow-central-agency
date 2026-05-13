@@ -137,6 +137,15 @@ export async function statFile(filePath: string): Promise<Stats> {
   }
 }
 
+export async function isPathExists(filePath: string): Promise<boolean> {
+  try {
+    await statFile(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Ensure a directory exists, creating it if necessary.
  */
@@ -170,6 +179,24 @@ export async function deleteFile(filePath: string): Promise<void> {
       throw error;
     }
   });
+}
+
+/**
+ * Rename a file. Returns true on success, false if the source did not exist.
+ * @throws AppError(PATH_TRAVERSAL) is the responsibility of the caller via
+ *         assertWithinBase; this helper itself does not validate paths.
+ */
+export async function renameFile(oldPath: string, newPath: string): Promise<boolean> {
+  try {
+    await fs.rename(oldPath, newPath);
+    return true;
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      return false;
+    }
+
+    throw error;
+  }
 }
 
 /**
