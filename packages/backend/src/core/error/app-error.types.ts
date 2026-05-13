@@ -17,6 +17,7 @@ export const APP_ERROR_CODES = {
   TASK_NOT_FOUND: "task_not_found",
   INVALID_STATE_TRANSITION: "invalid_state_transition",
   PATH_TRAVERSAL: "path_traversal",
+  INVALID_FILENAME: "invalid_filename",
   MCP_CONFIG_NOT_FOUND: "mcp_config_not_found",
   MCP_ERROR: "mcp_error",
   SDK_ERROR: "sdk_error",

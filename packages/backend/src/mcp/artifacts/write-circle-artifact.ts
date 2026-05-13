@@ -36,11 +36,18 @@ export function getWriteCircleArtifactToolConfig(
       ),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ circle_id, filename, content, type, content_type }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({
+    circle_id,
+    filename: rawFilename,
+    content,
+    type,
+    content_type,
+  }) => {
     if (!artifactManager.isDirectCircleMember(circle_id, agentId)) {
       return textToolResult(["Error: you are not a direct member of this circle"], true);
     }
 
+    const filename = rawFilename.trim();
     try {
       const isBinary = content_type && content_type !== ARTIFACT_CONTENT_TYPE.TEXT;
       const artifactContent: string | Buffer = isBinary ? Buffer.from(content, "base64") : content;
@@ -50,9 +57,13 @@ export function getWriteCircleArtifactToolConfig(
         createdBy: { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId },
       });
       const userTimezone = await sensorManager.getUserTimezone();
+      const normalizedNote =
+        metadata.filename !== filename
+          ? ` (normalized from "${filename}" - use this exact filename on subsequent reads)`
+          : "";
 
       return textToolResult([
-        `Circle artifact written: ${filename} (circle: ${circle_id}, type: ${metadata.type}, modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)})`,
+        `Circle artifact written: ${metadata.filename}${normalizedNote} (circle: ${circle_id}, type: ${metadata.type}, modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)})`,
       ]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to write circle artifact.");

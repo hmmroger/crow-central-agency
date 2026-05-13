@@ -1,11 +1,8 @@
 import path from "node:path";
 import {
-  AGENT_TASK_SOURCE_TYPE,
   ARTIFACT_CONTENT_TYPE,
   ARTIFACT_TYPE,
   ENTITY_TYPE,
-  type AgentTaskSource,
-  type ArtifactContentType,
   type ArtifactMetadata,
   type EntityType,
 } from "@crow-central-agency/shared";
@@ -13,27 +10,21 @@ import {
   assertWithinBase,
   deleteFile,
   ensureDir,
-  listFiles,
+  isPathExists,
   readBinaryFile,
-  readFileHead,
-  statFile,
+  renameFile,
   writeBinaryFile,
 } from "../../utils/fs-utils.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { env } from "../../config/env.js";
 import { AGENTS_DIR_NAME, AGENT_ARTIFACTS_DIR_NAME, CIRCLES_DIR_NAME } from "../../config/constants.js";
+import { generateId } from "../../utils/id-utils.js";
 import { logger } from "../../utils/logger.js";
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
 import type { AgentRegistry } from "../agent-registry.js";
 import type { AgentCircleManager } from "../agent-circle-manager.js";
-import {
-  isImageFileExtension,
-  isAudioFileExtension,
-  isKnownBinaryExtension,
-  getMimeTypeByFilename,
-  DOCX_MIME_TYPE,
-} from "../../utils/mime-type.js";
+import { getMimeTypeByFilename, DOCX_MIME_TYPE } from "../../utils/mime-type.js";
 import type {
   ArtifactAdapter,
   ArtifactListOptions,
@@ -41,6 +32,12 @@ import type {
   WriteArtifactOptions,
 } from "./artifact-manager.types.js";
 import { WordArtifactAdapter } from "./artifact-adapter/word-adapter.js";
+import {
+  normalizeArtifactFilename,
+  pickAvailableFilename,
+  safeNormalizeArtifactFilename,
+} from "./artifact-filename.js";
+import { detectArtifactContentType } from "./artifact-content-detector.js";
 
 const log = logger.child({ context: "artifact-manager" });
 
@@ -52,6 +49,13 @@ const ENTITY_DIR_NAME: Record<EntityType, string> = {
 
 /** Number of bytes to sample for text/binary detection */
 const CONTENT_DETECTION_SAMPLE_SIZE = 256;
+
+/**
+ * Pre-id-field legacy metadata shape. Only used while migrating older
+ * deployments where entries lack the `id` field and the on-disk file is
+ * still named after the (possibly un-normalized) filename.
+ */
+type MaybeLegacyArtifactMetadata = Omit<ArtifactMetadata, "id"> & { id?: string };
 
 /**
  * Manages artifact files for agents and circles.
@@ -72,16 +76,16 @@ export class ArtifactManager {
     this.adapters.set(DOCX_MIME_TYPE, new WordArtifactAdapter());
   }
 
-  /** Sync artifact metadata with disk for all registered agents and circles: removes stale entries and adds orphan files */
+  /** Migrate legacy artifacts, then prune entries whose disk file is missing, for every registered agent and circle */
   public async initialize(): Promise<void> {
     const agents = this.registry.getAllAgents(true);
     for (const agent of agents) {
-      await this.syncArtifacts(ENTITY_TYPE.AGENT, agent.id);
+      await this.migrateAndSync(ENTITY_TYPE.AGENT, agent.id);
     }
 
     const circles = this.circleManager.getAllCircles();
     for (const circle of circles) {
-      await this.syncArtifacts(ENTITY_TYPE.AGENT_CIRCLE, circle.id);
+      await this.migrateAndSync(ENTITY_TYPE.AGENT_CIRCLE, circle.id);
     }
   }
 
@@ -95,21 +99,7 @@ export class ArtifactManager {
     filename: string,
     options?: ReadArtifactOptions
   ): Promise<string | Buffer> {
-    const [buf, metadata] = await Promise.all([
-      this.readEntityArtifact(ENTITY_TYPE.AGENT, agentId, filename),
-      this.getEntityArtifactMetadata(ENTITY_TYPE.AGENT, agentId, filename),
-    ]);
-
-    if (metadata.contentType === ARTIFACT_CONTENT_TYPE.TEXT) {
-      return buf.toString("utf-8");
-    }
-
-    if (options?.useAdapter) {
-      const convertedContent = await this.tryConvertArtifact(metadata, buf);
-      return convertedContent ?? buf;
-    }
-
-    return buf;
+    return this.readEntityArtifact(ENTITY_TYPE.AGENT, agentId, filename, options);
   }
 
   /** Write artifact. String content is converted to Buffer (UTF-8) internally. */
@@ -161,21 +151,7 @@ export class ArtifactManager {
     filename: string,
     options?: ReadArtifactOptions
   ): Promise<string | Buffer> {
-    const [buf, metadata] = await Promise.all([
-      this.readEntityArtifact(ENTITY_TYPE.AGENT_CIRCLE, circleId, filename),
-      this.getEntityArtifactMetadata(ENTITY_TYPE.AGENT_CIRCLE, circleId, filename),
-    ]);
-
-    if (metadata.contentType === ARTIFACT_CONTENT_TYPE.TEXT) {
-      return buf.toString("utf-8");
-    }
-
-    if (options?.useAdapter) {
-      const convertedContent = await this.tryConvertArtifact(metadata, buf);
-      return convertedContent ?? buf;
-    }
-
-    return buf;
+    return this.readEntityArtifact(ENTITY_TYPE.AGENT_CIRCLE, circleId, filename, options);
   }
 
   /** Write circle artifact. String content is converted to Buffer (UTF-8) internally. */
@@ -207,13 +183,29 @@ export class ArtifactManager {
     }
   }
 
-  /** Low-level read: always returns Buffer */
-  private async readEntityArtifact(entityType: EntityType, entityId: string, filename: string): Promise<Buffer> {
-    const filePath = this.getEntityArtifactPath(entityType, entityId, filename);
-    return readBinaryFile(filePath);
+  private async readEntityArtifact(
+    entityType: EntityType,
+    entityId: string,
+    filename: string,
+    options?: ReadArtifactOptions
+  ): Promise<string | Buffer> {
+    const metadata = await this.getEntityArtifactMetadata(entityType, entityId, filename);
+    const filePath = this.getEntityArtifactPath(entityType, entityId, metadata.id);
+    const buf = await readBinaryFile(filePath);
+
+    if (metadata.contentType === ARTIFACT_CONTENT_TYPE.TEXT) {
+      return buf.toString("utf-8");
+    }
+
+    if (options?.useAdapter) {
+      const convertedContent = await this.tryConvertArtifact(metadata, buf);
+      return convertedContent ?? buf;
+    }
+
+    return buf;
   }
 
-  /** Low-level write: always operates on Buffer */
+  /** Write an artifact end-to-end: normalize, mint/reuse id, write disk by id, set metadata. */
   private async writeEntityArtifact(
     entityType: EntityType,
     entityId: string,
@@ -221,16 +213,20 @@ export class ArtifactManager {
     content: Buffer,
     options: WriteArtifactOptions
   ): Promise<ArtifactMetadata> {
-    const filePath = this.getEntityArtifactPath(entityType, entityId, filename);
+    const normalizedFilename = normalizeArtifactFilename(filename);
+    const table = this.getStoreTable(entityType, entityId);
+    const existing = await this.store.get<ArtifactMetadata>(table, normalizedFilename);
+    const id = existing?.value.id ?? generateId();
+    const filePath = this.getEntityArtifactPath(entityType, entityId, id);
     await writeBinaryFile(filePath, content);
 
     const resolvedContentType =
-      options.contentType ?? detectContentType(filename, content.subarray(0, CONTENT_DETECTION_SAMPLE_SIZE));
+      options.contentType ??
+      detectArtifactContentType(normalizedFilename, content.subarray(0, CONTENT_DETECTION_SAMPLE_SIZE));
     const now = Date.now();
-    const table = this.getStoreTable(entityType, entityId);
-    const existing = await this.store.get<ArtifactMetadata>(table, filename);
     const metadata: ArtifactMetadata = {
-      filename,
+      id,
+      filename: normalizedFilename,
       type: options.type ?? ARTIFACT_TYPE.STANDARD,
       contentType: resolvedContentType,
       entityId,
@@ -241,9 +237,16 @@ export class ArtifactManager {
       createdBy: existing?.value.createdBy ?? options.createdBy,
     };
 
-    await this.store.set(table, filename, metadata);
+    await this.store.set(table, normalizedFilename, metadata);
     log.info(
-      { entityType, entityId, filename, type: metadata.type, contentType: metadata.contentType },
+      {
+        entityType,
+        entityId,
+        filename: normalizedFilename,
+        id,
+        type: metadata.type,
+        contentType: metadata.contentType,
+      },
       "Artifact written"
     );
 
@@ -267,11 +270,12 @@ export class ArtifactManager {
     entityId: string,
     filename: string
   ): Promise<ArtifactMetadata> {
+    const normalizedFilename = normalizeArtifactFilename(filename);
     const table = this.getStoreTable(entityType, entityId);
-    const entry = await this.store.get<ArtifactMetadata>(table, filename);
+    const entry = await this.store.get<ArtifactMetadata>(table, normalizedFilename);
     if (!entry) {
       throw new AppError(
-        `Artifact metadata not found: ${filename} (${entityType}/${entityId})`,
+        `Artifact metadata not found: ${normalizedFilename} (${entityType}/${entityId})`,
         APP_ERROR_CODES.NOT_FOUND
       );
     }
@@ -288,81 +292,128 @@ export class ArtifactManager {
   }
 
   private async deleteEntityArtifact(entityType: EntityType, entityId: string, filename: string): Promise<boolean> {
+    const normalizedFilename = normalizeArtifactFilename(filename);
     const table = this.getStoreTable(entityType, entityId);
-    const deleted = await this.store.delete(table, filename);
+    const existing = await this.store.get<ArtifactMetadata>(table, normalizedFilename);
+    if (!existing) {
+      return false;
+    }
 
+    const deleted = await this.store.delete(table, normalizedFilename);
     if (deleted) {
-      const filePath = this.getEntityArtifactPath(entityType, entityId, filename);
+      const filePath = this.getEntityArtifactPath(entityType, entityId, existing.value.id);
       await deleteFile(filePath);
-      log.info({ entityType, entityId, filename }, "Artifact deleted");
+      log.info({ entityType, entityId, filename: normalizedFilename, id: existing.value.id }, "Artifact deleted");
     }
 
     return deleted;
   }
 
-  /** Ensure artifacts folder exists, add orphan files to store, and remove stale metadata */
-  private async syncArtifacts(entityType: EntityType, entityId: string): Promise<void> {
+  /** Migrate legacy entries (if any) and remove entries whose backing file no longer exists. */
+  private async migrateAndSync(entityType: EntityType, entityId: string): Promise<void> {
     const artifactsDir = this.getEntityArtifactsDir(entityType, entityId);
     await ensureDir(artifactsDir);
 
-    const fileEntries = new Set(await listFiles(artifactsDir));
+    await this.migrateLegacyArtifacts(entityType, entityId, artifactsDir);
+    await this.removeStaleArtifactEntries(entityType, entityId, artifactsDir);
+  }
+
+  /**
+   * One-shot migration for entries written before the id/normalization refactor.
+   * Each legacy entry was stored with the (possibly un-normalized) filename as
+   * both the store key and the on-disk filename. This walks every entry, mints
+   * a UUID for any without `id`, renames the disk file to `<id>`, and rewrites
+   * the store entry under the normalized filename.
+   */
+  private async migrateLegacyArtifacts(entityType: EntityType, entityId: string, artifactsDir: string): Promise<void> {
     const table = this.getStoreTable(entityType, entityId);
-    const storeEntries = await this.store.getAll<ArtifactMetadata>(table);
-
-    // Remove metadata for files that no longer exist on disk
-    const staleSet = new Set(
-      storeEntries.filter((entry) => !fileEntries.has(entry.value.filename)).map((entry) => entry.value.filename)
+    const entries = await this.store.getAll<MaybeLegacyArtifactMetadata>(table);
+    const needsMigration = entries.some(
+      (entry) => !entry.value.id || entry.value.filename !== safeNormalizeArtifactFilename(entry.value.filename)
     );
+    if (!needsMigration) {
+      return;
+    }
 
-    if (staleSet.size > 0) {
-      const survivors = storeEntries
-        .filter((entry) => !staleSet.has(entry.value.filename))
-        .map((entry): readonly [string, ArtifactMetadata] => [entry.value.filename, entry.value]);
-      await this.store.clear(table);
-      if (survivors.length > 0) {
-        await this.store.setMany(table, survivors);
+    const takenNames = new Set<string>();
+    const newEntries: Array<readonly [string, ArtifactMetadata]> = [];
+    let droppedCount = 0;
+
+    for (const entry of entries) {
+      const legacyKey = entry.value.filename;
+      // The actual on-disk name is the entry's id if it already has one
+      // (partial prior migration), otherwise the raw filename.
+      const legacyDiskName = entry.value.id ?? legacyKey;
+      const normalized = safeNormalizeArtifactFilename(legacyKey);
+      if (!normalized) {
+        droppedCount += 1;
+        continue;
       }
 
-      log.info({ entityType, entityId, count: staleSet.size }, "Cleaned up stale artifact metadata");
+      const uniqNormalizedFilename = pickAvailableFilename(normalized, takenNames);
+      if (!uniqNormalizedFilename) {
+        droppedCount += 1;
+        continue;
+      }
+
+      takenNames.add(uniqNormalizedFilename);
+      const id = entry.value.id ?? generateId();
+      const oldDiskPath = path.join(artifactsDir, legacyDiskName);
+      const newDiskPath = path.join(artifactsDir, id);
+      if (oldDiskPath !== newDiskPath) {
+        await renameFile(oldDiskPath, newDiskPath);
+      }
+
+      const migrated: ArtifactMetadata = {
+        ...entry.value,
+        id,
+        filename: uniqNormalizedFilename,
+      };
+      newEntries.push([uniqNormalizedFilename, migrated]);
     }
 
-    // Add metadata for files on disk but not in store
-    const storedFilenames = new Set(storeEntries.map((entry) => entry.value.filename));
-    const orphans: Array<readonly [string, ArtifactMetadata]> = [];
+    await this.store.clear(table);
+    if (newEntries.length > 0) {
+      await this.store.setMany(table, newEntries);
+    }
 
-    for (const filename of fileEntries) {
-      if (!storedFilenames.has(filename)) {
-        const filePath = path.join(artifactsDir, filename);
-        const [stat, sample] = await Promise.all([
-          statFile(filePath),
-          readFileHead(filePath, CONTENT_DETECTION_SAMPLE_SIZE),
-        ]);
-        const now = Date.now();
-        const createdBy: AgentTaskSource =
-          entityType === ENTITY_TYPE.AGENT
-            ? { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId: entityId }
-            : { sourceType: AGENT_TASK_SOURCE_TYPE.SYSTEM };
-        orphans.push([
-          filename,
-          {
-            filename,
-            type: ARTIFACT_TYPE.STANDARD,
-            contentType: detectContentType(filename, sample),
-            entityId,
-            entityType,
-            size: stat.size,
-            createdTimestamp: now,
-            updatedTimestamp: now,
-            createdBy,
-          },
-        ]);
+    log.info(
+      { entityType, entityId, count: newEntries.length, dropped: droppedCount },
+      "Migrated legacy artifacts to id-based storage"
+    );
+  }
+
+  private async removeStaleArtifactEntries(
+    entityType: EntityType,
+    entityId: string,
+    artifactsDir: string
+  ): Promise<void> {
+    const table = this.getStoreTable(entityType, entityId);
+    const entries = await this.store.getAll<ArtifactMetadata>(table);
+    const staleKeys: string[] = [];
+
+    for (const entry of entries) {
+      const filePath = path.join(artifactsDir, entry.value.id);
+      const exists = await isPathExists(filePath);
+      if (!exists) {
+        staleKeys.push(entry.value.filename);
       }
     }
 
-    if (orphans.length > 0) {
-      await this.store.setMany(table, orphans);
-      log.info({ entityType, entityId, count: orphans.length }, "Synced orphan artifacts to store");
+    if (staleKeys.length === 0) {
+      return;
     }
+
+    const survivors = entries
+      .filter((entry) => !staleKeys.includes(entry.value.filename))
+      .map((entry): readonly [string, ArtifactMetadata] => [entry.value.filename, entry.value]);
+
+    await this.store.clear(table);
+    if (survivors.length > 0) {
+      await this.store.setMany(table, survivors);
+    }
+
+    log.info({ entityType, entityId, count: staleKeys.length }, "Cleaned up stale artifact metadata");
   }
 
   private getStoreTable(entityType: EntityType, entityId: string): string {
@@ -381,9 +432,9 @@ export class ArtifactManager {
     return path.join(entityDir, AGENT_ARTIFACTS_DIR_NAME);
   }
 
-  private getEntityArtifactPath(entityType: EntityType, entityId: string, filename: string): string {
+  private getEntityArtifactPath(entityType: EntityType, entityId: string, id: string): string {
     const artifactsDir = this.getEntityArtifactsDir(entityType, entityId);
-    const filePath = path.join(artifactsDir, filename);
+    const filePath = path.join(artifactsDir, id);
     assertWithinBase(filePath, artifactsDir);
 
     return filePath;
@@ -404,51 +455,4 @@ export class ArtifactManager {
       return undefined;
     }
   }
-}
-
-/** Check if a buffer looks like text content by examining bytes for binary indicators */
-function isTextContent(sample: Buffer): boolean {
-  for (let i = 0; i < sample.length; i++) {
-    const byte = sample[i];
-    // Null byte is a strong binary indicator
-    if (byte === 0x00) {
-      return false;
-    }
-
-    // Non-text control characters (excluding tab, LF, CR, form-feed, backspace, ESC)
-    if (byte < 0x08 || (byte > 0x0d && byte < 0x1b) || byte === 0x7f) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-/**
- * Detect content type from filename extension and content bytes.
- * 1. Check extension for known image/audio types
- * 2. Check extension for other known binary types (pdf, etc.)
- * 3. Examine content bytes: if text -> TEXT
- * 4. Otherwise -> BINARY
- */
-function detectContentType(filename: string, sample: Buffer): ArtifactContentType {
-  const ext = path.extname(filename).toLowerCase();
-
-  if (isImageFileExtension(ext)) {
-    return ARTIFACT_CONTENT_TYPE.IMAGE;
-  }
-
-  if (isAudioFileExtension(ext)) {
-    return ARTIFACT_CONTENT_TYPE.AUDIO;
-  }
-
-  if (isKnownBinaryExtension(ext)) {
-    return ARTIFACT_CONTENT_TYPE.BINARY;
-  }
-
-  if (isTextContent(sample)) {
-    return ARTIFACT_CONTENT_TYPE.TEXT;
-  }
-
-  return ARTIFACT_CONTENT_TYPE.BINARY;
 }
