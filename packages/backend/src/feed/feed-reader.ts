@@ -19,8 +19,24 @@ const ACCEPT_ENCODING_HEADER = "gzip, deflate";
 const ACCEPT_HEADER = "text/html,application/xhtml+xml,application/xml";
 const FETCH_FEED_TIMEOUT_MS = 15000;
 const FEED_LINK_MIME_TYPES = new Set(["application/rss+xml", "application/atom+xml"]);
+const PODCAST_ENCLOSURE_MIME_PREFIXES = ["audio/", "video/"];
+const IMAGE_ENCLOSURE_MIME_PREFIX = "image/";
 const ATTR_PREFIX = "@_";
 const XMLNS_ATTR = "@_xmlns";
+
+interface FeedEnclosure {
+  url: string;
+  type?: string;
+}
+
+interface AtomLink {
+  href: string;
+  rel?: string;
+  type?: string;
+}
+
+const ATOM_LINK_REL_ALTERNATE = "alternate";
+const ATOM_LINK_REL_ENCLOSURE = "enclosure";
 
 const XmlNamespaces = {
   Atom: "http://www.w3.org/2005/atom",
@@ -38,6 +54,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 const XmlTags = {
   title: "title",
   subtitle: "subtitle",
+  summary: "summary",
   link: "link",
   description: "description",
   language: "language",
@@ -48,6 +65,7 @@ const XmlTags = {
   owner: "owner",
   pubDate: "pubDate",
   published: "published",
+  updated: "updated",
   guid: "guid",
   copyright: "copyright",
   generator: "generator",
@@ -62,6 +80,7 @@ const XmlTags = {
   thumbnail: "thumbnail",
   credit: "credit",
   encoded: "encoded",
+  group: "group",
 };
 
 export async function fetchItemsAndUpdateFeed(feed: Feed): Promise<FeedItem[]> {
@@ -115,19 +134,12 @@ export async function fetchItemsAndUpdateFeed(feed: Feed): Promise<FeedItem[]> {
       channelNSMap.forEach((value, key) => nsMap.set(key, value));
     }
 
-    const link =
-      getElementAttribute(channel, XmlTags.link, `${ATTR_PREFIX}href`) ||
-      getStringElement(channel, XmlTags.link) ||
-      getElementAttribute(channel, XmlTags.link, `${ATTR_PREFIX}href`, nsMap, XmlNamespaces.Atom);
-
+    const link = getAlternateLink(channel) || getStringElement(channel, XmlTags.link);
     const imageUrl =
       getElementAttribute(channel, XmlTags.image, "url") ||
       getElementAttribute(channel, XmlTags.image, `${ATTR_PREFIX}href`) ||
       getElementAttribute(channel, XmlTags.image, `${ATTR_PREFIX}href`, nsMap, XmlNamespaces.Itunes);
-
-    const author =
-      getElement<string>(channel, XmlTags.author, nsMap, XmlNamespaces.Itunes) ||
-      getElement<string>(channel, XmlTags.creator, nsMap, XmlNamespaces.DC);
+    const author = getAuthor(channel, nsMap);
 
     feed.title =
       getElementAttribute(channel, XmlTags.title, "#text") ||
@@ -153,7 +165,7 @@ export async function fetchItemsAndUpdateFeed(feed: Feed): Promise<FeedItem[]> {
         bulletMarker: "-",
         useInlineLinks: true,
       },
-      { ...getTableCustomTranslator() }
+      { ...getTableCustomTranslator(3) }
     );
     const rawItems = channel[XmlTags.item] || channel[XmlTags.entry];
     const items = rawItems ? extractFeedItems(feed.id, rawItems, nsMap, nhm) : [];
@@ -268,24 +280,22 @@ function extractFeedItems(
       return;
     }
 
-    const enclosureUrl = getElementAttribute(item, XmlTags.enclosure, `${ATTR_PREFIX}url`);
-    const feedItemType = enclosureUrl ? FeedItemTypes.Podcast : FeedItemTypes.Post;
+    const enclosure = getEnclosure(item);
+    const feedItemType = isPodcastEnclosure(enclosure) ? FeedItemTypes.Podcast : FeedItemTypes.Post;
+    const enclosureUrl = feedItemType === FeedItemTypes.Podcast ? enclosure?.url : undefined;
     const guid = parseItemGuid(item);
     const link =
-      getElementAttribute(item, XmlTags.link, `${ATTR_PREFIX}href`, nsMap, XmlNamespaces.Atom) ||
-      getElementAttribute(item, XmlTags.link, `${ATTR_PREFIX}href`) ||
+      getAlternateLink(item) ||
       getStringElement(item, XmlTags.link) ||
       (guid && guid.isLink ? guid.guid : undefined) ||
       enclosureUrl;
-    const author =
-      getElement<string>(item, XmlTags.author, nsMap, XmlNamespaces.Itunes) ||
-      getElement<string>(item, XmlTags.creator, nsMap, XmlNamespaces.DC) ||
-      getElementAttribute<string>(item, XmlTags.author, "name") ||
-      getStringElement(item, XmlTags.author);
+    const author = getAuthor(item, nsMap);
+    const mediaRoot = getMediaRoot(item, nsMap);
     const imageUrl =
-      getElementAttribute(item, XmlTags.content, `${ATTR_PREFIX}url`, nsMap, XmlNamespaces.Media) ||
-      getElementAttribute(item, XmlTags.thumbnail, `${ATTR_PREFIX}url`, nsMap, XmlNamespaces.Media) ||
-      getElementAttribute(item, XmlTags.image, `${ATTR_PREFIX}href`, nsMap, XmlNamespaces.Itunes);
+      getElementAttribute(mediaRoot, XmlTags.thumbnail, `${ATTR_PREFIX}url`, nsMap, XmlNamespaces.Media) ||
+      getElementAttribute(mediaRoot, XmlTags.content, `${ATTR_PREFIX}url`, nsMap, XmlNamespaces.Media) ||
+      getElementAttribute(item, XmlTags.image, `${ATTR_PREFIX}href`, nsMap, XmlNamespaces.Itunes) ||
+      (isImageEnclosure(enclosure) ? enclosure.url : undefined);
     const title =
       getElementAttribute(item, XmlTags.title, "#text") || getStringElement(item, XmlTags.title) || "Untitled";
     const subtitle =
@@ -294,12 +304,20 @@ function extractFeedItems(
       getElement(item, XmlTags.duration) || getElement<string>(item, XmlTags.duration, nsMap, XmlNamespaces.Itunes)
     );
     const publishedTime = parseDate(
-      getElement<string>(item, XmlTags.pubDate) || getElement<string>(item, XmlTags.published)
+      getElement<string>(item, XmlTags.pubDate) ||
+        getElement<string>(item, XmlTags.published) ||
+        getElement<string>(item, XmlTags.updated)
     );
     const content = getElementAttribute(item, XmlTags.content, "#text");
     const encoded = getElementWithDefault(item, XmlTags.encoded, "", nsMap, XmlNamespaces.Content) || content || "";
     const description =
-      getElementAttribute(item, XmlTags.description, "#text") || getStringElement(item, XmlTags.description) || "";
+      getElementAttribute(item, XmlTags.description, "#text") ||
+      getStringElement(item, XmlTags.description) ||
+      getElementAttribute(item, XmlTags.summary, "#text") ||
+      getStringElement(item, XmlTags.summary) ||
+      getElementAttribute(mediaRoot, XmlTags.description, "#text", nsMap, XmlNamespaces.Media) ||
+      getStringElement(mediaRoot, XmlTags.description, nsMap, XmlNamespaces.Media) ||
+      "";
     const categories = extractCategories(item, nsMap);
 
     const mdContent = encoded ? nhm.translate(encoded) : "";
@@ -333,6 +351,84 @@ function extractFeedItems(
   });
 
   return items;
+}
+
+function getAtomLinks(data: Record<string, unknown>, nsMap?: Map<string, string>, namespace?: string): AtomLink[] {
+  const raw = getElement<unknown>(data, XmlTags.link, nsMap, namespace);
+  if (!raw) {
+    return [];
+  }
+
+  const linkTags = isArray(raw) ? raw : [raw];
+  const links: AtomLink[] = [];
+  for (const linkTag of linkTags) {
+    if (!isRecord(linkTag)) {
+      continue;
+    }
+
+    const href = linkTag[`${ATTR_PREFIX}href`];
+    if (!isString(href)) {
+      continue;
+    }
+
+    const rel = linkTag[`${ATTR_PREFIX}rel`];
+    const type = linkTag[`${ATTR_PREFIX}type`];
+    links.push({
+      href,
+      rel: isString(rel) ? rel : undefined,
+      type: isString(type) ? type : undefined,
+    });
+  }
+
+  return links;
+}
+
+function getAlternateLink(data: Record<string, unknown>): string | undefined {
+  const links = getAtomLinks(data);
+  const alternate = links.find((link) => !link.rel || link.rel === ATOM_LINK_REL_ALTERNATE);
+  return alternate?.href;
+}
+
+function getAuthor(data: Record<string, unknown>, nsMap: Map<string, string>): string | undefined {
+  return (
+    getElement<string>(data, XmlTags.author, nsMap, XmlNamespaces.Itunes) ||
+    getElement<string>(data, XmlTags.creator, nsMap, XmlNamespaces.DC) ||
+    getElementAttribute<string>(data, XmlTags.author, "name") ||
+    getStringElement(data, XmlTags.author)
+  );
+}
+
+function getMediaRoot(data: Record<string, unknown>, nsMap: Map<string, string>): Record<string, unknown> {
+  const group = getElement<unknown>(data, XmlTags.group, nsMap, XmlNamespaces.Media);
+  return isRecord(group) ? group : data;
+}
+
+function getEnclosure(data: Record<string, unknown>): FeedEnclosure | undefined {
+  const url = getElementAttribute<string>(data, XmlTags.enclosure, `${ATTR_PREFIX}url`);
+  if (url) {
+    const type = getElementAttribute<string>(data, XmlTags.enclosure, `${ATTR_PREFIX}type`);
+    return { url, type };
+  }
+
+  const enclosureLink = getAtomLinks(data).find((link) => link.rel === ATOM_LINK_REL_ENCLOSURE);
+  if (enclosureLink) {
+    return { url: enclosureLink.href, type: enclosureLink.type };
+  }
+
+  return undefined;
+}
+
+function isPodcastEnclosure(enclosure: FeedEnclosure | undefined): boolean {
+  const type = enclosure?.type;
+  if (!type) {
+    return false;
+  }
+
+  return PODCAST_ENCLOSURE_MIME_PREFIXES.some((prefix) => type.startsWith(prefix));
+}
+
+function isImageEnclosure(enclosure: FeedEnclosure | undefined): enclosure is FeedEnclosure {
+  return enclosure?.type?.startsWith(IMAGE_ENCLOSURE_MIME_PREFIX) ?? false;
 }
 
 function parseItemGuid(data: Record<string, unknown>): FeedItemGuid | undefined {
@@ -420,6 +516,14 @@ function extractCategories(data: Record<string, unknown>, nsMap?: Map<string, st
     regularCategories.forEach((cat) => {
       if (isString(cat)) {
         categories.push(cat);
+        return;
+      }
+
+      if (isRecord(cat)) {
+        const term = cat[`${ATTR_PREFIX}term`];
+        if (isString(term)) {
+          categories.push(term);
+        }
       }
     });
   }

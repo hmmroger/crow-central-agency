@@ -57,7 +57,8 @@ export function getFeedItemContentToolConfig(
         header.push(`[Enclosure URL: ${feedItem.enclosureUrl}]`);
       }
 
-      const processedContent = processTextContent(feedItem.content, { showLineNumber, startLine, limit });
+      const contentText = feedItem.content || feedItem.description;
+      const processedContent = processTextContent(contentText, { showLineNumber, startLine, limit });
 
       return textToolResult(header.concat(processedContent.headerParts).concat(["", processedContent.text]));
     } catch (error) {
