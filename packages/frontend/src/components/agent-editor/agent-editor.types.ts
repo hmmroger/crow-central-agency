@@ -40,6 +40,7 @@ export interface AgentEditorFormState {
   discordRespondToMentionsOnly: boolean;
   discordSyncBotName: boolean;
   excludeClaudeCodeSystemPrompt: boolean;
+  enableGmailNotification: boolean;
   agentMd: string;
   voiceConfigEnabled: boolean;
   voiceName: string;

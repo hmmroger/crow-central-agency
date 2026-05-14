@@ -7,8 +7,10 @@ import type { Feed, FeedItem } from "../feed/simply-feed.types.js";
 export interface Routine {
   id: string;
   priority: number;
+  intervalInMinutes?: number;
+  onInterval?: () => Promise<void>;
   onAgentCreated?: (agentConfig: AgentConfig) => Promise<void>;
-  onAgentUpdated?: (agentConfig: AgentConfig) => Promise<void>;
+  onAgentUpdated?: (agentConfig: AgentConfig, previousAgent: AgentConfig) => Promise<void>;
   onAgentDeleted?: (agentId: string) => Promise<void>;
   onRuntimeManagerStartup?: () => Promise<void>;
   onMessageDone?: (

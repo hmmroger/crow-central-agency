@@ -86,6 +86,8 @@ export const AgentRuntimeStateSchema = z.object({
   discordDmChannelId: z.string().optional(),
   sessionId: z.string().optional(),
   sessionUsage: SessionUsageSchema,
+  prevLoopMessageTimestamp: z.number().optional(),
+  lastGmailCheckTimestamp: z.number().optional(),
   lastError: z.string().optional(),
   pendingPermissions: z.array(PendingPermissionInfoSchema).optional(),
 });

@@ -1,4 +1,10 @@
-import type { AgentTaskItem, AgentTaskState, AgentStatus, AgentConfig } from "@crow-central-agency/shared";
+import {
+  TIME_MODE,
+  type AgentTaskItem,
+  type AgentTaskState,
+  type AgentStatus,
+  type AgentConfig,
+} from "@crow-central-agency/shared";
 import { logger } from "../utils/logger.js";
 import type { AgentTaskManager } from "../services/agent-task-manager.js";
 import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
@@ -13,6 +19,8 @@ import type { Feed, FeedItem } from "../feed/simply-feed.types.js";
 
 const log = logger.child({ context: "routine-manager" });
 
+const ROUTINE_INTERVAL_SCHEDULE_PREFIX = "routine-interval:";
+
 export class RoutineManager {
   private routines: Routine[] = [];
 
@@ -20,11 +28,11 @@ export class RoutineManager {
     registry: AgentRegistry,
     runtimeManager: AgentRuntimeManager,
     taskManager: AgentTaskManager,
-    scheduler: CrowScheduler,
+    private readonly scheduler: CrowScheduler,
     feedManager: SimplyFeedManager
   ) {
     registry.on("agentCreated", ({ agent }) => this.onAgentCreated(agent));
-    registry.on("agentUpdated", ({ agent }) => this.onAgentUpdated(agent));
+    registry.on("agentUpdated", ({ agent, previousAgent }) => this.onAgentUpdated(agent, previousAgent));
     registry.on("agentDeleted", ({ agentId }) => this.onAgentDeleted(agentId));
     runtimeManager.on("runtimeManagerStartup", () => this.onRuntimeManagerStartup());
     runtimeManager.on(
@@ -48,6 +56,31 @@ export class RoutineManager {
     this.routines.push(routine);
     this.routines.sort((a, b) => a.priority - b.priority);
     log.info({ routineId: routine.id, totalRoutines: this.routines.length }, "Routine added.");
+    this.registerIntervalSchedule(routine);
+  }
+
+  private registerIntervalSchedule(routine: Routine): void {
+    if (routine.intervalInMinutes === undefined || routine.onInterval === undefined) {
+      return;
+    }
+
+    if (routine.intervalInMinutes <= 0) {
+      log.warn(
+        { routineId: routine.id, intervalInMinutes: routine.intervalInMinutes },
+        "Routine intervalInMinutes must be positive; skipping interval setup."
+      );
+      return;
+    }
+
+    const scheduleId = `${ROUTINE_INTERVAL_SCHEDULE_PREFIX}${routine.id}`;
+    this.scheduler.scheduleWork(scheduleId, TIME_MODE.EVERY, [{ minute: routine.intervalInMinutes }], () =>
+      this.safeCall(routine, () => routine.onInterval?.())
+    );
+
+    log.info(
+      { routineId: routine.id, scheduleId, intervalInMinutes: routine.intervalInMinutes },
+      "Routine interval registered with scheduler."
+    );
   }
 
   private async onAgentCreated(agentConfig: AgentConfig) {
@@ -56,9 +89,9 @@ export class RoutineManager {
     }
   }
 
-  private async onAgentUpdated(agentConfig: AgentConfig) {
+  private async onAgentUpdated(agentConfig: AgentConfig, previousAgent: AgentConfig) {
     for (const routine of this.routines) {
-      await this.safeCall(routine, () => routine.onAgentUpdated?.(agentConfig));
+      await this.safeCall(routine, () => routine.onAgentUpdated?.(agentConfig, previousAgent));
     }
   }
 

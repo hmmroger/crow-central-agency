@@ -48,6 +48,7 @@ import { registerCircleRoutes } from "./routes/circle.routes.js";
 import { registerGraphRoutes } from "./routes/graph.routes.js";
 import { DiscordBotManager } from "./bot-connectors/discord/discord-bot-manager.js";
 import { createDiscordRoutine } from "./routines/discord-routine.js";
+import { createGmailNotificationRoutine } from "./routines/gmail-notification-routine.js";
 import { FolderFileStoreProvider } from "./core/store/folder-file-store-provider.js";
 import { SimplyFeedManager } from "./feed/simply-feed-manager.js";
 import { registerFeedRoutes } from "./routes/feed.routes.js";
@@ -98,6 +99,8 @@ export async function bootstrap(options: BootstrapOptions) {
   const feedManager = new SimplyFeedManager(storeProvider, folderFileProvider, crowScheduler);
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
+  const connectorManager = new ConnectorManager(storeProvider, registry, crowScheduler);
+  connectorManager.registerConnector(new GoogleConnector());
 
   const sessionManager = new SessionManager(storeProvider);
   const messageQueue = new MessageQueueManager();
@@ -133,9 +136,14 @@ export async function bootstrap(options: BootstrapOptions) {
   routineManager.addRoutine(feedCleanupRoutine);
   const feedNewItemsRoutine = createFeedNewItemsRoutine(registry, taskManager, systemSettingsManager);
   routineManager.addRoutine(feedNewItemsRoutine);
-
-  const connectorManager = new ConnectorManager(storeProvider, registry, crowScheduler);
-  connectorManager.registerConnector(new GoogleConnector());
+  const gmailNotificationRoutine = createGmailNotificationRoutine(
+    registry,
+    taskManager,
+    runtimeManager,
+    connectorManager,
+    sensorManager
+  );
+  routineManager.addRoutine(gmailNotificationRoutine);
 
   // Discord bot manager — creates per-agent bots for agents with discordConfig
   const discordBotManager = new DiscordBotManager(registry, runtimeManager);

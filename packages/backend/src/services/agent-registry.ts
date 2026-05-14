@@ -229,7 +229,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     }
 
     log.info({ agentId, name: updated.name }, "Agent updated");
-    this.emit("agentUpdated", { agent: updated });
+    this.emit("agentUpdated", { agent: updated, previousAgent: existing });
     this.broadcaster.broadcast({
       type: SERVER_MESSAGE_TYPE.AGENT_UPDATED,
       agentId,
