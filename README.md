@@ -102,6 +102,7 @@ See `.env.example` for the full list, including:
 - `FEED_ITEM_RETENTION_DAYS` / `FEED_REFRESH_IN_MINUTES` — feed item retention window and refresh cadence.
 - `TEXT_GENERATION_*` — optional OpenAI-compatible endpoint that enables the AI-assisted persona / `AGENT.md` generation features in the agent editor.
 - `FEED_TEXT_GENERATION_*` — optional OpenAI-compatible endpoint used by the feed manager to summarize feed items into a consistent length for better agent consumption.
+- `FEED_MAX_SUMMARIZATION_ITEMS` — cap on items summarized per refresh (default: `50`). Items left unsummarized become retry candidates on the next refresh; when the retry backlog exceeds the cap, retries are skipped so a feed isn't permanently blocked by hundreds or thousands of stuck unsummarized items.
 - `AUDIO_GENERATION_*` — optional Gemini TTS configuration that powers the play-message button on the agent console. See [Audio generation](#audio-generation) below.
 - `GOOGLE_CONNECTOR_CLIENT_ID` / `GOOGLE_CONNECTOR_CLIENT_SECRET` / `CONNECTOR_CALLBACK_URL` — OAuth credentials for the Google connector. Required if you want agents to access Gmail / Calendar / Contacts. See [Connectors](#connectors) below.
 - `OAUTH_PENDING_STATE_TTL_MS` — how long an unfinished OAuth flow stays valid before being swept (default: `600_000`, i.e. 10 minutes).

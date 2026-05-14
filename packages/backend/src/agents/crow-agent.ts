@@ -59,7 +59,7 @@ export function getCrowAgent(): AgentConfig {
       "Chief of staff agent acts as the ultimate coordinator for all agents and primary interfacing with the user.",
     workspace: path.join(env.CROW_SYSTEM_PATH, SYSTEM_AGENTS_PROJECT_DIR_NAME),
     persona,
-    model: CLAUDE_MODELS.HAIKU,
+    model: CLAUDE_MODELS.SONNET,
     permissionMode: PERMISSION_MODE.DEFAULT,
     settingSources: [],
     availableTools: [],

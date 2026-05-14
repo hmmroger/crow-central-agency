@@ -23,6 +23,7 @@ const FEEDS_STORE_TABLE = `${FEEDS_NAMESPACE}/feeds`;
 
 const FEEDS_CACHE_MAX_AGE_IN_MINUTES = 5;
 const DEFAULT_FEED_REFRESH_IN_MINUTES = 15;
+const DEFAULT_FEED_MAX_SUMMARIZATION_ITEMS = 50;
 const REFRESH_FEEDS_WORK_ID = "refresh-feeds";
 
 /**
@@ -449,7 +450,15 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
 
     // Only retry unsummarized items when the LLM is available; otherwise the retry
     // set grows without bound and every refresh spams failures into the log.
-    const retryItems = this.hasTextGen ? currentFeedItems.filter((existingItem) => !existingItem.summary) : [];
+    const maxSummarizationItems = env.FEED_MAX_SUMMARIZATION_ITEMS ?? DEFAULT_FEED_MAX_SUMMARIZATION_ITEMS;
+    let retryItems = this.hasTextGen ? currentFeedItems.filter((existingItem) => !existingItem.summary) : [];
+    if (retryItems.length > maxSummarizationItems) {
+      log.warn(
+        { feedId: feed.id, feedName: feed.title, retryCount: retryItems.length, cap: maxSummarizationItems },
+        "Skipping summarization retry - unsummarized backlog exceeds cap"
+      );
+      retryItems = [];
+    }
 
     const topics =
       this.hasTextGen && includeExistingTopics
@@ -462,7 +471,8 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
     const processingItems = newItems.concat(retryItems);
     if (processingItems.length > 0) {
       if (this.hasTextGen) {
-        for (const processItem of processingItems) {
+        const textGenItems = newItems.slice(0, maxSummarizationItems).concat(retryItems);
+        for (const processItem of textGenItems) {
           try {
             const text = processItem.title.concat("\n", processItem.content || processItem.description);
             const res = await this.generateSummary(text, topics);
