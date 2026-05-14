@@ -15,6 +15,7 @@ import {
   AGENT_ACTIVITY_TYPE,
   type PermissionDecision,
   type AgentMessage,
+  AGENT_TASK_SOURCE_TYPE,
 } from "@crow-central-agency/shared";
 import type { AgentRegistry } from "../agent-registry.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
@@ -179,6 +180,18 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       await this.persistAgentState(agentId);
     } catch (error) {
       log.error({ agentId, error }, "Failed to persist state after newSession");
+    }
+  }
+
+  /** Set the timestamp of the last Gmail check for an agent. */
+  public async setLastGmailCheckTimestamp(agentId: string, timestamp: number): Promise<void> {
+    const state = this.ensureState(agentId);
+    state.lastGmailCheckTimestamp = timestamp;
+
+    try {
+      await this.persistAgentState(agentId);
+    } catch (error) {
+      log.error({ agentId, error }, "Failed to persist state after setLastGmailCheckTimestamp");
     }
   }
 
@@ -735,11 +748,31 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
 
     if (status === AGENT_STATUS.ACTIVATING) {
-      if (messageSource.sourceType === MESSAGE_SOURCE_TYPE.DISCORD) {
-        // Set DM channel for DMs, clear stale DM channel for guild messages
-        agentState.discordDmChannelId = messageSource.isDm ? messageSource.channelId : undefined;
-      } else if (messageSource.sourceType === MESSAGE_SOURCE_TYPE.USER) {
-        agentState.discordDmChannelId = undefined;
+      switch (messageSource.sourceType) {
+        case MESSAGE_SOURCE_TYPE.DISCORD:
+          // Set DM channel for DMs, clear stale DM channel for guild messages
+          agentState.discordDmChannelId = messageSource.isDm ? messageSource.channelId : undefined;
+          break;
+
+        case MESSAGE_SOURCE_TYPE.USER:
+          agentState.discordDmChannelId = undefined;
+          break;
+
+        case MESSAGE_SOURCE_TYPE.TASK: {
+          const messageSourceTask = await this.taskManager.getTask(messageSource.taskId);
+          if (messageSourceTask?.originateSource?.sourceType === AGENT_TASK_SOURCE_TYPE.LOOP) {
+            agentState.prevLoopMessageTimestamp = Date.now();
+          }
+
+          break;
+        }
+
+        case MESSAGE_SOURCE_TYPE.AGENT:
+        case MESSAGE_SOURCE_TYPE.LOOP:
+        case MESSAGE_SOURCE_TYPE.NOTIFICATION:
+        case MESSAGE_SOURCE_TYPE.RECOVERY:
+        case MESSAGE_SOURCE_TYPE.TASK_RESULT:
+          break;
       }
     }
 

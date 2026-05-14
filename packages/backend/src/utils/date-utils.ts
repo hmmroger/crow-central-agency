@@ -23,6 +23,19 @@ export function formatLocalDateTime(date: Date | string | number, timezone?: str
 }
 
 /**
+ * Format a Date/epoch as a bare ISO-like local datetime ("YYYY-MM-DDTHH:mm:ss") in
+ * the given timezone, with no offset suffix. Pairs with parseDateTimeWithTimezone -
+ * a round-trip through it yields the original epoch.
+ *
+ * Uses the sv-SE locale because it natively produces "YYYY-MM-DD HH:mm:ss" with
+ * 24-hour clock and zero-padding, avoiding manual parts assembly.
+ */
+export function formatLocalIsoDateTime(date: Date | string | number, timezone: string): string {
+  const dateObj = isString(date) || isNumber(date) ? new Date(date) : date;
+  return dateObj.toLocaleString("sv-SE", { timeZone: timezone }).replace(" ", "T");
+}
+
+/**
  * Parse a datetime string, interpreting it in the user's timezone if no offset is present.
  * Agents typically receive datetime hints without an explicit offset, meaning the user's local time.
  *

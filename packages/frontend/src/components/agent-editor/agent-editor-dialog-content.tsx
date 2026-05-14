@@ -31,6 +31,7 @@ import { PermissionModeSection } from "./permission-mode-section.js";
 import { SettingSourcesSection } from "./setting-sources-section.js";
 import { ToolConfigSection } from "./tool-config-section.js";
 import { McpServersSection } from "./mcp-servers-section.js";
+import { GmailNotificationSection } from "./gmail-notification-section.js";
 import { SensorsSection } from "./sensors-section.js";
 import { FeedsSection } from "./feeds-section.js";
 import { LoopConfigPanel } from "./loop-config-panel.js";
@@ -154,6 +155,7 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
           loop: loopConfig,
           discordConfig,
           excludeClaudeCodeSystemPrompt: form.excludeClaudeCodeSystemPrompt,
+          enableGmailNotification: form.enableGmailNotification,
           agentMd: form.agentMd.trim() || undefined,
         };
 
@@ -180,6 +182,7 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
           loop: loopConfig,
           discordConfig: discordConfig,
           excludeClaudeCodeSystemPrompt: form.excludeClaudeCodeSystemPrompt ? true : undefined,
+          enableGmailNotification: form.enableGmailNotification ? true : undefined,
           agentMd: form.agentMd.trim() || undefined,
         };
 
@@ -365,6 +368,11 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
               configs={mcpConfigs}
               mcpServerIds={form.mcpServerIds}
               onToggle={editorForm.toggleMcpServer}
+            />
+
+            <GmailNotificationSection
+              enabled={form.enableGmailNotification}
+              onEnabledChange={editorForm.setEnableGmailNotification}
             />
 
             <ConnectorsSection agentId={agentId} />

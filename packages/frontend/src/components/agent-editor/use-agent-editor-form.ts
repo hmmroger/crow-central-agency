@@ -48,6 +48,7 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   discordRespondToMentionsOnly: false,
   discordSyncBotName: false,
   excludeClaudeCodeSystemPrompt: false,
+  enableGmailNotification: false,
   agentMd: "",
   voiceConfigEnabled: false,
   voiceName: "",
@@ -117,6 +118,7 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     discordRespondToMentionsOnly: agent.discordConfig?.respondToMentionsOnly ?? false,
     discordSyncBotName: agent.discordConfig?.syncBotName ?? false,
     excludeClaudeCodeSystemPrompt: agent.excludeClaudeCodeSystemPrompt ?? false,
+    enableGmailNotification: agent.enableGmailNotification ?? false,
     agentMd: agent.agentMd ?? "",
     voiceConfigEnabled: !!(agent.agentVoiceConfig?.voiceName || agent.agentVoiceConfig?.stylePrompt),
     voiceName: agent.agentVoiceConfig?.voiceName ?? "",
@@ -153,6 +155,7 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     formA.discordRespondToMentionsOnly === formB.discordRespondToMentionsOnly &&
     formA.discordSyncBotName === formB.discordSyncBotName &&
     formA.excludeClaudeCodeSystemPrompt === formB.excludeClaudeCodeSystemPrompt &&
+    formA.enableGmailNotification === formB.enableGmailNotification &&
     arraysEqual(formA.discordChannelIds, formB.discordChannelIds) &&
     arraysEqual(formA.discordAllowedUserIds, formB.discordAllowedUserIds) &&
     formA.voiceConfigEnabled === formB.voiceConfigEnabled &&
@@ -443,6 +446,11 @@ export function useAgentEditorForm(agent?: AgentDetailData, templatePreset?: Age
     []
   );
 
+  const setEnableGmailNotification = useCallback(
+    (value: boolean) => setForm((prev) => ({ ...prev, enableGmailNotification: value })),
+    []
+  );
+
   const setVoiceConfigEnabled = useCallback(
     (enabled: boolean) =>
       setForm((prev) => ({
@@ -495,6 +503,7 @@ export function useAgentEditorForm(agent?: AgentDetailData, templatePreset?: Age
     setDiscordRespondToMentionsOnly,
     setDiscordSyncBotName,
     setExcludeClaudeCodeSystemPrompt,
+    setEnableGmailNotification,
     setVoiceConfigEnabled,
     setVoiceName,
     setVoiceStylePrompt,

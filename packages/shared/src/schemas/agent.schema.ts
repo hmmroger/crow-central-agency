@@ -182,6 +182,7 @@ export const AgentConfigSchema = z.object({
   persistSession: z.boolean().optional(),
   isPinned: z.boolean().optional(),
   excludeClaudeCodeSystemPrompt: z.boolean().optional(),
+  enableGmailNotification: z.boolean().optional(),
   /** System agents are built-in and cannot be edited, deleted, or persisted */
   isSystemAgent: z.boolean().optional(),
   /** Background agents does not show up in the list */
@@ -211,6 +212,7 @@ export const CreateAgentInputSchema = z.object({
   loop: LoopConfigSchema.optional(),
   discordConfig: DiscordConfigSchema.optional(),
   excludeClaudeCodeSystemPrompt: z.boolean().optional(),
+  enableGmailNotification: z.boolean().optional(),
   agentMd: z.string().optional(),
 });
 
@@ -236,6 +238,7 @@ export const UpdateAgentInputSchema = z.object({
   discordConfig: DiscordConfigSchema.optional(),
   isPinned: z.boolean().optional(),
   excludeClaudeCodeSystemPrompt: z.boolean().optional(),
+  enableGmailNotification: z.boolean().optional(),
   agentMd: z.string().optional(),
 });
 
