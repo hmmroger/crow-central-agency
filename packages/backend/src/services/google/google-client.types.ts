@@ -10,6 +10,7 @@ export const GMAIL_HEADER = {
   MESSAGE_ID: "Message-ID",
   REPLY_TO: "Reply-To",
   REFERENCES: "References",
+  IN_REPLY_TO: "In-Reply-To",
 } as const;
 
 export const GMAIL_LIST_METADATA_HEADERS = [
@@ -108,6 +109,75 @@ export interface ReplyToGmailMessageOptions {
 
 export interface MoveGmailMessageToTrashResult {
   id: string;
+  threadId: string;
+}
+
+export interface GmailDraftSummary {
+  id: string;
+  message: GmailMessageSummary;
+}
+
+export interface GmailDraft {
+  id: string;
+  message: GmailMessage;
+}
+
+export interface CreateGmailDraftOptions {
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  body: string;
+}
+
+export interface CreateGmailReplyDraftOptions {
+  /** ID of the message the draft is a reply to. Recipients, subject, and threading headers are derived from this parent. */
+  parentMessageId: string;
+  /** Markdown body. */
+  body: string;
+  /** When true, the draft is addressed to every other recipient on the parent (To + Cc, excluding the connected account). */
+  replyAll?: boolean;
+}
+
+export interface UpdateGmailDraftOptions {
+  draftId: string;
+  /** When provided, replaces the existing recipients. Otherwise preserved from the existing draft. */
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject?: string;
+  body?: string;
+}
+
+export interface SendGmailDraftOptions {
+  draftId: string;
+}
+
+export interface ListGmailDraftsOptions {
+  limit?: number;
+  pageToken?: string;
+}
+
+export interface ListGmailDraftsResult {
+  drafts: GmailDraftSummary[];
+  resultSizeEstimate: number;
+  nextPageToken?: string;
+}
+
+export interface GetGmailDraftOptions {
+  draftId: string;
+}
+
+export interface DeleteGmailDraftOptions {
+  draftId: string;
+}
+
+export interface GmailDraftMutationResult {
+  /** Draft resource ID (use this for update / send / delete). */
+  id: string;
+  /** Underlying Gmail message ID inside the draft. */
+  messageId: string;
+  /** Thread the draft belongs to. */
   threadId: string;
 }
 

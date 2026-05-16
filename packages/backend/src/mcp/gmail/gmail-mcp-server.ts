@@ -11,15 +11,20 @@ import type {
   McpServerDefinition,
   McpServerFactory,
 } from "../crow-mcp-manager.types.js";
+import { getCreateGmailDraftToolConfig } from "./create-gmail-draft.js";
 import { getCreateGmailUserLabelToolConfig } from "./create-gmail-user-label.js";
+import { getDeleteGmailDraftToolConfig } from "./delete-gmail-draft.js";
 import { getDeleteGmailUserLabelToolConfig } from "./delete-gmail-user-label.js";
 import { getGetGmailMessageContentToolConfig } from "./get-gmail-message-content.js";
 import { getGetGmailThreadToolConfig } from "./get-gmail-thread.js";
+import { getListGmailDraftsToolConfig } from "./list-gmail-drafts.js";
 import { getListGmailLabelsToolConfig } from "./list-gmail-labels.js";
 import { getListGmailMessagesToolConfig } from "./list-gmail-messages.js";
 import { getMoveGmailMessageToTrashToolConfig } from "./move-gmail-message-to-trash.js";
 import { getReplyToGmailMessageToolConfig } from "./reply-to-gmail-message.js";
+import { getSendGmailDraftToolConfig } from "./send-gmail-draft.js";
 import { getSendGmailMessageToolConfig } from "./send-gmail-message.js";
+import { getUpdateGmailDraftToolConfig } from "./update-gmail-draft.js";
 import { getUpdateGmailMessageStateToolConfig } from "./update-gmail-message-state.js";
 import { getUpdateGmailMessageUserLabelsToolConfig } from "./update-gmail-message-user-labels.js";
 
@@ -37,6 +42,11 @@ export function createGmailMcpServer(googleClient: GoogleClient): McpSdkServerCo
   const updateState = getUpdateGmailMessageStateToolConfig(googleClient);
   const createUserLabel = getCreateGmailUserLabelToolConfig(googleClient);
   const deleteUserLabel = getDeleteGmailUserLabelToolConfig(googleClient);
+  const createDraft = getCreateGmailDraftToolConfig(googleClient);
+  const updateDraft = getUpdateGmailDraftToolConfig(googleClient);
+  const sendDraft = getSendGmailDraftToolConfig(googleClient);
+  const deleteDraft = getDeleteGmailDraftToolConfig(googleClient);
+  const listDrafts = getListGmailDraftsToolConfig(googleClient);
 
   return createSdkMcpServer({
     name: GMAIL_MCP_SERVER_NAME,
@@ -81,6 +91,21 @@ export function createGmailMcpServer(googleClient: GoogleClient): McpSdkServerCo
       }),
       tool(deleteUserLabel.name, deleteUserLabel.description, deleteUserLabel.inputSchema, deleteUserLabel.handler, {
         annotations: deleteUserLabel.annotations,
+      }),
+      tool(createDraft.name, createDraft.description, createDraft.inputSchema, createDraft.handler, {
+        annotations: createDraft.annotations,
+      }),
+      tool(updateDraft.name, updateDraft.description, updateDraft.inputSchema, updateDraft.handler, {
+        annotations: updateDraft.annotations,
+      }),
+      tool(sendDraft.name, sendDraft.description, sendDraft.inputSchema, sendDraft.handler, {
+        annotations: sendDraft.annotations,
+      }),
+      tool(deleteDraft.name, deleteDraft.description, deleteDraft.inputSchema, deleteDraft.handler, {
+        annotations: deleteDraft.annotations,
+      }),
+      tool(listDrafts.name, listDrafts.description, listDrafts.inputSchema, listDrafts.handler, {
+        annotations: listDrafts.annotations,
       }),
     ],
   });
