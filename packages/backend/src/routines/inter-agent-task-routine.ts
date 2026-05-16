@@ -17,6 +17,13 @@ import type { ArtifactRecord } from "../services/runtime/agent-runtime-manager.t
 
 const ROUTINE_ID = "inter-agent-task";
 
+const SUBTASK_STATUS = {
+  NONE: "NONE",
+  UNRESOLVED: "UNRESOLVED",
+  INFLIGHT: "INFLIGHT",
+} as const;
+type SubtaskStatus = (typeof SUBTASK_STATUS)[keyof typeof SUBTASK_STATUS];
+
 const PLAIN_TASK_SOURCE = new Set<AgentTaskSourceType>([
   AGENT_TASK_SOURCE_TYPE.LOOP,
   AGENT_TASK_SOURCE_TYPE.REMINDER,
@@ -32,7 +39,7 @@ const INTER_AGENT_INVOKE_PROMPT: MessageTemplate = {
         "",
         "{task}",
         "",
-        "Please perform this task. Your final response will be captured as the task result. Write to an artifact only if the output is large or needs to be referenced later.",
+        `Please perform this task. Your final response will be captured as the task result and sent back to the requesting agent. Do not invoke agent to return the result. Write to an artifact only if the output is large or needs to be referenced later.`,
       ],
     },
   ],
@@ -203,11 +210,10 @@ class InterAgentTaskRoutine {
     }
 
     if (source.sourceType === MESSAGE_SOURCE_TYPE.TASK_RESULT) {
-      if (task.parentTaskId) {
-        await this.tryNudgeParentTask(agentId, task.parentTaskId);
+      const shouldComplete = task.parentTaskId ? await this.tryNudgeParentTask(agentId, task.parentTaskId) : false;
+      if (!shouldComplete) {
+        return;
       }
-
-      return;
     }
 
     const isOriginateFromUser = task.originateSource.sourceType === AGENT_TASK_SOURCE_TYPE.USER;
@@ -217,9 +223,13 @@ class InterAgentTaskRoutine {
         ? AGENT_TASK_STATE.INCOMPLETE
         : AGENT_TASK_STATE.COMPLETED;
 
-    // Don't transition to COMPLETED/INCOMPLETE if sub-tasks are still unresolved
-    if (!this.taskManager.areSubTasksResolved(task.id, targetState)) {
-      log.info({ taskId: task.id, targetState }, "Skipping task state transition: sub-tasks not yet resolved");
+    // Don't transition to COMPLETED/INCOMPLETE if sub-tasks are still unresolved or inflight
+    const subtaskStatus = await this.getSubTasksStatus(task, agentId, targetState);
+    if (subtaskStatus !== SUBTASK_STATUS.NONE) {
+      log.info(
+        { taskId: task.id, targetState },
+        `Skipping task state transition: sub-tasks not ready ${subtaskStatus}`
+      );
       return;
     }
 
@@ -401,25 +411,68 @@ class InterAgentTaskRoutine {
     }
   }
 
-  private async tryNudgeParentTask(agentId: string, parentTaskId: string): Promise<void> {
+  private async getSubTasksStatus(
+    task: AgentTaskItem,
+    agentId: string,
+    targetState: AgentTaskState
+  ): Promise<SubtaskStatus> {
+    const subTaskIds = task.subTaskIds;
+    if (!subTaskIds?.length) {
+      return SUBTASK_STATUS.NONE;
+    }
+
+    if (!this.taskManager.areSubTasksResolved(task.id, targetState)) {
+      return SUBTASK_STATUS.UNRESOLVED;
+    }
+
+    const subTaskIdSet = new Set(subTaskIds);
+    const isSubTaskResultSource = (candidate?: MessageSource): boolean =>
+      candidate?.sourceType === MESSAGE_SOURCE_TYPE.TASK_RESULT && subTaskIdSet.has(candidate.taskId);
+
+    if (isSubTaskResultSource(this.runtimeManager.getState(agentId)?.messageSource)) {
+      return SUBTASK_STATUS.INFLIGHT;
+    }
+
+    const queuedMessages = await this.runtimeManager.getQueuedMessages(agentId);
+    if (queuedMessages.some((entry) => isSubTaskResultSource(entry.source))) {
+      return SUBTASK_STATUS.INFLIGHT;
+    }
+
+    return SUBTASK_STATUS.NONE;
+  }
+
+  private async tryNudgeParentTask(agentId: string, parentTaskId: string): Promise<boolean> {
     const parentTask = this.taskManager.getTask(parentTaskId);
     if (!parentTask) {
       log.warn({ taskId: parentTaskId }, "Parent task not found");
-      return;
+      return true;
     }
 
-    // at least all children are completed/incomplete
-    if (!this.taskManager.areSubTasksResolved(parentTask.id, AGENT_TASK_STATE.INCOMPLETE)) {
+    // at least all children are completed/incomplete or not inflight
+    const subtaskStatus = await this.getSubTasksStatus(parentTask, agentId, AGENT_TASK_STATE.INCOMPLETE);
+    if (subtaskStatus !== SUBTASK_STATUS.NONE) {
       log.debug(
         { taskId: parentTaskId, subTasksCount: parentTask.subTaskIds?.length ?? 0 },
-        "Skip nudge, sub tasks unresolved."
+        `Skip nudge, sub tasks not ready: ${subtaskStatus}.`
       );
-      return;
+
+      return false;
     }
 
     if (parentTask.state !== AGENT_TASK_STATE.ACTIVE) {
       log.warn({ taskId: parentTaskId, state: parentTask.state }, "Skip nudge, parent task not in active state");
-      return;
+      return false;
+    }
+
+    if (
+      parentTask.originateSource.sourceType !== AGENT_TASK_SOURCE_TYPE.AGENT &&
+      parentTask.originateSource.sourceType !== AGENT_TASK_SOURCE_TYPE.USER
+    ) {
+      log.debug(
+        { taskId: parentTaskId, originateSourceType: parentTask.originateSource.sourceType, state: parentTask.state },
+        "Skip nudge, non agent or user source"
+      );
+      return true;
     }
 
     try {
@@ -451,6 +504,8 @@ class InterAgentTaskRoutine {
     } catch (error) {
       log.error({ agentId, taskId: parentTask.id, error }, "Failed to nudge agent on parent task.");
     }
+
+    return false;
   }
 }
 

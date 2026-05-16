@@ -164,15 +164,19 @@ function resolveSourceName(source: AgentTaskSource, resolveAgentName: (id: strin
     return resolveAgentName(source.agentId);
   }
 
-  if (source.sourceType === AGENT_TASK_SOURCE_TYPE.LOOP) {
-    return "Loop";
-  }
+  switch (source.sourceType) {
+    case AGENT_TASK_SOURCE_TYPE.LOOP:
+      return "Loop";
 
-  if (source.sourceType === AGENT_TASK_SOURCE_TYPE.REMINDER) {
-    return "Reminder";
-  }
+    case AGENT_TASK_SOURCE_TYPE.REMINDER:
+      return "Reminder";
 
-  return "User";
+    case AGENT_TASK_SOURCE_TYPE.SYSTEM:
+      return "System";
+
+    case AGENT_TASK_SOURCE_TYPE.USER:
+      return "User";
+  }
 }
 
 /** Map source type to icon — declared outside render to avoid ESLint static-components rule */

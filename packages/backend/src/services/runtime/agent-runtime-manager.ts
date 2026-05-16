@@ -22,7 +22,7 @@ import type { WsBroadcaster } from "../ws-broadcaster.js";
 import { PermissionHandler } from "./permission-handler.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
-import { MESSAGE_SOURCE_TYPE, type MessageSource } from "../message-queue-manager.types.js";
+import { MESSAGE_SOURCE_TYPE, type MessageSource, type QueuedMessage } from "../message-queue-manager.types.js";
 import crypto from "node:crypto";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
@@ -125,6 +125,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   /** Get all runtime states */
   public getAllStates(): AgentRuntimeState[] {
     return Array.from(this.runtimeStates.values());
+  }
+
+  public async getQueuedMessages(agentId: string): Promise<QueuedMessage[]> {
+    return await this.messageQueue.getMessages(agentId);
   }
 
   /**
