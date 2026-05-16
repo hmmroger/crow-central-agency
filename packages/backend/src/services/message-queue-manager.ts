@@ -77,6 +77,11 @@ export class MessageQueueManager {
     return messages[0];
   }
 
+  /** Read a snapshot of all queued messages without removing them */
+  public async getMessages(agentId: string): Promise<QueuedMessage[]> {
+    return await this.readQueue(agentId);
+  }
+
   /** Get the number of queued messages */
   public async size(agentId: string): Promise<number> {
     const messages = await this.readQueue(agentId);

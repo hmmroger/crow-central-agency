@@ -1,8 +1,13 @@
 import {
   GMAIL_LABEL_TYPE,
+  type GmailDraftSummary,
   type GmailLabel,
   type GmailMessageSummary,
 } from "../../services/google/google-client.types.js";
+
+function formatGmailLabelLine(label: GmailLabel): string {
+  return `  ${label.id} - ${label.name}`;
+}
 
 /**
  * Render a Gmail message summary (headers + snippet) as agent-readable text.
@@ -59,6 +64,6 @@ export function formatGmailLabelList(labels: GmailLabel[]): string {
   return sections.join("\n\n");
 }
 
-function formatGmailLabelLine(label: GmailLabel): string {
-  return `  ${label.id} - ${label.name}`;
+export function formatGmailDraftSummary(draft: GmailDraftSummary): string {
+  return [`Draft ID: ${draft.id}`, formatGmailMessageSummary(draft.message)].join("\n");
 }

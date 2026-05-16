@@ -57,3 +57,24 @@ export interface GmailRawLabel {
 export interface GmailLabelsListResponse {
   labels?: GmailRawLabel[];
 }
+
+export interface GmailExtractedBody {
+  bodyText?: string;
+  bodyHtml?: string;
+}
+
+export interface GmailRawDraft {
+  id: string;
+  message: GmailRawMessage;
+}
+
+export interface GmailDraftRef {
+  id: string;
+  message?: GmailMessageRef;
+}
+
+export interface GmailDraftsListResponse {
+  drafts?: GmailDraftRef[];
+  nextPageToken?: string;
+  resultSizeEstimate: number;
+}

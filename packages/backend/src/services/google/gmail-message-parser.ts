@@ -1,6 +1,8 @@
 import { formatLocalDateTime } from "../../utils/date-utils.js";
 import { htmlToMarkdown, plainTextToHtmlParagraphs } from "./html-to-markdown.js";
 import type {
+  GmailExtractedBody,
+  GmailRawDraft,
   GmailRawHeader,
   GmailRawLabel,
   GmailRawMessage,
@@ -10,6 +12,8 @@ import type {
 import {
   GMAIL_HEADER,
   GMAIL_LABEL_TYPE,
+  type GmailDraft,
+  type GmailDraftSummary,
   type GmailLabel,
   type GmailMessage,
   type GmailMessageSummary,
@@ -17,11 +21,6 @@ import {
 
 const GMAIL_MIME_TEXT_PLAIN = "text/plain";
 const GMAIL_MIME_TEXT_HTML = "text/html";
-
-interface ExtractedBody {
-  bodyText?: string;
-  bodyHtml?: string;
-}
 
 export function parseGmailMessageSummary(raw: GmailRawMessage, userTimezone: string): GmailMessageSummary {
   const headers = raw.payload?.headers ?? [];
@@ -41,9 +40,30 @@ export function parseGmailMessageSummary(raw: GmailRawMessage, userTimezone: str
 }
 
 export function parseGmailFullMessage(raw: GmailRawMessage, userTimezone: string): GmailMessage {
+  return parseGmailFullMessageWithBodyParts(raw, userTimezone).message;
+}
+
+export function parseGmailFullMessageWithBodyParts(
+  raw: GmailRawMessage,
+  userTimezone: string
+): { message: GmailMessage; extractedBody: GmailExtractedBody } {
   const summary = parseGmailMessageSummary(raw, userTimezone);
   const body = extractBody(raw.payload);
-  return { ...summary, content: renderMessageContent(body) };
+  return { message: { ...summary, content: renderMessageContent(body) }, extractedBody: body };
+}
+
+export function parseGmailDraftSummary(raw: GmailRawDraft, userTimezone: string): GmailDraftSummary {
+  return {
+    id: raw.id,
+    message: parseGmailMessageSummary(raw.message, userTimezone),
+  };
+}
+
+export function parseGmailDraftFull(raw: GmailRawDraft, userTimezone: string): GmailDraft {
+  return {
+    id: raw.id,
+    message: parseGmailFullMessage(raw.message, userTimezone),
+  };
 }
 
 export function parseReplyParentHeaders(raw: GmailRawMessage): ReplyParentHeaders {
@@ -65,8 +85,8 @@ export function findHeader(headers: GmailRawHeader[], name: string): string | un
   return headers.find((header) => header.name.toLowerCase() === lowered)?.value;
 }
 
-function extractBody(payload: GmailRawPayload | undefined): ExtractedBody {
-  const result: ExtractedBody = {};
+function extractBody(payload: GmailRawPayload | undefined): GmailExtractedBody {
+  const result: GmailExtractedBody = {};
   if (payload) {
     walkPayloadParts(payload, result);
   }
@@ -74,7 +94,7 @@ function extractBody(payload: GmailRawPayload | undefined): ExtractedBody {
   return result;
 }
 
-function walkPayloadParts(payload: GmailRawPayload, result: ExtractedBody): void {
+function walkPayloadParts(payload: GmailRawPayload, result: GmailExtractedBody): void {
   if (payload.body?.attachmentId) {
     return;
   }
@@ -99,7 +119,7 @@ function walkPayloadParts(payload: GmailRawPayload, result: ExtractedBody): void
  * present (richer source); plain text is wrapped as paragraphs first so both
  * paths go through the same sanitize → markdown pipeline.
  */
-function renderMessageContent(body: ExtractedBody): string | undefined {
+function renderMessageContent(body: GmailExtractedBody): string | undefined {
   if (body.bodyHtml) {
     return htmlToMarkdown(body.bodyHtml, true);
   }

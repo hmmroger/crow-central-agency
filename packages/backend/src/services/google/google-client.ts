@@ -8,15 +8,21 @@ import { markdownToHtml } from "../../utils/markdown-to-html.js";
 import { parseGoogleCalendarEventFull, parseGoogleCalendarEventSummary } from "./google-calendar-event-parser.js";
 import { parseGoogleContact } from "./google-contact-parser.js";
 import {
+  parseGmailDraftFull,
+  parseGmailDraftSummary,
   parseGmailFullMessage,
+  parseGmailFullMessageWithBodyParts,
   parseGmailLabel,
   parseGmailMessageSummary,
   parseReplyParentHeaders,
+  findHeader,
 } from "./gmail-message-parser.js";
 import type {
+  GmailDraftsListResponse,
   GmailLabelsListResponse,
   GmailMessageRef,
   GmailMessagesListResponse,
+  GmailRawDraft,
   GmailRawLabel,
   GmailRawMessage,
   GmailRawThread,
@@ -33,16 +39,24 @@ import {
 import { assertUserLabelIds, buildStateLabelDiff, deriveStateFromLabelIds } from "./gmail-label-utils.js";
 import {
   DEFAULT_GOOGLE_CALENDAR_ID,
+  GMAIL_HEADER,
   GMAIL_LIST_METADATA_HEADERS,
   GMAIL_REPLY_METADATA_HEADERS,
   GMAIL_LABEL_COLOR_PALETTE,
   GOOGLE_CALENDAR_ACCESS_ROLE,
   GOOGLE_SERVICE_NAME,
   GOOGLE_CONFERENCE_SOLUTION_TYPE,
+  type CreateGmailDraftOptions,
+  type CreateGmailReplyDraftOptions,
   type CreateGmailUserLabelOptions,
   type CreateGoogleCalendarEventOptions,
+  type DeleteGmailDraftOptions,
   type DeleteGoogleCalendarEventOptions,
+  type GetGmailDraftOptions,
   type GetGoogleCalendarEventOptions,
+  type GmailDraft,
+  type GmailDraftMutationResult,
+  type GmailDraftSummary,
   type GoogleCalendarEventInsertBody,
   type GmailLabel,
   type GmailMessage,
@@ -56,6 +70,8 @@ import {
   type GoogleRawCalendarEvent,
   type GoogleRawCalendarEventAttendee,
   type GoogleRawCalendarListEntry,
+  type ListGmailDraftsOptions,
+  type ListGmailDraftsResult,
   type ListGmailLabelsResult,
   type ListGoogleCalendarEventsOptions,
   type ListGoogleCalendarEventsResult,
@@ -66,8 +82,10 @@ import {
   type MoveGmailMessageToTrashResult,
   type SearchGoogleContactsOptions,
   type SearchGoogleContactsResult,
+  type SendGmailDraftOptions,
   type GoogleRawContactPerson,
   type GoogleSearchContactsResponse,
+  type UpdateGmailDraftOptions,
   type UpdateGoogleCalendarEventOptions,
   type ReplyToGmailMessageOptions,
   type SendGmailMessageOptions,
@@ -83,12 +101,14 @@ import type { GoogleRequestOptions } from "./google-request.types.js";
 const GMAIL_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const GMAIL_THREADS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/threads";
 const GMAIL_LABELS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
+const GMAIL_DRAFTS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/drafts";
 const GOOGLE_CALENDAR_LIST_URL = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
 const GOOGLE_CALENDAR_EVENTS_BASE_URL = "https://www.googleapis.com/calendar/v3/calendars";
 const GOOGLE_PEOPLE_SEARCH_URL = "https://people.googleapis.com/v1/people:searchContacts";
 const GOOGLE_CONTACTS_READ_MASK = "names,emailAddresses,phoneNumbers,organizations";
 const GOOGLE_CONTACTS_WARMUP_TTL_MS = 25 * 60 * 1000;
 export const DEFAULT_GMAIL_LIST_LIMIT = 25;
+export const DEFAULT_GMAIL_DRAFTS_LIST_LIMIT = 25;
 export const DEFAULT_GOOGLE_CALENDAR_LIST_LIMIT = 50;
 export const DEFAULT_GOOGLE_CALENDAR_EVENTS_LIST_LIMIT = 25;
 export const DEFAULT_GOOGLE_CONTACTS_SEARCH_LIMIT = 10;
@@ -227,18 +247,14 @@ export class GoogleClient {
   }
 
   public async sendGmailMessage(options: SendGmailMessageOptions): Promise<SendGmailMessageResult> {
-    const profile = await this.connectorManager.getProfile(this.agentId, CONNECTOR_ID.GOOGLE);
-    const html = markdownToHtml(options.body);
-    const rfc822 = buildMimeMessage({
-      from: formatFromHeader(profile.username, profile.displayName),
+    const raw = await this.buildOutboundRawForNew({
       to: options.to,
       cc: options.cc,
       bcc: options.bcc,
       subject: options.subject,
-      plainText: options.body,
-      html,
+      body: options.body,
     });
-    return this.sendRawMessage(encodeRawForGmail(rfc822));
+    return this.sendRawMessage(raw);
   }
 
   public async moveGmailMessageToTrash(messageId: string): Promise<MoveGmailMessageToTrashResult> {
@@ -574,51 +590,144 @@ export class GoogleClient {
   }
 
   public async replyToGmailMessage(options: ReplyToGmailMessageOptions): Promise<SendGmailMessageResult> {
-    const parent = await this.fetchReplyParentHeaders(options.parentMessageId);
-    const primaryReplyAddress = parent.replyTo ?? parent.from;
-    if (primaryReplyAddress === undefined) {
+    const { raw, threadId } = await this.buildOutboundRawForReply(
+      options.parentMessageId,
+      options.body,
+      options.replyAll
+    );
+    return this.sendRawMessage(raw, threadId);
+  }
+
+  public async createGmailDraft(options: CreateGmailDraftOptions): Promise<GmailDraftMutationResult> {
+    const raw = await this.buildOutboundRawForNew({
+      to: options.to,
+      cc: options.cc,
+      bcc: options.bcc,
+      subject: options.subject,
+      body: options.body,
+    });
+    return this.persistDraft(raw);
+  }
+
+  public async createGmailReplyDraft(options: CreateGmailReplyDraftOptions): Promise<GmailDraftMutationResult> {
+    const { raw, threadId } = await this.buildOutboundRawForReply(
+      options.parentMessageId,
+      options.body,
+      options.replyAll
+    );
+    return this.persistDraft(raw, threadId);
+  }
+
+  public async sendGmailDraft(options: SendGmailDraftOptions): Promise<SendGmailMessageResult> {
+    const response = await this.request<GmailMessageRef>({
+      url: `${GMAIL_DRAFTS_URL}/send`,
+      method: "POST",
+      body: { id: options.draftId },
+    });
+    return { id: response.id, threadId: response.threadId };
+  }
+
+  public async updateGmailDraft(options: UpdateGmailDraftOptions): Promise<GmailDraftMutationResult> {
+    const hasAnyChange =
+      options.to !== undefined ||
+      options.cc !== undefined ||
+      options.bcc !== undefined ||
+      options.subject !== undefined ||
+      options.body !== undefined;
+    if (!hasAnyChange) {
       throw new RequestError(
-        `Cannot reply: parent message ${options.parentMessageId} has no From or Reply-To header.`,
+        "updateGmailDraft requires at least one field to change.",
         undefined,
         undefined,
         GOOGLE_SERVICE_NAME
       );
     }
 
+    const userTimezone = await this.sensorManager.getUserTimezone();
+    const draftUrl = `${GMAIL_DRAFTS_URL}/${encodeURIComponent(options.draftId)}`;
+    const existing = await this.request<GmailRawDraft>({ url: draftUrl, query: { format: "full" } });
+    const { message: existingMessage, extractedBody } = parseGmailFullMessageWithBodyParts(
+      existing.message,
+      userTimezone
+    );
+    const existingHeaders = existing.message.payload?.headers ?? [];
+    const inReplyTo = findHeader(existingHeaders, GMAIL_HEADER.IN_REPLY_TO);
+    const referencesHeader = findHeader(existingHeaders, GMAIL_HEADER.REFERENCES);
+    const references =
+      referencesHeader === undefined ? undefined : referencesHeader.split(/\s+/).filter((entry) => entry.length > 0);
+
+    const to = options.to ?? splitAddressList(existingMessage.to);
+    const ccList = options.cc ?? splitAddressList(existingMessage.cc);
+    const bccList = options.bcc ?? splitAddressList(existingMessage.bcc);
+    const subject = options.subject ?? existingMessage.subject ?? "";
+    const plainText = options.body ?? extractedBody.bodyText ?? "";
+    const html = options.body !== undefined ? markdownToHtml(options.body) : (extractedBody.bodyHtml ?? "");
+
     const profile = await this.connectorManager.getProfile(this.agentId, CONNECTOR_ID.GOOGLE);
-    const selfEmail = profile.username.toLowerCase();
-    const to: string[] = [primaryReplyAddress];
-    const cc: string[] = [];
-    if (options.replyAll === true) {
-      const primaryEmail = extractEmailAddress(primaryReplyAddress);
-      for (const address of splitAddressList(parent.to)) {
-        const email = extractEmailAddress(address);
-        if (email !== selfEmail && email !== primaryEmail) {
-          to.push(address);
-        }
-      }
-
-      for (const address of splitAddressList(parent.cc)) {
-        const email = extractEmailAddress(address);
-        if (email !== selfEmail && email !== primaryEmail) {
-          cc.push(address);
-        }
-      }
-    }
-
-    const html = markdownToHtml(options.body);
     const rfc822 = buildMimeMessage({
       from: formatFromHeader(profile.username, profile.displayName),
       to,
-      cc: cc.length > 0 ? cc : undefined,
-      subject: deriveReplySubject(parent.subject),
-      inReplyTo: parent.messageIdHeader,
-      references: buildReferencesChain(parent.messageIdHeader, parent.references),
-      plainText: options.body,
+      cc: ccList.length > 0 ? ccList : undefined,
+      bcc: bccList.length > 0 ? bccList : undefined,
+      subject,
+      inReplyTo,
+      references: references !== undefined && references.length > 0 ? references : undefined,
+      plainText,
       html,
     });
+    const raw = encodeRawForGmail(rfc822);
 
-    return this.sendRawMessage(encodeRawForGmail(rfc822), parent.threadId);
+    const requestBody: { message: { raw: string; threadId?: string } } = { message: { raw } };
+    if (existing.message.threadId !== undefined) {
+      requestBody.message.threadId = existing.message.threadId;
+    }
+
+    const response = await this.request<GmailRawDraft>({
+      url: draftUrl,
+      method: "PUT",
+      body: requestBody,
+    });
+    return this.toDraftMutationResult(response);
+  }
+
+  public async listGmailDrafts(options: ListGmailDraftsOptions = {}): Promise<ListGmailDraftsResult> {
+    const limit = options.limit ?? DEFAULT_GMAIL_DRAFTS_LIST_LIMIT;
+    const userTimezone = await this.sensorManager.getUserTimezone();
+    const listResponse = await this.request<GmailDraftsListResponse>({
+      url: GMAIL_DRAFTS_URL,
+      query: {
+        maxResults: String(limit),
+        pageToken: options.pageToken,
+      },
+    });
+
+    const refs = listResponse.drafts ?? [];
+    const drafts = await Promise.all(refs.map((ref) => this.fetchGmailDraftSummary(ref.id, userTimezone)));
+    const result: ListGmailDraftsResult = {
+      drafts,
+      resultSizeEstimate: listResponse.resultSizeEstimate,
+    };
+    if (listResponse.nextPageToken !== undefined) {
+      result.nextPageToken = listResponse.nextPageToken;
+    }
+
+    return result;
+  }
+
+  public async getGmailDraft(options: GetGmailDraftOptions): Promise<GmailDraft> {
+    const userTimezone = await this.sensorManager.getUserTimezone();
+    const raw = await this.request<GmailRawDraft>({
+      url: `${GMAIL_DRAFTS_URL}/${encodeURIComponent(options.draftId)}`,
+      query: { format: "full" },
+    });
+    return parseGmailDraftFull(raw, userTimezone);
+  }
+
+  public async deleteGmailDraft(options: DeleteGmailDraftOptions): Promise<void> {
+    await this.requestVoid({
+      url: `${GMAIL_DRAFTS_URL}/${encodeURIComponent(options.draftId)}`,
+      method: "DELETE",
+    });
   }
 
   /**
@@ -666,6 +775,120 @@ export class GoogleClient {
     });
 
     return { id: response.id, threadId: response.threadId };
+  }
+
+  /** Build a base64url-encoded RFC 2822 message for a brand-new (non-reply) outbound message. */
+  private async buildOutboundRawForNew(options: {
+    to: string[];
+    cc?: string[];
+    bcc?: string[];
+    subject: string;
+    body: string;
+  }): Promise<string> {
+    const profile = await this.connectorManager.getProfile(this.agentId, CONNECTOR_ID.GOOGLE);
+    const html = markdownToHtml(options.body);
+    const rfc822 = buildMimeMessage({
+      from: formatFromHeader(profile.username, profile.displayName),
+      to: options.to,
+      cc: options.cc,
+      bcc: options.bcc,
+      subject: options.subject,
+      plainText: options.body,
+      html,
+    });
+    return encodeRawForGmail(rfc822);
+  }
+
+  /**
+   * Build a base64url-encoded RFC 2822 reply: fetches the parent's headers,
+   * derives recipients (Reply-To ?? From; replyAll → parent To+Cc minus self),
+   * prefixes the subject with "Re: ", and threads via In-Reply-To + References.
+   * Returns the encoded raw alongside the parent's threadId so callers can
+   * attach it on send/draft operations.
+   */
+  private async buildOutboundRawForReply(
+    parentMessageId: string,
+    body: string,
+    replyAll: boolean | undefined
+  ): Promise<{ raw: string; threadId: string }> {
+    const parent = await this.fetchReplyParentHeaders(parentMessageId);
+    const primaryReplyAddress = parent.replyTo ?? parent.from;
+    if (primaryReplyAddress === undefined) {
+      throw new RequestError(
+        `Cannot reply: parent message ${parentMessageId} has no From or Reply-To header.`,
+        undefined,
+        undefined,
+        GOOGLE_SERVICE_NAME
+      );
+    }
+
+    const profile = await this.connectorManager.getProfile(this.agentId, CONNECTOR_ID.GOOGLE);
+    const selfEmail = profile.username.toLowerCase();
+    const to: string[] = [primaryReplyAddress];
+    const cc: string[] = [];
+    if (replyAll === true) {
+      const primaryEmail = extractEmailAddress(primaryReplyAddress);
+      for (const address of splitAddressList(parent.to)) {
+        const email = extractEmailAddress(address);
+        if (email !== selfEmail && email !== primaryEmail) {
+          to.push(address);
+        }
+      }
+
+      for (const address of splitAddressList(parent.cc)) {
+        const email = extractEmailAddress(address);
+        if (email !== selfEmail && email !== primaryEmail) {
+          cc.push(address);
+        }
+      }
+    }
+
+    const rfc822 = buildMimeMessage({
+      from: formatFromHeader(profile.username, profile.displayName),
+      to,
+      cc: cc.length > 0 ? cc : undefined,
+      subject: deriveReplySubject(parent.subject),
+      inReplyTo: parent.messageIdHeader,
+      references: buildReferencesChain(parent.messageIdHeader, parent.references),
+      plainText: body,
+      html: markdownToHtml(body),
+    });
+
+    return { raw: encodeRawForGmail(rfc822), threadId: parent.threadId };
+  }
+
+  /** POST users.drafts.create with the prepared raw, optionally attaching threadId for reply drafts. */
+  private async persistDraft(raw: string, threadId?: string): Promise<GmailDraftMutationResult> {
+    const body: { message: { raw: string; threadId?: string } } = { message: { raw } };
+    if (threadId !== undefined) {
+      body.message.threadId = threadId;
+    }
+
+    const response = await this.request<GmailRawDraft>({
+      url: GMAIL_DRAFTS_URL,
+      method: "POST",
+      body,
+    });
+    return this.toDraftMutationResult(response);
+  }
+
+  private toDraftMutationResult(raw: GmailRawDraft): GmailDraftMutationResult {
+    return {
+      id: raw.id,
+      messageId: raw.message.id,
+      threadId: raw.message.threadId,
+    };
+  }
+
+  private async fetchGmailDraftSummary(draftId: string, userTimezone: string): Promise<GmailDraftSummary> {
+    const raw = await this.request<GmailRawDraft>({
+      url: `${GMAIL_DRAFTS_URL}/${encodeURIComponent(draftId)}`,
+      query: {
+        format: "metadata",
+        metadataHeaders: GMAIL_LIST_METADATA_HEADERS,
+      },
+    });
+    return parseGmailDraftSummary(raw, userTimezone);
   }
 
   private async fetchReplyParentHeaders(messageId: string): Promise<ReplyParentHeaders> {
