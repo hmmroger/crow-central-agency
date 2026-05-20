@@ -37,7 +37,7 @@ import {
 } from "../../runner/agent-runner.types.js";
 import type { CrowMcpManager } from "../../mcp/crow-mcp-manager.js";
 import type { AgentTaskManager } from "../agent-task-manager.js";
-import { head, isString } from "es-toolkit";
+import { head, isString, uniqBy } from "es-toolkit";
 import { EventBus } from "../../core/event-bus/event-bus.js";
 import type { AgentRuntimeManagerEvents, ArtifactRecord } from "./agent-runtime-manager.types.js";
 import { startQuerySpan, type AgentQuerySpan } from "../../telemetry/agent-telemetry.js";
@@ -436,7 +436,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
         agentId,
         source,
         lastAssistantMessage,
-        artifactsWritten,
+        artifactsWritten: uniqBy(artifactsWritten, (record) => `${record.circleId ?? ""}/${record.filename}`),
         isAbortedOrError,
         error: state.lastError,
       });
