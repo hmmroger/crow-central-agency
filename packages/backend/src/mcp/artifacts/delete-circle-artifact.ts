@@ -14,7 +14,7 @@ export function getDeleteCircleArtifactToolConfig(agentId: string, artifactManag
 
   const handler: ToolHandler<typeof inputSchema> = async ({ circle_id, filename }) => {
     if (!artifactManager.isDirectCircleMember(circle_id, agentId)) {
-      return textToolResult(["Error: you are not a direct member of this circle"], true);
+      return textToolResult(["You are not a direct member of this circle."], true);
     }
 
     try {

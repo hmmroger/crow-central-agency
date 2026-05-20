@@ -50,6 +50,7 @@ export const ArtifactMetadataSchema = z.object({
   entityId: z.string(),
   entityType: EntityTypeSchema,
   size: z.number(),
+  tags: z.array(z.string()).optional(),
   createdTimestamp: z.number(),
   updatedTimestamp: z.number(),
   createdBy: AgentTaskSourceSchema,

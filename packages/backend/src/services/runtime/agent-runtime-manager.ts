@@ -44,7 +44,9 @@ import { startQuerySpan, type AgentQuerySpan } from "../../telemetry/agent-telem
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import { ARTIFACTS_MCP_SERVER_NAME } from "../../mcp/artifacts/artifacts-mcp-server.js";
 import { WRITE_ARTIFACT_TOOL_NAME } from "../../mcp/artifacts/write-artifact.js";
+import { EDIT_ARTIFACT_TOOL_NAME } from "../../mcp/artifacts/edit-artifact.js";
 import { WRITE_CIRCLE_ARTIFACT_TOOL_NAME } from "../../mcp/artifacts/write-circle-artifact.js";
+import { EDIT_CIRCLE_ARTIFACT_TOOL_NAME } from "../../mcp/artifacts/edit-circle-artifact.js";
 import type { AgentCircleManager } from "../agent-circle-manager.js";
 import { generateId } from "../../utils/id-utils.js";
 import { AGENTS_DIR_NAME } from "../../config/constants.js";
@@ -298,7 +300,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
                 lastAssistantMessage = msg.content;
               } else if (msg.role === AGENT_MESSAGE_ROLE.SYSTEM && msg.type === AGENT_MESSAGE_TYPE.TOOL_USE) {
                 switch (msg.toolName) {
-                  case this.mcpManager.getCompleteMcpToolName(ARTIFACTS_MCP_SERVER_NAME, WRITE_ARTIFACT_TOOL_NAME): {
+                  case this.mcpManager.getCompleteMcpToolName(ARTIFACTS_MCP_SERVER_NAME, WRITE_ARTIFACT_TOOL_NAME):
+                  case this.mcpManager.getCompleteMcpToolName(ARTIFACTS_MCP_SERVER_NAME, EDIT_ARTIFACT_TOOL_NAME): {
                     const filename = msg.toolInput["filename"];
                     if (isString(filename)) {
                       artifactsWritten.push({ filename });
@@ -310,6 +313,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
                   case this.mcpManager.getCompleteMcpToolName(
                     ARTIFACTS_MCP_SERVER_NAME,
                     WRITE_CIRCLE_ARTIFACT_TOOL_NAME
+                  ):
+                  case this.mcpManager.getCompleteMcpToolName(
+                    ARTIFACTS_MCP_SERVER_NAME,
+                    EDIT_CIRCLE_ARTIFACT_TOOL_NAME
                   ): {
                     const filename = msg.toolInput["filename"];
                     const circleId = msg.toolInput["circle_id"];

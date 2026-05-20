@@ -21,22 +21,35 @@ export function getListCircleArtifactsToolConfig(
       .enum(ARTIFACT_TYPE_VALUES)
       .optional()
       .describe(`Filter by artifact type. Values: ${ARTIFACT_TYPE_VALUES.join(", ")}`),
+    tags: z
+      .array(z.string())
+      .optional()
+      .describe("Filter by tags. Only artifacts that have every specified tag are returned."),
     limit: z.number().optional().describe("Number of artifacts to return per page."),
     skip: z.number().optional().describe("Number of artifacts to skip for pagination."),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ circle_id, type, limit, skip }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ circle_id, type, tags, limit, skip }) => {
     if (!artifactManager.isDirectCircleMember(circle_id, agentId)) {
-      return textToolResult(["Error: you are not a direct member of this circle"], true);
+      return textToolResult(["You are not a direct member of this circle."], true);
     }
 
     try {
       const [artifacts, userTimezone] = await Promise.all([
-        artifactManager.listCircleArtifacts(circle_id, { type }),
+        artifactManager.listCircleArtifacts(circle_id, { type, tags }),
         sensorManager.getUserTimezone(),
       ]);
       if (artifacts.length === 0) {
-        const suffix = type ? ` with type ${type}` : "";
+        const filterParts: string[] = [];
+        if (type) {
+          filterParts.push(`type ${type}`);
+        }
+
+        if (tags?.length) {
+          filterParts.push(`tags [${tags.join(", ")}]`);
+        }
+
+        const suffix = filterParts.length ? ` matching ${filterParts.join(" and ")}` : "";
         return textToolResult([`No artifacts found for circle ${circle_id}${suffix}.`]);
       }
 

@@ -112,7 +112,7 @@ export function processTextContent(text: string, options?: ReadLineOptions): Pro
   const sliced = allLines.slice(start, clampedEnd);
 
   if (options.showLineNumber) {
-    headerParts.push("Lines are prefixed with [LNNN] markers. These markers are NOT part of the note content.");
+    headerParts.push("Lines are prefixed with [LNNN] markers. These markers are NOT part of the line content.");
   }
 
   const hasRange = options.startLine !== undefined || options.limit !== undefined;

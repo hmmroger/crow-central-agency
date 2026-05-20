@@ -36,17 +36,16 @@ export function getReadArtifactToolConfig(
     try {
       registry.getAgent(agent_id);
     } catch {
-      return textToolResult(["Error: agent not found"], true);
+      return textToolResult(["Target agent not found."], true);
     }
 
     if (!circleManager.isAgentVisible(agentId, agent_id)) {
-      return textToolResult(["Error: agent not visible to you"], true);
+      return textToolResult(["Target agent is not visible to you."], true);
     }
 
     try {
-      const [content, metadata, userTimezone] = await Promise.all([
+      const [{ content, metadata }, userTimezone] = await Promise.all([
         artifactManager.readArtifact(agent_id, filename, { useAdapter: true }),
-        artifactManager.getArtifactMetadata(agent_id, filename),
         sensorManager.getUserTimezone(),
       ]);
 
