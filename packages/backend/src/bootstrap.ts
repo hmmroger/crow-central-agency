@@ -202,6 +202,8 @@ export async function bootstrap(options: BootstrapOptions) {
     displayName: googleContactsMcpDefinition.displayName,
   });
 
+  await runtimeManager.startRecovery();
+
   // Start scheduler
   crowScheduler.start();
 

@@ -37,14 +37,16 @@ import {
 } from "../../runner/agent-runner.types.js";
 import type { CrowMcpManager } from "../../mcp/crow-mcp-manager.js";
 import type { AgentTaskManager } from "../agent-task-manager.js";
-import { head, isString } from "es-toolkit";
+import { head, isString, uniqBy } from "es-toolkit";
 import { EventBus } from "../../core/event-bus/event-bus.js";
 import type { AgentRuntimeManagerEvents, ArtifactRecord } from "./agent-runtime-manager.types.js";
 import { startQuerySpan, type AgentQuerySpan } from "../../telemetry/agent-telemetry.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import { ARTIFACTS_MCP_SERVER_NAME } from "../../mcp/artifacts/artifacts-mcp-server.js";
 import { WRITE_ARTIFACT_TOOL_NAME } from "../../mcp/artifacts/write-artifact.js";
+import { EDIT_ARTIFACT_TOOL_NAME } from "../../mcp/artifacts/edit-artifact.js";
 import { WRITE_CIRCLE_ARTIFACT_TOOL_NAME } from "../../mcp/artifacts/write-circle-artifact.js";
+import { EDIT_CIRCLE_ARTIFACT_TOOL_NAME } from "../../mcp/artifacts/edit-circle-artifact.js";
 import type { AgentCircleManager } from "../agent-circle-manager.js";
 import { generateId } from "../../utils/id-utils.js";
 import { AGENTS_DIR_NAME } from "../../config/constants.js";
@@ -86,7 +88,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   }
 
   /**
-   * Load runtime states from the object store on startup and run recovery.
+   * Load runtime states from the object store and create per-agent runners.
    */
   public async initialize(): Promise<void> {
     const storeEntries = await this.store.getAll<AgentRuntimeState>(AGENT_RUNTIME_MANAGER_STORE_TABLE);
@@ -109,7 +111,9 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       const runner = this.createAgentRunner(agent.id);
       this.agentRunners.set(agent.id, runner);
     }
+  }
 
+  public async startRecovery(): Promise<void> {
     await this.runStartupRecovery();
   }
 
@@ -298,7 +302,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
                 lastAssistantMessage = msg.content;
               } else if (msg.role === AGENT_MESSAGE_ROLE.SYSTEM && msg.type === AGENT_MESSAGE_TYPE.TOOL_USE) {
                 switch (msg.toolName) {
-                  case this.mcpManager.getCompleteMcpToolName(ARTIFACTS_MCP_SERVER_NAME, WRITE_ARTIFACT_TOOL_NAME): {
+                  case this.mcpManager.getCompleteMcpToolName(ARTIFACTS_MCP_SERVER_NAME, WRITE_ARTIFACT_TOOL_NAME):
+                  case this.mcpManager.getCompleteMcpToolName(ARTIFACTS_MCP_SERVER_NAME, EDIT_ARTIFACT_TOOL_NAME): {
                     const filename = msg.toolInput["filename"];
                     if (isString(filename)) {
                       artifactsWritten.push({ filename });
@@ -310,6 +315,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
                   case this.mcpManager.getCompleteMcpToolName(
                     ARTIFACTS_MCP_SERVER_NAME,
                     WRITE_CIRCLE_ARTIFACT_TOOL_NAME
+                  ):
+                  case this.mcpManager.getCompleteMcpToolName(
+                    ARTIFACTS_MCP_SERVER_NAME,
+                    EDIT_CIRCLE_ARTIFACT_TOOL_NAME
                   ): {
                     const filename = msg.toolInput["filename"];
                     const circleId = msg.toolInput["circle_id"];
@@ -427,7 +436,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
         agentId,
         source,
         lastAssistantMessage,
-        artifactsWritten,
+        artifactsWritten: uniqBy(artifactsWritten, (record) => `${record.circleId ?? ""}/${record.filename}`),
         isAbortedOrError,
         error: state.lastError,
       });

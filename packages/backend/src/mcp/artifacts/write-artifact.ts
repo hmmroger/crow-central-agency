@@ -15,7 +15,7 @@ export function getWriteArtifactToolConfig(
   sensorManager: SensorManager
 ) {
   const inputSchema = {
-    filename: z.string().describe("Name of the file to create or overwrite, e.g. 'report.md' or 'data.json'"),
+    filename: z.string().describe("Name of the file to write, e.g. 'report.md' or 'data.json'."),
     content: z
       .string()
       .describe(
@@ -31,11 +31,21 @@ export function getWriteArtifactToolConfig(
       .enum(ARTIFACT_CONTENT_TYPE_VALUES)
       .optional()
       .describe(
-        `Content type annotation. Values: ${ARTIFACT_CONTENT_TYPE_VALUES.join(", ")}. Defaults to ${ARTIFACT_CONTENT_TYPE.TEXT}`
+        `Content type annotation. Values: ${ARTIFACT_CONTENT_TYPE_VALUES.join(", ")}. Defaults to ${ARTIFACT_CONTENT_TYPE.TEXT}.`
       ),
+    tags: z
+      .array(z.string())
+      .optional()
+      .describe("Tags to attach to the artifact. Fully replaces existing tags; omit to leave the artifact untagged."),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ filename: rawFilename, content, type, content_type }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({
+    filename: rawFilename,
+    content,
+    type,
+    content_type,
+    tags,
+  }) => {
     const filename = rawFilename.trim();
     try {
       const isBinary = content_type && content_type !== ARTIFACT_CONTENT_TYPE.TEXT;
@@ -43,6 +53,7 @@ export function getWriteArtifactToolConfig(
       const metadata = await artifactManager.writeArtifact(agentId, filename, artifactContent, {
         type,
         contentType: content_type,
+        tags,
         createdBy: { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId },
       });
       const userTimezone = await sensorManager.getUserTimezone();
@@ -62,7 +73,7 @@ export function getWriteArtifactToolConfig(
   const config: McpToolConfig<typeof inputSchema> = {
     name: WRITE_ARTIFACT_TOOL_NAME,
     description:
-      "Save a file to your own artifacts folder. Other agents can read your artifacts to collaborate. You can only write to your own folder.",
+      "Save a file to your own artifacts folder, creating it or replacing the existing file at that name. Other agents can read your artifacts to collaborate. Use edit_artifact for surgical line-level changes to a TEXT artifact.",
     inputSchema,
     handler,
   };

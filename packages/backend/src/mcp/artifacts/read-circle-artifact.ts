@@ -36,13 +36,12 @@ export function getReadCircleArtifactToolConfig(
     limit,
   }) => {
     if (!artifactManager.isDirectCircleMember(circle_id, agentId)) {
-      return textToolResult(["Error: you are not a direct member of this circle"], true);
+      return textToolResult(["You are not a direct member of this circle."], true);
     }
 
     try {
-      const [content, metadata, userTimezone] = await Promise.all([
+      const [{ content, metadata }, userTimezone] = await Promise.all([
         artifactManager.readCircleArtifact(circle_id, filename, { useAdapter: true }),
-        artifactManager.getCircleArtifactMetadata(circle_id, filename),
         sensorManager.getUserTimezone(),
       ]);
 

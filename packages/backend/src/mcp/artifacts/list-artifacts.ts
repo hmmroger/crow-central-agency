@@ -25,31 +25,44 @@ export function getListArtifactsToolConfig(
       .enum(ARTIFACT_TYPE_VALUES)
       .optional()
       .describe(`Filter by artifact type. Values: ${ARTIFACT_TYPE_VALUES.join(", ")}`),
+    tags: z
+      .array(z.string())
+      .optional()
+      .describe("Filter by tags. Only artifacts that have every specified tag are returned."),
     limit: z.number().optional().describe("Number of artifacts to return per page."),
     skip: z.number().optional().describe("Number of artifacts to skip for pagination."),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ agent_id, type, limit, skip }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ agent_id, type, tags, limit, skip }) => {
     const targetId = agent_id ?? agentId;
     if (agent_id) {
       try {
         registry.getAgent(agent_id);
       } catch {
-        return textToolResult(["Error: agent not found"], true);
+        return textToolResult(["Target agent not found."], true);
       }
 
       if (!circleManager.isAgentVisible(agentId, targetId)) {
-        return textToolResult(["Error: agent not visible to you"], true);
+        return textToolResult(["Target agent is not visible to you."], true);
       }
     }
 
     try {
       const [artifacts, userTimezone] = await Promise.all([
-        artifactManager.listArtifacts(targetId, { type }),
+        artifactManager.listArtifacts(targetId, { type, tags }),
         sensorManager.getUserTimezone(),
       ]);
       if (artifacts.length === 0) {
-        const suffix = type ? ` with type ${type}` : "";
+        const filterParts: string[] = [];
+        if (type) {
+          filterParts.push(`type ${type}`);
+        }
+
+        if (tags?.length) {
+          filterParts.push(`tags [${tags.join(", ")}]`);
+        }
+
+        const suffix = filterParts.length ? ` matching ${filterParts.join(" and ")}` : "";
         return textToolResult([`No artifacts found for agent ${targetId}${suffix}.`]);
       }
 

@@ -94,9 +94,8 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
     async (request, reply) => {
       const agentId = validateAgentIdParam(request.params.id);
       const { filename } = request.params;
-      const content = await artifactManager.readArtifact(agentId, filename, { useAdapter: true });
+      const { content, metadata } = await artifactManager.readArtifact(agentId, filename, { useAdapter: true });
       if (Buffer.isBuffer(content)) {
-        const metadata = await artifactManager.getArtifactMetadata(agentId, filename);
         const mimeType = getMimeType(filename, metadata.contentType);
         return reply.type(mimeType).send(content);
       }
@@ -143,9 +142,8 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
     async (request, reply) => {
       const circleId = validateCircleIdParam(request.params.id);
       const { filename } = request.params;
-      const content = await artifactManager.readCircleArtifact(circleId, filename, { useAdapter: true });
+      const { content, metadata } = await artifactManager.readCircleArtifact(circleId, filename, { useAdapter: true });
       if (Buffer.isBuffer(content)) {
-        const metadata = await artifactManager.getCircleArtifactMetadata(circleId, filename);
         const mimeType = getMimeType(filename, metadata.contentType);
         return reply.type(mimeType).send(content);
       }

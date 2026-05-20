@@ -27,8 +27,12 @@ import type { AgentCircleManager } from "../agent-circle-manager.js";
 import { getMimeTypeByFilename, DOCX_MIME_TYPE } from "../../utils/mime-type.js";
 import type {
   ArtifactAdapter,
+  ArtifactContentFindResult,
+  ArtifactContentMatch,
   ArtifactListOptions,
   ReadArtifactOptions,
+  ReadArtifactResult,
+  UpdateArtifactOptions,
   WriteArtifactOptions,
 } from "./artifact-manager.types.js";
 import { WordArtifactAdapter } from "./artifact-adapter/word-adapter.js";
@@ -38,6 +42,7 @@ import {
   safeNormalizeArtifactFilename,
 } from "./artifact-filename.js";
 import { detectArtifactContentType } from "./artifact-content-detector.js";
+import { normalizeTags } from "./artifact-tags.js";
 
 const log = logger.child({ context: "artifact-manager" });
 
@@ -93,16 +98,16 @@ export class ArtifactManager {
     return this.listEntityArtifacts(ENTITY_TYPE.AGENT, agentId, options);
   }
 
-  /** Read artifact content. Returns string for TEXT, Buffer for binary content types. */
+  /** Read artifact content and metadata. Content is string for TEXT, Buffer for binary types. */
   public async readArtifact(
     agentId: string,
     filename: string,
     options?: ReadArtifactOptions
-  ): Promise<string | Buffer> {
+  ): Promise<ReadArtifactResult> {
     return this.readEntityArtifact(ENTITY_TYPE.AGENT, agentId, filename, options);
   }
 
-  /** Write artifact. String content is converted to Buffer (UTF-8) internally. */
+  /** Write artifact (upsert). Replaces content and metadata; tags fully replace (omit = no tags). */
   public async writeArtifact(
     agentId: string,
     filename: string,
@@ -111,6 +116,25 @@ export class ArtifactManager {
   ): Promise<ArtifactMetadata> {
     const buf = Buffer.isBuffer(content) ? content : Buffer.from(content, "utf-8");
     return this.writeEntityArtifact(ENTITY_TYPE.AGENT, agentId, filename, buf, options);
+  }
+
+  /** Update artifact in place: rename, replace content, and/or adjust tags. */
+  public async updateArtifact(
+    agentId: string,
+    filename: string,
+    options: UpdateArtifactOptions
+  ): Promise<ArtifactMetadata> {
+    return this.updateEntityArtifact(ENTITY_TYPE.AGENT, agentId, filename, options);
+  }
+
+  /** Find lines in a TEXT artifact matching a substring query. Case-insensitive. */
+  public async findArtifactContent(
+    agentId: string,
+    filename: string,
+    query: string,
+    startLine?: number
+  ): Promise<ArtifactContentFindResult> {
+    return this.findEntityArtifactContent(ENTITY_TYPE.AGENT, agentId, filename, query, startLine);
   }
 
   public async getArtifactMetadata(agentId: string, filename: string): Promise<ArtifactMetadata> {
@@ -145,16 +169,16 @@ export class ArtifactManager {
     return results;
   }
 
-  /** Read circle artifact content. Returns string for TEXT, Buffer for binary content types. */
+  /** Read circle artifact content and metadata. Content is string for TEXT, Buffer for binary types. */
   public async readCircleArtifact(
     circleId: string,
     filename: string,
     options?: ReadArtifactOptions
-  ): Promise<string | Buffer> {
+  ): Promise<ReadArtifactResult> {
     return this.readEntityArtifact(ENTITY_TYPE.AGENT_CIRCLE, circleId, filename, options);
   }
 
-  /** Write circle artifact. String content is converted to Buffer (UTF-8) internally. */
+  /** Write circle artifact (upsert). Replaces content and metadata; tags fully replace (omit = no tags). */
   public async writeCircleArtifact(
     circleId: string,
     filename: string,
@@ -163,6 +187,25 @@ export class ArtifactManager {
   ): Promise<ArtifactMetadata> {
     const buf = Buffer.isBuffer(content) ? content : Buffer.from(content, "utf-8");
     return this.writeEntityArtifact(ENTITY_TYPE.AGENT_CIRCLE, circleId, filename, buf, options);
+  }
+
+  /** Update circle artifact in place: rename, replace content, and/or adjust tags. */
+  public async updateCircleArtifact(
+    circleId: string,
+    filename: string,
+    options: UpdateArtifactOptions
+  ): Promise<ArtifactMetadata> {
+    return this.updateEntityArtifact(ENTITY_TYPE.AGENT_CIRCLE, circleId, filename, options);
+  }
+
+  /** Find lines in a TEXT circle artifact matching a substring query. Case-insensitive. */
+  public async findCircleArtifactContent(
+    circleId: string,
+    filename: string,
+    query: string,
+    startLine?: number
+  ): Promise<ArtifactContentFindResult> {
+    return this.findEntityArtifactContent(ENTITY_TYPE.AGENT_CIRCLE, circleId, filename, query, startLine);
   }
 
   public async getCircleArtifactMetadata(circleId: string, filename: string): Promise<ArtifactMetadata> {
@@ -188,24 +231,28 @@ export class ArtifactManager {
     entityId: string,
     filename: string,
     options?: ReadArtifactOptions
-  ): Promise<string | Buffer> {
+  ): Promise<ReadArtifactResult> {
     const metadata = await this.getEntityArtifactMetadata(entityType, entityId, filename);
     const filePath = this.getEntityArtifactPath(entityType, entityId, metadata.id);
     const buf = await readBinaryFile(filePath);
 
     if (metadata.contentType === ARTIFACT_CONTENT_TYPE.TEXT) {
-      return buf.toString("utf-8");
+      return { content: buf.toString("utf-8"), metadata };
     }
 
     if (options?.useAdapter) {
       const convertedContent = await this.tryConvertArtifact(metadata, buf);
-      return convertedContent ?? buf;
+      return { content: convertedContent ?? buf, metadata };
     }
 
-    return buf;
+    return { content: buf, metadata };
   }
 
-  /** Write an artifact end-to-end: normalize, mint/reuse id, write disk by id, set metadata. */
+  /**
+   * Write an artifact end-to-end (upsert): normalize, reuse or mint id, write disk by id, set metadata.
+   * If the artifact already exists, content and metadata are replaced; id, createdTimestamp, and createdBy
+   * are preserved.
+   */
   private async writeEntityArtifact(
     entityType: EntityType,
     entityId: string,
@@ -232,6 +279,7 @@ export class ArtifactManager {
       entityId,
       entityType,
       size: content.length,
+      tags: normalizeTags(options.tags),
       createdTimestamp: existing?.value.createdTimestamp ?? now,
       updatedTimestamp: now,
       createdBy: existing?.value.createdBy ?? options.createdBy,
@@ -246,8 +294,75 @@ export class ArtifactManager {
         id,
         type: metadata.type,
         contentType: metadata.contentType,
+        replaced: existing !== undefined,
       },
       "Artifact written"
+    );
+
+    return metadata;
+  }
+
+  /**
+   * Update an existing artifact: replace content and/or merge tag changes.
+   * Throws NOT_FOUND when the target does not exist.
+   * Tag merge: existing tags minus removeTags, then unioned with addTags (deduped).
+   */
+  private async updateEntityArtifact(
+    entityType: EntityType,
+    entityId: string,
+    filename: string,
+    options: UpdateArtifactOptions
+  ): Promise<ArtifactMetadata> {
+    const normalizedFilename = normalizeArtifactFilename(filename);
+    const table = this.getStoreTable(entityType, entityId);
+    const existing = await this.store.get<ArtifactMetadata>(table, normalizedFilename);
+    if (!existing) {
+      throw new AppError(
+        `Artifact not found: ${normalizedFilename} (${entityType}/${entityId})`,
+        APP_ERROR_CODES.NOT_FOUND
+      );
+    }
+
+    if (
+      options.expectedUpdatedTimestamp !== undefined &&
+      existing.value.updatedTimestamp !== options.expectedUpdatedTimestamp
+    ) {
+      throw new AppError(
+        `Artifact was modified since it was read. Re-read the artifact and retry the edit.`,
+        APP_ERROR_CODES.CONFLICT
+      );
+    }
+
+    let newSize = existing.value.size;
+    if (options.content !== undefined) {
+      const buf = Buffer.isBuffer(options.content) ? options.content : Buffer.from(options.content, "utf-8");
+      const filePath = this.getEntityArtifactPath(entityType, entityId, existing.value.id);
+      await writeBinaryFile(filePath, buf);
+      newSize = buf.length;
+    }
+
+    const currentTags = normalizeTags(existing.value.tags);
+    const removeSet = new Set(normalizeTags(options.removeTags));
+    const retained = currentTags.filter((tag) => !removeSet.has(tag));
+    const newTags = normalizeTags(retained.concat(options.addTags ?? []));
+
+    const metadata: ArtifactMetadata = {
+      ...existing.value,
+      size: newSize,
+      tags: newTags,
+      updatedTimestamp: Date.now(),
+    };
+
+    await this.store.set(table, normalizedFilename, metadata);
+    log.info(
+      {
+        entityType,
+        entityId,
+        filename: normalizedFilename,
+        id: metadata.id,
+        contentReplaced: options.content !== undefined,
+      },
+      "Artifact updated"
     );
 
     return metadata;
@@ -261,8 +376,69 @@ export class ArtifactManager {
     const table = this.getStoreTable(entityType, entityId);
     const entries = await this.store.getAll<ArtifactMetadata>(table);
     const artifacts = entries.map((entry) => entry.value);
-    const filtered = options?.type ? artifacts.filter((artifact) => artifact.type === options.type) : artifacts;
+    const requiredTags = options?.tags?.length ? normalizeTags(options.tags) : undefined;
+    const filtered = artifacts.filter((artifact) => {
+      if (options?.type && artifact.type !== options.type) {
+        return false;
+      }
+
+      if (requiredTags && !requiredTags.every((tag) => artifact.tags?.includes(tag))) {
+        return false;
+      }
+
+      return true;
+    });
     return filtered.sort((artifactA, artifactB) => artifactB.updatedTimestamp - artifactA.updatedTimestamp);
+  }
+
+  private async findEntityArtifactContent(
+    entityType: EntityType,
+    entityId: string,
+    filename: string,
+    query: string,
+    startLine?: number
+  ): Promise<ArtifactContentFindResult> {
+    if (!query) {
+      throw new AppError("Search query must not be empty.", APP_ERROR_CODES.VALIDATION);
+    }
+
+    const { content, metadata } = await this.readEntityArtifact(entityType, entityId, filename);
+    if (metadata.contentType !== ARTIFACT_CONTENT_TYPE.TEXT || typeof content !== "string") {
+      throw new AppError(
+        `Cannot search non-TEXT artifact (${metadata.filename} is ${metadata.contentType}).`,
+        APP_ERROR_CODES.VALIDATION
+      );
+    }
+
+    const lines = content.split(/\r?\n/);
+    const fromIndex = Math.max(1, startLine ?? 1) - 1;
+    const normalizedQuery = query.toLowerCase();
+    const matches: ArtifactContentMatch[] = [];
+
+    for (let lineIndex = fromIndex; lineIndex < lines.length; lineIndex += 1) {
+      const lineContent = lines[lineIndex];
+      const normalizedLine = lineContent.toLowerCase();
+      let searchFrom = 0;
+      while (searchFrom <= normalizedLine.length) {
+        const matchIndex = normalizedLine.indexOf(normalizedQuery, searchFrom);
+        if (matchIndex === -1) {
+          break;
+        }
+
+        matches.push({
+          lineNumber: lineIndex + 1,
+          lineContent,
+          matchIndex,
+        });
+        searchFrom = matchIndex + normalizedQuery.length;
+      }
+    }
+
+    return {
+      found: matches.length > 0,
+      matchCount: matches.length,
+      matches,
+    };
   }
 
   private async getEntityArtifactMetadata(

@@ -15,8 +15,8 @@ export function getWriteCircleArtifactToolConfig(
   sensorManager: SensorManager
 ) {
   const inputSchema = {
-    circle_id: z.string().describe("The circle ID to write the artifact to"),
-    filename: z.string().describe("Name of the file to create or overwrite"),
+    circle_id: z.string().describe("The circle ID to write the artifact to."),
+    filename: z.string().describe("Name of the file to write."),
     content: z
       .string()
       .describe(
@@ -32,8 +32,12 @@ export function getWriteCircleArtifactToolConfig(
       .enum(ARTIFACT_CONTENT_TYPE_VALUES)
       .optional()
       .describe(
-        `Content type annotation. Values: ${ARTIFACT_CONTENT_TYPE_VALUES.join(", ")}. Defaults to ${ARTIFACT_CONTENT_TYPE.TEXT}`
+        `Content type annotation. Values: ${ARTIFACT_CONTENT_TYPE_VALUES.join(", ")}. Defaults to ${ARTIFACT_CONTENT_TYPE.TEXT}.`
       ),
+    tags: z
+      .array(z.string())
+      .optional()
+      .describe("Tags to attach to the artifact. Fully replaces existing tags; omit to leave the artifact untagged."),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async ({
@@ -42,9 +46,10 @@ export function getWriteCircleArtifactToolConfig(
     content,
     type,
     content_type,
+    tags,
   }) => {
     if (!artifactManager.isDirectCircleMember(circle_id, agentId)) {
-      return textToolResult(["Error: you are not a direct member of this circle"], true);
+      return textToolResult(["You are not a direct member of this circle."], true);
     }
 
     const filename = rawFilename.trim();
@@ -54,6 +59,7 @@ export function getWriteCircleArtifactToolConfig(
       const metadata = await artifactManager.writeCircleArtifact(circle_id, filename, artifactContent, {
         type,
         contentType: content_type,
+        tags,
         createdBy: { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId },
       });
       const userTimezone = await sensorManager.getUserTimezone();
@@ -73,7 +79,7 @@ export function getWriteCircleArtifactToolConfig(
   const config: McpToolConfig<typeof inputSchema> = {
     name: WRITE_CIRCLE_ARTIFACT_TOOL_NAME,
     description:
-      "Save a file to a circle's shared artifacts folder. Only direct members of the circle can read and write circle artifacts.",
+      "Save a file to a circle's shared artifacts folder, creating it or replacing the existing file at that name. Only direct members of the circle can read and write circle artifacts. Use edit_circle_artifact for surgical line-level changes to a TEXT artifact.",
     inputSchema,
     handler,
   };
