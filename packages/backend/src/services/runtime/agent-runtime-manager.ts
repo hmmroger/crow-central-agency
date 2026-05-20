@@ -88,7 +88,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   }
 
   /**
-   * Load runtime states from the object store on startup and run recovery.
+   * Load runtime states from the object store and create per-agent runners.
    */
   public async initialize(): Promise<void> {
     const storeEntries = await this.store.getAll<AgentRuntimeState>(AGENT_RUNTIME_MANAGER_STORE_TABLE);
@@ -111,7 +111,9 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       const runner = this.createAgentRunner(agent.id);
       this.agentRunners.set(agent.id, runner);
     }
+  }
 
+  public async startRecovery(): Promise<void> {
     await this.runStartupRecovery();
   }
 
