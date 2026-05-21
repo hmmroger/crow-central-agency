@@ -11,3 +11,8 @@ export interface OsmTagFilter {
   /** `undefined` matches any value for the key (key-existence filter). */
   value?: string;
 }
+
+export interface OsmPlacesAdapterConfig {
+  photonUrl: string;
+  overpassUrl: string;
+}
