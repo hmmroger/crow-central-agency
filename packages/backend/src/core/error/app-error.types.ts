@@ -34,6 +34,7 @@ export const APP_ERROR_CODES = {
   FEED_ERROR: "feed_error",
   FEED_FETCH_ERROR: "feed_fetch_error",
   FEED_INVALID: "feed_invalid",
+  PLACES_SOURCE_NOT_REGISTERED: "places_source_not_registered",
 } as const;
 
 export type AppErrorCode = (typeof APP_ERROR_CODES)[keyof typeof APP_ERROR_CODES];
