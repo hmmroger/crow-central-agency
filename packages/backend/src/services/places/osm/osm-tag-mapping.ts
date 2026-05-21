@@ -33,12 +33,14 @@ export const OSM_CATEGORY_TAGS: Readonly<Record<MappedCategory, readonly OsmTagF
   MUSEUM: [{ key: "tourism", value: "museum" }],
   ATTRACTION: [
     { key: "tourism", value: "attraction" },
+    { key: "tourism", value: "viewpoint" },
     { key: "historic", value: "monument" },
+    { key: "historic", value: "memorial" },
+    { key: "historic", value: "castle" },
+    { key: "historic", value: "ruins" },
+    { key: "historic", value: "archaeological_site" },
   ],
-  SUPERMARKET: [
-    { key: "shop", value: "supermarket" },
-    { key: "shop", value: "convenience" },
-  ],
+  SUPERMARKET: [{ key: "shop", value: "supermarket" }],
   PHARMACY: [
     { key: "amenity", value: "pharmacy" },
     { key: "healthcare", value: "pharmacy" },
