@@ -58,7 +58,9 @@ export interface Place {
   category: PlaceCategory;
   location: LocationPoint;
   boundingBox?: LocationBoundingBox;
+  /** Single-line formatted address from the provider. */
   address?: string;
+  /** ISO 3166-1 alpha-2 when available (e.g. "FR"). Adapter best-effort. */
   country?: string;
 }
 
