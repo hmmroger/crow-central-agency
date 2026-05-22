@@ -1,39 +1,20 @@
-import { z } from "zod";
 import type { ClientLocation } from "../server/request-context.types.js";
 import type { Sensor, SensorContext } from "./sensor-manager.types.js";
 import { logger } from "../utils/logger.js";
+import type { PlacesManager } from "../services/places/places-manager.js";
+import { REVERSE_GEOCODE_PRIORITY } from "../services/places/places-manager.types.js";
 
 export const GEOLOCATION_SENSOR_ID = "geolocation";
 
 const log = logger.child({ context: "geolocation-sensor" });
-
-const OSM_LOOKUP_URL = "https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&zoom=10&format=json";
-
-/** Timeout for OSM API requests */
-const FETCH_TIMEOUT_MS = 5000;
 
 type LocationData = {
   displayName: string;
   city: string;
   county?: string;
   state?: string;
-  country: string;
+  country?: string;
 };
-
-const OpenStreetMapAddresSchema = z.object({
-  city: z.string().optional(),
-  town: z.string().optional(),
-  village: z.string().optional(),
-  county: z.string().optional(),
-  state: z.string().optional(),
-  country: z.string(),
-  country_code: z.string(),
-});
-
-const OpenStreetMapReverseSchema = z.object({
-  display_name: z.string(),
-  address: OpenStreetMapAddresSchema,
-});
 
 /**
  * Geolocation sensor that reverse-geocodes coordinates via OpenStreetMap Nominatim.
@@ -47,7 +28,7 @@ export class GeoLocationSensor implements Sensor {
   private locationData: LocationData | undefined;
   private inflightFetch: Promise<LocationData> | undefined;
 
-  constructor() {}
+  constructor(private readonly placesManager: PlacesManager) {}
 
   public async getReading(sensorContext: SensorContext): Promise<string> {
     const clientLocation = sensorContext.location;
@@ -92,28 +73,21 @@ export class GeoLocationSensor implements Sensor {
   }
 
   private async lookupLocationData(clientLocation: ClientLocation): Promise<LocationData> {
-    const url = OSM_LOOKUP_URL.replace("{lat}", String(clientLocation.latitude)).replace(
-      "{lon}",
-      String(clientLocation.longitude)
-    );
-
-    const response = await fetch(url, {
-      headers: { "User-Agent": "CrowCentralAgency/1.0" },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    const place = await this.placesManager.reverseGeocode({
+      point: { latitude: clientLocation.latitude, longitude: clientLocation.longitude },
+      priority: REVERSE_GEOCODE_PRIORITY.CITY,
     });
 
-    if (!response.ok) {
-      throw new Error(`OSM reverse geocode failed: HTTP ${response.status}`);
+    if (!place?.address) {
+      throw new Error(`Unable to determine address`);
     }
 
-    const json = await response.json();
-    const parsed = OpenStreetMapReverseSchema.parse(json);
     return {
-      displayName: parsed.display_name,
-      city: parsed.address.city ?? parsed.address.town ?? parsed.address.village ?? "",
-      county: parsed.address.county,
-      state: parsed.address.state,
-      country: parsed.address.country,
+      displayName: place.address,
+      city: place.city ?? "",
+      county: place.county,
+      state: place.state,
+      country: place.country,
     };
   }
 }

@@ -1,9 +1,9 @@
 import { logger } from "../../../utils/logger.js";
 import {
   PLACES_SOURCE,
+  REVERSE_GEOCODE_PRIORITY,
   type GeocodeQuery,
   type LocationBoundingBox,
-  type LocationPoint,
   type Place,
   type PlacesSourceAdapter,
   type ReverseGeocodeQuery,
@@ -12,14 +12,17 @@ import {
 import { OSM_ELEMENT_TYPE, type OsmElementType, type OsmPlacesAdapterConfig } from "./osm-places-adapter.types.js";
 import { buildOverpassByIdQuery, buildOverpassSearchQuery } from "./osm-overpass-query-builder.js";
 import { OverpassClient, getOverpassElementCenter, type OverpassElement } from "./osm-overpass-client.js";
-import { PhotonClient, type PhotonFeature, type PhotonOsmType } from "./osm-photon-client.js";
+import { PhotonClient } from "./osm-photon-client.js";
 import { categoryFromOsmTags } from "./osm-tag-mapping.js";
+import { PHOTON_LAYER, type PhotonFeature, type PhotonOsmType } from "./osm-photon-client.types.js";
 
 const log = logger.child({ context: "osm-places-adapter" });
 
 const REVERSE_CACHE_MAX_SIZE = 128;
 /** Decimal places used when keying the reverse-geocode cache. 6dp ≈ 11 cm precision. */
 const REVERSE_CACHE_KEY_PRECISION = 6;
+/** Tier-1 radius for the reverse-geocode cascade — see `fetchReverseGeocode`. */
+const REVERSE_CITY_TIER_RADIUS_KM = 15;
 
 const PHOTON_OSM_TYPE_TO_ELEMENT: Readonly<Record<PhotonOsmType, OsmElementType>> = {
   N: OSM_ELEMENT_TYPE.NODE,
@@ -59,7 +62,7 @@ export class OsmPlacesAdapter implements PlacesSourceAdapter {
   }
 
   public async reverseGeocode(query: ReverseGeocodeQuery): Promise<Place | undefined> {
-    const key = this.reverseCacheKey(query.point);
+    const key = this.reverseCacheKey(query);
     const cached = this.reverseCache.get(key);
     if (cached) {
       return cached;
@@ -70,7 +73,7 @@ export class OsmPlacesAdapter implements PlacesSourceAdapter {
       return inflight;
     }
 
-    const fetchPromise = this.fetchReverseGeocode(query.point)
+    const fetchPromise = this.fetchReverseGeocode(query)
       .then((place) => {
         if (place) {
           this.storeReverseCache(key, place);
@@ -115,14 +118,29 @@ export class OsmPlacesAdapter implements PlacesSourceAdapter {
     return overpassElementToPlace(element);
   }
 
-  private async fetchReverseGeocode(point: LocationPoint): Promise<Place | undefined> {
-    const features = await this.photon.reverseGeocode({ point, limit: 1 });
-    const feature = features[0];
-    if (!feature) {
-      return undefined;
+  private async fetchReverseGeocode(query: ReverseGeocodeQuery): Promise<Place | undefined> {
+    if (query.priority === REVERSE_GEOCODE_PRIORITY.CITY) {
+      // Tier 1: nearest `place=city`/`town` within 15 km. Matches the agent-meaningful
+      // "what city am I in" semantics; when present, the returned feature IS the city node.
+      const cityHit = await this.photon.reverseGeocode({
+        point: query.point,
+        limit: 1,
+        layers: [PHOTON_LAYER.CITY],
+        radius: REVERSE_CITY_TIER_RADIUS_KM,
+      });
+      if (cityHit[0]) {
+        return photonFeatureToPlace(cityHit[0]);
+      }
     }
 
-    return photonFeatureToPlace(feature);
+    // Default / city-priority fallback: unfiltered closest feature. Its enriched
+    // properties (city/county/state/country) supply the admin hierarchy.
+    const fallback = await this.photon.reverseGeocode({ point: query.point, limit: 1 });
+    if (fallback[0]) {
+      return photonFeatureToPlace(fallback[0]);
+    }
+
+    return undefined;
   }
 
   private storeReverseCache(key: string, place: Place): void {
@@ -136,23 +154,27 @@ export class OsmPlacesAdapter implements PlacesSourceAdapter {
     this.reverseCache.set(key, place);
   }
 
-  private reverseCacheKey(point: LocationPoint): string {
-    return `${point.latitude.toFixed(REVERSE_CACHE_KEY_PRECISION)},${point.longitude.toFixed(REVERSE_CACHE_KEY_PRECISION)}`;
+  private reverseCacheKey(query: ReverseGeocodeQuery): string {
+    const priorityKey = query.priority ?? "DEFAULT";
+    return `${priorityKey}:${query.point.latitude.toFixed(REVERSE_CACHE_KEY_PRECISION)},${query.point.longitude.toFixed(REVERSE_CACHE_KEY_PRECISION)}`;
   }
 }
 
 function photonFeatureToPlace(feature: PhotonFeature): Place {
-  const elementType = PHOTON_OSM_TYPE_TO_ELEMENT[feature.properties.osm_type];
-  const nativeId = `${elementType}/${feature.properties.osm_id}`;
+  const props = feature.properties;
+  const elementType = PHOTON_OSM_TYPE_TO_ELEMENT[props.osm_type];
+  const nativeId = `${elementType}/${props.osm_id}`;
   const tags: Record<string, string> = {};
-  if (feature.properties.osm_key && feature.properties.osm_value) {
-    tags[feature.properties.osm_key] = feature.properties.osm_value;
+  if (props.osm_key && props.osm_value) {
+    tags[props.osm_key] = props.osm_value;
   }
+
+  const adminParts = readPhotonAdminParts(props);
 
   const place: Place = {
     id: `${PLACES_SOURCE.OSM}:${nativeId}`,
     source: PLACES_SOURCE.OSM,
-    displayName: feature.properties.name ?? buildAddressFromPhoton(feature) ?? nativeId,
+    displayName: props.name ?? nativeId,
     category: categoryFromOsmTags(tags),
     location: {
       latitude: feature.geometry.coordinates[1],
@@ -160,22 +182,88 @@ function photonFeatureToPlace(feature: PhotonFeature): Place {
     },
   };
 
-  const address = buildAddressFromPhoton(feature);
+  if (adminParts.city) {
+    place.city = adminParts.city;
+  }
+
+  if (adminParts.county) {
+    place.county = adminParts.county;
+  }
+
+  if (adminParts.state) {
+    place.state = adminParts.state;
+  }
+
+  if (adminParts.countryCode) {
+    place.country = adminParts.countryCode;
+  }
+
+  const address = buildAddressFromPhoton(props, adminParts);
   if (address) {
     place.address = address;
   }
 
-  const country = normalizeCountryCode(feature.properties.countrycode);
-  if (country) {
-    place.country = country;
-  }
-
-  const boundingBox = boundingBoxFromPhotonExtent(feature.properties.extent);
+  const boundingBox = boundingBoxFromPhotonExtent(props.extent);
   if (boundingBox) {
     place.boundingBox = boundingBox;
   }
 
   return place;
+}
+
+/**
+ * Resolve OSM admin level for an `osm_key`/`osm_value` pair so we know which
+ * Place field the feature's own `name` should be promoted into. Both Photon
+ * (feature properties) and Overpass (tag dictionaries) omit the admin field
+ * matching the feature's own level — without this promotion we'd lose the
+ * very value we wanted.
+ */
+function ownAdminLevelFromOsmTag(
+  osmKey: string | undefined,
+  osmValue: string | undefined
+): "city" | "county" | "state" | "country" | undefined {
+  if (osmKey !== "place") {
+    return undefined;
+  }
+
+  switch (osmValue) {
+    case undefined:
+      return undefined;
+    case "city":
+    case "town":
+      return "city";
+    case "county":
+      return "county";
+    case "state":
+    case "region":
+    case "province":
+      return "state";
+    case "country":
+      return "country";
+    default:
+      return undefined;
+  }
+}
+
+interface ResolvedAdminParts {
+  city?: string;
+  county?: string;
+  state?: string;
+  /** Full country name (e.g. "France") for the address line. */
+  countryName?: string;
+  /** ISO 3166-1 alpha-2 (e.g. "FR") for `Place.country`. */
+  countryCode?: string;
+}
+
+function readPhotonAdminParts(props: PhotonFeature["properties"]): ResolvedAdminParts {
+  const ownLevel = ownAdminLevelFromOsmTag(props.osm_key, props.osm_value);
+  return {
+    city: ownLevel === "city" ? props.name : props.city,
+    county: ownLevel === "county" ? props.name : props.county,
+    state: ownLevel === "state" ? props.name : props.state,
+    countryName: ownLevel === "country" ? props.name : props.country,
+    countryCode: normalizeCountryCode(props.countrycode),
+  };
 }
 
 function overpassElementToPlace(element: OverpassElement): Place | undefined {
@@ -186,6 +274,8 @@ function overpassElementToPlace(element: OverpassElement): Place | undefined {
 
   const tags = element.tags ?? {};
   const nativeId = `${element.type}/${element.id}`;
+  const adminParts = readOverpassAdminParts(tags);
+
   const place: Place = {
     id: `${PLACES_SOURCE.OSM}:${nativeId}`,
     source: PLACES_SOURCE.OSM,
@@ -194,14 +284,25 @@ function overpassElementToPlace(element: OverpassElement): Place | undefined {
     location: center,
   };
 
-  const address = buildAddressFromOverpassTags(tags);
-  if (address) {
-    place.address = address;
+  if (adminParts.city) {
+    place.city = adminParts.city;
   }
 
-  const country = normalizeCountryCode(tags["addr:country"]);
-  if (country) {
-    place.country = country;
+  if (adminParts.county) {
+    place.county = adminParts.county;
+  }
+
+  if (adminParts.state) {
+    place.state = adminParts.state;
+  }
+
+  if (adminParts.countryCode) {
+    place.country = adminParts.countryCode;
+  }
+
+  const address = buildAddressFromOverpassTags(tags, adminParts);
+  if (address) {
+    place.address = address;
   }
 
   if (element.bounds) {
@@ -216,30 +317,52 @@ function overpassElementToPlace(element: OverpassElement): Place | undefined {
   return place;
 }
 
-function buildAddressFromPhoton(feature: PhotonFeature): string | undefined {
-  const parts = [
-    [feature.properties.housenumber, feature.properties.street].filter(Boolean).join(" "),
-    feature.properties.city,
-    feature.properties.state,
-    feature.properties.postcode,
-    feature.properties.country,
-  ]
-    .map((value) => (value ?? "").trim())
-    .filter((value) => value.length > 0);
-  return parts.length > 0 ? parts.join(", ") : undefined;
+/**
+ * Mirror of `readPhotonAdminParts` for Overpass tag dictionaries. When the
+ * element itself is a `place=city`/`town`/`county`/`state` etc., promote
+ * `tags.name` into the matching slot; otherwise read the `addr:*` tags
+ * directly.
+ */
+function readOverpassAdminParts(tags: Record<string, string>): ResolvedAdminParts {
+  const ownLevel = ownAdminLevelFromOsmTag("place", tags.place);
+  return {
+    city: ownLevel === "city" ? tags.name : tags["addr:city"],
+    county: ownLevel === "county" ? tags.name : tags["addr:county"],
+    state: ownLevel === "state" ? tags.name : tags["addr:state"],
+    countryName: ownLevel === "country" ? tags.name : tags["addr:country"],
+    countryCode: normalizeCountryCode(tags["addr:country"]),
+  };
 }
 
-function buildAddressFromOverpassTags(tags: Record<string, string>): string | undefined {
-  const parts = [
+function buildAddressFromPhoton(
+  props: PhotonFeature["properties"],
+  adminParts: ResolvedAdminParts
+): string | undefined {
+  return joinAddressParts([
+    [props.housenumber, props.street].filter(Boolean).join(" "),
+    adminParts.city,
+    adminParts.state,
+    props.postcode,
+    adminParts.countryName,
+  ]);
+}
+
+function buildAddressFromOverpassTags(
+  tags: Record<string, string>,
+  adminParts: ResolvedAdminParts
+): string | undefined {
+  return joinAddressParts([
     [tags["addr:housenumber"], tags["addr:street"]].filter(Boolean).join(" "),
-    tags["addr:city"],
-    tags["addr:state"],
+    adminParts.city,
+    adminParts.state,
     tags["addr:postcode"],
-    tags["addr:country"],
-  ]
-    .map((value) => (value ?? "").trim())
-    .filter((value) => value.length > 0);
-  return parts.length > 0 ? parts.join(", ") : undefined;
+    adminParts.countryName,
+  ]);
+}
+
+function joinAddressParts(parts: ReadonlyArray<string | undefined>): string | undefined {
+  const cleaned = parts.map((value) => (value ?? "").trim()).filter((value) => value.length > 0);
+  return cleaned.length > 0 ? cleaned.join(", ") : undefined;
 }
 
 function normalizeCountryCode(code: string | undefined): string | undefined {

@@ -30,6 +30,17 @@ export const PLACE_CATEGORY = {
 
 export type PlaceCategory = (typeof PLACE_CATEGORY)[keyof typeof PLACE_CATEGORY];
 
+/**
+ * Optional bias for reverse geocoding. `CITY` makes the adapter prefer a
+ * matching city-level feature when one is nearby, falling back to the closest
+ * feature otherwise. Default (undefined) returns the closest feature directly.
+ */
+export const REVERSE_GEOCODE_PRIORITY = {
+  CITY: "CITY",
+} as const;
+
+export type ReverseGeocodePriority = (typeof REVERSE_GEOCODE_PRIORITY)[keyof typeof REVERSE_GEOCODE_PRIORITY];
+
 export interface LocationPoint {
   latitude: number;
   longitude: number;
@@ -60,6 +71,9 @@ export interface Place {
   boundingBox?: LocationBoundingBox;
   /** Single-line formatted address from the provider. */
   address?: string;
+  city?: string;
+  county?: string;
+  state?: string;
   /** ISO 3166-1 alpha-2 when available (e.g. "FR"). Adapter best-effort. */
   country?: string;
 }
@@ -73,6 +87,7 @@ export interface GeocodeQuery {
 
 export interface ReverseGeocodeQuery {
   point: LocationPoint;
+  priority?: ReverseGeocodePriority;
 }
 
 export interface SearchPlacesQuery {

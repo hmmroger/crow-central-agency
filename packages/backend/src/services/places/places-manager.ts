@@ -1,40 +1,33 @@
+import { env } from "../../config/env.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
-import {
-  PLACES_SOURCE,
-  type GeocodeQuery,
-  type Place,
-  type PlacesSource,
-  type PlacesSourceAdapter,
-  type ReverseGeocodeQuery,
-  type SearchPlacesQuery,
+import { OsmPlacesAdapter } from "./osm/osm-places-adapter.js";
+import { parsePlaceId } from "./places-manager-utils.js";
+import type {
+  GeocodeQuery,
+  Place,
+  PlacesSource,
+  PlacesSourceAdapter,
+  ReverseGeocodeQuery,
+  SearchPlacesQuery,
 } from "./places-manager.types.js";
-
-/** Separator used in Place.id between the source tag and the adapter-native id. */
-const ID_SOURCE_SEPARATOR = ":";
 
 /**
  * Provider-neutral entrypoint for place lookups. Holds one adapter per
  * `PlacesSource` and routes requests by an explicit `source` argument or,
  * for id-based lookups, by the prefix encoded in the Place id.
- *
- * The first adapter passed to the constructor is treated as the default
- * source for non-prefixed queries.
  */
 export class PlacesManager {
   private readonly adapters = new Map<PlacesSource, PlacesSourceAdapter>();
   private readonly defaultSource: PlacesSource;
 
-  constructor(adapters: PlacesSourceAdapter[]) {
-    if (adapters.length === 0) {
-      throw new Error("PlacesManager requires at least one source adapter");
-    }
-
-    for (const adapter of adapters) {
-      this.adapters.set(adapter.source, adapter);
-    }
-
-    this.defaultSource = adapters[0].source;
+  constructor() {
+    const osmAdapter = new OsmPlacesAdapter({
+      photonUrl: env.PHOTON_API_URL,
+      overpassUrl: env.OVERPASS_INTERPRETER_URL,
+    });
+    this.adapters.set(osmAdapter.source, osmAdapter);
+    this.defaultSource = osmAdapter.source;
   }
 
   public listSources(): PlacesSource[] {
@@ -71,23 +64,4 @@ export class PlacesManager {
 
     return adapter;
   }
-}
-
-function parsePlaceId(id: string): { source: PlacesSource; nativeId: string } | undefined {
-  const separatorIndex = id.indexOf(ID_SOURCE_SEPARATOR);
-  if (separatorIndex <= 0 || separatorIndex === id.length - 1) {
-    return undefined;
-  }
-
-  const sourcePart = id.slice(0, separatorIndex);
-  const nativeId = id.slice(separatorIndex + 1);
-  if (!isPlacesSource(sourcePart)) {
-    return undefined;
-  }
-
-  return { source: sourcePart, nativeId };
-}
-
-function isPlacesSource(value: string): value is PlacesSource {
-  return value === PLACES_SOURCE.OSM || value === PLACES_SOURCE.GOOGLE;
 }

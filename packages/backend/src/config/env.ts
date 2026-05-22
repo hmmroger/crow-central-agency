@@ -84,6 +84,8 @@ export const env = {
   GOOGLE_CONNECTOR_CLIENT_SECRET: getOptional("GOOGLE_CONNECTOR_CLIENT_SECRET"),
   OAUTH_PENDING_STATE_TTL_MS: getOptionalNumber("OAUTH_PENDING_STATE_TTL_MS", 600_000),
   GMAIL_CHECK_INTERVAL_IN_MINUTES: getOptionalNumber("GMAIL_CHECK_INTERVAL_IN_MINUTES"),
+  PHOTON_API_URL: getOptional("PHOTON_API_URL") ?? "https://photon.komoot.io",
+  OVERPASS_INTERPRETER_URL: getOptional("OVERPASS_INTERPRETER_URL") ?? "https://overpass-api.de/api/interpreter",
 };
 
 /**
