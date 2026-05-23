@@ -6,6 +6,7 @@ import { parsePlaceId } from "./places-manager-utils.js";
 import type {
   GeocodeQuery,
   Place,
+  PlaceDetails,
   PlacesSource,
   PlacesSourceAdapter,
   ReverseGeocodeQuery,
@@ -46,7 +47,7 @@ export class PlacesManager {
     return this.requireAdapter(source).searchPlaces(query);
   }
 
-  public getPlaceById(id: string): Promise<Place | undefined> {
+  public getPlaceById(id: string): Promise<PlaceDetails | undefined> {
     const parsed = parsePlaceId(id);
     if (!parsed) {
       return Promise.resolve(undefined);

@@ -2,13 +2,17 @@ import { logger } from "../../../utils/logger.js";
 import {
   PLACES_SOURCE,
   REVERSE_GEOCODE_PRIORITY,
+  WHEELCHAIR_ACCESS,
   type GeocodeQuery,
   type LocationBoundingBox,
   type Place,
+  type PlaceDetails,
   type PlacesSourceAdapter,
   type ReverseGeocodeQuery,
   type SearchPlacesQuery,
+  type WheelchairAccess,
 } from "../places-manager.types.js";
+import { parseOsmOpeningHours } from "./osm-opening-hours-parser.js";
 import { OSM_ELEMENT_TYPE, type OsmElementType, type OsmPlacesAdapterConfig } from "./osm-places-adapter.types.js";
 import { buildOverpassByIdQuery, buildOverpassSearchQuery } from "./osm-overpass-query-builder.js";
 import { OverpassClient, getOverpassElementCenter, type OverpassElement } from "./osm-overpass-client.js";
@@ -102,7 +106,7 @@ export class OsmPlacesAdapter implements PlacesSourceAdapter {
     });
   }
 
-  public async getPlaceById(nativeId: string): Promise<Place | undefined> {
+  public async getPlaceById(nativeId: string): Promise<PlaceDetails | undefined> {
     const parsed = parseOsmNativeId(nativeId);
     if (!parsed) {
       return undefined;
@@ -115,7 +119,7 @@ export class OsmPlacesAdapter implements PlacesSourceAdapter {
       return undefined;
     }
 
-    return overpassElementToPlace(element);
+    return overpassElementToPlaceDetails(element);
   }
 
   private async fetchReverseGeocode(query: ReverseGeocodeQuery): Promise<Place | undefined> {
@@ -264,6 +268,98 @@ function readPhotonAdminParts(props: PhotonFeature["properties"]): ResolvedAdmin
     countryName: ownLevel === "country" ? props.name : props.country,
     countryCode: normalizeCountryCode(props.countrycode),
   };
+}
+
+/** Pick first non-empty value from a list of candidate tag keys. */
+function pickTag(tags: Record<string, string>, keys: ReadonlyArray<string>): string | undefined {
+  for (const key of keys) {
+    const value = tags[key]?.trim();
+    if (value && value.length > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+const OSM_WHEELCHAIR_MAP: Readonly<Record<string, WheelchairAccess>> = {
+  yes: WHEELCHAIR_ACCESS.YES,
+  no: WHEELCHAIR_ACCESS.NO,
+  limited: WHEELCHAIR_ACCESS.LIMITED,
+};
+
+function readWheelchairAccess(tags: Record<string, string>): WheelchairAccess | undefined {
+  const raw = tags.wheelchair?.trim().toLowerCase();
+  if (!raw) {
+    return undefined;
+  }
+
+  return OSM_WHEELCHAIR_MAP[raw];
+}
+
+function readCuisines(tags: Record<string, string>): string[] | undefined {
+  const raw = tags.cuisine?.trim();
+  if (!raw) {
+    return undefined;
+  }
+
+  const cuisines = raw
+    .split(";")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return cuisines.length > 0 ? cuisines : undefined;
+}
+
+function overpassElementToPlaceDetails(element: OverpassElement): PlaceDetails | undefined {
+  const place = overpassElementToPlace(element);
+  if (!place) {
+    return undefined;
+  }
+
+  const tags = element.tags ?? {};
+  const details: PlaceDetails = { ...place };
+
+  const openingHours = parseOsmOpeningHours(tags.opening_hours);
+  if (openingHours) {
+    details.openingHours = openingHours;
+  }
+
+  const phone = pickTag(tags, ["phone", "contact:phone"]);
+  if (phone) {
+    details.phone = phone;
+  }
+
+  const website = pickTag(tags, ["website", "contact:website", "url"]);
+  if (website) {
+    details.website = website;
+  }
+
+  const email = pickTag(tags, ["email", "contact:email"]);
+  if (email) {
+    details.email = email;
+  }
+
+  const wheelchairAccess = readWheelchairAccess(tags);
+  if (wheelchairAccess) {
+    details.wheelchairAccess = wheelchairAccess;
+  }
+
+  const description = tags.description?.trim();
+  if (description) {
+    details.description = description;
+  }
+
+  const cuisines = readCuisines(tags);
+  if (cuisines) {
+    details.cuisines = cuisines;
+  }
+
+  const brand = tags.brand?.trim();
+  if (brand) {
+    details.brand = brand;
+  }
+
+  return details;
 }
 
 function overpassElementToPlace(element: OverpassElement): Place | undefined {

@@ -78,6 +78,70 @@ export interface Place {
   country?: string;
 }
 
+export const WEEKDAY = {
+  MONDAY: "MONDAY",
+  TUESDAY: "TUESDAY",
+  WEDNESDAY: "WEDNESDAY",
+  THURSDAY: "THURSDAY",
+  FRIDAY: "FRIDAY",
+  SATURDAY: "SATURDAY",
+  SUNDAY: "SUNDAY",
+} as const;
+
+export type Weekday = (typeof WEEKDAY)[keyof typeof WEEKDAY];
+
+/** `HH:mm` 24-hour, local time at the place. `close === "24:00"` means end-of-day. */
+export interface OpeningHoursRange {
+  open: string;
+  close: string;
+}
+
+export interface DayOpeningHours {
+  weekday: Weekday;
+  /** Empty array = closed that weekday. */
+  ranges: OpeningHoursRange[];
+}
+
+/**
+ * Provider-neutral opening hours. Adapters parse their native format
+ * (OSM `opening_hours` spec, Google `regularOpeningHours.periods`) into this
+ * shape so callers do not need to know the source.
+ *
+ * `weekly` always has 7 entries in MONDAY..SUNDAY order. `description` carries
+ * the raw human-readable form for bits the structured shape cannot express
+ * (e.g. public holidays, seasonal schedules, "by appointment").
+ */
+export interface OpeningHours {
+  alwaysOpen: boolean;
+  weekly: DayOpeningHours[];
+  description?: string;
+}
+
+export const WHEELCHAIR_ACCESS = {
+  YES: "YES",
+  NO: "NO",
+  LIMITED: "LIMITED",
+} as const;
+
+export type WheelchairAccess = (typeof WHEELCHAIR_ACCESS)[keyof typeof WHEELCHAIR_ACCESS];
+
+/**
+ * Extended attributes resolved by `getPlaceById`. Search/reverse paths keep
+ * returning the lean `Place` so list responses stay small; callers that need
+ * hours/contact/description fetch details for the one they care about.
+ */
+export interface PlaceDetails extends Place {
+  openingHours?: OpeningHours;
+  phone?: string;
+  website?: string;
+  email?: string;
+  wheelchairAccess?: WheelchairAccess;
+  /** Free-text from OSM `description` or Google editorial summary. */
+  description?: string;
+  cuisines?: string[];
+  brand?: string;
+}
+
 export interface GeocodeQuery {
   text: string;
   /** Bias result ranking toward this point when the provider supports it. */
@@ -102,5 +166,5 @@ export interface PlacesSourceAdapter {
   reverseGeocode(query: ReverseGeocodeQuery): Promise<Place | undefined>;
   searchPlaces(query: SearchPlacesQuery): Promise<Place[]>;
   /** Receives the bare provider-native id (manager strips the `${source}:` prefix). */
-  getPlaceById(nativeId: string): Promise<Place | undefined>;
+  getPlaceById(nativeId: string): Promise<PlaceDetails | undefined>;
 }
