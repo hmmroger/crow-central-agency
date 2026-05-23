@@ -46,6 +46,10 @@ export function getGeocodePlaceToolConfig(placesManager: PlacesManager) {
       return textToolResult(["At least one of name, street, city, postcode, or country must be provided."], true);
     }
 
+    if ((args.nearLatitude === undefined) !== (args.nearLongitude === undefined)) {
+      return textToolResult(["nearLatitude and nearLongitude must both be provided or both omitted."], true);
+    }
+
     const queryText = queryParts.join(", ");
     try {
       const near =
@@ -77,7 +81,7 @@ export function getGeocodePlaceToolConfig(placesManager: PlacesManager) {
       "Provide whichever structured fields you have - the more you fill, the more precise the match. ",
       "Not a discovery tool: for 'cafes near me', 'good restaurants', or any category / subjective query, use search_nearby_places instead. ",
       "Use get_place_details on a returned id for opening hours, contact info, and other attributes.",
-    ].join(),
+    ].join(""),
     inputSchema,
     handler,
   };
