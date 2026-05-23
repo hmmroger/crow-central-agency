@@ -10,6 +10,7 @@ import { AgentRuntimeManager } from "./services/runtime/agent-runtime-manager.js
 import { SessionManager } from "./services/session/session-manager.js";
 import { WsBroadcaster } from "./services/ws-broadcaster.js";
 import { ArtifactManager } from "./services/artifact/artifact-manager.js";
+import { PlacesManager } from "./services/places/places-manager.js";
 import { setupWebSocket } from "./server/setup-websocket.js";
 import { registerArtifactRoutes } from "./routes/artifact.routes.js";
 import { ARTIFACTS_MCP_SERVER_NAME, createArtifactsMcpServer } from "./mcp/artifacts/artifacts-mcp-server.js";
@@ -67,6 +68,7 @@ import {
   getGoogleContactsMcpServerDefinition,
   GOOGLE_CONTACTS_MCP_SERVER_NAME,
 } from "./mcp/google-contacts/google-contacts-mcp-server.js";
+import { getPlacesMcpServerDefinition, PLACES_MCP_SERVER_NAME } from "./mcp/places/places-mcp-server.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -99,6 +101,7 @@ export async function bootstrap(options: BootstrapOptions) {
   const feedManager = new SimplyFeedManager(storeProvider, folderFileProvider, crowScheduler);
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
+  const placesManager = new PlacesManager();
   const connectorManager = new ConnectorManager(storeProvider, registry, crowScheduler);
   connectorManager.registerConnector(new GoogleConnector());
 
@@ -107,7 +110,7 @@ export async function bootstrap(options: BootstrapOptions) {
   const mcpManager = new CrowMcpManager(storeProvider, systemSettingsManager, registry);
   await mcpManager.initialize();
   const sensorManager = new SensorManager(storeProvider);
-  sensorManager.registerSensor(new GeoLocationSensor());
+  sensorManager.registerSensor(new GeoLocationSensor(placesManager));
   sensorManager.registerSensor(new WeatherSensor());
 
   const runtimeManager = new AgentRuntimeManager(
@@ -200,6 +203,11 @@ export async function bootstrap(options: BootstrapOptions) {
     getConnectionProfiles: googleContactsMcpDefinition.getConnectionProfiles,
     isConfigurable: googleContactsMcpDefinition.isConfigurable,
     displayName: googleContactsMcpDefinition.displayName,
+  });
+  const placesMcpDefinition = getPlacesMcpServerDefinition(placesManager);
+  mcpManager.registerMcpServer(PLACES_MCP_SERVER_NAME, placesMcpDefinition.serverFactory, {
+    isConfigurable: placesMcpDefinition.isConfigurable,
+    displayName: placesMcpDefinition.displayName,
   });
 
   await runtimeManager.startRecovery();
