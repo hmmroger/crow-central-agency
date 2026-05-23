@@ -68,6 +68,7 @@ import {
   getGoogleContactsMcpServerDefinition,
   GOOGLE_CONTACTS_MCP_SERVER_NAME,
 } from "./mcp/google-contacts/google-contacts-mcp-server.js";
+import { getPlacesMcpServerDefinition, PLACES_MCP_SERVER_NAME } from "./mcp/places/places-mcp-server.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -202,6 +203,11 @@ export async function bootstrap(options: BootstrapOptions) {
     getConnectionProfiles: googleContactsMcpDefinition.getConnectionProfiles,
     isConfigurable: googleContactsMcpDefinition.isConfigurable,
     displayName: googleContactsMcpDefinition.displayName,
+  });
+  const placesMcpDefinition = getPlacesMcpServerDefinition(placesManager);
+  mcpManager.registerMcpServer(PLACES_MCP_SERVER_NAME, placesMcpDefinition.serverFactory, {
+    isConfigurable: placesMcpDefinition.isConfigurable,
+    displayName: placesMcpDefinition.displayName,
   });
 
   await runtimeManager.startRecovery();
