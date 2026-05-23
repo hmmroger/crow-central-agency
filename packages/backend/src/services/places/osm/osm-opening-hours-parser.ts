@@ -20,7 +20,6 @@ const WEEKDAY_ORDER: ReadonlyArray<Weekday> = [
   WEEKDAY.SUNDAY,
 ];
 
-const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
 const ALWAYS_OPEN_RULE = "24/7";
 
 /**
@@ -61,7 +60,10 @@ export function parseOsmOpeningHours(raw: string | undefined): OpeningHoursModel
   }
 
   const start = getCurrentWeekMondayLocal();
-  const end = new Date(start.getTime() + 7 * MILLIS_PER_DAY);
+  // Construct end via the local-date constructor so DST transitions inside the
+  // week do not over- or under-shoot the window (a +7 * 24h raw-ms add lands
+  // an hour off during spring-forward/fall-back weeks).
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7, 0, 0, 0, 0);
   let intervals: ReturnType<OpeningHours["getOpenIntervals"]>;
   try {
     intervals = parsed.getOpenIntervals(start, end);
@@ -76,7 +78,15 @@ export function parseOsmOpeningHours(raw: string | undefined): OpeningHoursModel
   }
 
   for (const interval of intervals) {
-    const [intervalStart, intervalEnd] = interval;
+    const [intervalStart, intervalEnd, isUnknown] = interval;
+    // Unknown-state intervals (e.g. `Mo-Fr 09:00-17:00 unknown "by appointment"`)
+    // are not confirmed open times - skip them in the structured shape so callers
+    // do not give wrong "is it open" answers. The raw OSM string still carries
+    // the nuance through `description`.
+    if (isUnknown) {
+      continue;
+    }
+
     binInterval(intervalStart, intervalEnd, rangesByWeekday);
   }
 
