@@ -210,8 +210,8 @@ export async function removeDir(dirPath: string): Promise<void> {
 /**
  * Walk up from `startDir` toward `basePath`, removing each directory that is
  * empty. Stops at the first non-empty directory or when reaching `basePath`.
- * `basePath` itself is never removed. ENOENT is swallowed so callers can
- * pass a startDir that may have already been removed.
+ * `basePath` itself is never removed. A missing directory (ENOENT) does not
+ * stop the walk — the next ancestor is still considered.
  */
 export async function removeEmptyAncestors(startDir: string, basePath: string): Promise<void> {
   const resolvedBase = path.resolve(basePath);
@@ -221,8 +221,15 @@ export async function removeEmptyAncestors(startDir: string, basePath: string): 
     try {
       await fs.rmdir(current);
     } catch (error) {
-      if (isErrnoException(error) && (error.code === "ENOTEMPTY" || error.code === "ENOENT")) {
-        return;
+      if (isErrnoException(error)) {
+        if (error.code === "ENOTEMPTY") {
+          return;
+        }
+
+        if (error.code === "ENOENT") {
+          current = path.dirname(current);
+          continue;
+        }
       }
 
       throw error;
