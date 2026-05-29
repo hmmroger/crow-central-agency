@@ -173,12 +173,22 @@ function handleAssistantMessage(
     { agentId, type: message.type, sessionId: message.session_id, totalInputTokens, inputTokens, outputTokens },
     "handleAssistantMessage"
   );
+  const sessionId = message.session_id;
+  const messageId = message.uuid;
+  const sessionMessage = {
+    type: "assistant",
+    uuid: messageId,
+    session_id: sessionId,
+    message: message.message,
+    parent_tool_use_id: null,
+  };
+
   return {
     agentId,
     type: AGENT_STREAM_EVENT_TYPE.MESSAGE_DONE,
-    sessionId: message.session_id,
-    messageId: message.uuid,
-    message: message.message,
+    sessionId,
+    messageId,
+    message: sessionMessage,
     totalInputTokens,
     inputTokens,
     outputTokens,

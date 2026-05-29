@@ -1,4 +1,3 @@
-import type { SessionMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_MESSAGE_ROLE,
   AGENT_STATUS,
@@ -23,7 +22,6 @@ import { PermissionHandler } from "./permission-handler.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
 import { MESSAGE_SOURCE_TYPE, type MessageSource, type QueuedMessage } from "../message-queue-manager.types.js";
-import crypto from "node:crypto";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { logger } from "../../utils/logger.js";
@@ -225,17 +223,25 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       throw new AppError(`Agent ${agentId} has no active session`, APP_ERROR_CODES.SESSION_NOT_FOUND);
     }
 
-    const message = this.sessionManager.getMessage(state.sessionId, messageId);
+    const agent = this.registry.getAgent(agentId);
+    const workspace = this.registry.resolveWorkspace(agent);
+    const message = await this.sessionManager.getMessage(agent.type, state.sessionId, workspace, messageId);
     if (!message.content.trim()) {
       throw new AppError(`Message ${messageId} has no content to synthesize`, APP_ERROR_CODES.VALIDATION);
     }
 
-    const voiceConfig = this.registry.getAgent(agentId).agentVoiceConfig;
+    const voiceConfig = agent.agentVoiceConfig;
     const response = await audioGeneration(model, message.content, {
       voice: [{ voice: voiceConfig?.voiceName }],
       stylePrompt: voiceConfig?.stylePrompt,
     });
-    return this.sessionManager.associateAudioMessage(state.sessionId, messageId, response.message);
+    return this.sessionManager.associateAudioMessage(
+      agent.type,
+      state.sessionId,
+      workspace,
+      messageId,
+      response.message
+    );
   }
 
   private async runAgent(
@@ -245,8 +251,9 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     source: MessageSource
   ): Promise<void> {
     const agentRunner = this.getAgentRunner(agentId);
-    const agentName = this.registry.getAgentName(agentId);
-    const querySpan = startQuerySpan(agentId, agentName, source.sourceType);
+    const agent = this.registry.getAgent(agentId);
+    const workspace = this.registry.resolveWorkspace(agent);
+    const querySpan = startQuerySpan(agentId, agent.name, source.sourceType);
     this.activeQuerySpans.set(agentId, querySpan);
 
     // Process stream via async generator
@@ -264,18 +271,13 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             state.lastError = undefined;
             state.sessionId = event.sessionId;
             if (!userMessageAdded) {
-              const userSessionMsg: SessionMessage = {
-                type: "user",
-                uuid: crypto.randomUUID(),
-                session_id: event.sessionId,
-                message: { role: "user", content: message },
-                parent_tool_use_id: null,
-              };
-              const userMessages = this.sessionManager.addMessage(event.sessionId, userSessionMsg);
-              for (const msg of userMessages) {
-                this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: msg });
-              }
-
+              const userMessage = await this.sessionManager.addUserMessage(
+                agent.type,
+                event.sessionId,
+                workspace,
+                message
+              );
+              this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: userMessage });
               userMessageAdded = true;
             }
 
@@ -287,15 +289,12 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             break;
 
           case AGENT_STREAM_EVENT_TYPE.MESSAGE_DONE: {
-            const sessionMessage: SessionMessage = {
-              type: "assistant",
-              uuid: event.messageId,
-              session_id: event.sessionId,
-              message: event.message,
-              parent_tool_use_id: null,
-            };
-
-            const agentMessages = this.sessionManager.addMessage(event.sessionId, sessionMessage);
+            const agentMessages = await this.sessionManager.addMessage(
+              agent.type,
+              event.sessionId,
+              workspace,
+              event.message
+            );
             for (const msg of agentMessages) {
               this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: msg });
               if (msg.role === AGENT_MESSAGE_ROLE.AGENT && msg.type === AGENT_MESSAGE_TYPE.TEXT) {

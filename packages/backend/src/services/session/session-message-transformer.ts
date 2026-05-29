@@ -1,10 +1,13 @@
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
 import type { SessionMessage } from "@anthropic-ai/claude-agent-sdk";
+import { getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
 import { parseToolActivity } from "../../runner/tool-activity-parser.js";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta.mjs";
 import type { ContentBlockParam, MessageParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
 import { USER_AGENT_MESSAGE_PATTERN } from "../../utils/message-template.js";
 import { isString } from "es-toolkit";
+import { AppError } from "../../core/error/app-error.js";
+import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 
 type TypedSessionMessage = SessionMessage &
   (
@@ -18,6 +21,24 @@ type TypedSessionMessage = SessionMessage &
       }
   );
 
+/** Type guard for SDK message payload */
+function isSessionMessage(value?: unknown | null): value is TypedSessionMessage {
+  const message = value as SessionMessage;
+  if (typeof message !== "object" || message === null) {
+    return false;
+  }
+
+  if (message.type !== "user" && message.type !== "assistant") {
+    return false;
+  }
+
+  return true;
+}
+
+function isTextBlock(block: ContentBlockParam): block is TextBlockParam {
+  return block.type === "text";
+}
+
 /**
  * Transform a single SessionMessage into AgentMessage[].
  * One SessionMessage may produce multiple AgentMessages (e.g., assistant with multiple content blocks).
@@ -26,7 +47,7 @@ type TypedSessionMessage = SessionMessage &
  * @param baseTimestamp - Starting timestamp for ordering
  * @returns Array of AgentMessages derived from this message
  */
-export function transformSingleMessage(sessionMessage: SessionMessage, baseTimestamp: number): AgentMessage[] {
+function transformSingleMessage(sessionMessage: SessionMessage, baseTimestamp: number): AgentMessage[] {
   if (!isSessionMessage(sessionMessage)) {
     return [];
   }
@@ -121,9 +142,10 @@ function extractTextFromBlocks(content: ContentBlockParam[] | string | undefined
  * @param sessionMessages - Raw SDK session messages
  * @returns Ordered array of AgentMessages
  */
-export function transformSessionMessages(sessionMessages: SessionMessage[]): AgentMessage[] {
+export async function loadClaudeCodeSessionMessages(sessionId: string, cwd: string): Promise<AgentMessage[]> {
   const result: AgentMessage[] = [];
   let timestampCounter = 0;
+  const sessionMessages = await getSessionMessages(sessionId, { dir: cwd });
 
   for (const sessionMsg of sessionMessages) {
     const messages = transformSingleMessage(sessionMsg, timestampCounter);
@@ -134,19 +156,11 @@ export function transformSessionMessages(sessionMessages: SessionMessage[]): Age
   return result;
 }
 
-/** Type guard for SDK message payload */
-function isSessionMessage(value?: SessionMessage | null): value is TypedSessionMessage {
-  if (typeof value !== "object" || value === null) {
-    return false;
+export function transformClaudeCodeSessionMessage(sessionMessage: unknown, baseTimestamp: number): AgentMessage[] {
+  if (!isSessionMessage(sessionMessage)) {
+    throw new AppError("Invalid session message.", APP_ERROR_CODES.VALIDATION);
   }
 
-  if (value.type !== "user" && value.type !== "assistant") {
-    return false;
-  }
-
-  return true;
-}
-
-function isTextBlock(block: ContentBlockParam): block is TextBlockParam {
-  return block.type === "text";
+  const agentMessages = transformSingleMessage(sessionMessage, baseTimestamp);
+  return agentMessages;
 }

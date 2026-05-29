@@ -1,4 +1,3 @@
-import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages.mjs";
 import type { UUID } from "crypto";
 import type { EventMap } from "../core/event-bus/event-bus.types.js";
 import type { PermissionResult } from "../services/runtime/permission-handler.types.js";
@@ -114,7 +113,7 @@ export interface AgentStreamToolUseProgressEvent extends AgentStreamEventCommon 
 export interface AgentStreamMessageDoneEvent extends AgentStreamEventCommon {
   type: (typeof AGENT_STREAM_EVENT_TYPE)["MESSAGE_DONE"];
   messageId: UUID;
-  message: BetaMessage;
+  message: unknown; // CLAUDE_CODE: SessionMessage
   totalInputTokens: number;
   inputTokens: number;
   outputTokens: number;

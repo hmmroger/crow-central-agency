@@ -41,7 +41,7 @@ export function getLastAgentMessageToolConfig(
 
     try {
       const workspace = registry.resolveWorkspace(targetAgent);
-      const messages = await sessionManager.loadMessages(state.sessionId, workspace);
+      const messages = await sessionManager.loadMessages(targetAgent.type, state.sessionId, workspace);
       let lastAssistantMessage;
       for (let index = messages.length - 1; index >= 0; index--) {
         if (messages[index].role === AGENT_MESSAGE_ROLE.AGENT) {

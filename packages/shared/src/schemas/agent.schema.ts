@@ -101,6 +101,7 @@ export type PermissionMode = (typeof PERMISSION_MODE)[keyof typeof PERMISSION_MO
 
 export const AGENT_TYPE = {
   CLAUDE_CODE: "CLAUDE_CODE",
+  GITHUB_COPILOT: "GITHUB_COPILOT",
 } as const;
 
 export type AgentType = (typeof AGENT_TYPE)[keyof typeof AGENT_TYPE];
