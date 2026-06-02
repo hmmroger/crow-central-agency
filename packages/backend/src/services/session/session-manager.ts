@@ -7,7 +7,9 @@ import {
   type AgentType,
   type MessageAnnotation,
 } from "@crow-central-agency/shared";
+import { CopilotClient } from "@github/copilot-sdk";
 import { loadClaudeCodeSessionMessages, transformClaudeCodeSessionMessage } from "./session-message-transformer.js";
+import { loadGithubCopilotSessionMessages } from "./github-copilot-session-transformer.js";
 import { generateId } from "../../utils/id-utils.js";
 import { logger } from "../../utils/logger.js";
 import { env } from "../../config/env.js";
@@ -34,7 +36,31 @@ const AUDIO_FILE_EXTENSION = ".bin";
 export class SessionManager {
   private messageCache = new Map<string, AgentMessage[]>();
 
+  /**
+   * Single shared Copilot client used purely as a read interface for session data across all
+   * agents/workspaces. Lazily started on first read; never used to run agent queries (those use
+   * per-agent clients owned by the runner). Cached as a promise so concurrent reads share one
+   * spawned CLI server rather than racing to create several.
+   */
+  private copilotClientPromise?: Promise<CopilotClient>;
+
   constructor(private readonly store: ObjectStoreProvider) {}
+
+  /** Stop the shared Copilot client (and its CLI server) on shutdown. On-disk session state is preserved. */
+  public async dispose(): Promise<void> {
+    if (!this.copilotClientPromise) {
+      return;
+    }
+
+    const clientPromise = this.copilotClientPromise;
+    this.copilotClientPromise = undefined;
+    try {
+      const client = await clientPromise;
+      await client.stop();
+    } catch (error) {
+      log.warn({ error }, "Failed to stop Copilot client during dispose");
+    }
+  }
 
   /**
    * Load messages for a session - cache-first, falls back to SDK.
@@ -55,7 +81,9 @@ export class SessionManager {
         break;
 
       case AGENT_TYPE.GITHUB_COPILOT:
-        throw new AppError("Not supported", APP_ERROR_CODES.NOT_SUPPORTED);
+        // Copilot has no cwd-scoped read API; the shared client locates the session by id alone.
+        agentMessages = await loadGithubCopilotSessionMessages(await this.getCopilotClient(), sessionId);
+        break;
     }
 
     await this.applyStoredAnnotations(sessionId, agentMessages);
@@ -203,6 +231,28 @@ export class SessionManager {
     const sessionKey = this.getSessionKey(type, sessionId);
     this.messageCache.delete(sessionKey);
     log.debug({ sessionId }, "Cache invalidated");
+  }
+
+  /**
+   * Lazily create and start the shared read-only Copilot client. The client spawns a CLI server
+   * process and must be connected before any read API can be used, so the first read pays the
+   * startup cost. A failed start clears the cached promise so a later read can retry.
+   */
+  private getCopilotClient(): Promise<CopilotClient> {
+    if (!this.copilotClientPromise) {
+      this.copilotClientPromise = this.createCopilotClient().catch((error) => {
+        this.copilotClientPromise = undefined;
+        throw error;
+      });
+    }
+
+    return this.copilotClientPromise;
+  }
+
+  private async createCopilotClient(): Promise<CopilotClient> {
+    const client = new CopilotClient();
+    await client.start();
+    return client;
   }
 
   /** Merge stored annotations onto freshly transformed messages (mutates in place) */

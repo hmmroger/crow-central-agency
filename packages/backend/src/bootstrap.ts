@@ -253,6 +253,7 @@ export async function bootstrap(options: BootstrapOptions) {
     crowScheduler.stop();
     await discordBotManager.destroy();
     await server.close();
+    await sessionManager.dispose();
     await shutdownTelemetry();
     process.exit(0);
   };

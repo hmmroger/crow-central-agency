@@ -26,7 +26,8 @@ import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { logger } from "../../utils/logger.js";
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
-import { AgentRunner } from "../../runner/agent-runner.js";
+import type { AgentRunner } from "../../runner/agent-runner.js";
+import { createAgentRunner as buildAgentRunner } from "../../runner/agent-runner-factory.js";
 import {
   AGENT_STREAM_EVENT_TYPE,
   type AgentStreamActivityEvent,
@@ -835,7 +836,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       }
     };
 
-    const agentRunner = new AgentRunner(
+    const agentRunner = buildAgentRunner(
       agentId,
       this.registry,
       this.mcpManager,

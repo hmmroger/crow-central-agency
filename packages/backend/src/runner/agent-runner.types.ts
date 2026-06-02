@@ -1,11 +1,23 @@
 import type { UUID } from "crypto";
 import type { EventMap } from "../core/event-bus/event-bus.types.js";
 import type { PermissionResult } from "../services/runtime/permission-handler.types.js";
-import type { AgentStatus } from "@crow-central-agency/shared";
+import type { AgentConfig, AgentStatus } from "@crow-central-agency/shared";
 import type { MessageSource } from "../services/message-queue-manager.types.js";
+import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 
 export interface AgentRunnerEvents extends EventMap {
   agentStatusChanged: { agentId: string; status: AgentStatus; messageSource: MessageSource };
+}
+
+export interface AgentRunQueryRequest {
+  message: string;
+  sessionId?: string;
+  cwd: string;
+  agentConfig: AgentConfig;
+  systemPrompt: string;
+  timezone?: string;
+  serverConfigs: CrowMcpServerConfig[];
+  internalMcpPrefixes: string[];
 }
 
 export type OOBStreamEventCallback = (streamEvent: AgentStreamActivityEvent | AgentStreamToolUseEvent) => void;
