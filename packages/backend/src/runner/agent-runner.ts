@@ -246,7 +246,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
 
   /**
    * Run a single provider query turn, yielding normalized stream events from the underlying SDK.
-   * Implementations read `this.abortController` to wire cancellation into the provider call and
+   * Implementations read `request.abortController` to wire cancellation into the provider call and
    * must let errors propagate so the base can synthesize the terminal ERROR event.
    */
   protected abstract runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown>;
