@@ -18,6 +18,8 @@ export interface AgentRunQueryRequest {
   timezone?: string;
   serverConfigs: CrowMcpServerConfig[];
   internalMcpPrefixes: string[];
+  /** Per-turn cancellation handle, created and owned by the base runner. */
+  abortController: AbortController;
 }
 
 export type OOBStreamEventCallback = (streamEvent: AgentStreamActivityEvent | AgentStreamToolUseEvent) => void;

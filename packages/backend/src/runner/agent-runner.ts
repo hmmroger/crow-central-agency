@@ -177,7 +177,7 @@ const log = logger.child({ context: "agent-runner" });
 
 export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
   private agentStatus: AgentStatus;
-  protected abortController?: AbortController;
+  private abortController?: AbortController;
   private injectedMessages?: string[];
 
   constructor(
@@ -279,6 +279,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     const internalMcpPrefixes = await this.mcpManager.getInternalMcpPrefixes(this.agentId);
     const cwd = this.registry.resolveWorkspace(agentConfig);
 
+    this.abortController = new AbortController();
     const request: AgentRunQueryRequest = {
       message,
       sessionId,
@@ -288,9 +289,9 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
       timezone: sensorContext.timezone,
       serverConfigs,
       internalMcpPrefixes,
+      abortController: this.abortController,
     };
 
-    this.abortController = new AbortController();
     this.updateAgentStatus(AGENT_STATUS.STREAMING, messageSource);
 
     let resolvedSessionId = sessionId;

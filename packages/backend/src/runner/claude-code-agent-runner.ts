@@ -53,8 +53,17 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
   }
 
   protected async *runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown> {
-    const { message, agentConfig, cwd, systemPrompt, timezone, serverConfigs, internalMcpPrefixes, sessionId } =
-      request;
+    const {
+      message,
+      agentConfig,
+      cwd,
+      systemPrompt,
+      timezone,
+      serverConfigs,
+      internalMcpPrefixes,
+      sessionId,
+      abortController,
+    } = request;
 
     const mcpServers = await this.buildMcpServers(serverConfigs);
     const systemPromptOption = systemPrompt
@@ -76,7 +85,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         model: resolveModel(agentConfig.model),
         resume: persistSession ? sessionId : undefined,
         systemPrompt: systemPromptOption,
-        abortController: this.abortController,
+        abortController,
         includePartialMessages: true,
         permissionMode: agentConfig.permissionMode,
         allowedTools: [

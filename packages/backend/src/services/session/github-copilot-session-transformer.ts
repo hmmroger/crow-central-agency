@@ -1,6 +1,9 @@
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
 import type { CopilotClient, SessionEvent } from "@github/copilot-sdk";
 import { parseToolActivity } from "../../runner/tool-activity-parser.js";
+import { logger } from "../../utils/logger.js";
+
+const log = logger.child({ context: "github-copilot-session-transformer" });
 
 /**
  * Transform a single persisted Copilot SessionEvent into an AgentMessage.
@@ -92,7 +95,10 @@ export async function loadGithubCopilotSessionMessages(
   try {
     events = await session.getEvents();
   } finally {
-    await session.disconnect();
+    // Teardown failure must not mask a getEvents() error, so log and swallow it here.
+    await session.disconnect().catch((error) => {
+      log.warn({ sessionId, error }, "Failed to disconnect Copilot session after read");
+    });
   }
 
   const messages: AgentMessage[] = [];
