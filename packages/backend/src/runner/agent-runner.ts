@@ -245,6 +245,15 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
   }
 
   /**
+   * Release provider-level resources held across turns (e.g. a persistent SDK client). Called on
+   * agent deletion after {@link abort}. The base runner holds no such resources; providers that cache
+   * a client override this.
+   */
+  public async dispose(): Promise<void> {
+    // No persistent resources in the base runner.
+  }
+
+  /**
    * Run a single provider query turn, yielding normalized stream events from the underlying SDK.
    * Implementations read `request.abortController` to wire cancellation into the provider call and
    * must let errors propagate so the base can synthesize the terminal ERROR event.

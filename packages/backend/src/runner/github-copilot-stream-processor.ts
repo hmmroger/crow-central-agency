@@ -24,6 +24,7 @@ export interface CopilotEventContext {
   agentId: string;
   sessionId: string;
   toolCalls: Map<string, CopilotToolCall>;
+  turnStartedAtMs: number;
   resolvePermission: (event: PermissionRequestedEvent) => Promise<void>;
 }
 
@@ -177,7 +178,7 @@ async function mapSessionEvent(
   context: CopilotEventContext,
   event: SessionLifecycleEvent
 ): Promise<AgentStreamEvent[]> {
-  const { client, agentId, sessionId } = context;
+  const { client, agentId, sessionId, turnStartedAtMs } = context;
   switch (event.type) {
     case "session.compaction_start":
       return [{ agentId, type: AGENT_STREAM_EVENT_TYPE.STATUS, sessionId, status: AGENT_STATUS.COMPACTING }];
@@ -192,7 +193,7 @@ async function mapSessionEvent(
               sessionId,
               isSuccess: true,
               doneType: "idle",
-              durationMs: 0,
+              durationMs: Date.parse(event.timestamp) - turnStartedAtMs,
             },
           ];
 

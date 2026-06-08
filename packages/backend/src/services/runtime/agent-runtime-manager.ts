@@ -511,6 +511,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
     const agentRunner = this.getAgentRunner(agentId);
     await agentRunner.abort();
+    await agentRunner.dispose();
     this.agentRunners.delete(agentId);
 
     this.runtimeStates.delete(agentId);

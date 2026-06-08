@@ -72,6 +72,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       agentId: this.agentId,
       sessionId: session.sessionId,
       toolCalls,
+      turnStartedAtMs: Date.now(),
       resolvePermission: (event) => this.resolvePermission(session, event, toolCalls, autoApproved),
     };
 
@@ -113,6 +114,25 @@ export class GithubCopilotAgentRunner extends AgentRunner {
 
   protected async cancelProviderQuery(): Promise<void> {
     await this.session?.abort();
+  }
+
+  /** Stop this agent's cached Copilot client (and its CLI server process) when the agent is removed. */
+  public override async dispose(): Promise<void> {
+    const clientPromise = this.clientPromise;
+    this.clientPromise = undefined;
+    if (!clientPromise) {
+      return;
+    }
+
+    try {
+      const client = await clientPromise;
+      const errors = await client.stop();
+      if (errors.length > 0) {
+        log.warn({ agentId: this.agentId, errors }, "Errors while stopping Copilot client");
+      }
+    } catch (error) {
+      log.warn({ agentId: this.agentId, error }, "Failed to stop Copilot client during dispose");
+    }
   }
 
   /**
