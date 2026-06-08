@@ -9,7 +9,10 @@ import {
 } from "@crow-central-agency/shared";
 import { CopilotClient } from "@github/copilot-sdk";
 import { loadClaudeCodeSessionMessages, transformClaudeCodeSessionMessage } from "./session-message-transformer.js";
-import { loadGithubCopilotSessionMessages } from "./github-copilot-session-transformer.js";
+import {
+  loadGithubCopilotSessionMessages,
+  transformGithubCopilotSessionMessage,
+} from "./github-copilot-session-transformer.js";
 import { generateId } from "../../utils/id-utils.js";
 import { logger } from "../../utils/logger.js";
 import { env } from "../../config/env.js";
@@ -112,7 +115,8 @@ export class SessionManager {
         break;
 
       case AGENT_TYPE.GITHUB_COPILOT:
-        throw new AppError("Not supported", APP_ERROR_CODES.NOT_SUPPORTED);
+        agentMessages = transformGithubCopilotSessionMessage(message);
+        break;
     }
 
     messages.push(...agentMessages);

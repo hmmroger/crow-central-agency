@@ -1,4 +1,5 @@
 import { Plus, Circle, BookmarkPlus } from "lucide-react";
+import { AGENT_TYPE } from "@crow-central-agency/shared";
 import { useOpenAgentEditor } from "../../hooks/dialogs/use-open-agent-editor.js";
 import { useOpenTemplatePicker } from "../../hooks/dialogs/use-open-template-picker.js";
 import { useOpenCircleEditor } from "./circle/use-open-circle-editor.js";
@@ -36,6 +37,16 @@ export function DashboardActions({ className, compact = false }: DashboardAction
     />
   );
 
+  const newCopilotAgentButton = (
+    <ActionButton
+      icon={Plus}
+      label="New Copilot Agent"
+      variant={ACTION_BUTTON_VARIANT.PRIMARY}
+      iconOnly={compact}
+      onClick={() => openAgentEditor({ agentType: AGENT_TYPE.GITHUB_COPILOT })}
+    />
+  );
+
   const newFromTemplateButton = (
     <ActionButton
       icon={BookmarkPlus}
@@ -60,6 +71,7 @@ export function DashboardActions({ className, compact = false }: DashboardAction
     return (
       <div className={cn("flex items-center gap-1.5", className)}>
         {newAgentButton}
+        {newCopilotAgentButton}
         {newFromTemplateButton}
         {newCircleButton}
       </div>
@@ -70,6 +82,7 @@ export function DashboardActions({ className, compact = false }: DashboardAction
     <DashboardWidget title="Actions" className={className}>
       <div className="flex flex-col gap-2">
         {newAgentButton}
+        {newCopilotAgentButton}
         {newFromTemplateButton}
         {newCircleButton}
       </div>

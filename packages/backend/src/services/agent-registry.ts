@@ -4,7 +4,7 @@ import {
   AgentConfigTemplateSchema,
   CreateAgentInputSchema,
   UpdateAgentInputSchema,
-  DEFAULT_AVAILABLE_TOOLS,
+  DEFAULT_AVAILABLE_TOOLS_BY_TYPE,
   ENTITY_TYPE,
   RELATIONSHIP_TYPE,
   BASE_CIRCLE_ID,
@@ -155,7 +155,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     const agent = AgentConfigSchema.parse({
       ...configFields,
       id,
-      availableTools: [...DEFAULT_AVAILABLE_TOOLS],
+      availableTools: [...DEFAULT_AVAILABLE_TOOLS_BY_TYPE[validated.type]],
       createdAt: now,
       updatedAt: now,
     });

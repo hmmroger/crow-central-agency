@@ -5,6 +5,7 @@ import type { SensorManager } from "../sensors/sensor-manager.js";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
 import type { AgentRunner } from "./agent-runner.js";
 import { ClaudeCodeAgentRunner } from "./claude-code-agent-runner.js";
+import { GithubCopilotAgentRunner } from "./github-copilot-agent-runner.js";
 import type { OOBStreamEventCallback, PermissionRequestCallback } from "./agent-runner.types.js";
 
 export function createAgentRunner(
@@ -20,6 +21,17 @@ export function createAgentRunner(
   switch (agent.type) {
     case AGENT_TYPE.CLAUDE_CODE:
       return new ClaudeCodeAgentRunner(
+        agentId,
+        registry,
+        mcpManager,
+        sensorManager,
+        circleManager,
+        permissionRequestHandler,
+        oobEventCallback
+      );
+
+    case AGENT_TYPE.GITHUB_COPILOT:
+      return new GithubCopilotAgentRunner(
         agentId,
         registry,
         mcpManager,

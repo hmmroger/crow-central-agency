@@ -1,4 +1,3 @@
-import type { UUID } from "crypto";
 import type { EventMap } from "../core/event-bus/event-bus.types.js";
 import type { PermissionResult } from "../services/runtime/permission-handler.types.js";
 import type { AgentConfig, AgentStatus } from "@crow-central-agency/shared";
@@ -34,6 +33,7 @@ export type PermissionRequestCallback = (
 
 export const AGENT_STREAM_EVENT_TYPE = {
   INIT: "INIT",
+  TOOLS_DISCOVERED: "TOOLS_DISCOVERED",
   DONE: "DONE",
   ERROR: "ERROR",
   ABORTED: "ABORTED",
@@ -49,7 +49,7 @@ export const AGENT_STREAM_EVENT_TYPE = {
   TOOL_USE: "TOOL_USE",
   TOOL_USE_PROGRESS: "TOOL_USE_PROGRESS",
 
-  // single assistant message completed
+  USAGE: "USAGE",
   MESSAGE_DONE: "MESSAGE_DONE",
 } as const;
 export type AgentStreamEventType = (typeof AGENT_STREAM_EVENT_TYPE)[keyof typeof AGENT_STREAM_EVENT_TYPE];
@@ -58,6 +58,7 @@ export type AgentStreamEvent =
   | AgentStreamAbortedEvent
   | AgentStreamErrorEvent
   | AgentStreamInitEvent
+  | AgentStreamToolsDiscoveredEvent
   | AgentStreamContentEvent
   | AgentStreamThinkingEvent
   | AgentStreamStatusEvent
@@ -65,6 +66,7 @@ export type AgentStreamEvent =
   | AgentStreamToolUseEvent
   | AgentStreamToolUseProgressEvent
   | AgentStreamMessageDoneEvent
+  | AgentStreamUsageEvent
   | AgentStreamDoneEvent
   | AgentStreamRateLimitInfoEvent;
 
@@ -85,7 +87,11 @@ export interface AgentStreamErrorEvent extends AgentStreamEventCommon {
 
 export interface AgentStreamInitEvent extends AgentStreamEventCommon {
   type: (typeof AGENT_STREAM_EVENT_TYPE)["INIT"];
-  discoveredTools?: string[];
+}
+
+export interface AgentStreamToolsDiscoveredEvent extends AgentStreamEventCommon {
+  type: (typeof AGENT_STREAM_EVENT_TYPE)["TOOLS_DISCOVERED"];
+  discoveredTools: string[];
 }
 
 export interface AgentStreamContentEvent extends AgentStreamEventCommon {
@@ -126,8 +132,12 @@ export interface AgentStreamToolUseProgressEvent extends AgentStreamEventCommon 
 
 export interface AgentStreamMessageDoneEvent extends AgentStreamEventCommon {
   type: (typeof AGENT_STREAM_EVENT_TYPE)["MESSAGE_DONE"];
-  messageId: UUID;
-  message: unknown; // CLAUDE_CODE: SessionMessage
+  messageId: string;
+  message: unknown; // CLAUDE_CODE: SessionMessage; GITHUB_COPILOT: SessionEvent
+}
+
+export interface AgentStreamUsageEvent extends AgentStreamEventCommon {
+  type: (typeof AGENT_STREAM_EVENT_TYPE)["USAGE"];
   totalInputTokens: number;
   inputTokens: number;
   outputTokens: number;

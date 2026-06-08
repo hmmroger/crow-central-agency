@@ -11,18 +11,11 @@ export async function* processStream(
   internalMcpPrefixes: string[]
 ): AsyncGenerator<AgentStreamEvent> {
   for await (const message of queryStream) {
-    const agentStreamEvent = handleMessage(agentId, message, internalMcpPrefixes);
-    if (agentStreamEvent) {
-      yield agentStreamEvent;
-    }
+    yield* handleMessage(agentId, message, internalMcpPrefixes);
   }
 }
 
-function handleMessage(
-  agentId: string,
-  message: SDKMessage,
-  internalMcpPrefixes: string[]
-): AgentStreamEvent | undefined {
+function handleMessage(agentId: string, message: SDKMessage, internalMcpPrefixes: string[]): AgentStreamEvent[] {
   switch (message.type) {
     case "system":
       return handleSystemMessage(agentId, message, internalMcpPrefixes);
@@ -39,15 +32,16 @@ function handleMessage(
     case "tool_progress":
       return handleToolProgress(agentId, message);
 
-    case "rate_limit_event": {
-      return {
-        agentId,
-        type: AGENT_STREAM_EVENT_TYPE.RATE_LIMIT_INFO,
-        sessionId: message.session_id,
-        rateLimitStatus: message.rate_limit_info.status,
-        rateLimitType: message.rate_limit_info.rateLimitType,
-      };
-    }
+    case "rate_limit_event":
+      return [
+        {
+          agentId,
+          type: AGENT_STREAM_EVENT_TYPE.RATE_LIMIT_INFO,
+          sessionId: message.session_id,
+          rateLimitStatus: message.rate_limit_info.status,
+          rateLimitType: message.rate_limit_info.rateLimitType,
+        },
+      ];
 
     case "user":
     case "auth_status":
@@ -55,7 +49,7 @@ function handleMessage(
     case "prompt_suggestion":
     default:
       log.debug({ agentId, type: message.type, sessionId: message.session_id }, "Unhandled SDK message received");
-      return undefined;
+      return [];
   }
 }
 
@@ -64,9 +58,9 @@ function handleSystemMessage(
   agentId: string,
   message: SDKMessage & { type: "system" },
   internalMcpPrefixes: string[]
-): AgentStreamEvent | undefined {
+): AgentStreamEvent[] {
   if (!message.subtype) {
-    return undefined;
+    return [];
   }
 
   log.debug(
@@ -81,22 +75,31 @@ function handleSystemMessage(
         (tool) => !internalMcpPrefixes.some((prefix) => tool.startsWith(prefix))
       );
 
-      return {
-        agentId,
-        type: AGENT_STREAM_EVENT_TYPE.INIT,
-        sessionId: message.session_id,
-        discoveredTools,
-      };
+      return [
+        {
+          agentId,
+          type: AGENT_STREAM_EVENT_TYPE.INIT,
+          sessionId: message.session_id,
+        },
+        {
+          agentId,
+          type: AGENT_STREAM_EVENT_TYPE.TOOLS_DISCOVERED,
+          sessionId: message.session_id,
+          discoveredTools,
+        },
+      ];
     }
 
     case "status": {
       if (message.status === "compacting") {
-        return {
-          agentId,
-          type: AGENT_STREAM_EVENT_TYPE.STATUS,
-          sessionId: message.session_id,
-          status: AGENT_STATUS.COMPACTING,
-        };
+        return [
+          {
+            agentId,
+            type: AGENT_STREAM_EVENT_TYPE.STATUS,
+            sessionId: message.session_id,
+            status: AGENT_STATUS.COMPACTING,
+          },
+        ];
       }
 
       break;
@@ -119,23 +122,22 @@ function handleSystemMessage(
       break;
   }
 
-  return undefined;
+  return [];
 }
 
 /** Handle stream events (text deltas, tool use) */
-function handleStreamEvent(
-  agentId: string,
-  message: SDKMessage & { type: "stream_event" }
-): AgentStreamEvent | undefined {
+function handleStreamEvent(agentId: string, message: SDKMessage & { type: "stream_event" }): AgentStreamEvent[] {
   switch (message.event.type) {
     case "content_block_delta": {
       if (message.event.delta?.type === "text_delta" && message.event.delta.text) {
-        return {
-          agentId,
-          type: AGENT_STREAM_EVENT_TYPE.CONTENT,
-          sessionId: message.session_id,
-          content: message.event.delta.text,
-        };
+        return [
+          {
+            agentId,
+            type: AGENT_STREAM_EVENT_TYPE.CONTENT,
+            sessionId: message.session_id,
+            content: message.event.delta.text,
+          },
+        ];
       }
 
       break;
@@ -149,18 +151,15 @@ function handleStreamEvent(
       break;
   }
 
-  return undefined;
+  return [];
 }
 
 /**
  * Handle complete assistant message
  */
-function handleAssistantMessage(
-  agentId: string,
-  message: SDKMessage & { type: "assistant" }
-): AgentStreamEvent | undefined {
+function handleAssistantMessage(agentId: string, message: SDKMessage & { type: "assistant" }): AgentStreamEvent[] {
   if (message.parent_tool_use_id) {
-    return undefined;
+    return [];
   }
 
   const usage = message.message.usage;
@@ -183,31 +182,40 @@ function handleAssistantMessage(
     parent_tool_use_id: null,
   };
 
-  return {
-    agentId,
-    type: AGENT_STREAM_EVENT_TYPE.MESSAGE_DONE,
-    sessionId,
-    messageId,
-    message: sessionMessage,
-    totalInputTokens,
-    inputTokens,
-    outputTokens,
-  };
+  return [
+    {
+      agentId,
+      type: AGENT_STREAM_EVENT_TYPE.MESSAGE_DONE,
+      sessionId,
+      messageId,
+      message: sessionMessage,
+    },
+    {
+      agentId,
+      type: AGENT_STREAM_EVENT_TYPE.USAGE,
+      sessionId,
+      totalInputTokens,
+      inputTokens,
+      outputTokens,
+    },
+  ];
 }
 
 /** Handle tool progress - surface tool execution status */
-function handleToolProgress(agentId: string, message: SDKMessage & { type: "tool_progress" }): AgentStreamEvent {
-  return {
-    agentId,
-    type: AGENT_STREAM_EVENT_TYPE.TOOL_USE_PROGRESS,
-    sessionId: message.session_id,
-    toolName: message.tool_name,
-    elapsedTimeSeconds: message.elapsed_time_seconds,
-  };
+function handleToolProgress(agentId: string, message: SDKMessage & { type: "tool_progress" }): AgentStreamEvent[] {
+  return [
+    {
+      agentId,
+      type: AGENT_STREAM_EVENT_TYPE.TOOL_USE_PROGRESS,
+      sessionId: message.session_id,
+      toolName: message.tool_name,
+      elapsedTimeSeconds: message.elapsed_time_seconds,
+    },
+  ];
 }
 
 /** Handle result messages */
-function handleResultMessage(agentId: string, message: SDKMessage & { type: "result" }): AgentStreamEvent | undefined {
+function handleResultMessage(agentId: string, message: SDKMessage & { type: "result" }): AgentStreamEvent[] {
   // Extract context window info
   let contextUsed: number | undefined;
   let contextTotal: number | undefined;
@@ -250,13 +258,15 @@ function handleResultMessage(agentId: string, message: SDKMessage & { type: "res
     contextUsed,
   };
 
-  return {
-    agentId,
-    type: AGENT_STREAM_EVENT_TYPE.DONE,
-    sessionId: message.session_id,
-    isSuccess: !message.is_error,
-    doneType: message.subtype,
-    durationMs: message.duration_ms,
-    usage,
-  };
+  return [
+    {
+      agentId,
+      type: AGENT_STREAM_EVENT_TYPE.DONE,
+      sessionId: message.session_id,
+      isSuccess: !message.is_error,
+      doneType: message.subtype,
+      durationMs: message.duration_ms,
+      usage,
+    },
+  ];
 }

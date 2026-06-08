@@ -282,11 +282,14 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
               userMessageAdded = true;
             }
 
-            if (event.discoveredTools && event.discoveredTools.length > 0) {
+            await this.persistAgentState(agentId);
+            break;
+
+          case AGENT_STREAM_EVENT_TYPE.TOOLS_DISCOVERED:
+            if (event.discoveredTools.length > 0) {
               await this.registry.setAvailableTools(agentId, event.discoveredTools);
             }
 
-            await this.persistAgentState(agentId);
             break;
 
           case AGENT_STREAM_EVENT_TYPE.MESSAGE_DONE: {
@@ -334,6 +337,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
               }
             }
 
+            break;
+          }
+
+          case AGENT_STREAM_EVENT_TYPE.USAGE: {
             const { totalInputTokens, inputTokens, outputTokens } = event;
             querySpan.recordTokenUsage(inputTokens, outputTokens, totalInputTokens);
             state.sessionUsage.inputTokens = totalInputTokens;

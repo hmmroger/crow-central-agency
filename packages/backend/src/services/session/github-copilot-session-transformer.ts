@@ -1,118 +1,119 @@
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
-import type { CopilotClient, SessionEvent } from "@github/copilot-sdk";
+import type { AssistantMessageEvent, CopilotClient, CopilotSession, SessionEvent } from "@github/copilot-sdk";
 import { parseToolActivity } from "../../runner/tool-activity-parser.js";
+import { USER_AGENT_MESSAGE_PATTERN } from "../../utils/message-template.js";
 import { logger } from "../../utils/logger.js";
 
 const log = logger.child({ context: "github-copilot-session-transformer" });
 
-/**
- * Transform a single persisted Copilot SessionEvent into an AgentMessage.
- * Only the message-bearing event types map onto our canonical model; all other
- * lifecycle/telemetry events (turn markers, usage, hooks, etc.) are skipped.
- *
- * @param event - A single SDK session event
- * @param timestamp - Ordering timestamp for the produced message
- * @returns The mapped AgentMessage, or undefined when the event carries no displayable content
- */
-function transformSessionEvent(event: SessionEvent, timestamp: number): AgentMessage | undefined {
+/** Transform a persisted Copilot SessionEvent into AgentMessages (the assistant message is expanded). */
+function transformSessionEvent(event: SessionEvent): AgentMessage[] {
+  const timestamp = new Date(event.timestamp).getTime();
+
   if (event.type === "user.message") {
-    const content = event.data.content.trim();
+    const content = event.data.content.replace(USER_AGENT_MESSAGE_PATTERN, "").trim();
     if (!content) {
-      return undefined;
+      return [];
     }
 
-    return {
-      id: event.id,
-      role: AGENT_MESSAGE_ROLE.USER,
-      type: AGENT_MESSAGE_TYPE.TEXT,
-      content,
-      timestamp,
-    };
+    return [{ id: event.id, role: AGENT_MESSAGE_ROLE.USER, type: AGENT_MESSAGE_TYPE.TEXT, content, timestamp }];
   }
 
   if (event.type === "assistant.message") {
-    const content = event.data.content.trim();
-    if (!content) {
-      return undefined;
-    }
+    return transformAssistantMessage(event, timestamp);
+  }
 
-    return {
-      id: event.id,
+  return [];
+}
+
+/** Expand an assistant message in natural order: reasoning, then tool calls, then the text response. */
+function transformAssistantMessage(event: AssistantMessageEvent, timestamp: number): AgentMessage[] {
+  const messages: AgentMessage[] = [];
+
+  const reasoning = event.data.reasoningText?.trim();
+  if (reasoning) {
+    messages.push({
+      id: `${event.data.messageId}-reasoning`,
+      role: AGENT_MESSAGE_ROLE.AGENT,
+      type: AGENT_MESSAGE_TYPE.THINKING,
+      content: reasoning,
+      timestamp,
+    });
+  }
+
+  for (const toolRequest of event.data.toolRequests ?? []) {
+    const toolInput: Record<string, unknown> = toolRequest.arguments ?? {};
+    messages.push({
+      id: toolRequest.toolCallId,
+      role: AGENT_MESSAGE_ROLE.SYSTEM,
+      type: AGENT_MESSAGE_TYPE.TOOL_USE,
+      content: parseToolActivity(toolRequest.name, toolInput),
+      toolName: toolRequest.name,
+      toolInput,
+      timestamp,
+    });
+  }
+
+  const content = event.data.content.trim();
+  if (content) {
+    messages.push({
+      id: event.data.messageId,
       role: AGENT_MESSAGE_ROLE.AGENT,
       type: AGENT_MESSAGE_TYPE.TEXT,
       content,
       timestamp,
-    };
+    });
   }
 
-  if (event.type === "assistant.reasoning") {
-    const content = event.data.content.trim();
-    if (!content) {
-      return undefined;
-    }
+  return messages;
+}
 
-    return {
-      id: event.id,
-      role: AGENT_MESSAGE_ROLE.AGENT,
-      type: AGENT_MESSAGE_TYPE.THINKING,
-      content,
-      timestamp,
-    };
+function isCopilotSessionEvent(value: unknown): value is SessionEvent {
+  return typeof value === "object" && value !== null && "type" in value;
+}
+
+/** Transform a live Copilot SessionEvent (carried by a MESSAGE_DONE stream event) into AgentMessages. */
+export function transformGithubCopilotSessionMessage(message: unknown): AgentMessage[] {
+  if (!isCopilotSessionEvent(message)) {
+    return [];
   }
 
-  if (event.type === "tool.execution_start") {
-    const toolInput = event.data.arguments ?? {};
-    return {
-      id: event.id,
-      role: AGENT_MESSAGE_ROLE.SYSTEM,
-      type: AGENT_MESSAGE_TYPE.TOOL_USE,
-      content: parseToolActivity(event.data.toolName, toolInput),
-      toolName: event.data.toolName,
-      toolInput,
-      timestamp,
-    };
-  }
-
-  return undefined;
+  return transformSessionEvent(message);
 }
 
 /**
- * Load a Copilot session's history as AgentMessage[].
- * Unlike Claude Code (which reads session files off disk via a static API), Copilot exposes
- * history only through a live session object, so we resume the session purely to read its
- * events, then disconnect to release the in-memory resources (on-disk state is preserved).
- *
- * @param client - A started, connected Copilot client shared across all read operations
- * @param sessionId - The session whose history to load
- * @returns Ordered AgentMessages derived from the session's persisted events
+ * Load a Copilot session's history as AgentMessage[]. Copilot has no off-disk read API, so we resume
+ * the session to read its events, then disconnect. A session that can't be resumed (e.g. just created,
+ * not yet flushed) is treated as empty rather than an error.
  */
 export async function loadGithubCopilotSessionMessages(
   client: CopilotClient,
   sessionId: string
 ): Promise<AgentMessage[]> {
-  const session = await client.resumeSession(sessionId, { suppressResumeEvent: true });
+  let session: CopilotSession;
+  try {
+    session = await client.resumeSession(sessionId, { suppressResumeEvent: true });
+  } catch (error) {
+    log.info({ sessionId, error }, "Could not resume Copilot session for read; returning empty history");
+    return [];
+  }
+
   let events: SessionEvent[];
   try {
     events = await session.getEvents();
   } finally {
-    // Teardown failure must not mask a getEvents() error, so log and swallow it here.
     await session.disconnect().catch((error) => {
       log.warn({ sessionId, error }, "Failed to disconnect Copilot session after read");
     });
   }
 
   const messages: AgentMessage[] = [];
-  let timestamp = 0;
   for (const event of events) {
-    if (event.ephemeral) {
+    if (event.ephemeral || event.agentId) {
       continue;
     }
 
-    const message = transformSessionEvent(event, timestamp);
-    if (message) {
-      messages.push(message);
-      timestamp++;
-    }
+    messages.push(...transformSessionEvent(event));
   }
 
   return messages;

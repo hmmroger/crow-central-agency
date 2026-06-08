@@ -38,9 +38,9 @@ export type ToolMode = (typeof TOOL_MODE)[keyof typeof TOOL_MODE];
 export const SUBAGENT_TOOL_NAME = "Agent" as const;
 
 /**
- * Default available tools for new agent creation.
+ * Default builtin tool catalog for Claude Code agents.
  */
-export const DEFAULT_AVAILABLE_TOOLS = [
+export const DEFAULT_CLAUDE_CODE_AVAILABLE_TOOLS = [
   "AskUserQuestion",
   "Bash",
   "Glob",
@@ -64,6 +64,28 @@ export const DEFAULT_AVAILABLE_TOOLS = [
   "CronDelete",
   "CronList",
   "ToolSearch",
+] as const;
+
+/**
+ * Default builtin tool catalog for GitHub Copilot agents.
+ */
+export const DEFAULT_GITHUB_COPILOT_AVAILABLE_TOOLS = [
+  "bash",
+  "write_bash",
+  "read_bash",
+  "stop_bash",
+  "list_bash",
+  "view",
+  "create",
+  "edit",
+  "web_fetch",
+  "report_intent",
+  "fetch_copilot_cli_documentation",
+  "skill",
+  "ask_user",
+  "grep",
+  "glob",
+  "task",
 ] as const;
 
 /**
@@ -105,6 +127,14 @@ export const AGENT_TYPE = {
 } as const;
 
 export type AgentType = (typeof AGENT_TYPE)[keyof typeof AGENT_TYPE];
+
+export const AgentTypeSchema = z.enum([AGENT_TYPE.CLAUDE_CODE, AGENT_TYPE.GITHUB_COPILOT]);
+
+/** Default builtin tool catalog per provider, used to seed new agents and the editor's tool picker. */
+export const DEFAULT_AVAILABLE_TOOLS_BY_TYPE: Record<AgentType, readonly string[]> = {
+  [AGENT_TYPE.CLAUDE_CODE]: DEFAULT_CLAUDE_CODE_AVAILABLE_TOOLS,
+  [AGENT_TYPE.GITHUB_COPILOT]: DEFAULT_GITHUB_COPILOT_AVAILABLE_TOOLS,
+};
 
 export const AgentIdSchema = z.uuid();
 
@@ -163,7 +193,7 @@ export type AgentVoiceConfig = z.infer<typeof AgentVoiceConfigSchema>;
  */
 export const AgentConfigSchema = z.object({
   id: AgentIdSchema,
-  type: z.enum([AGENT_TYPE.CLAUDE_CODE]).default(AGENT_TYPE.CLAUDE_CODE),
+  type: AgentTypeSchema.default(AGENT_TYPE.CLAUDE_CODE),
   name: z.string().min(1).max(64),
   description: z.string().optional(),
   workspace: z.string().min(1).optional(),
@@ -198,6 +228,7 @@ export type AgentConfig = z.infer<typeof AgentConfigSchema>;
  * Input for creating a new agent - only required fields
  */
 export const CreateAgentInputSchema = z.object({
+  type: AgentTypeSchema.default(AGENT_TYPE.CLAUDE_CODE),
   name: z.string().min(1).max(50),
   description: z.string().optional(),
   workspace: z.string().min(1).optional(),
