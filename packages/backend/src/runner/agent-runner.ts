@@ -285,7 +285,6 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     const serverConfigs = await this.mcpManager.getMcpServersForAgent(this.agentId);
     const sensorContext = await this.sensorManager.getSensorContext();
     const systemPrompt = await this.buildSystemPrompt(agentConfig, sensorContext, serverConfigs);
-    const internalMcpPrefixes = await this.mcpManager.getInternalMcpPrefixes(this.agentId);
     const cwd = this.registry.resolveWorkspace(agentConfig);
 
     this.abortController = new AbortController();
@@ -297,7 +296,6 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
       systemPrompt,
       timezone: sensorContext.timezone,
       serverConfigs,
-      internalMcpPrefixes,
       abortController: this.abortController,
     };
 

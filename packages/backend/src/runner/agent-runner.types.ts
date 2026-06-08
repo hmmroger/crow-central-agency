@@ -16,7 +16,6 @@ export interface AgentRunQueryRequest {
   systemPrompt: string;
   timezone?: string;
   serverConfigs: CrowMcpServerConfig[];
-  internalMcpPrefixes: string[];
   /** Per-turn cancellation handle, created and owned by the base runner. */
   abortController: AbortController;
 }

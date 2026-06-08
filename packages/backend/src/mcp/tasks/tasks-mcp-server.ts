@@ -1,31 +1,23 @@
-import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
-import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentTaskManager } from "../../services/agent-task-manager.js";
 import type { AgentCircleManager } from "../../services/agent-circle-manager.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
+import { defineMcpTool } from "../crow-mcp-manager-utils.js";
+import type { McpServerDefinition } from "../crow-mcp-manager.types.js";
 import { getTaskToolConfig } from "./get-task.js";
 import { getTaskResultToolConfig } from "./get-task-result.js";
 
 export const CROW_TASKS_MCP_SERVER_NAME = "crow-tasks";
 
-export function createTasksMcpServer(
-  agentId: string,
+export function getTasksMcpServerDefinition(
   taskManager: AgentTaskManager,
   circleManager: AgentCircleManager,
   sensorManager: SensorManager
-): McpSdkServerConfigWithInstance {
-  const getTask = getTaskToolConfig(agentId, taskManager, circleManager, sensorManager);
-  const getTaskResult = getTaskResultToolConfig(agentId, taskManager, circleManager);
-
-  return createSdkMcpServer({
+): McpServerDefinition {
+  return {
     name: CROW_TASKS_MCP_SERVER_NAME,
-    tools: [
-      tool(getTask.name, getTask.description, getTask.inputSchema, getTask.handler, {
-        annotations: getTask.annotations,
-      }),
-      tool(getTaskResult.name, getTaskResult.description, getTaskResult.inputSchema, getTaskResult.handler, {
-        annotations: getTaskResult.annotations,
-      }),
+    getTools: (agentId) => [
+      defineMcpTool(getTaskToolConfig(agentId, taskManager, circleManager, sensorManager)),
+      defineMcpTool(getTaskResultToolConfig(agentId, taskManager, circleManager)),
     ],
-  });
+  };
 }

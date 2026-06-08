@@ -13,13 +13,12 @@ import { ArtifactManager } from "./services/artifact/artifact-manager.js";
 import { PlacesManager } from "./services/places/places-manager.js";
 import { setupWebSocket } from "./server/setup-websocket.js";
 import { registerArtifactRoutes } from "./routes/artifact.routes.js";
-import { ARTIFACTS_MCP_SERVER_NAME, createArtifactsMcpServer } from "./mcp/artifacts/artifacts-mcp-server.js";
-import { createAgentsMcpServer, CROW_AGENTS_MCP_SERVER_NAME } from "./mcp/agents/agents-mcp-server.js";
-import { createSuperAgentMcpServer, CROW_SUPER_AGENT_MCP_SERVER_NAME } from "./mcp/agents/super-agent-mcp-server.js";
-import { createTasksMcpServer, CROW_TASKS_MCP_SERVER_NAME } from "./mcp/tasks/tasks-mcp-server.js";
-import { createSuperTasksMcpServer, CROW_SUPER_TASKS_MCP_SERVER_NAME } from "./mcp/tasks/super-tasks-mcp-server.js";
-import { REMINDERS_MCP_SERVER_NAME, createRemindersMcpServer } from "./mcp/reminders/reminders-mcp-server.js";
-import { CROW_SYSTEM_AGENT_ID, CROW_TASK_DISPATCHER_AGENT_ID } from "@crow-central-agency/shared";
+import { getArtifactsMcpServerDefinition } from "./mcp/artifacts/artifacts-mcp-server.js";
+import { getAgentsMcpServerDefinition } from "./mcp/agents/agents-mcp-server.js";
+import { getSuperAgentMcpServerDefinition } from "./mcp/agents/super-agent-mcp-server.js";
+import { getTasksMcpServerDefinition } from "./mcp/tasks/tasks-mcp-server.js";
+import { getSuperTasksMcpServerDefinition } from "./mcp/tasks/super-tasks-mcp-server.js";
+import { getRemindersMcpServerDefinition } from "./mcp/reminders/reminders-mcp-server.js";
 import { FileObjectStoreProvider } from "./core/store/file-object-store-provider.js";
 import { CrowScheduler } from "./services/crow-scheduler.js";
 import { SystemSettingsManager } from "./services/system-settings-manager.js";
@@ -54,21 +53,15 @@ import { FolderFileStoreProvider } from "./core/store/folder-file-store-provider
 import { SimplyFeedManager } from "./feed/simply-feed-manager.js";
 import { registerFeedRoutes } from "./routes/feed.routes.js";
 import { registerSystemSettingsRoutes } from "./routes/system-settings.routes.js";
-import { createFeedMcpServer, FEED_MCP_SERVER_NAME } from "./mcp/feed/feed-mcp-server.js";
-import { createAudioMcpServer, CROW_AUDIO_MCP_SERVER_NAME } from "./mcp/audio/audio-mcp-server.js";
+import { getFeedMcpServerDefinition } from "./mcp/feed/feed-mcp-server.js";
+import { getAudioMcpServerDefinition } from "./mcp/audio/audio-mcp-server.js";
 import { ConnectorManager } from "./connectors/connector-manager.js";
 import { GoogleConnector } from "./connectors/google-connector.js";
 import { registerConnectorsRoutes } from "./routes/connectors.routes.js";
-import { getGmailMcpServerDefinition, GMAIL_MCP_SERVER_NAME } from "./mcp/gmail/gmail-mcp-server.js";
-import {
-  getGoogleCalendarMcpServerDefinition,
-  GOOGLE_CALENDAR_MCP_SERVER_NAME,
-} from "./mcp/google-calendar/google-calendar-mcp-server.js";
-import {
-  getGoogleContactsMcpServerDefinition,
-  GOOGLE_CONTACTS_MCP_SERVER_NAME,
-} from "./mcp/google-contacts/google-contacts-mcp-server.js";
-import { getPlacesMcpServerDefinition, PLACES_MCP_SERVER_NAME } from "./mcp/places/places-mcp-server.js";
+import { getGmailMcpServerDefinition } from "./mcp/gmail/gmail-mcp-server.js";
+import { getGoogleCalendarMcpServerDefinition } from "./mcp/google-calendar/google-calendar-mcp-server.js";
+import { getGoogleContactsMcpServerDefinition } from "./mcp/google-contacts/google-contacts-mcp-server.js";
+import { getPlacesMcpServerDefinition } from "./mcp/places/places-mcp-server.js";
 
 export interface BootstrapOptions {
   serveStatic: boolean;
@@ -154,61 +147,21 @@ export async function bootstrap(options: BootstrapOptions) {
   const discordRoutine = createDiscordRoutine(discordBotManager, runtimeManager);
   routineManager.addRoutine(discordRoutine);
 
-  // Register MCP server factories
-  mcpManager.registerMcpServer(ARTIFACTS_MCP_SERVER_NAME, (agentId) =>
-    createArtifactsMcpServer(agentId, artifactManager, registry, circleManager, sensorManager)
-  );
-  mcpManager.registerMcpServer(CROW_AGENTS_MCP_SERVER_NAME, (agentId) =>
-    createAgentsMcpServer(agentId, registry, runtimeManager, taskManager)
-  );
-  mcpManager.registerMcpServer(CROW_TASKS_MCP_SERVER_NAME, (agentId) =>
-    createTasksMcpServer(agentId, taskManager, circleManager, sensorManager)
-  );
-  mcpManager.registerMcpServer(FEED_MCP_SERVER_NAME, (agentId) =>
-    createFeedMcpServer(agentId, registry, feedManager, sensorManager, systemSettingsManager)
-  );
-  mcpManager.registerMcpServer(CROW_AUDIO_MCP_SERVER_NAME, (agentId) =>
-    createAudioMcpServer(agentId, registry, artifactManager)
-  );
+  // Register built-in MCP servers
   mcpManager.registerMcpServer(
-    CROW_SUPER_TASKS_MCP_SERVER_NAME,
-    (agentId) => createSuperTasksMcpServer(agentId, taskManager, registry, circleManager, sensorManager),
-    { allowedAgentIds: [CROW_SYSTEM_AGENT_ID, CROW_TASK_DISPATCHER_AGENT_ID] }
+    getArtifactsMcpServerDefinition(artifactManager, registry, circleManager, sensorManager)
   );
-  mcpManager.registerMcpServer(
-    CROW_SUPER_AGENT_MCP_SERVER_NAME,
-    (agentId) => createSuperAgentMcpServer(agentId, registry, runtimeManager, sessionManager),
-    { allowedAgentIds: [CROW_SYSTEM_AGENT_ID] }
-  );
-  mcpManager.registerMcpServer(REMINDERS_MCP_SERVER_NAME, (agentId) =>
-    createRemindersMcpServer(agentId, crowScheduler, sensorManager)
-  );
-  const gmailMcpDefinition = getGmailMcpServerDefinition(connectorManager, sensorManager);
-  mcpManager.registerMcpServer(GMAIL_MCP_SERVER_NAME, gmailMcpDefinition.serverFactory, {
-    hasRequiredConnections: gmailMcpDefinition.hasRequiredConnections,
-    getConnectionProfiles: gmailMcpDefinition.getConnectionProfiles,
-    isConfigurable: gmailMcpDefinition.isConfigurable,
-    displayName: gmailMcpDefinition.displayName,
-  });
-  const googleCalendarMcpDefinition = getGoogleCalendarMcpServerDefinition(connectorManager, sensorManager);
-  mcpManager.registerMcpServer(GOOGLE_CALENDAR_MCP_SERVER_NAME, googleCalendarMcpDefinition.serverFactory, {
-    hasRequiredConnections: googleCalendarMcpDefinition.hasRequiredConnections,
-    getConnectionProfiles: googleCalendarMcpDefinition.getConnectionProfiles,
-    isConfigurable: googleCalendarMcpDefinition.isConfigurable,
-    displayName: googleCalendarMcpDefinition.displayName,
-  });
-  const googleContactsMcpDefinition = getGoogleContactsMcpServerDefinition(connectorManager, sensorManager);
-  mcpManager.registerMcpServer(GOOGLE_CONTACTS_MCP_SERVER_NAME, googleContactsMcpDefinition.serverFactory, {
-    hasRequiredConnections: googleContactsMcpDefinition.hasRequiredConnections,
-    getConnectionProfiles: googleContactsMcpDefinition.getConnectionProfiles,
-    isConfigurable: googleContactsMcpDefinition.isConfigurable,
-    displayName: googleContactsMcpDefinition.displayName,
-  });
-  const placesMcpDefinition = getPlacesMcpServerDefinition(placesManager);
-  mcpManager.registerMcpServer(PLACES_MCP_SERVER_NAME, placesMcpDefinition.serverFactory, {
-    isConfigurable: placesMcpDefinition.isConfigurable,
-    displayName: placesMcpDefinition.displayName,
-  });
+  mcpManager.registerMcpServer(getAgentsMcpServerDefinition(registry, runtimeManager, taskManager));
+  mcpManager.registerMcpServer(getTasksMcpServerDefinition(taskManager, circleManager, sensorManager));
+  mcpManager.registerMcpServer(getFeedMcpServerDefinition(registry, feedManager, sensorManager, systemSettingsManager));
+  mcpManager.registerMcpServer(getAudioMcpServerDefinition(registry, artifactManager));
+  mcpManager.registerMcpServer(getSuperTasksMcpServerDefinition(taskManager, registry, circleManager, sensorManager));
+  mcpManager.registerMcpServer(getSuperAgentMcpServerDefinition(registry, runtimeManager, sessionManager));
+  mcpManager.registerMcpServer(getRemindersMcpServerDefinition(crowScheduler, sensorManager));
+  mcpManager.registerMcpServer(getGmailMcpServerDefinition(connectorManager, sensorManager));
+  mcpManager.registerMcpServer(getGoogleCalendarMcpServerDefinition(connectorManager, sensorManager));
+  mcpManager.registerMcpServer(getGoogleContactsMcpServerDefinition(connectorManager, sensorManager));
+  mcpManager.registerMcpServer(getPlacesMcpServerDefinition(placesManager));
 
   await runtimeManager.startRecovery();
 

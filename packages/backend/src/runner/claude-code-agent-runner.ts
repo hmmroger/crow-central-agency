@@ -28,6 +28,7 @@ import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
 import type { SensorManager } from "../sensors/sensor-manager.js";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
 import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
+import { toClaudeServer, toClaudeTransport } from "../mcp/claude-mcp-adapter.js";
 
 const log = logger.child({ context: "claude-code-agent-runner" });
 
@@ -53,19 +54,13 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
   }
 
   protected async *runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown> {
-    const {
-      message,
-      agentConfig,
-      cwd,
-      systemPrompt,
-      timezone,
-      serverConfigs,
-      internalMcpPrefixes,
-      sessionId,
-      abortController,
-    } = request;
+    const { message, agentConfig, cwd, systemPrompt, timezone, serverConfigs, sessionId, abortController } = request;
 
     const mcpServers = await this.buildMcpServers(serverConfigs);
+    // auto approve internal tools and filter out from discovered tools list
+    const internalMcpPrefixes = serverConfigs
+      .filter((server) => server.kind === "internal" && server.isAutoApproved)
+      .map((server) => server.mcpToolPrefix);
     const systemPromptOption = systemPrompt
       ? agentConfig.excludeClaudeCodeSystemPrompt
         ? systemPrompt
@@ -146,8 +141,9 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
   /** Build MCP servers for a query — only includes servers the agent has access to */
   private async buildMcpServers(serverConfigs: CrowMcpServerConfig[]): Promise<Record<string, McpServerConfig>> {
     const servers: Record<string, McpServerConfig> = {};
-    for (const { name, serverFactory } of serverConfigs) {
-      servers[name] = serverFactory(this.agentId);
+    for (const config of serverConfigs) {
+      servers[config.name] =
+        config.kind === "internal" ? toClaudeServer(config.name, config.tools) : toClaudeTransport(config.transport);
     }
 
     return servers;
