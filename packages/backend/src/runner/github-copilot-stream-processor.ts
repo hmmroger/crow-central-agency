@@ -183,19 +183,25 @@ async function mapSessionEvent(
     case "session.compaction_start":
       return [{ agentId, type: AGENT_STREAM_EVENT_TYPE.STATUS, sessionId, status: AGENT_STATUS.COMPACTING }];
 
-    case "session.idle":
-      return event.data.aborted
-        ? []
-        : [
-            {
-              agentId,
-              type: AGENT_STREAM_EVENT_TYPE.DONE,
-              sessionId,
-              isSuccess: true,
-              doneType: "idle",
-              durationMs: Date.parse(event.timestamp) - turnStartedAtMs,
-            },
-          ];
+    case "session.idle": {
+      if (event.data.aborted) {
+        return [];
+      }
+
+      // event.timestamp is the SDK's ISO 8601 idle time; guard against a malformed value yielding NaN.
+      const endedAtMs = Date.parse(event.timestamp);
+      const durationMs = Number.isFinite(endedAtMs) ? Math.max(0, endedAtMs - turnStartedAtMs) : 0;
+      return [
+        {
+          agentId,
+          type: AGENT_STREAM_EVENT_TYPE.DONE,
+          sessionId,
+          isSuccess: true,
+          doneType: "idle",
+          durationMs,
+        },
+      ];
+    }
 
     case "session.error":
       return [{ agentId, type: AGENT_STREAM_EVENT_TYPE.ERROR, sessionId, error: event.data.message }];
