@@ -78,6 +78,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     try {
       const prompt = userMessageForAgent(new Date(), message, timezone);
       let initEmitted = false;
+      let turnComplete = false;
       for await (const event of this.iterateSessionEvents(session, abortController, prompt)) {
         // Copilot has no per-query init message; the turn has begun once the first event arrives.
         if (!initEmitted) {
@@ -86,7 +87,17 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         }
 
         for (const agentStreamEvent of await mapCopilotSessionEvents(context, event)) {
+          if (agentStreamEvent.type === AGENT_STREAM_EVENT_TYPE.DONE) {
+            turnComplete = true;
+          }
+
           yield agentStreamEvent;
+        }
+
+        // The pump stays a dumb queue; the turn ends when the dispatcher emits DONE (from idle) or
+        // the abort signal stops the generator. Break so its finally tears the session down.
+        if (turnComplete) {
+          break;
         }
       }
     } finally {
@@ -105,9 +116,11 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   }
 
   /**
-   * Bridge the SDK's callback events into an async generator: subscribe, send, then drain until
-   * `session.idle` (or abort). `send()` runs without awaiting it before the loop — it may not settle
-   * until the turn ends, and awaiting it would buffer every streamed delta until then.
+   * Bridge the SDK's callback events into an async generator: subscribe, send, then yield events as
+   * they arrive. The callback stays a dumb pump (enqueue + signal only); the consumer stops the
+   * generator once the dispatcher emits DONE, and abort or a send failure end it early. `send()` runs
+   * without awaiting it before the loop — it may not settle until the turn ends, and awaiting it would
+   * buffer every streamed delta until then.
    */
   private async *iterateSessionEvents(
     session: CopilotSession,
@@ -126,10 +139,6 @@ export class GithubCopilotAgentRunner extends AgentRunner {
 
     const unsubscribe = session.on((event) => {
       queue.push(event);
-      if (event.type === "session.idle") {
-        finished = true;
-      }
-
       signalNext();
     });
 

@@ -69,7 +69,7 @@ function transformAssistantMessage(event: AssistantMessageEvent, timestamp: numb
 }
 
 function isCopilotSessionEvent(value: unknown): value is SessionEvent {
-  return typeof value === "object" && value !== null && "type" in value;
+  return typeof value === "object" && value !== null && "type" in value && typeof value.type === "string";
 }
 
 /** Transform a live Copilot SessionEvent (carried by a MESSAGE_DONE stream event) into AgentMessages. */
