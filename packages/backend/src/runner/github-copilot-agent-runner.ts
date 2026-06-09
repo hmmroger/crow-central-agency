@@ -37,6 +37,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+/** Match a tool name against the auto-approve patterns, where a trailing `*` matches by prefix (`*` matches all). */
+function isToolAutoApproved(patterns: Set<string>, toolName: string): boolean {
+  if (patterns.has(toolName)) {
+    return true;
+  }
+
+  for (const pattern of patterns) {
+    if (pattern.endsWith("*") && toolName.startsWith(pattern.slice(0, -1))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /** Tool-call arguments arrive as a JSON string (function-call arguments) or an object; normalize to a record. */
 function toToolArgsRecord(value: unknown): Record<string, unknown> {
   if (typeof value === "string") {
@@ -272,7 +287,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       return undefined;
     }
 
-    if (autoApproved.has(toolName)) {
+    if (isToolAutoApproved(autoApproved, toolName)) {
       return { permissionDecision: "allow" };
     }
 
@@ -328,7 +343,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         : permissionRequest.kind);
 
     let result: Exclude<PermissionRequestResult, { kind: "no-result" }>;
-    if (autoApproved.has(toolName)) {
+    if (isToolAutoApproved(autoApproved, toolName)) {
       result = { kind: "approve-once" };
     } else {
       const decision = await this.permissionRequestHandler(
