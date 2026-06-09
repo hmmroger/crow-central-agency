@@ -81,7 +81,7 @@ export function PermissionDialog({
         </button>
         <button
           type="button"
-          className="px-3 py-1 rounded-md bg-success/20 text-success text-xs font-medium hover:bg-success/30 transition-colors"
+          className="px-3 py-1 rounded-md bg-success/10 text-success/70 text-xs font-medium hover:bg-success/20 transition-colors"
           onClick={handleAllowAlways}
         >
           Always allow
