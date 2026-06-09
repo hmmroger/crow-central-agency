@@ -20,7 +20,9 @@ export interface AgentRunQueryRequest {
   abortController: AbortController;
 }
 
-export type OOBStreamEventCallback = (streamEvent: AgentStreamActivityEvent | AgentStreamToolUseEvent) => void;
+export type OOBStreamEventCallback = (
+  streamEvent: AgentStreamActivityEvent | AgentStreamToolUseEvent | AgentStreamToolAutoApprovedEvent
+) => void;
 
 export type PermissionRequestCallback = (
   agentId: string,
@@ -47,6 +49,7 @@ export const AGENT_STREAM_EVENT_TYPE = {
   ACTIVITY: "ACTIVITY",
   TOOL_USE: "TOOL_USE",
   TOOL_USE_PROGRESS: "TOOL_USE_PROGRESS",
+  TOOL_AUTO_APPROVED: "TOOL_AUTO_APPROVED",
 
   USAGE: "USAGE",
   MESSAGE_DONE: "MESSAGE_DONE",
@@ -64,6 +67,7 @@ export type AgentStreamEvent =
   | AgentStreamActivityEvent
   | AgentStreamToolUseEvent
   | AgentStreamToolUseProgressEvent
+  | AgentStreamToolAutoApprovedEvent
   | AgentStreamMessageDoneEvent
   | AgentStreamUsageEvent
   | AgentStreamDoneEvent
@@ -127,6 +131,11 @@ export interface AgentStreamToolUseProgressEvent extends AgentStreamEventCommon 
   type: (typeof AGENT_STREAM_EVENT_TYPE)["TOOL_USE_PROGRESS"];
   toolName: string;
   elapsedTimeSeconds: number;
+}
+
+export interface AgentStreamToolAutoApprovedEvent extends AgentStreamEventCommon {
+  type: (typeof AGENT_STREAM_EVENT_TYPE)["TOOL_AUTO_APPROVED"];
+  toolName: string;
 }
 
 export interface AgentStreamMessageDoneEvent extends AgentStreamEventCommon {

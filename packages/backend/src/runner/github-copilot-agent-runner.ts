@@ -1,5 +1,12 @@
 import { CopilotClient } from "@github/copilot-sdk";
-import type { CopilotSession, PermissionRequestResult, SessionConfig, SessionEvent } from "@github/copilot-sdk";
+import type {
+  CopilotSession,
+  MCPServerConfig,
+  PermissionRequestResult,
+  SessionConfig,
+  SessionEvent,
+  Tool,
+} from "@github/copilot-sdk";
 import { AgentRunner } from "./agent-runner.js";
 import {
   mapCopilotSessionEvents,
@@ -7,6 +14,7 @@ import {
   type CopilotToolCall,
 } from "./github-copilot-stream-processor.js";
 import { generateId } from "../utils/id-utils.js";
+import { DEFAULT_PERMISSION_DENY_MESSAGE } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 import { userMessageForAgent } from "../utils/message-template.js";
 import {
@@ -20,8 +28,28 @@ import type { AgentRegistry } from "../services/agent-registry.js";
 import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
 import type { SensorManager } from "../sensors/sensor-manager.js";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
+import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
+import { toCopilotMcpServer, toCopilotTools } from "../mcp/copilot-mcp-adapter.js";
 
 const log = logger.child({ context: "github-copilot-agent-runner" });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/** Tool-call arguments arrive as a JSON string (function-call arguments) or an object; normalize to a record. */
+function toToolArgsRecord(value: unknown): Record<string, unknown> {
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return isRecord(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  return isRecord(value) ? value : {};
+}
 
 /**
  * GitHub Copilot agent runner. Drives a `@github/copilot-sdk` session per turn and bridges its
@@ -39,15 +67,17 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     sensorManager: SensorManager,
     circleManager: AgentCircleManager,
     private readonly permissionRequestHandler: PermissionRequestCallback,
-    _oobEventCallback: OOBStreamEventCallback
+    private readonly oobEventCallback: OOBStreamEventCallback
   ) {
     super(agentId, registry, mcpManager, sensorManager, circleManager);
   }
 
   protected async *runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown> {
-    const { message, cwd, agentConfig, systemPrompt, timezone, sessionId, abortController } = request;
+    const { message, cwd, agentConfig, systemPrompt, timezone, serverConfigs, sessionId, abortController } = request;
 
     const client = await this.getClient();
+    const inProcessTools = this.buildInProcessTools(serverConfigs);
+    const autoApproved = new Set(agentConfig.toolConfig.autoApprovedTools ?? []);
     // No onPermissionRequest handler: per the SDK, omitting it surfaces permission requests as
     // events that we resolve from the drain loop via the pending-permission RPC.
     const sessionConfig: SessionConfig = {
@@ -56,6 +86,12 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       systemMessage: systemPrompt ? { mode: "append", content: systemPrompt } : undefined,
       // Supports unrestricted tools plus a disallow list for now
       excludedTools: agentConfig.toolConfig.disallowedTools,
+      tools: inProcessTools,
+      mcpServers: this.buildMcpServers(serverConfigs),
+      hooks: {
+        onPreToolUse: (input) =>
+          this.resolveExternalMcpToolPermission(input.toolName, input.toolArgs, serverConfigs, autoApproved),
+      },
     };
 
     const session = sessionId
@@ -66,13 +102,14 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     // toolCallId -> tool name/input, populated from the event stream so permission requests
     // (which only carry a toolCallId) can be resolved back to a tool name.
     const toolCalls = new Map<string, CopilotToolCall>();
-    const autoApproved = new Set(agentConfig.toolConfig.autoApprovedTools ?? []);
     const context: CopilotEventContext = {
       client,
       agentId: this.agentId,
       sessionId: session.sessionId,
       toolCalls,
       turnStartedAtMs: Date.now(),
+      // Auto-approved internal tools skip permission and stay hidden; configurable ones surface for management.
+      configurableInternalToolNames: inProcessTools.filter((tool) => !tool.skipPermission).map((tool) => tool.name),
       resolvePermission: (event) => this.resolvePermission(session, event, toolCalls, autoApproved),
     };
 
@@ -133,6 +170,25 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     } catch (error) {
       log.warn({ agentId: this.agentId, error }, "Failed to stop Copilot client during dispose");
     }
+  }
+
+  /** Internal MCP servers become flat in-process tools; auto-approved ones skip the permission prompt. */
+  private buildInProcessTools(serverConfigs: CrowMcpServerConfig[]): Tool<Record<string, unknown>>[] {
+    return serverConfigs
+      .filter((server): server is Extract<CrowMcpServerConfig, { kind: "internal" }> => server.kind === "internal")
+      .flatMap((server) => toCopilotTools(server));
+  }
+
+  /** User-configured (external) MCP servers are passed through as Copilot MCP server configs. */
+  private buildMcpServers(serverConfigs: CrowMcpServerConfig[]): Record<string, MCPServerConfig> {
+    const mcpServers: Record<string, MCPServerConfig> = {};
+    for (const server of serverConfigs) {
+      if (server.kind === "external") {
+        mcpServers[server.name] = toCopilotMcpServer(server.transport);
+      }
+    }
+
+    return mcpServers;
   }
 
   /**
@@ -203,6 +259,49 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     }
   }
 
+  private async resolveExternalMcpToolPermission(
+    toolName: string,
+    toolArgs: unknown,
+    serverConfigs: CrowMcpServerConfig[],
+    autoApproved: Set<string>
+  ): Promise<{ permissionDecision: "allow" | "deny"; permissionDecisionReason?: string } | undefined> {
+    const isExternalMcpTool = serverConfigs.some(
+      (server) => server.kind === "external" && toolName.startsWith(server.mcpToolPrefix)
+    );
+    if (!isExternalMcpTool) {
+      return undefined;
+    }
+
+    if (autoApproved.has(toolName)) {
+      return { permissionDecision: "allow" };
+    }
+
+    const decision = await this.permissionRequestHandler(
+      this.agentId,
+      toolName,
+      toToolArgsRecord(toolArgs),
+      generateId()
+    );
+    if (decision.behavior === "allow_always") {
+      this.rememberAutoApproval(toolName, autoApproved);
+    }
+
+    return decision.behavior === "deny"
+      ? { permissionDecision: "deny", permissionDecisionReason: decision.message ?? DEFAULT_PERMISSION_DENY_MESSAGE }
+      : { permissionDecision: "allow" };
+  }
+
+  /** Remember an "allow always" decision for this query and emit the event so the runtime persists it. */
+  private rememberAutoApproval(toolName: string, autoApproved: Set<string>): void {
+    autoApproved.add(toolName);
+    this.oobEventCallback({
+      type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
+      agentId: this.agentId,
+      sessionId: this.session?.sessionId ?? "",
+      toolName,
+    });
+  }
+
   /**
    * Resolve a permission request from the event stream. Copilot requests permission by category
    * (shell/write/...) carrying only a toolCallId, so we resolve that to a tool name via `toolCalls`,
@@ -213,7 +312,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     session: CopilotSession,
     event: Extract<SessionEvent, { type: "permission.requested" }>,
     toolCalls: Map<string, CopilotToolCall>,
-    autoApproved: ReadonlySet<string>
+    autoApproved: Set<string>
   ): Promise<void> {
     const { requestId, permissionRequest, resolvedByHook } = event.data;
     if (resolvedByHook) {
@@ -222,7 +321,11 @@ export class GithubCopilotAgentRunner extends AgentRunner {
 
     const toolCallId = "toolCallId" in permissionRequest ? permissionRequest.toolCallId : undefined;
     const toolCall = toolCallId ? toolCalls.get(toolCallId) : undefined;
-    const toolName = toolCall?.toolName ?? permissionRequest.kind;
+    const toolName =
+      toolCall?.toolName ??
+      (permissionRequest.kind === "custom-tool" || permissionRequest.kind === "mcp" || permissionRequest.kind === "hook"
+        ? permissionRequest.toolName
+        : permissionRequest.kind);
 
     let result: Exclude<PermissionRequestResult, { kind: "no-result" }>;
     if (autoApproved.has(toolName)) {
@@ -234,8 +337,14 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         toolCall?.input ?? {},
         toolCallId ?? generateId()
       );
+      if (decision.behavior === "allow_always") {
+        this.rememberAutoApproval(toolName, autoApproved);
+      }
+
       result =
-        decision.behavior === "allow" ? { kind: "approve-once" } : { kind: "reject", feedback: decision.message };
+        decision.behavior === "deny"
+          ? { kind: "reject", feedback: decision.message ?? DEFAULT_PERMISSION_DENY_MESSAGE }
+          : { kind: "approve-once" };
     }
 
     await session.rpc.permissions.handlePendingPermissionRequest({ requestId, result });

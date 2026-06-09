@@ -11,6 +11,7 @@ type ToolEvent = Extract<SessionEvent, { type: `tool.${string}` }>;
 type SessionLifecycleEvent = Extract<SessionEvent, { type: `session.${string}` }>;
 type PermissionEvent = Extract<SessionEvent, { type: `permission.${string}` }>;
 type PermissionRequestedEvent = Extract<SessionEvent, { type: "permission.requested" }>;
+type McpControlEvent = Extract<SessionEvent, { type: `mcp.${string}` }>;
 
 /** A tool call seen in the stream, used to resolve a later permission request back to its tool name. */
 export interface CopilotToolCall {
@@ -25,6 +26,7 @@ export interface CopilotEventContext {
   sessionId: string;
   toolCalls: Map<string, CopilotToolCall>;
   turnStartedAtMs: number;
+  configurableInternalToolNames: string[];
   resolvePermission: (event: PermissionRequestedEvent) => Promise<void>;
 }
 
@@ -42,6 +44,10 @@ function isSessionEvent(event: SessionEvent): event is SessionLifecycleEvent {
 
 function isPermissionEvent(event: SessionEvent): event is PermissionEvent {
   return event.type.startsWith("permission.");
+}
+
+function isMcpControlEvent(event: SessionEvent): event is McpControlEvent {
+  return event.type.startsWith("mcp.");
 }
 
 /**
@@ -84,6 +90,10 @@ export async function mapCopilotSessionEvents(
 
   if (isPermissionEvent(event)) {
     return mapPermissionEvent(context, event);
+  }
+
+  if (isMcpControlEvent(event)) {
+    return mapMcpControlEvent(context, event);
   }
 
   return [];
@@ -207,9 +217,33 @@ async function mapSessionEvent(
       return [{ agentId, type: AGENT_STREAM_EVENT_TYPE.ERROR, sessionId, error: event.data.message }];
 
     case "session.tools_updated": {
-      const discoveredTools = await listModelTools(client, event.data.model);
+      const discoveredTools = await listDiscoverableTools(
+        client,
+        event.data.model,
+        context.configurableInternalToolNames
+      );
       return [{ agentId, type: AGENT_STREAM_EVENT_TYPE.TOOLS_DISCOVERED, sessionId, discoveredTools }];
     }
+
+    case "session.mcp_servers_loaded": {
+      for (const server of event.data.servers) {
+        const logFields = { agentId, sessionId, server: server.name, status: server.status, error: server.error };
+        if (server.status === "connected") {
+          log.info(logFields, "MCP server connected");
+        } else {
+          log.warn(logFields, "MCP server not connected");
+        }
+      }
+
+      return [];
+    }
+
+    case "session.mcp_server_status_changed":
+      log.info(
+        { agentId, sessionId, server: event.data.serverName, status: event.data.status, error: event.data.error },
+        "MCP server status changed"
+      );
+      return [];
 
     case "session.start":
     case "session.resume":
@@ -235,8 +269,6 @@ async function mapSessionEvent(
     case "session.background_tasks_changed":
     case "session.skills_loaded":
     case "session.custom_agents_updated":
-    case "session.mcp_servers_loaded":
-    case "session.mcp_server_status_changed":
     case "session.extensions_loaded":
     case "session.canvas.opened":
     case "session.canvas.registry_changed":
@@ -255,16 +287,29 @@ async function mapPermissionEvent(context: CopilotEventContext, event: Permissio
   }
 }
 
-/**
- * Resolve the built-in tool names the model exposes, for the agent editor's auto-approval list.
- * Discovery failure must not abort the turn, so it degrades to an empty list.
- */
-async function listModelTools(client: CopilotClient, model: string): Promise<string[]> {
+function mapMcpControlEvent(context: CopilotEventContext, event: McpControlEvent): AgentStreamEvent[] {
+  const { agentId, sessionId } = context;
+  switch (event.type) {
+    case "mcp.oauth_required":
+      log.warn(
+        { agentId, sessionId, server: event.data.serverName, serverUrl: event.data.serverUrl },
+        "MCP server requires OAuth, which is not handled yet — its tools are unavailable"
+      );
+      return [];
+
+    case "mcp.oauth_completed":
+      return [];
+  }
+}
+
+/** Built-in tools (`rpc.tools.list` is built-ins only) plus our internal MCP tool names, for the editor list. */
+async function listDiscoverableTools(client: CopilotClient, model: string, mcpToolNames: string[]): Promise<string[]> {
   try {
+    // External MCP tools can't be enumerated by the SDK (upstream github/copilot-sdk#1143), so only ours are added.
     const { tools } = await client.rpc.tools.list({ model });
-    return tools.map((tool) => tool.name);
+    return [...tools.map((tool) => tool.name), ...mcpToolNames];
   } catch (error) {
     log.warn({ model, error }, "Failed to list Copilot tools");
-    return [];
+    return [...mcpToolNames];
   }
 }

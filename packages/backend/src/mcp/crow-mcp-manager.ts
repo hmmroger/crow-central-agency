@@ -9,6 +9,7 @@ import {
   CROW_SYSTEM_AGENT_ID,
   type InternalMcpConfig,
   type AgentConfig,
+  AGENT_TYPE,
 } from "@crow-central-agency/shared";
 import { logger } from "../utils/logger.js";
 import { AppError } from "../core/error/app-error.js";
@@ -116,7 +117,7 @@ export class CrowMcpManager {
       serverConfigMap.set(name, {
         kind: "external",
         name,
-        mcpToolPrefix: `mcp__${name}__`,
+        mcpToolPrefix: agentConfig.type === AGENT_TYPE.CLAUDE_CODE ? `mcp__${name}__` : `${name}-`,
         transport: this.toTransport(config),
       });
     }

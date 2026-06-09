@@ -31,6 +31,7 @@ import { createAgentRunner as buildAgentRunner } from "../../runner/agent-runner
 import {
   AGENT_STREAM_EVENT_TYPE,
   type AgentStreamActivityEvent,
+  type AgentStreamToolAutoApprovedEvent,
   type AgentStreamToolUseEvent,
   type PermissionRequestCallback,
 } from "../../runner/agent-runner.types.js";
@@ -376,6 +377,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             this.handleAgentActivityEvent(event);
             break;
 
+          case AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED:
+            this.handleToolAutoApproved(event);
+            break;
+
           case AGENT_STREAM_EVENT_TYPE.TOOL_USE_PROGRESS:
             this.broadcaster.broadcast({
               type: SERVER_MESSAGE_TYPE.AGENT_TOOL_PROGRESS,
@@ -448,6 +453,26 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
         error: state.lastError,
       });
     }
+  }
+
+  private handleOobStreamEvent(
+    streamEvent: AgentStreamActivityEvent | AgentStreamToolUseEvent | AgentStreamToolAutoApprovedEvent
+  ): void {
+    if (streamEvent.type === AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED) {
+      this.handleToolAutoApproved(streamEvent);
+      return;
+    }
+
+    this.handleAgentActivityEvent(streamEvent);
+  }
+
+  private handleToolAutoApproved(streamEvent: AgentStreamToolAutoApprovedEvent): void {
+    this.registry.addAutoApprovedTool(streamEvent.agentId, streamEvent.toolName).catch((error) => {
+      log.warn(
+        { agentId: streamEvent.agentId, toolName: streamEvent.toolName, error },
+        "Failed to persist auto-approved tool"
+      );
+    });
   }
 
   private handleAgentActivityEvent(streamEvent: AgentStreamActivityEvent | AgentStreamToolUseEvent): void {
@@ -851,7 +876,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       this.sensorManager,
       this.circleManager,
       permissionRequestCallback,
-      (streamEvent) => this.handleAgentActivityEvent(streamEvent)
+      (streamEvent) => this.handleOobStreamEvent(streamEvent)
     );
     agentRunner.on("agentStatusChanged", ({ agentId: runnerId, status, messageSource }) =>
       this.onAgentStatusChanged(runnerId, status, messageSource)

@@ -3,6 +3,7 @@ import type { PendingPermissionInfo } from "@crow-central-agency/shared";
 interface AgentCardPermissionProps {
   permissions: PendingPermissionInfo[];
   onAllow: (toolUseId: string) => void;
+  onAllowAlways: (toolUseId: string) => void;
   onDeny: (toolUseId: string) => void;
 }
 
@@ -10,7 +11,7 @@ interface AgentCardPermissionProps {
  * Inline permission indicator for dashboard cards.
  * Shows a compact approve/deny UI for the first pending permission.
  */
-export function AgentCardPermission({ permissions, onAllow, onDeny }: AgentCardPermissionProps) {
+export function AgentCardPermission({ permissions, onAllow, onAllowAlways, onDeny }: AgentCardPermissionProps) {
   if (permissions.length === 0) {
     return null;
   }
@@ -28,6 +29,13 @@ export function AgentCardPermission({ permissions, onAllow, onDeny }: AgentCardP
         onClick={() => onAllow(first.toolUseId)}
       >
         Allow
+      </button>
+      <button
+        type="button"
+        className="px-2.5 py-1 rounded-md bg-success/20 text-success text-xs font-medium hover:bg-success/30 transition-colors"
+        onClick={() => onAllowAlways(first.toolUseId)}
+      >
+        Always
       </button>
       <button
         type="button"

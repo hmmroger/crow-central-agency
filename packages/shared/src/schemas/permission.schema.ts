@@ -4,6 +4,7 @@ import { z } from "zod";
 export const PERMISSION_DECISION = {
   ALLOW: "allow",
   DENY: "deny",
+  ALLOW_ALWAYS: "allow_always",
 } as const;
 
 export type PermissionDecision = (typeof PERMISSION_DECISION)[keyof typeof PERMISSION_DECISION];
@@ -24,7 +25,7 @@ export const PermissionRequestSchema = z.object({
  */
 export const PermissionResponseSchema = z.object({
   requestId: z.string(),
-  decision: z.enum([PERMISSION_DECISION.ALLOW, PERMISSION_DECISION.DENY]),
+  decision: z.enum([PERMISSION_DECISION.ALLOW, PERMISSION_DECISION.DENY, PERMISSION_DECISION.ALLOW_ALWAYS]),
 });
 
 export type PermissionRequest = z.infer<typeof PermissionRequestSchema>;

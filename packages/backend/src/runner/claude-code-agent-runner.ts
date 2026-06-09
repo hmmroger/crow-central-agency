@@ -89,7 +89,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         ],
         tools: toolsOption,
         disallowedTools: agentConfig.toolConfig.disallowedTools,
-        canUseTool: this.buildCanUseTool(),
+        canUseTool: this.buildCanUseTool(new Set(), sessionId ?? ""),
         settingSources: agentConfig.settingSources,
         mcpServers,
         persistSession,
@@ -116,8 +116,12 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
     this.query?.close();
   }
 
-  private buildCanUseTool(): CanUseTool {
+  private buildCanUseTool(autoApproved: Set<string>, sessionId: string): CanUseTool {
     return async (toolName, input, options) => {
+      if (autoApproved.has(toolName)) {
+        return { behavior: "allow" as const, updatedInput: input, toolUseID: options.toolUseID };
+      }
+
       const result = await this.permissionRequestHandler(
         this.agentId,
         toolName,
@@ -126,7 +130,17 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         options.decisionReason
       );
 
-      if (result.behavior === "allow") {
+      if (result.behavior === "allow_always") {
+        autoApproved.add(toolName);
+        this.oobEventCallback({
+          type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
+          agentId: this.agentId,
+          sessionId,
+          toolName,
+        });
+      }
+
+      if (result.behavior === "allow" || result.behavior === "allow_always") {
         return { behavior: "allow" as const, updatedInput: result.updatedInput || input, toolUseID: options.toolUseID };
       }
 

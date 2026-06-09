@@ -26,9 +26,12 @@ export function AgentCard({ agent }: AgentCardProps) {
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
   const { streamingText, activeToolUse, resetStreamState } = useAgentStreamState(agent.id);
   const pendingPermissions = agentState?.pendingPermissions ?? [];
-  const { sendMessage, injectMessage, abort, allowPermission, denyPermission } = useAgentActions(agent.id, {
-    resetStreamState,
-  });
+  const { sendMessage, injectMessage, abort, allowPermission, allowAlwaysPermission, denyPermission } = useAgentActions(
+    agent.id,
+    {
+      resetStreamState,
+    }
+  );
   const isStreaming = status === AGENT_STATUS.STREAMING;
 
   return (
@@ -55,7 +58,12 @@ export function AgentCard({ agent }: AgentCardProps) {
 
       {pendingPermissions.length > 0 && (
         <div className="shrink-0 px-2.5 py-2 animate-fade-in">
-          <AgentCardPermission permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
+          <AgentCardPermission
+            permissions={pendingPermissions}
+            onAllow={allowPermission}
+            onAllowAlways={allowAlwaysPermission}
+            onDeny={denyPermission}
+          />
         </div>
       )}
 

@@ -7,12 +7,13 @@ interface PermissionDialogProps {
   input?: Record<string, unknown>;
   decisionReason?: string;
   onAllow: (toolUseId: string) => void;
+  onAllowAlways: (toolUseId: string) => void;
   onDeny: (toolUseId: string, message?: string) => void;
 }
 
 /**
  * Permission prompt for a tool use request.
- * Shows tool name, input preview, and 3 actions: Allow, Deny, or text response.
+ * Shows tool name, input preview, and actions: Allow, Allow always, Deny, or text response.
  */
 export function PermissionDialog({
   toolName,
@@ -20,6 +21,7 @@ export function PermissionDialog({
   input,
   decisionReason,
   onAllow,
+  onAllowAlways,
   onDeny,
 }: PermissionDialogProps) {
   const [responseText, setResponseText] = useState("");
@@ -28,6 +30,10 @@ export function PermissionDialog({
   const handleAllow = useCallback(() => {
     onAllow(toolUseId);
   }, [onAllow, toolUseId]);
+
+  const handleAllowAlways = useCallback(() => {
+    onAllowAlways(toolUseId);
+  }, [onAllowAlways, toolUseId]);
 
   const handleDeny = useCallback(() => {
     onDeny(toolUseId);
@@ -72,6 +78,13 @@ export function PermissionDialog({
           onClick={handleAllow}
         >
           Allow
+        </button>
+        <button
+          type="button"
+          className="px-3 py-1 rounded-md bg-success/20 text-success text-xs font-medium hover:bg-success/30 transition-colors"
+          onClick={handleAllowAlways}
+        >
+          Always allow
         </button>
         <button
           type="button"

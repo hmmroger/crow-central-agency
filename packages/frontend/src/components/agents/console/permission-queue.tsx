@@ -4,6 +4,7 @@ import { PermissionDialog } from "./permission-dialog.js";
 interface PermissionQueueProps {
   permissions: PendingPermissionInfo[];
   onAllow: (toolUseId: string) => void;
+  onAllowAlways: (toolUseId: string) => void;
   onDeny: (toolUseId: string, message?: string) => void;
 }
 
@@ -11,7 +12,7 @@ interface PermissionQueueProps {
  * Displays a stack of pending permission requests.
  * Each request gets its own PermissionDialog.
  */
-export function PermissionQueue({ permissions, onAllow, onDeny }: PermissionQueueProps) {
+export function PermissionQueue({ permissions, onAllow, onAllowAlways, onDeny }: PermissionQueueProps) {
   if (permissions.length === 0) {
     return null;
   }
@@ -26,6 +27,7 @@ export function PermissionQueue({ permissions, onAllow, onDeny }: PermissionQueu
             input={permission.input}
             decisionReason={permission.decisionReason}
             onAllow={onAllow}
+            onAllowAlways={onAllowAlways}
             onDeny={onDeny}
           />
         </div>
