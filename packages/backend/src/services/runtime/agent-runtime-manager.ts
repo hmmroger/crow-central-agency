@@ -831,7 +831,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
           break;
 
         case MESSAGE_SOURCE_TYPE.TASK: {
-          const messageSourceTask = await this.taskManager.getTask(messageSource.taskId);
+          const messageSourceTask = this.taskManager.getTask(messageSource.taskId);
           if (messageSourceTask?.originateSource?.sourceType === AGENT_TASK_SOURCE_TYPE.LOOP) {
             agentState.prevLoopMessageTimestamp = Date.now();
           }
