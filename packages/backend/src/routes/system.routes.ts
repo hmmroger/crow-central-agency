@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import type { SystemCapabilities } from "@crow-central-agency/shared";
+import { CLAUDE_CODE_MODEL_OPTIONS, type SystemCapabilities } from "@crow-central-agency/shared";
 import { container } from "../container.js";
+import type { CopilotClientManager } from "../services/copilot/copilot-client-manager.js";
 
 function isAudioGenerationAvailable(): boolean {
   try {
@@ -25,11 +26,15 @@ function isTextGenerationAvailable(): boolean {
  * Surfaces backend configuration state the UI needs to enable/disable
  * features whose backing services are env-gated.
  */
-export async function registerSystemRoutes(server: FastifyInstance) {
+export async function registerSystemRoutes(server: FastifyInstance, copilotClientManager: CopilotClientManager) {
   server.get("/api/system/capabilities", async () => {
+    const copilotSupportedModels = await copilotClientManager.listModelOptions();
     const capabilities: SystemCapabilities = {
       audioGeneration: isAudioGenerationAvailable(),
       textGeneration: isTextGenerationAvailable(),
+      copilotAvailable: copilotClientManager.isAvailable(),
+      claudeSupportedModels: [...CLAUDE_CODE_MODEL_OPTIONS],
+      copilotSupportedModels,
     };
 
     return { success: true, data: capabilities };

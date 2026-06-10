@@ -1,7 +1,10 @@
 export {
   CLAUDE_MODELS,
+  GITHUB_COPILOT_MODELS,
   CLAUDE_CODE_MODEL_OPTIONS,
-  DEFAULT_MODEL,
+  ModelOptionSchema,
+  CLAUDE_DEFAULT_MODEL,
+  COPILOT_DEFAULT_MODEL,
   AgentIdSchema,
   AgentConfigSchema,
   AgentConfigTemplateSchema,
@@ -37,6 +40,7 @@ export type {
   ToolMode,
   AgentType,
   AgentVoiceConfig,
+  ModelOption,
 } from "./schemas/agent.schema.js";
 
 export {

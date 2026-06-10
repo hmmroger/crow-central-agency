@@ -334,6 +334,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     const template = AgentConfigTemplateSchema.parse({
       templateId: existing?.templateId ?? generateId(),
       templateName,
+      type: agent.type,
       description: agent.description,
       workspace: agent.workspace,
       persona: agent.persona,

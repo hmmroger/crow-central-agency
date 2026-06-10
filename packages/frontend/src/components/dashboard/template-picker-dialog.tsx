@@ -1,8 +1,9 @@
 import { useCallback } from "react";
 import { useListItem } from "@floating-ui/react";
-import { Bookmark, Trash2 } from "lucide-react";
-import type { AgentConfigTemplate } from "@crow-central-agency/shared";
+import { Bookmark, Squirrel, Trash2 } from "lucide-react";
+import { AGENT_TYPE, type AgentConfigTemplate } from "@crow-central-agency/shared";
 import { useAgentTemplatesQuery } from "../../hooks/queries/use-agent-templates-query.js";
+import { useSystemCapabilitiesQuery } from "../../hooks/queries/use-system-capabilities-query.js";
 import { useDeleteAgentTemplate } from "../../hooks/queries/use-agent-mutations.js";
 import { useConfirmDialog } from "../../hooks/dialogs/use-confirm-dialog.js";
 import { useModalDialogListNav } from "../../providers/modal-dialog-list-nav-provider.js";
@@ -11,6 +12,7 @@ import { cn } from "../../utils/cn.js";
 
 interface TemplateItemProps {
   template: AgentConfigTemplate;
+  disabledReason?: string;
   onSelect: (template: AgentConfigTemplate) => void;
   onDelete: (template: AgentConfigTemplate) => void;
 }
@@ -29,8 +31,10 @@ interface TemplatePickerDialogProps {
  */
 export function TemplatePickerDialog({ onSelect, onClose }: TemplatePickerDialogProps) {
   const { data: templates, isLoading, error } = useAgentTemplatesQuery();
+  const { data: capabilities } = useSystemCapabilitiesQuery();
   const deleteTemplate = useDeleteAgentTemplate();
   const confirm = useConfirmDialog();
+  const isCopilotAvailable = capabilities?.copilotAvailable === true;
 
   const handleSelect = useCallback(
     (template: AgentConfigTemplate) => {
@@ -71,6 +75,11 @@ export function TemplatePickerDialog({ onSelect, onClose }: TemplatePickerDialog
             <TemplateItem
               key={template.templateId}
               template={template}
+              disabledReason={
+                template.type === AGENT_TYPE.GITHUB_COPILOT && !isCopilotAvailable
+                  ? "GitHub Copilot is not available"
+                  : undefined
+              }
               onSelect={handleSelect}
               onDelete={handleDelete}
             />
@@ -84,10 +93,11 @@ export function TemplatePickerDialog({ onSelect, onClose }: TemplatePickerDialog
   );
 }
 
-function TemplateItem({ template, onSelect, onDelete }: TemplateItemProps) {
+function TemplateItem({ template, disabledReason, onSelect, onDelete }: TemplateItemProps) {
   const { activeIndex, getItemProps } = useModalDialogListNav();
   const { ref, index } = useListItem({ label: template.templateName });
   const isActive = activeIndex === index;
+  const isDisabled = disabledReason !== undefined;
 
   return (
     <div className="group flex items-start gap-2 px-1.5 py-1 rounded-md border border-transparent hover:bg-surface-elevated transition-colors">
@@ -95,9 +105,12 @@ function TemplateItem({ template, onSelect, onDelete }: TemplateItemProps) {
         ref={ref}
         type="button"
         tabIndex={isActive ? 0 : -1}
+        disabled={isDisabled}
+        title={disabledReason}
         className={cn(
           "flex-1 min-w-0 flex items-start gap-2.5 px-1.5 py-1 rounded text-left text-text-neutral hover:text-text-base transition-colors",
-          isActive && "ring-1 ring-border-focus"
+          isActive && "ring-1 ring-border-focus",
+          isDisabled && "opacity-40 cursor-not-allowed hover:text-text-neutral"
         )}
         {...getItemProps({
           onClick: () => onSelect(template),
@@ -105,7 +118,12 @@ function TemplateItem({ template, onSelect, onDelete }: TemplateItemProps) {
       >
         <Bookmark className="w-4 h-4 shrink-0 mt-0.5 text-text-muted" />
         <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-          <span className="text-sm font-medium truncate text-text-base">{template.templateName}</span>
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm font-medium truncate text-text-base">{template.templateName}</span>
+            {template.type === AGENT_TYPE.GITHUB_COPILOT && (
+              <Squirrel className="w-3.5 h-3.5 shrink-0 text-text-muted" aria-label="GitHub Copilot" />
+            )}
+          </span>
           {template.description && <span className="text-xs text-text-muted truncate">{template.description}</span>}
         </div>
       </button>

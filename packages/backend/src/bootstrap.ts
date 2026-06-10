@@ -8,6 +8,7 @@ import { registerAgentRoutes } from "./routes/agent.routes.js";
 import { AgentRegistry } from "./services/agent-registry.js";
 import { AgentRuntimeManager } from "./services/runtime/agent-runtime-manager.js";
 import { SessionManager } from "./services/session/session-manager.js";
+import { CopilotClientManager } from "./services/copilot/copilot-client-manager.js";
 import { WsBroadcaster } from "./services/ws-broadcaster.js";
 import { ArtifactManager } from "./services/artifact/artifact-manager.js";
 import { PlacesManager } from "./services/places/places-manager.js";
@@ -98,7 +99,9 @@ export async function bootstrap(options: BootstrapOptions) {
   const connectorManager = new ConnectorManager(storeProvider, registry, crowScheduler);
   connectorManager.registerConnector(new GoogleConnector());
 
-  const sessionManager = new SessionManager(storeProvider);
+  const copilotClientManager = new CopilotClientManager();
+  await copilotClientManager.initialize();
+  const sessionManager = new SessionManager(storeProvider, copilotClientManager);
   const messageQueue = new MessageQueueManager();
   const mcpManager = new CrowMcpManager(storeProvider, systemSettingsManager, registry);
   await mcpManager.initialize();
@@ -175,7 +178,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await setupWebSocket(server, broadcaster, runtimeManager);
   await registerAuthRoutes(server);
   await registerHealthRoutes(server);
-  await registerSystemRoutes(server);
+  await registerSystemRoutes(server, copilotClientManager);
   await registerAgentRoutes(
     server,
     registry,
@@ -206,7 +209,7 @@ export async function bootstrap(options: BootstrapOptions) {
     crowScheduler.stop();
     await discordBotManager.destroy();
     await server.close();
-    await sessionManager.dispose();
+    await copilotClientManager.dispose();
     await shutdownTelemetry();
     process.exit(0);
   };

@@ -3,7 +3,6 @@ import type { Ref } from "react";
 import { BookmarkPlus, Sparkles, Trash2 } from "lucide-react";
 import {
   AGENT_TYPE,
-  DEFAULT_MODEL,
   TOOL_MODE,
   type AgentConfigTemplate,
   type AgentType,
@@ -180,7 +179,7 @@ export function AgentEditorDialogContent({
           workspace: form.workspace.trim() || undefined,
           description: form.description || undefined,
           persona: form.persona || undefined,
-          model: form.model !== DEFAULT_MODEL ? form.model : undefined,
+          model: form.model,
           permissionMode: form.permissionMode,
           settingSources: form.settingSources,
           toolConfig: {
@@ -309,6 +308,7 @@ export function AgentEditorDialogContent({
               description={form.description}
               workspace={form.workspace}
               model={form.model}
+              agentType={effectiveAgentType}
               persona={form.persona}
               onNameChange={editorForm.setName}
               onDescriptionChange={editorForm.setDescription}
@@ -330,16 +330,19 @@ export function AgentEditorDialogContent({
 
             <SystemPromptSection
               excludeClaudeCodeSystemPrompt={form.excludeClaudeCodeSystemPrompt}
+              agentType={effectiveAgentType}
               onExcludeClaudeCodeSystemPromptChange={editorForm.setExcludeClaudeCodeSystemPrompt}
             />
 
             <PermissionModeSection
               permissionMode={form.permissionMode}
+              agentType={effectiveAgentType}
               onPermissionModeChange={editorForm.setPermissionMode}
             />
 
             <SettingSourcesSection
               settingSources={form.settingSources}
+              agentType={effectiveAgentType}
               onSettingSourcesChange={editorForm.setSettingSources}
             />
 

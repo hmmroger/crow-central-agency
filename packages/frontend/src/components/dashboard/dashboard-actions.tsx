@@ -1,5 +1,6 @@
 import { Plus, Circle, BookmarkPlus } from "lucide-react";
 import { AGENT_TYPE } from "@crow-central-agency/shared";
+import { useSystemCapabilitiesQuery } from "../../hooks/queries/use-system-capabilities-query.js";
 import { useOpenAgentEditor } from "../../hooks/dialogs/use-open-agent-editor.js";
 import { useOpenTemplatePicker } from "../../hooks/dialogs/use-open-template-picker.js";
 import { useOpenCircleEditor } from "./circle/use-open-circle-editor.js";
@@ -22,9 +23,11 @@ export function DashboardActions({ className, compact = false }: DashboardAction
   const openAgentEditor = useOpenAgentEditor();
   const openTemplatePicker = useOpenTemplatePicker();
   const openCircleEditor = useOpenCircleEditor();
+  const { data: capabilities } = useSystemCapabilitiesQuery();
+  const isCopilotAvailable = capabilities?.copilotAvailable === true;
 
   const handleNewFromTemplate = useCallback(() => {
-    openTemplatePicker((template) => openAgentEditor({ templatePreset: template }));
+    openTemplatePicker((template) => openAgentEditor({ templatePreset: template, agentType: template.type }));
   }, [openTemplatePicker, openAgentEditor]);
 
   const newAgentButton = (
@@ -43,6 +46,7 @@ export function DashboardActions({ className, compact = false }: DashboardAction
       label="New Copilot Agent"
       variant={ACTION_BUTTON_VARIANT.PRIMARY}
       iconOnly={compact}
+      disabled={!isCopilotAvailable}
       onClick={() => openAgentEditor({ agentType: AGENT_TYPE.GITHUB_COPILOT })}
     />
   );

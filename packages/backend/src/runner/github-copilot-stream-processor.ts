@@ -60,18 +60,6 @@ export async function mapCopilotSessionEvents(
   context: CopilotEventContext,
   event: SessionEvent
 ): Promise<AgentStreamEvent[]> {
-  log.debug(
-    {
-      agentId: context.agentId,
-      type: event.type,
-      sessionId: context.sessionId,
-      ephemeral: event.ephemeral,
-      subAgentId: event.agentId,
-      payload: JSON.stringify(event),
-    },
-    "SDK message received!"
-  );
-
   if (event.agentId) {
     return [];
   }
@@ -256,6 +244,7 @@ async function mapSessionEvent(
     case "session.model_change":
     case "session.mode_changed":
     case "session.plan_changed":
+    case "session.permissions_changed":
     case "session.workspace_file_changed":
     case "session.handoff":
     case "session.truncation":
@@ -269,7 +258,9 @@ async function mapSessionEvent(
     case "session.background_tasks_changed":
     case "session.skills_loaded":
     case "session.custom_agents_updated":
+    case "session.autopilot_objective_changed":
     case "session.extensions_loaded":
+    case "session.extensions.attachments_pushed":
     case "session.canvas.opened":
     case "session.canvas.registry_changed":
       return [];

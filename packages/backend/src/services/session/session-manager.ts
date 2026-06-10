@@ -7,7 +7,6 @@ import {
   type AgentType,
   type MessageAnnotation,
 } from "@crow-central-agency/shared";
-import { CopilotClient } from "@github/copilot-sdk";
 import { loadClaudeCodeSessionMessages, transformClaudeCodeSessionMessage } from "./session-message-transformer.js";
 import {
   loadGithubCopilotSessionMessages,
@@ -21,6 +20,7 @@ import { assertWithinBase, readBinaryFile, writeBinaryFile } from "../../utils/f
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
+import type { CopilotClientManager } from "../copilot/copilot-client-manager.js";
 import type { AudioMessage } from "../content-generation/content-generation.types.js";
 import { isPcmMime } from "../content-generation/audio-format.js";
 
@@ -39,31 +39,10 @@ const AUDIO_FILE_EXTENSION = ".bin";
 export class SessionManager {
   private messageCache = new Map<string, AgentMessage[]>();
 
-  /**
-   * Single shared Copilot client used purely as a read interface for session data across all
-   * agents/workspaces. Lazily started on first read; never used to run agent queries (those use
-   * per-agent clients owned by the runner). Cached as a promise so concurrent reads share one
-   * spawned CLI server rather than racing to create several.
-   */
-  private copilotClientPromise?: Promise<CopilotClient>;
-
-  constructor(private readonly store: ObjectStoreProvider) {}
-
-  /** Stop the shared Copilot client (and its CLI server) on shutdown. On-disk session state is preserved. */
-  public async dispose(): Promise<void> {
-    if (!this.copilotClientPromise) {
-      return;
-    }
-
-    const clientPromise = this.copilotClientPromise;
-    this.copilotClientPromise = undefined;
-    try {
-      const client = await clientPromise;
-      await client.stop();
-    } catch (error) {
-      log.warn({ error }, "Failed to stop Copilot client during dispose");
-    }
-  }
+  constructor(
+    private readonly store: ObjectStoreProvider,
+    private readonly copilotClientManager: CopilotClientManager
+  ) {}
 
   /**
    * Load messages for a session - cache-first, falls back to SDK.
@@ -83,10 +62,12 @@ export class SessionManager {
         agentMessages = await loadClaudeCodeSessionMessages(sessionId, cwd);
         break;
 
-      case AGENT_TYPE.GITHUB_COPILOT:
+      case AGENT_TYPE.GITHUB_COPILOT: {
         // Copilot has no cwd-scoped read API; the shared client locates the session by id alone.
-        agentMessages = await loadGithubCopilotSessionMessages(await this.getCopilotClient(), sessionId);
+        const copilotClient = this.copilotClientManager.getClient();
+        agentMessages = await loadGithubCopilotSessionMessages(copilotClient, sessionId);
         break;
+      }
     }
 
     await this.applyStoredAnnotations(sessionId, agentMessages);
@@ -235,28 +216,6 @@ export class SessionManager {
     const sessionKey = this.getSessionKey(type, sessionId);
     this.messageCache.delete(sessionKey);
     log.debug({ sessionId }, "Cache invalidated");
-  }
-
-  /**
-   * Lazily create and start the shared read-only Copilot client. The client spawns a CLI server
-   * process and must be connected before any read API can be used, so the first read pays the
-   * startup cost. A failed start clears the cached promise so a later read can retry.
-   */
-  private getCopilotClient(): Promise<CopilotClient> {
-    if (!this.copilotClientPromise) {
-      this.copilotClientPromise = this.createCopilotClient().catch((error) => {
-        this.copilotClientPromise = undefined;
-        throw error;
-      });
-    }
-
-    return this.copilotClientPromise;
-  }
-
-  private async createCopilotClient(): Promise<CopilotClient> {
-    const client = new CopilotClient();
-    await client.start();
-    return client;
   }
 
   /** Merge stored annotations onto freshly transformed messages (mutates in place) */

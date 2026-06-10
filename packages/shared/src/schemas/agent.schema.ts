@@ -11,7 +11,29 @@ export const CLAUDE_MODELS = {
   OPUS_4_5: "claude-opus-4-5",
 } as const;
 
-export type AgentModels = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];
+export type CaludeModel = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];
+
+export const GITHUB_COPILOT_MODELS = {
+  AUTO: "auto",
+  HAIKU: "claude-haiku-4.5",
+  SONNET: "claude-sonnet-4.6",
+  OPUS: "claude-opus-4.8",
+  GPT_5_5: "gpt-5.5",
+  GPT_5_4: "gpt-5.4",
+  GPT_5_3_CODEX: "gpt-5.3-codex",
+  GPT_5_4_MINI: "gpt-5.4-mini",
+  GPT_5_MINI: "gpt-5-mini",
+} as const;
+
+export type GitHubCopilotModel = (typeof GITHUB_COPILOT_MODELS)[keyof typeof GITHUB_COPILOT_MODELS];
+
+/** A selectable agent model, surfaced to the editor's model picker. */
+export const ModelOptionSchema = z.object({
+  value: z.string(),
+  label: z.string(),
+});
+
+export type ModelOption = z.infer<typeof ModelOptionSchema>;
 
 export const CLAUDE_CODE_MODEL_OPTIONS = [
   { value: CLAUDE_MODELS.SONNET, label: "Claude Sonnet 4.6" },
@@ -20,7 +42,8 @@ export const CLAUDE_CODE_MODEL_OPTIONS = [
 ] as const;
 
 /** Default model for new agents */
-export const DEFAULT_MODEL = CLAUDE_MODELS.SONNET;
+export const CLAUDE_DEFAULT_MODEL = CLAUDE_MODELS.SONNET;
+export const COPILOT_DEFAULT_MODEL = GITHUB_COPILOT_MODELS.AUTO;
 
 /**
  * Tool configuration modes for agent tool availability.
@@ -198,7 +221,7 @@ export const AgentConfigSchema = z.object({
   description: z.string().optional(),
   workspace: z.string().min(1).optional(),
   persona: z.string().optional(),
-  model: z.string().default(DEFAULT_MODEL),
+  model: z.string().default(CLAUDE_DEFAULT_MODEL),
   permissionMode: PermissionModeSchema.default(PERMISSION_MODE.DEFAULT),
   settingSources: z.array(SettingSourceSchema).default([...DEFAULT_SETTING_SOURCES]),
   availableTools: z.array(z.string()).optional(),
@@ -277,6 +300,7 @@ export const UpdateAgentInputSchema = z.object({
 export type UpdateAgentInput = z.infer<typeof UpdateAgentInputSchema>;
 
 export const AgentConfigTemplateSchema = AgentConfigSchema.pick({
+  type: true,
   description: true,
   workspace: true,
   persona: true,

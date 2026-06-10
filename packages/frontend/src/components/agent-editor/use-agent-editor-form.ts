@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  DEFAULT_MODEL,
+  AGENT_TYPE,
+  CLAUDE_DEFAULT_MODEL,
+  COPILOT_DEFAULT_MODEL,
   DEFAULT_SETTING_SOURCES,
   PERMISSION_MODE,
   TOOL_MODE,
@@ -25,7 +27,7 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   description: "",
   workspace: "",
   persona: "",
-  model: DEFAULT_MODEL,
+  model: CLAUDE_DEFAULT_MODEL,
   permissionMode: PERMISSION_MODE.DEFAULT,
   settingSources: [...DEFAULT_SETTING_SOURCES],
   toolMode: TOOL_MODE.UNRESTRICTED,
@@ -55,6 +57,11 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   voiceName: "",
   voiceStylePrompt: "",
 };
+
+/** Default model for a new agent, picked by provider. */
+function defaultModelForType(agentType: AgentType): string {
+  return agentType === AGENT_TYPE.GITHUB_COPILOT ? COPILOT_DEFAULT_MODEL : CLAUDE_DEFAULT_MODEL;
+}
 
 /**
  * Build form state from a saved template. Leaves fields that templates
@@ -200,7 +207,9 @@ export function useAgentEditorForm(
   templatePreset?: AgentConfigTemplate
 ) {
   const [form, setForm] = useState<AgentEditorFormState>(() =>
-    templatePreset ? formStateFromTemplate(templatePreset) : DEFAULT_FORM_STATE
+    templatePreset
+      ? formStateFromTemplate(templatePreset)
+      : { ...DEFAULT_FORM_STATE, model: defaultModelForType(agentType) }
   );
   const initialSnapshot = useRef<AgentEditorFormState>(form);
 

@@ -1,3 +1,4 @@
+import { PERMISSION_MODE, SETTING_SOURCE, resolveModel, type PermissionMode } from "@crow-central-agency/shared";
 import { CopilotClient } from "@github/copilot-sdk";
 import type {
   CopilotSession,
@@ -14,7 +15,7 @@ import {
   type CopilotToolCall,
 } from "./github-copilot-stream-processor.js";
 import { generateId } from "../utils/id-utils.js";
-import { DEFAULT_PERMISSION_DENY_MESSAGE } from "../config/constants.js";
+import { DEFAULT_PERMISSION_DENY_MESSAGE, PERMISSION_USER_UNAVAILABLE_MESSAGE } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 import { userMessageForAgent } from "../utils/message-template.js";
 import {
@@ -32,6 +33,35 @@ import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 import { toCopilotMcpServer, toCopilotTools } from "../mcp/copilot-mcp-adapter.js";
 
 const log = logger.child({ context: "github-copilot-agent-runner" });
+
+/** Copilot agent interaction mode applied per send. */
+type CopilotAgentMode = "interactive" | "plan" | "autopilot";
+
+/** How the current turn resolves permission requests: prompt the user, deny outright, or allow all. */
+type PermissionPolicy = "prompt" | "deny" | "allow";
+
+/**
+ * Map the agent's permission mode to a Copilot send mode plus how we resolve permission requests.
+ * `dontAsk` stays interactive but denies every request since no user is reachable; `bypassPermissions`
+ * runs autopilot and allows everything, including our external-MCP gate. Copilot has no preset
+ * accept-edits equivalent, and its plan-mode exit isn't wired yet (the exit request would never be
+ * answered and the turn would stall), so both fall back to the default interactive + prompt behavior.
+ */
+function resolvePermissionMode(permissionMode: PermissionMode): {
+  agentMode: CopilotAgentMode;
+  policy: PermissionPolicy;
+} {
+  switch (permissionMode) {
+    case PERMISSION_MODE.DONT_ASK:
+      return { agentMode: "interactive", policy: "deny" };
+    case PERMISSION_MODE.BYPASS_PERMISSIONS:
+      return { agentMode: "autopilot", policy: "allow" };
+    case PERMISSION_MODE.DEFAULT:
+    case PERMISSION_MODE.ACCEPT_EDITS:
+    case PERMISSION_MODE.PLAN:
+      return { agentMode: "interactive", policy: "prompt" };
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -90,29 +120,42 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   protected async *runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown> {
     const { message, cwd, agentConfig, systemPrompt, timezone, serverConfigs, sessionId, abortController } = request;
 
-    const client = await this.getClient();
+    const client = await this.getClient(cwd);
     const inProcessTools = this.buildInProcessTools(serverConfigs);
     const autoApproved = new Set(agentConfig.toolConfig.autoApprovedTools ?? []);
+    const { agentMode, policy } = resolvePermissionMode(agentConfig.permissionMode);
+    // replace mode drops the SDK's foundation prompt (and guardrails); append layers onto it.
+    const systemMessage: SessionConfig["systemMessage"] = systemPrompt
+      ? agentConfig.excludeClaudeCodeSystemPrompt
+        ? { mode: "replace", content: systemPrompt }
+        : { mode: "append", content: systemPrompt }
+      : undefined;
     // No onPermissionRequest handler: per the SDK, omitting it surfaces permission requests as
     // events that we resolve from the drain loop via the pending-permission RPC.
     const sessionConfig: SessionConfig = {
       workingDirectory: cwd,
       streaming: true,
-      systemMessage: systemPrompt ? { mode: "append", content: systemPrompt } : undefined,
+      model: resolveModel(agentConfig.model),
+      systemMessage,
       // Supports unrestricted tools plus a disallow list for now
       excludedTools: agentConfig.toolConfig.disallowedTools,
       tools: inProcessTools,
+      enableConfigDiscovery: agentConfig.settingSources.includes(SETTING_SOURCE.PROJECT),
       mcpServers: this.buildMcpServers(serverConfigs),
       hooks: {
         onPreToolUse: (input) =>
-          this.resolveExternalMcpToolPermission(input.toolName, input.toolArgs, serverConfigs, autoApproved),
+          this.resolveExternalMcpToolPermission(input.toolName, input.toolArgs, serverConfigs, autoApproved, policy),
       },
+      onPermissionRequest: undefined,
     };
 
     const session = sessionId
       ? await client.resumeSession(sessionId, sessionConfig)
       : await client.createSession(sessionConfig);
     this.session = session;
+
+    // this is needed to have permission via event
+    await session.rpc.permissions.setRequired({ required: true });
 
     // toolCallId -> tool name/input, populated from the event stream so permission requests
     // (which only carry a toolCallId) can be resolved back to a tool name.
@@ -125,14 +168,14 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       turnStartedAtMs: Date.now(),
       // Auto-approved internal tools skip permission and stay hidden; configurable ones surface for management.
       configurableInternalToolNames: inProcessTools.filter((tool) => !tool.skipPermission).map((tool) => tool.name),
-      resolvePermission: (event) => this.resolvePermission(session, event, toolCalls, autoApproved),
+      resolvePermission: (event) => this.resolvePermission(session, event, toolCalls, autoApproved, policy),
     };
 
     try {
       const prompt = userMessageForAgent(new Date(), message, timezone);
       let initEmitted = false;
       let turnComplete = false;
-      for await (const event of this.iterateSessionEvents(session, abortController, prompt)) {
+      for await (const event of this.iterateSessionEvents(session, abortController, prompt, agentMode)) {
         // Copilot has no per-query init message; the turn has begun once the first event arrives.
         if (!initEmitted) {
           initEmitted = true;
@@ -216,7 +259,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   private async *iterateSessionEvents(
     session: CopilotSession,
     abortController: AbortController,
-    prompt: string
+    prompt: string,
+    agentMode: CopilotAgentMode
   ): AsyncGenerator<SessionEvent, void, unknown> {
     const queue: SessionEvent[] = [];
     let wake: (() => void) | undefined;
@@ -240,7 +284,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
 
     abortController.signal.addEventListener("abort", onAbort);
 
-    const sendSettled = session.send({ prompt }).catch((error: unknown) => {
+    const sendSettled = session.send({ prompt, agentMode }).catch((error: unknown) => {
       sendError = error;
       finished = true;
       signalNext();
@@ -278,7 +322,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     toolName: string,
     toolArgs: unknown,
     serverConfigs: CrowMcpServerConfig[],
-    autoApproved: Set<string>
+    autoApproved: Set<string>,
+    policy: PermissionPolicy
   ): Promise<{ permissionDecision: "allow" | "deny"; permissionDecisionReason?: string } | undefined> {
     const isExternalMcpTool = serverConfigs.some(
       (server) => server.kind === "external" && toolName.startsWith(server.mcpToolPrefix)
@@ -287,8 +332,12 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       return undefined;
     }
 
-    if (isToolAutoApproved(autoApproved, toolName)) {
+    if (policy === "allow" || isToolAutoApproved(autoApproved, toolName)) {
       return { permissionDecision: "allow" };
+    }
+
+    if (policy === "deny") {
+      return { permissionDecision: "deny", permissionDecisionReason: PERMISSION_USER_UNAVAILABLE_MESSAGE };
     }
 
     const decision = await this.permissionRequestHandler(
@@ -327,7 +376,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     session: CopilotSession,
     event: Extract<SessionEvent, { type: "permission.requested" }>,
     toolCalls: Map<string, CopilotToolCall>,
-    autoApproved: Set<string>
+    autoApproved: Set<string>,
+    policy: PermissionPolicy
   ): Promise<void> {
     const { requestId, permissionRequest, resolvedByHook } = event.data;
     if (resolvedByHook) {
@@ -343,8 +393,10 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         : permissionRequest.kind);
 
     let result: Exclude<PermissionRequestResult, { kind: "no-result" }>;
-    if (isToolAutoApproved(autoApproved, toolName)) {
+    if (policy === "allow" || isToolAutoApproved(autoApproved, toolName)) {
       result = { kind: "approve-once" };
+    } else if (policy === "deny") {
+      result = { kind: "reject", feedback: PERMISSION_USER_UNAVAILABLE_MESSAGE };
     } else {
       const decision = await this.permissionRequestHandler(
         this.agentId,
@@ -366,9 +418,9 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   }
 
   /** Lazily start this agent's own Copilot client (one per agent keeps team agents isolated). */
-  private getClient(): Promise<CopilotClient> {
+  private getClient(cwd: string): Promise<CopilotClient> {
     if (!this.clientPromise) {
-      this.clientPromise = this.createClient().catch((error) => {
+      this.clientPromise = this.createClient(cwd).catch((error) => {
         this.clientPromise = undefined;
         throw error;
       });
@@ -377,8 +429,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     return this.clientPromise;
   }
 
-  private async createClient(): Promise<CopilotClient> {
-    const client = new CopilotClient();
+  private async createClient(cwd: string): Promise<CopilotClient> {
+    const client = new CopilotClient({ workingDirectory: cwd });
     await client.start();
     return client;
   }

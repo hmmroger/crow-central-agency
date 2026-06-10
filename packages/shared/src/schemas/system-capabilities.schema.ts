@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ModelOptionSchema } from "./agent.schema.js";
 
 /**
  * Server-side feature flags surfaced to the UI so it can enable/disable
@@ -9,6 +10,12 @@ export const SystemCapabilitiesSchema = z.object({
   audioGeneration: z.boolean(),
   /** True when the chat-completion text generation provider is configured (powers persona / AGENT.md generation). */
   textGeneration: z.boolean(),
+  /** True when the shared Copilot SDK client started successfully (Copilot agents can run). */
+  copilotAvailable: z.boolean(),
+  /** Models selectable for Claude Code agents. */
+  claudeSupportedModels: z.array(ModelOptionSchema),
+  /** Models selectable for Copilot agents, fetched from the SDK; empty when Copilot is unavailable. */
+  copilotSupportedModels: z.array(ModelOptionSchema),
 });
 
 export type SystemCapabilities = z.infer<typeof SystemCapabilitiesSchema>;
