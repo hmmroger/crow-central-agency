@@ -6,7 +6,8 @@ Use it to build research crews, monitoring watchdogs, content pipelines, support
 
 ## Features
 
-- **Multi-agent dashboard** - run many Claude Code agents in parallel, each with its own workspace, model, persona, and tool set.
+- **Multi-agent dashboard** - run many agents in parallel, each with its own workspace, model, persona, and tool set. Agents can be backed by Claude Code or GitHub Copilot.
+- **GitHub Copilot agents** - alongside Claude Code, agents can run on the GitHub Copilot SDK using your Copilot subscription. Enabled by default; toggle off with `DISABLE_GITHUB_COPILOT`.
 - **Agent coordination** - compose agents into layered relationships that produce and share artifacts, adaptable to a wide range of workflows and scenarios.
 - **Flexible triggers** - ad-hoc chat, assigned tasks, reminders, or scheduled prompts on configurable day-of-week / time-of-day windows.
 - **Rich configuration** - per-agent MCP servers, permission modes, Discord bots, RSS feeds (with optional LLM summarization), and AI-assisted persona / `AGENT.md` generation.
@@ -98,6 +99,8 @@ See `.env.example` for the full list, including:
 - `CROW_SYSTEM_AGENT_NAME` — display name for the built-in Crow system agent (default: `Crow`).
 - `STATIC_PATH` — override the directory served as frontend assets (auto-detected from the published bundle).
 - `CLAUDE_CLI_PATH` — explicit path to the Claude Code CLI binary when it is not on `PATH`.
+- `DISABLE_GITHUB_COPILOT` — set to `true` (or `1`) to skip starting the Copilot SDK client at boot, so GitHub Copilot is reported unavailable everywhere. Defaults to `false`.
+- `COPILOT_CLI_PATH` — override the Copilot CLI runtime the SDK spawns (read directly by `@github/copilot-sdk`); leave unset to use the bundled runtime.
 - `CLOSED_TASK_RETENTION_DAYS` — how long to keep closed tasks before pruning on startup (default: `30`).
 - `FEED_ITEM_RETENTION_DAYS` / `FEED_REFRESH_IN_MINUTES` — feed item retention window and refresh cadence.
 - `TEXT_GENERATION_*` — optional OpenAI-compatible endpoint that enables the AI-assisted persona / `AGENT.md` generation features in the agent editor.
