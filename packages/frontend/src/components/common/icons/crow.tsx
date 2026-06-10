@@ -1,10 +1,7 @@
-interface CrowIconProps {
-  className?: string;
-  size?: number;
-}
+import type { IconProps } from "./icon.types.js";
 
 /** Crow mark — uses currentColor so it inherits from the parent's text color. */
-export function CrowIcon({ className, size = 48 }: CrowIconProps) {
+export function CrowIcon({ className, size = 48 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 12.7 12.7" xmlns="http://www.w3.org/2000/svg" className={className}>
       <text

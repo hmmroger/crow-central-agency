@@ -1,9 +1,6 @@
-interface GitHubCopilotIconProps {
-  className?: string;
-  size?: number;
-}
+import type { IconProps } from "./icon.types.js";
 
-export function GitHubCopilotIcon({ className, size = 48 }: GitHubCopilotIconProps) {
+export function GitHubCopilotIcon({ className, size = 48 }: IconProps) {
   return (
     <svg
       role="img"
