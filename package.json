@@ -19,7 +19,10 @@
     "claude-code",
     "claude-agent-sdk",
     "anthropic",
+    "github-copilot",
+    "copilot",
     "mcp",
+    "multi-agent",
     "model-context-protocol",
     "orchestration"
   ],
