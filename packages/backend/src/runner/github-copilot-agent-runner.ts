@@ -285,6 +285,15 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     abortController.signal.addEventListener("abort", onAbort);
 
     const sendSettled = session.send({ prompt, agentMode }).catch((error: unknown) => {
+      log.error(
+        {
+          agentId: this.agentId,
+          sessionId: session.sessionId,
+          agentMode,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Copilot send failed"
+      );
       sendError = error;
       finished = true;
       signalNext();

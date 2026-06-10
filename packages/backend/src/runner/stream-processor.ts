@@ -117,8 +117,19 @@ function handleSystemMessage(
     case "task_notification":
     case "task_started":
     case "task_progress":
+    case "task_updated":
     case "files_persisted":
     case "elicitation_complete":
+    case "api_retry":
+    case "commands_changed":
+    case "memory_recall":
+    case "mirror_error":
+    case "model_refusal_fallback":
+    case "notification":
+    case "permission_denied":
+    case "plugin_install":
+    case "session_state_changed":
+    case "thinking_tokens":
       break;
   }
 
