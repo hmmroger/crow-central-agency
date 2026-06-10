@@ -140,13 +140,13 @@ export async function registerAgentRoutes(
     await captureClientInfo(store);
     const agentId = validateAgentIdParam(request.params.id);
     const agent = registry.getAgent(agentId);
-    const state = runtimeManager.getState(agentId);
+    const sessionId = await runtimeManager.ensureValidSession(agentId);
 
-    if (!state?.sessionId) {
+    if (!sessionId) {
       return { success: true, data: [] };
     }
 
-    const messages = await sessionManager.loadMessages(agent.type, state.sessionId, registry.resolveWorkspace(agent));
+    const messages = await sessionManager.loadMessages(agent.type, sessionId, registry.resolveWorkspace(agent));
 
     return { success: true, data: messages };
   });

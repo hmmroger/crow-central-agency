@@ -191,6 +191,29 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
   }
 
+  public async ensureValidSession(agentId: string): Promise<string | undefined> {
+    const state = this.getState(agentId);
+    if (!state?.sessionId) {
+      return undefined;
+    }
+
+    const agent = this.registry.getAgent(agentId);
+    const workspace = this.registry.resolveWorkspace(agent);
+    if (await this.sessionManager.isSessionValid(agent.type, state.sessionId, workspace)) {
+      return state.sessionId;
+    }
+
+    log.warn({ agentId, sessionId: state.sessionId }, "Persisted session no longer exists; resetting session state");
+    state.sessionId = undefined;
+    try {
+      await this.persistAgentState(agentId);
+    } catch (error) {
+      log.error({ agentId, error }, "Failed to persist state after clearing stale session");
+    }
+
+    return undefined;
+  }
+
   /** Set the timestamp of the last Gmail check for an agent. */
   public async setLastGmailCheckTimestamp(agentId: string, timestamp: number): Promise<void> {
     const state = this.ensureState(agentId);
@@ -264,6 +287,9 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     const artifactsWritten: ArtifactRecord[] = [];
     let isAbortedOrError = false;
     try {
+      // Drop a persisted sessionId whose transcript is gone so the turn starts a fresh session
+      // instead of silently forking off a dead one.
+      await this.ensureValidSession(agentId);
       const eventStream = agentRunner.sendMessage(message, source, state.sessionId);
       for await (const event of eventStream) {
         switch (event.type) {

@@ -1,13 +1,16 @@
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
 import type { SessionMessage } from "@anthropic-ai/claude-agent-sdk";
-import { getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
+import { getSessionInfo, getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
 import { parseToolActivity } from "../../runner/tool-activity-parser.js";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta.mjs";
 import type { ContentBlockParam, MessageParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
 import { USER_AGENT_MESSAGE_PATTERN } from "../../utils/message-template.js";
 import { isString } from "es-toolkit";
+import { logger } from "../../utils/logger.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
+
+const log = logger.child({ context: "session-message-transformer" });
 
 type TypedSessionMessage = SessionMessage &
   (
@@ -139,7 +142,8 @@ function extractTextFromBlocks(content: ContentBlockParam[] | string | undefined
  * Transform an array of SDK SessionMessages into AgentMessage[].
  * Uses incrementing timestamps for ordering since SDK SessionMessages lack wall-clock time.
  *
- * @param sessionMessages - Raw SDK session messages
+ * @param sessionId session ID
+ * @param cwd workspace folder
  * @returns Ordered array of AgentMessages
  */
 export async function loadClaudeCodeSessionMessages(sessionId: string, cwd: string): Promise<AgentMessage[]> {
@@ -154,6 +158,30 @@ export async function loadClaudeCodeSessionMessages(sessionId: string, cwd: stri
   }
 
   return result;
+}
+
+/**
+ * Whether a Claude session's transcript still exists on disk.
+ *
+ * `getSessionMessages` and resume both treat a swept/missing transcript as empty rather than
+ * throwing, so existence is checked via `getSessionInfo`, which returns `undefined` when the
+ * session file is gone. Reads fail open: a transient read error must never discard a live session.
+ *
+ * @param sessionId session ID
+ * @param cwd workspace folder
+ * @returns Whether session exists
+ */
+export async function claudeCodeSessionExists(sessionId: string, cwd: string): Promise<boolean> {
+  try {
+    const info = await getSessionInfo(sessionId, { dir: cwd });
+    return info !== undefined;
+  } catch (error) {
+    log.warn(
+      { sessionId, error: error instanceof Error ? error.message : String(error) },
+      "Failed to read Claude session info; assuming session is valid"
+    );
+    return true;
+  }
 }
 
 export function transformClaudeCodeSessionMessage(sessionMessage: unknown, baseTimestamp: number): AgentMessage[] {

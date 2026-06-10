@@ -107,6 +107,11 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
       for await (const agentStreamEvent of processStream(this.agentId, queryInstance, internalMcpPrefixes)) {
         yield agentStreamEvent;
       }
+    } catch (error) {
+      log.error(
+        { agentId: this.agentId, error: error instanceof Error ? error.message : String(error) },
+        "Agent stream processing failed"
+      );
     } finally {
       this.query = undefined;
     }

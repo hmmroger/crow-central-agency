@@ -7,7 +7,11 @@ import {
   type AgentType,
   type MessageAnnotation,
 } from "@crow-central-agency/shared";
-import { loadClaudeCodeSessionMessages, transformClaudeCodeSessionMessage } from "./session-message-transformer.js";
+import {
+  claudeCodeSessionExists,
+  loadClaudeCodeSessionMessages,
+  transformClaudeCodeSessionMessage,
+} from "./session-message-transformer.js";
 import {
   loadGithubCopilotSessionMessages,
   transformGithubCopilotSessionMessage,
@@ -209,6 +213,16 @@ export class SessionManager {
     }
 
     return message;
+  }
+
+  public async isSessionValid(type: AgentType, sessionId: string, cwd: string): Promise<boolean> {
+    switch (type) {
+      case AGENT_TYPE.CLAUDE_CODE:
+        return claudeCodeSessionExists(sessionId, cwd);
+
+      case AGENT_TYPE.GITHUB_COPILOT:
+        return true;
+    }
   }
 
   /** Invalidate cache for a session - called after compact or new session */
