@@ -9,18 +9,14 @@ import {
   CROW_SYSTEM_AGENT_ID,
   type InternalMcpConfig,
   type AgentConfig,
+  AGENT_TYPE,
 } from "@crow-central-agency/shared";
 import { logger } from "../utils/logger.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { generateId, isCrowSystemAgent } from "../utils/id-utils.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
-import type {
-  CrowMcpServerConfig,
-  McpServerFactory,
-  McpServerRegistration,
-  RegisterMcpServerOptions,
-} from "./crow-mcp-manager.types.js";
+import type { CrowMcpServerConfig, McpServerDefinition, CrowMcpTransport } from "./crow-mcp-manager.types.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { SystemSettingsManager } from "../services/system-settings-manager.js";
 import { FEED_MCP_SERVER_NAME } from "./feed/feed-mcp-server.js";
@@ -31,12 +27,12 @@ const log = logger.child({ context: "mcp-manager" });
 export const MCP_CONFIG_STORE_TABLE = "mcp";
 
 /**
- * MCP manager - registry for built-in MCP server factories and
+ * MCP manager - registry for built-in MCP server definitions and
  * CRUD for user-configured external MCP servers persisted via object store.
  */
 export class CrowMcpManager {
-  /** Built-in MCP server factories (registered programmatically at startup) */
-  private mcpServers = new Map<string, McpServerRegistration>();
+  /** Built-in MCP server definitions (registered programmatically at startup) */
+  private mcpServers = new Map<string, McpServerDefinition>();
   /** User-configured external MCP servers (persisted to object store) */
   private mcpConfigs = new Map<string, McpServerConfig>();
 
@@ -64,50 +60,48 @@ export class CrowMcpManager {
     log.info({ count: this.mcpConfigs.size }, "MCP configs loaded");
   }
 
-  /** Register an MCP server factory. */
-  public registerMcpServer(name: string, factory: McpServerFactory, options?: RegisterMcpServerOptions): void {
-    this.mcpServers.set(name, {
-      name,
-      factory,
-      allowedAgentIds: options?.allowedAgentIds ? new Set(options.allowedAgentIds) : undefined,
-      isConfigurable: options?.isConfigurable,
-      hasRequiredConnections: options?.hasRequiredConnections,
-      getConnectionProfiles: options?.getConnectionProfiles,
-      displayName: options?.displayName,
-    });
+  /** Register a built-in MCP server definition. */
+  public registerMcpServer(definition: McpServerDefinition): void {
+    this.mcpServers.set(definition.name, definition);
     log.info(
-      { name, restricted: !!options?.allowedAgentIds, configurable: !!options?.isConfigurable },
-      "MCP server factory registered"
+      { name: definition.name, restricted: !!definition.allowedAgentIds, configurable: !!definition.isConfigurable },
+      "MCP server registered"
     );
   }
 
   public deregisterMcpServer(name: string): void {
     this.mcpServers.delete(name);
-    log.info({ name }, "MCP server factory de-registered");
+    log.info({ name }, "MCP server de-registered");
   }
 
   /** Get MCP servers available to a specific agent */
   public async getMcpServersForAgent(agentId: string): Promise<CrowMcpServerConfig[]> {
     const agentConfig = this.registry.getAgent(agentId);
     const configuredMcpIds = new Set(agentConfig.mcpServerIds ?? []);
-    const agentMcpMap = new Map<string, CrowMcpServerConfig>();
-    const serverRegistrations = await this.getInternalServerRegistrationsForAgent(agentId, agentConfig);
-    for (const registration of serverRegistrations) {
-      const hasConnections =
-        !registration.hasRequiredConnections || (await registration.hasRequiredConnections(agentId));
-      const connectionProfiles =
-        hasConnections && registration.getConnectionProfiles
-          ? await registration.getConnectionProfiles(agentId)
-          : undefined;
-      if (hasConnections && (!registration.isConfigurable || configuredMcpIds.has(registration.name))) {
-        agentMcpMap.set(registration.name, {
-          name: registration.name,
-          serverFactory: registration.factory,
-          // configurable MCPs are not hidden and tools can be configured
-          isInternal: !registration.isConfigurable,
-          connectionProfiles,
-        });
+    const serverConfigMap = new Map<string, CrowMcpServerConfig>();
+
+    const definitions = await this.getInternalServerDefinitionsForAgent(agentId, agentConfig);
+    for (const definition of definitions) {
+      const hasConnections = !definition.hasRequiredConnections || (await definition.hasRequiredConnections(agentId));
+      if (!hasConnections) {
+        continue;
       }
+
+      if (definition.isConfigurable && !configuredMcpIds.has(definition.name)) {
+        continue;
+      }
+
+      const connectionProfiles = definition.getConnectionProfiles
+        ? await definition.getConnectionProfiles(agentId)
+        : undefined;
+      serverConfigMap.set(definition.name, {
+        kind: "internal",
+        name: definition.name,
+        mcpToolPrefix: `mcp__${definition.name}__`,
+        isAutoApproved: !definition.isConfigurable,
+        tools: definition.getTools(agentId),
+        connectionProfiles,
+      });
     }
 
     const userMcpConfigs = this.getUserMcpConfigs().filter((config) => {
@@ -115,40 +109,20 @@ export class CrowMcpManager {
     });
     for (const config of userMcpConfigs) {
       const name = this.normalizeMcpName(config.name);
-      if (agentMcpMap.has(name)) {
+      if (serverConfigMap.has(name)) {
         log.warn({ configId: config.id, name }, "User MCP config name collides with an internal server, skipping");
         continue;
       }
 
-      agentMcpMap.set(name, {
+      serverConfigMap.set(name, {
+        kind: "external",
         name,
-        serverFactory: () => {
-          if (config.type === MCP_CONFIG_TYPE.STDIO) {
-            return {
-              type: config.type,
-              command: config.command,
-              args: config.args,
-              env: config.env,
-            };
-          }
-
-          return {
-            type: config.type,
-            url: config.url,
-            headers: config.headers,
-          };
-        },
-        isInternal: false,
+        mcpToolPrefix: agentConfig.type === AGENT_TYPE.CLAUDE_CODE ? `mcp__${name}__` : `${name}-`,
+        transport: this.toTransport(config),
       });
     }
 
-    return Array.from(agentMcpMap.values());
-  }
-
-  /** Get MCP tool prefixes for a specific agent */
-  public async getInternalMcpPrefixes(agentId: string): Promise<string[]> {
-    const servers = await this.getMcpServersForAgent(agentId);
-    return servers.filter((server) => server.isInternal).map(({ name }) => `mcp__${name}__`);
+    return Array.from(serverConfigMap.values());
   }
 
   public getCompleteMcpToolName(serverName: string, toolName: string): string {
@@ -157,20 +131,19 @@ export class CrowMcpManager {
 
   public async getMcpConfigsForAgent(agentId: string): Promise<(McpServerConfig | InternalMcpConfig)[]> {
     const agentConfig = this.registry.getAgent(agentId);
-    const serverRegistrations = await this.getInternalServerRegistrationsForAgent(agentId, agentConfig);
+    const definitions = await this.getInternalServerDefinitionsForAgent(agentId, agentConfig);
     const internalConfigs: InternalMcpConfig[] = [];
-    for (const registration of serverRegistrations) {
-      if (!registration.isConfigurable) {
+    for (const definition of definitions) {
+      if (!definition.isConfigurable) {
         continue;
       }
 
-      const hasConnections =
-        !registration.hasRequiredConnections || (await registration.hasRequiredConnections(agentId));
+      const hasConnections = !definition.hasRequiredConnections || (await definition.hasRequiredConnections(agentId));
       internalConfigs.push({
         type: MCP_CONFIG_TYPE.INTERNAL,
-        id: registration.name,
-        name: registration.name,
-        displayName: registration.displayName,
+        id: definition.name,
+        name: definition.name,
+        displayName: definition.displayName,
         isDisabled: !hasConnections,
       });
     }
@@ -255,21 +228,28 @@ export class CrowMcpManager {
     return name.toLowerCase().replaceAll(" ", "_");
   }
 
-  private async getInternalServerRegistrationsForAgent(
+  /** Map a persisted user MCP config to a Crow MCP transport. */
+  private toTransport(config: McpServerConfig): CrowMcpTransport {
+    if (config.type === MCP_CONFIG_TYPE.STDIO) {
+      return { type: config.type, command: config.command, args: config.args, env: config.env };
+    }
+
+    return { type: config.type, url: config.url, headers: config.headers };
+  }
+
+  private async getInternalServerDefinitionsForAgent(
     agentId: string,
     agentConfig: AgentConfig
-  ): Promise<McpServerRegistration[]> {
+  ): Promise<McpServerDefinition[]> {
     const hasConfiguredFeedIds =
       agentId === CROW_SYSTEM_AGENT_ID
         ? (await this.systemSettingsManager.getSuperCrowSettings()).configuredFeeds.length > 0
         : !!agentConfig.configuredFeeds?.length;
 
-    const serverRegistrations = Array.from(this.mcpServers.values()).filter(
-      (registration) =>
-        (!registration.allowedAgentIds || registration.allowedAgentIds.has(agentId)) &&
-        (registration.name !== FEED_MCP_SERVER_NAME || hasConfiguredFeedIds)
+    return Array.from(this.mcpServers.values()).filter(
+      (definition) =>
+        (!definition.allowedAgentIds || definition.allowedAgentIds.includes(agentId)) &&
+        (definition.name !== FEED_MCP_SERVER_NAME || hasConfiguredFeedIds)
     );
-
-    return serverRegistrations;
   }
 }

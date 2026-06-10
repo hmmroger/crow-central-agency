@@ -146,7 +146,7 @@ export async function registerAgentRoutes(
       return { success: true, data: [] };
     }
 
-    const messages = await sessionManager.loadMessages(state.sessionId, registry.resolveWorkspace(agent));
+    const messages = await sessionManager.loadMessages(agent.type, state.sessionId, registry.resolveWorkspace(agent));
 
     return { success: true, data: messages };
   });
@@ -171,7 +171,13 @@ export async function registerAgentRoutes(
         throw new AppError(`Agent ${agentId} has no active session`, APP_ERROR_CODES.SESSION_NOT_FOUND);
       }
 
-      const audio = await sessionManager.getAudioMessage(state.sessionId, request.params.messageId);
+      const agent = registry.getAgent(agentId);
+      const audio = await sessionManager.getAudioMessage(
+        agent.type,
+        state.sessionId,
+        registry.resolveWorkspace(agent),
+        request.params.messageId
+      );
       return reply.type(audio.mimeType ?? "application/octet-stream").send(audio.data);
     }
   );
@@ -182,21 +188,13 @@ export async function registerAgentRoutes(
     const state = runtimeManager.getState(agentId);
 
     if (state?.sessionId) {
-      sessionManager.invalidateCache(state.sessionId);
+      const agent = registry.getAgent(agentId);
+      sessionManager.invalidateCache(agent.type, state.sessionId);
     }
 
     await runtimeManager.newSession(agentId);
 
     return { success: true, data: { newSession: true } };
-  });
-
-  /** List sessions for an agent */
-  server.get<{ Params: { id: string } }>("/api/agents/:id/sessions", async (request) => {
-    const agentId = validateAgentIdParam(request.params.id);
-    const agent = registry.getAgent(agentId);
-    const sessions = await sessionManager.listSessions(registry.resolveWorkspace(agent));
-
-    return { success: true, data: sessions };
   });
 
   /** Get runtime state for an agent */

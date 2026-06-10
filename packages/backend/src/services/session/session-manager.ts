@@ -1,8 +1,18 @@
 import path from "node:path";
-import { getSessionMessages, getSessionInfo, listSessions } from "@anthropic-ai/claude-agent-sdk";
-import type { SessionMessage, SDKSessionInfo } from "@anthropic-ai/claude-agent-sdk";
-import type { AgentMessage, MessageAnnotation } from "@crow-central-agency/shared";
-import { transformSessionMessages, transformSingleMessage } from "./session-message-transformer.js";
+import {
+  AGENT_MESSAGE_ROLE,
+  AGENT_MESSAGE_TYPE,
+  AGENT_TYPE,
+  type AgentMessage,
+  type AgentType,
+  type MessageAnnotation,
+} from "@crow-central-agency/shared";
+import { loadClaudeCodeSessionMessages, transformClaudeCodeSessionMessage } from "./session-message-transformer.js";
+import {
+  loadGithubCopilotSessionMessages,
+  transformGithubCopilotSessionMessage,
+} from "./github-copilot-session-transformer.js";
+import { generateId } from "../../utils/id-utils.js";
 import { logger } from "../../utils/logger.js";
 import { env } from "../../config/env.js";
 import { SESSIONS_DIR_NAME, SESSION_AUDIO_DIR_NAME } from "../../config/constants.js";
@@ -10,6 +20,7 @@ import { assertWithinBase, readBinaryFile, writeBinaryFile } from "../../utils/f
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
+import type { CopilotClientManager } from "../copilot/copilot-client-manager.js";
 import type { AudioMessage } from "../content-generation/content-generation.types.js";
 import { isPcmMime } from "../content-generation/audio-format.js";
 
@@ -28,24 +39,39 @@ const AUDIO_FILE_EXTENSION = ".bin";
 export class SessionManager {
   private messageCache = new Map<string, AgentMessage[]>();
 
-  constructor(private readonly store: ObjectStoreProvider) {}
+  constructor(
+    private readonly store: ObjectStoreProvider,
+    private readonly copilotClientManager: CopilotClientManager
+  ) {}
 
   /**
    * Load messages for a session - cache-first, falls back to SDK.
    * Returns AgentMessage[] - the public API never exposes SessionMessage.
    * Stored annotations for the session are merged into the returned messages.
    */
-  public async loadMessages(sessionId: string, cwd: string): Promise<AgentMessage[]> {
-    const cached = this.messageCache.get(sessionId);
+  public async loadMessages(type: AgentType, sessionId: string, cwd: string): Promise<AgentMessage[]> {
+    const sessionKey = this.getSessionKey(type, sessionId);
+    const cached = this.messageCache.get(sessionKey);
     if (cached) {
       return cached;
     }
 
-    log.debug({ sessionId }, "Cache miss - loading messages from SDK");
-    const rawMessages = await getSessionMessages(sessionId, { dir: cwd });
-    const agentMessages = transformSessionMessages(rawMessages);
+    let agentMessages: AgentMessage[];
+    switch (type) {
+      case AGENT_TYPE.CLAUDE_CODE:
+        agentMessages = await loadClaudeCodeSessionMessages(sessionId, cwd);
+        break;
+
+      case AGENT_TYPE.GITHUB_COPILOT: {
+        // Copilot has no cwd-scoped read API; the shared client locates the session by id alone.
+        const copilotClient = this.copilotClientManager.getClient();
+        agentMessages = await loadGithubCopilotSessionMessages(copilotClient, sessionId);
+        break;
+      }
+    }
+
     await this.applyStoredAnnotations(sessionId, agentMessages);
-    this.messageCache.set(sessionId, agentMessages);
+    this.messageCache.set(sessionKey, agentMessages);
 
     return agentMessages;
   }
@@ -55,22 +81,54 @@ export class SessionManager {
    * Transforms the SessionMessage into AgentMessage[], appends to cache, and returns the added messages.
    * This is the ONLY way AgentMessages are created during streaming.
    *
+   * @param type - The agent type owning the session
    * @param sessionId - The session to add to
    * @param message - SDK SessionMessage (user or assistant)
    * @returns The AgentMessage[] created from this SessionMessage - canonical source for WS broadcast
    */
-  public addMessage(sessionId: string, message: SessionMessage): AgentMessage[] {
-    let cached = this.messageCache.get(sessionId);
-    if (!cached) {
-      cached = [];
-      this.messageCache.set(sessionId, cached);
+  public async addMessage(type: AgentType, sessionId: string, cwd: string, message: unknown): Promise<AgentMessage[]> {
+    const messages = await this.loadMessages(type, sessionId, cwd);
+    const baseTimestamp = messages.length > 0 ? messages[messages.length - 1].timestamp + 1 : 0;
+    let agentMessages: AgentMessage[];
+    switch (type) {
+      case AGENT_TYPE.CLAUDE_CODE:
+        agentMessages = transformClaudeCodeSessionMessage(message, baseTimestamp);
+        break;
+
+      case AGENT_TYPE.GITHUB_COPILOT:
+        agentMessages = transformGithubCopilotSessionMessage(message);
+        break;
     }
 
-    const baseTimestamp = cached.length > 0 ? cached[cached.length - 1].timestamp + 1 : 0;
-    const agentMessages = transformSingleMessage(message, baseTimestamp);
-    cached.push(...agentMessages);
-
+    messages.push(...agentMessages);
     return agentMessages;
+  }
+
+  /**
+   * Append a user-authored text message to the session cache.
+   * A user message is agent-type agnostic - it maps directly to the canonical AgentMessage model,
+   * so it bypasses the provider-specific transform used by `addMessage`. This is an optimistic
+   * in-memory echo for the UI; the provider persists its own copy of the turn during the query.
+   *
+   * @param type - The agent type owning the session (used for cache identity / ordering)
+   * @param sessionId - The session to add to
+   * @param cwd - The session workspace, used to hydrate the cache
+   * @param message - The user's text
+   * @returns The created AgentMessage - canonical source for WS broadcast
+   */
+  public async addUserMessage(type: AgentType, sessionId: string, cwd: string, message: string): Promise<AgentMessage> {
+    const messages = await this.loadMessages(type, sessionId, cwd);
+    const timestamp = messages.length > 0 ? messages[messages.length - 1].timestamp + 1 : 0;
+    const userMessage: AgentMessage = {
+      id: generateId(),
+      role: AGENT_MESSAGE_ROLE.USER,
+      type: AGENT_MESSAGE_TYPE.TEXT,
+      content: message,
+      timestamp,
+    };
+
+    messages.push(userMessage);
+    return userMessage;
   }
 
   /**
@@ -81,7 +139,9 @@ export class SessionManager {
    * @returns The cached AgentMessage with the embedded annotation populated.
    */
   public async associateAudioMessage(
+    type: AgentType,
     sessionId: string,
+    cwd: string,
     messageId: string,
     audioMessage: AudioMessage
   ): Promise<AgentMessage> {
@@ -89,7 +149,7 @@ export class SessionManager {
       throw new AppError(`Audio message for ${messageId} has no binary data`, APP_ERROR_CODES.AUDIO_GEN_NO_DATA);
     }
 
-    const target = this.getMessage(sessionId, messageId);
+    const target = await this.getMessage(type, sessionId, cwd, messageId);
     const audioPath = this.getAudioFilePath(sessionId, messageId);
     await writeBinaryFile(audioPath, audioMessage.data);
 
@@ -112,9 +172,16 @@ export class SessionManager {
 
   /**
    * Read the audio binary + annotation metadata for a message and return it as an AudioMessage.
-   * Throws NOT_FOUND if no audio annotation exists or the binary file is missing.
+   * Throws NOT_FOUND if the message is unknown, no audio annotation exists, or the binary file is missing.
    */
-  public async getAudioMessage(sessionId: string, messageId: string): Promise<AudioMessage> {
+  public async getAudioMessage(
+    type: AgentType,
+    sessionId: string,
+    cwd: string,
+    messageId: string
+  ): Promise<AudioMessage> {
+    await this.getMessage(type, sessionId, cwd, messageId);
+
     const annotationsTable = this.getAnnotationsTable(sessionId);
     const entry = await this.store.get<MessageAnnotation>(annotationsTable, messageId);
     if (!entry?.value.hasAudioMessage) {
@@ -134,13 +201,9 @@ export class SessionManager {
   }
 
   /** Get a single cached message by id. Throws NOT_FOUND if the session is not loaded or the id is unknown. */
-  public getMessage(sessionId: string, messageId: string): AgentMessage {
-    const cached = this.messageCache.get(sessionId);
-    if (!cached) {
-      throw new AppError(`Session ${sessionId} is not loaded`, APP_ERROR_CODES.NOT_FOUND);
-    }
-
-    const message = cached.find((entry) => entry.id === messageId);
+  public async getMessage(type: AgentType, sessionId: string, cwd: string, messageId: string): Promise<AgentMessage> {
+    const messages = await this.loadMessages(type, sessionId, cwd);
+    const message = messages.find((entry) => entry.id === messageId);
     if (!message) {
       throw new AppError(`Message ${messageId} not found in session ${sessionId}`, APP_ERROR_CODES.NOT_FOUND);
     }
@@ -148,19 +211,10 @@ export class SessionManager {
     return message;
   }
 
-  /** Get session info from SDK (not cached - lightweight call) */
-  public async getInfo(sessionId: string, cwd: string): Promise<SDKSessionInfo | undefined> {
-    return getSessionInfo(sessionId, { dir: cwd });
-  }
-
-  /** List all sessions for a workspace */
-  public async listSessions(cwd: string): Promise<SDKSessionInfo[]> {
-    return listSessions({ dir: cwd });
-  }
-
   /** Invalidate cache for a session - called after compact or new session */
-  public invalidateCache(sessionId: string): void {
-    this.messageCache.delete(sessionId);
+  public invalidateCache(type: AgentType, sessionId: string): void {
+    const sessionKey = this.getSessionKey(type, sessionId);
+    this.messageCache.delete(sessionKey);
     log.debug({ sessionId }, "Cache invalidated");
   }
 
@@ -204,5 +258,9 @@ export class SessionManager {
     const filePath = path.join(audioDir, `${messageId}${AUDIO_FILE_EXTENSION}`);
     assertWithinBase(filePath, audioDir);
     return filePath;
+  }
+
+  private getSessionKey(type: AgentType, sessionId: string): string {
+    return `${type}:${sessionId}`;
   }
 }

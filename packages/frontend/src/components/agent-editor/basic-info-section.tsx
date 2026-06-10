@@ -1,4 +1,5 @@
 import { Sparkles } from "lucide-react";
+import type { AgentType } from "@crow-central-agency/shared";
 import { FieldGroup } from "./field-group.js";
 import { ModelSelector } from "./model-selector.js";
 
@@ -7,6 +8,7 @@ interface BasicInfoSectionProps {
   description?: string;
   workspace: string;
   model: string;
+  agentType: AgentType;
   persona?: string;
   onNameChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
@@ -23,6 +25,7 @@ export function BasicInfoSection({
   description,
   workspace,
   model,
+  agentType,
   persona,
   onNameChange,
   onDescriptionChange,
@@ -67,7 +70,7 @@ export function BasicInfoSection({
       </FieldGroup>
 
       <FieldGroup label="Model">
-        <ModelSelector value={model} onChange={onModelChange} menuId="agent-editor-model" />
+        <ModelSelector value={model} agentType={agentType} onChange={onModelChange} menuId="agent-editor-model" />
       </FieldGroup>
 
       <FieldGroup

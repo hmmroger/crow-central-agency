@@ -1,4 +1,3 @@
-import type { SessionMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_MESSAGE_ROLE,
   AGENT_STATUS,
@@ -23,15 +22,16 @@ import { PermissionHandler } from "./permission-handler.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
 import { MESSAGE_SOURCE_TYPE, type MessageSource, type QueuedMessage } from "../message-queue-manager.types.js";
-import crypto from "node:crypto";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { logger } from "../../utils/logger.js";
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
-import { AgentRunner } from "../../runner/agent-runner.js";
+import type { AgentRunner } from "../../runner/agent-runner.js";
+import { createAgentRunner as buildAgentRunner } from "../../runner/agent-runner-factory.js";
 import {
   AGENT_STREAM_EVENT_TYPE,
   type AgentStreamActivityEvent,
+  type AgentStreamToolAutoApprovedEvent,
   type AgentStreamToolUseEvent,
   type PermissionRequestCallback,
 } from "../../runner/agent-runner.types.js";
@@ -225,17 +225,25 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       throw new AppError(`Agent ${agentId} has no active session`, APP_ERROR_CODES.SESSION_NOT_FOUND);
     }
 
-    const message = this.sessionManager.getMessage(state.sessionId, messageId);
+    const agent = this.registry.getAgent(agentId);
+    const workspace = this.registry.resolveWorkspace(agent);
+    const message = await this.sessionManager.getMessage(agent.type, state.sessionId, workspace, messageId);
     if (!message.content.trim()) {
       throw new AppError(`Message ${messageId} has no content to synthesize`, APP_ERROR_CODES.VALIDATION);
     }
 
-    const voiceConfig = this.registry.getAgent(agentId).agentVoiceConfig;
+    const voiceConfig = agent.agentVoiceConfig;
     const response = await audioGeneration(model, message.content, {
       voice: [{ voice: voiceConfig?.voiceName }],
       stylePrompt: voiceConfig?.stylePrompt,
     });
-    return this.sessionManager.associateAudioMessage(state.sessionId, messageId, response.message);
+    return this.sessionManager.associateAudioMessage(
+      agent.type,
+      state.sessionId,
+      workspace,
+      messageId,
+      response.message
+    );
   }
 
   private async runAgent(
@@ -245,8 +253,9 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     source: MessageSource
   ): Promise<void> {
     const agentRunner = this.getAgentRunner(agentId);
-    const agentName = this.registry.getAgentName(agentId);
-    const querySpan = startQuerySpan(agentId, agentName, source.sourceType);
+    const agent = this.registry.getAgent(agentId);
+    const workspace = this.registry.resolveWorkspace(agent);
+    const querySpan = startQuerySpan(agentId, agent.name, source.sourceType);
     this.activeQuerySpans.set(agentId, querySpan);
 
     // Process stream via async generator
@@ -264,38 +273,33 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             state.lastError = undefined;
             state.sessionId = event.sessionId;
             if (!userMessageAdded) {
-              const userSessionMsg: SessionMessage = {
-                type: "user",
-                uuid: crypto.randomUUID(),
-                session_id: event.sessionId,
-                message: { role: "user", content: message },
-                parent_tool_use_id: null,
-              };
-              const userMessages = this.sessionManager.addMessage(event.sessionId, userSessionMsg);
-              for (const msg of userMessages) {
-                this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: msg });
-              }
-
+              const userMessage = await this.sessionManager.addUserMessage(
+                agent.type,
+                event.sessionId,
+                workspace,
+                message
+              );
+              this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: userMessage });
               userMessageAdded = true;
-            }
-
-            if (event.discoveredTools && event.discoveredTools.length > 0) {
-              await this.registry.setAvailableTools(agentId, event.discoveredTools);
             }
 
             await this.persistAgentState(agentId);
             break;
 
-          case AGENT_STREAM_EVENT_TYPE.MESSAGE_DONE: {
-            const sessionMessage: SessionMessage = {
-              type: "assistant",
-              uuid: event.messageId,
-              session_id: event.sessionId,
-              message: event.message,
-              parent_tool_use_id: null,
-            };
+          case AGENT_STREAM_EVENT_TYPE.TOOLS_DISCOVERED:
+            if (event.discoveredTools.length > 0) {
+              await this.registry.setAvailableTools(agentId, event.discoveredTools);
+            }
 
-            const agentMessages = this.sessionManager.addMessage(event.sessionId, sessionMessage);
+            break;
+
+          case AGENT_STREAM_EVENT_TYPE.MESSAGE_DONE: {
+            const agentMessages = await this.sessionManager.addMessage(
+              agent.type,
+              event.sessionId,
+              workspace,
+              event.message
+            );
             for (const msg of agentMessages) {
               this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: msg });
               if (msg.role === AGENT_MESSAGE_ROLE.AGENT && msg.type === AGENT_MESSAGE_TYPE.TEXT) {
@@ -334,6 +338,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
               }
             }
 
+            break;
+          }
+
+          case AGENT_STREAM_EVENT_TYPE.USAGE: {
             const { totalInputTokens, inputTokens, outputTokens } = event;
             querySpan.recordTokenUsage(inputTokens, outputTokens, totalInputTokens);
             state.sessionUsage.inputTokens = totalInputTokens;
@@ -367,6 +375,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
           case AGENT_STREAM_EVENT_TYPE.ACTIVITY:
           case AGENT_STREAM_EVENT_TYPE.TOOL_USE:
             this.handleAgentActivityEvent(event);
+            break;
+
+          case AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED:
+            this.handleToolAutoApproved(event);
             break;
 
           case AGENT_STREAM_EVENT_TYPE.TOOL_USE_PROGRESS:
@@ -443,6 +455,26 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
   }
 
+  private handleOobStreamEvent(
+    streamEvent: AgentStreamActivityEvent | AgentStreamToolUseEvent | AgentStreamToolAutoApprovedEvent
+  ): void {
+    if (streamEvent.type === AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED) {
+      this.handleToolAutoApproved(streamEvent);
+      return;
+    }
+
+    this.handleAgentActivityEvent(streamEvent);
+  }
+
+  private handleToolAutoApproved(streamEvent: AgentStreamToolAutoApprovedEvent): void {
+    this.registry.addAutoApprovedTool(streamEvent.agentId, streamEvent.toolName).catch((error) => {
+      log.warn(
+        { agentId: streamEvent.agentId, toolName: streamEvent.toolName, error },
+        "Failed to persist auto-approved tool"
+      );
+    });
+  }
+
   private handleAgentActivityEvent(streamEvent: AgentStreamActivityEvent | AgentStreamToolUseEvent): void {
     const timestamp = Date.now();
     let newActivity: AgentActivity;
@@ -504,6 +536,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
     const agentRunner = this.getAgentRunner(agentId);
     await agentRunner.abort();
+    await agentRunner.dispose();
     this.agentRunners.delete(agentId);
 
     this.runtimeStates.delete(agentId);
@@ -836,14 +869,14 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       }
     };
 
-    const agentRunner = new AgentRunner(
+    const agentRunner = buildAgentRunner(
       agentId,
       this.registry,
       this.mcpManager,
       this.sensorManager,
       this.circleManager,
       permissionRequestCallback,
-      (streamEvent) => this.handleAgentActivityEvent(streamEvent)
+      (streamEvent) => this.handleOobStreamEvent(streamEvent)
     );
     agentRunner.on("agentStatusChanged", ({ agentId: runnerId, status, messageSource }) =>
       this.onAgentStatusChanged(runnerId, status, messageSource)

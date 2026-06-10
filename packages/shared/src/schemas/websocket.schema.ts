@@ -65,7 +65,7 @@ export const PermissionResponseWsSchema = z.object({
   type: z.literal("permission_response"),
   agentId: z.string(),
   toolUseId: z.string(),
-  decision: z.enum([PERMISSION_DECISION.ALLOW, PERMISSION_DECISION.DENY]),
+  decision: z.enum([PERMISSION_DECISION.ALLOW, PERMISSION_DECISION.DENY, PERMISSION_DECISION.ALLOW_ALWAYS]),
   message: z.string().optional(),
 });
 

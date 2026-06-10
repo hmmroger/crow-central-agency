@@ -14,6 +14,11 @@ function getOptionalNumber(key: string, defaultValue?: number): number | undefin
   return process.env[key] ? parseInt(process.env[key], 10) : defaultValue;
 }
 
+function getBoolean(key: string): boolean {
+  const value = process.env[key]?.trim().toLowerCase();
+  return value === "true" || value === "1";
+}
+
 function expandPath(filePath: string): string {
   if (filePath.startsWith("~")) {
     return path.join(os.homedir(), filePath.slice(1));
@@ -64,6 +69,7 @@ export const env = {
   STATIC_PATH: expandPath(getOptional("STATIC_PATH") ?? DEFAULT_STATIC_DIR),
   CROW_SYSTEM_AGENT_NAME: getOptional("CROW_SYSTEM_AGENT_NAME"),
   CLAUDE_CLI_PATH: getOptional("CLAUDE_CLI_PATH"),
+  DISABLE_GITHUB_COPILOT: getBoolean("DISABLE_GITHUB_COPILOT"),
   CLOSED_TASK_RETENTION_DAYS: getOptionalNumber("CLOSED_TASK_RETENTION_DAYS", 30),
   FEED_ITEM_RETENTION_DAYS: getOptionalNumber("FEED_ITEM_RETENTION_DAYS", 30),
   FEED_REFRESH_IN_MINUTES: getOptionalNumber("FEED_REFRESH_IN_MINUTES"),

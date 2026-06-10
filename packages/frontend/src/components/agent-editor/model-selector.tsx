@@ -1,12 +1,14 @@
 import { useCallback, useMemo, type MouseEvent } from "react";
 import { ChevronDown } from "lucide-react";
-import { CLAUDE_CODE_MODEL_OPTIONS, resolveModel } from "@crow-central-agency/shared";
+import { AGENT_TYPE, resolveModel, type AgentType } from "@crow-central-agency/shared";
+import { useSystemCapabilitiesQuery } from "../../hooks/queries/use-system-capabilities-query.js";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
 import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import { cn } from "../../utils/cn.js";
 
 interface ModelSelectorProps {
   value: string;
+  agentType: AgentType;
   onChange: (value: string) => void;
   menuId: string;
   buttonId?: string;
@@ -16,21 +18,29 @@ interface ModelSelectorProps {
  * Model selector using the context menu system
  * as a dropdown replacement for native <select>.
  */
-export function ModelSelector({ value, onChange, menuId, buttonId }: ModelSelectorProps) {
+export function ModelSelector({ value, agentType, onChange, menuId, buttonId }: ModelSelectorProps) {
   const { toggleMenu, isMenuOpen } = useContextMenu();
+  const { data: capabilities } = useSystemCapabilitiesQuery();
   const isOpen = isMenuOpen(menuId);
   const resolvedValue = resolveModel(value);
-  const selectedOption = CLAUDE_CODE_MODEL_OPTIONS.find((option) => option.value === resolvedValue);
+  const options = useMemo(
+    () =>
+      agentType === AGENT_TYPE.GITHUB_COPILOT
+        ? (capabilities?.copilotSupportedModels ?? [])
+        : (capabilities?.claudeSupportedModels ?? []),
+    [agentType, capabilities]
+  );
+  const selectedOption = options.find((option) => option.value === resolvedValue);
 
   const menuItems = useMemo<ContextMenuItem[]>(
     () =>
-      CLAUDE_CODE_MODEL_OPTIONS.map((option) => ({
+      options.map((option) => ({
         type: ContextMenuTypes.action,
         label: option.label,
         onClick: () => onChange(option.value),
         selected: option.value === resolvedValue,
       })),
-    [onChange, resolvedValue]
+    [options, onChange, resolvedValue]
   );
 
   const handleClick = useCallback(

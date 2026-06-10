@@ -9,7 +9,7 @@ export interface PendingPermission {
 
 /** Result of a permission decision */
 export interface PermissionResult {
-  behavior: "allow" | "deny";
+  behavior: "allow" | "deny" | "allow_always";
   message?: string;
   updatedInput?: Record<string, unknown>;
   toolUseID: string;

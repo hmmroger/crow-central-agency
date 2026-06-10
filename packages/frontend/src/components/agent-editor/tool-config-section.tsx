@@ -1,12 +1,27 @@
 import { useMemo, useRef, useState } from "react";
-import { DEFAULT_AVAILABLE_TOOLS, TOOL_MODE, type ToolMode } from "@crow-central-agency/shared";
+import {
+  AGENT_TYPE,
+  DEFAULT_AVAILABLE_TOOLS_BY_TYPE,
+  TOOL_MODE,
+  type AgentType,
+  type ToolMode,
+} from "@crow-central-agency/shared";
 import { Toggle } from "../common/toggle.js";
 import { FieldGroup } from "./field-group.js";
 import { ToggleButton } from "./toggle-button.js";
 import { ChipButton } from "./chip-button.js";
-import { BUILTIN_TOOL_SET } from "./tool-constants.js";
+import { BUILTIN_TOOL_SET_BY_TYPE } from "./tool-constants.js";
+
+/**
+ * Whether a provider supports restricting the builtin tool set (Claude's "restricted" mode).
+ * Copilot only supports unrestricted tools plus a disallow list for now.
+ */
+function supportsToolRestriction(type: AgentType): boolean {
+  return type === AGENT_TYPE.CLAUDE_CODE;
+}
 
 interface ToolConfigSectionProps {
+  agentType: AgentType;
   toolMode: ToolMode;
   selectedTools: string[];
   autoApprovedTools: string[];
@@ -27,6 +42,7 @@ interface ToolConfigSectionProps {
  * auto-approved tools, and custom tool input.
  */
 export function ToolConfigSection({
+  agentType,
   toolMode,
   selectedTools,
   autoApprovedTools,
@@ -46,17 +62,22 @@ export function ToolConfigSection({
   const [customDisallowedInput, setCustomDisallowedInput] = useState("");
   const customDisallowedInputRef = useRef<HTMLInputElement>(null);
 
+  const builtinTools = DEFAULT_AVAILABLE_TOOLS_BY_TYPE[agentType];
+  const builtinToolSet = BUILTIN_TOOL_SET_BY_TYPE[agentType];
+  const canRestrictTools = supportsToolRestriction(agentType);
+
   /**
    * Effective tool set for auto-approved and disallowed selection. Reflects
    * the user's current intent, not just the last SDK snapshot:
-   * - Builtins come from selectedTools (restricted) or DEFAULT_AVAILABLE_TOOLS (unrestricted).
+   * - Builtins come from selectedTools (restricted) or the provider catalog (unrestricted).
    * - External tools (MCP, etc.) come from availableTools.
    */
   const effectiveTools = useMemo(() => {
-    const builtinSource = toolMode === TOOL_MODE.RESTRICTED ? selectedTools : DEFAULT_AVAILABLE_TOOLS;
-    const externalTools = availableTools.filter((tool) => !BUILTIN_TOOL_SET.has(tool));
+    const restricted = canRestrictTools && toolMode === TOOL_MODE.RESTRICTED;
+    const builtinSource = restricted ? selectedTools : builtinTools;
+    const externalTools = availableTools.filter((tool) => !builtinToolSet.has(tool));
     return [...builtinSource, ...externalTools];
-  }, [toolMode, selectedTools, availableTools]);
+  }, [canRestrictTools, toolMode, selectedTools, availableTools, builtinTools, builtinToolSet]);
 
   /** Custom tools added by user that aren't in the standard source list */
   const customOnlyTools = autoApprovedTools.filter((tool) => !effectiveTools.includes(tool));
@@ -90,35 +111,37 @@ export function ToolConfigSection({
 
   return (
     <>
-      {/* Tool Mode */}
-      <FieldGroup label="Tools">
-        <p className="text-xs text-text-muted mb-2">Controls which builtin tools are available to the agent.</p>
-        <div className="flex gap-2 mb-3">
-          <ToggleButton
-            active={toolMode === TOOL_MODE.UNRESTRICTED}
-            onClick={() => onToolModeChange(TOOL_MODE.UNRESTRICTED)}
-            label="Unrestricted"
-          />
-          <ToggleButton
-            active={toolMode === TOOL_MODE.RESTRICTED}
-            onClick={() => onToolModeChange(TOOL_MODE.RESTRICTED)}
-            label="Restricted"
-          />
-        </div>
-
-        {toolMode === TOOL_MODE.RESTRICTED && (
-          <div className="flex flex-wrap gap-1.5">
-            {DEFAULT_AVAILABLE_TOOLS.map((tool) => (
-              <ChipButton
-                key={tool}
-                label={tool}
-                active={selectedTools.includes(tool)}
-                onClick={() => onToggleTool(tool)}
-              />
-            ))}
+      {/* Tool Mode — only providers that support restricting builtins expose this toggle */}
+      {canRestrictTools && (
+        <FieldGroup label="Tools">
+          <p className="text-xs text-text-muted mb-2">Controls which builtin tools are available to the agent.</p>
+          <div className="flex gap-2 mb-3">
+            <ToggleButton
+              active={toolMode === TOOL_MODE.UNRESTRICTED}
+              onClick={() => onToolModeChange(TOOL_MODE.UNRESTRICTED)}
+              label="Unrestricted"
+            />
+            <ToggleButton
+              active={toolMode === TOOL_MODE.RESTRICTED}
+              onClick={() => onToolModeChange(TOOL_MODE.RESTRICTED)}
+              label="Restricted"
+            />
           </div>
-        )}
-      </FieldGroup>
+
+          {toolMode === TOOL_MODE.RESTRICTED && (
+            <div className="flex flex-wrap gap-1.5">
+              {builtinTools.map((tool) => (
+                <ChipButton
+                  key={tool}
+                  label={tool}
+                  active={selectedTools.includes(tool)}
+                  onClick={() => onToggleTool(tool)}
+                />
+              ))}
+            </div>
+          )}
+        </FieldGroup>
+      )}
 
       {/* Auto-Approved Tools */}
       <FieldGroup label="Auto-Approved Tools">

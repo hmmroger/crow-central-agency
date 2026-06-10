@@ -1,15 +1,28 @@
-import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages.mjs";
-import type { UUID } from "crypto";
 import type { EventMap } from "../core/event-bus/event-bus.types.js";
 import type { PermissionResult } from "../services/runtime/permission-handler.types.js";
-import type { AgentStatus } from "@crow-central-agency/shared";
+import type { AgentConfig, AgentStatus } from "@crow-central-agency/shared";
 import type { MessageSource } from "../services/message-queue-manager.types.js";
+import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 
 export interface AgentRunnerEvents extends EventMap {
   agentStatusChanged: { agentId: string; status: AgentStatus; messageSource: MessageSource };
 }
 
-export type OOBStreamEventCallback = (streamEvent: AgentStreamActivityEvent | AgentStreamToolUseEvent) => void;
+export interface AgentRunQueryRequest {
+  message: string;
+  sessionId?: string;
+  cwd: string;
+  agentConfig: AgentConfig;
+  systemPrompt: string;
+  timezone?: string;
+  serverConfigs: CrowMcpServerConfig[];
+  /** Per-turn cancellation handle, created and owned by the base runner. */
+  abortController: AbortController;
+}
+
+export type OOBStreamEventCallback = (
+  streamEvent: AgentStreamActivityEvent | AgentStreamToolUseEvent | AgentStreamToolAutoApprovedEvent
+) => void;
 
 export type PermissionRequestCallback = (
   agentId: string,
@@ -21,6 +34,7 @@ export type PermissionRequestCallback = (
 
 export const AGENT_STREAM_EVENT_TYPE = {
   INIT: "INIT",
+  TOOLS_DISCOVERED: "TOOLS_DISCOVERED",
   DONE: "DONE",
   ERROR: "ERROR",
   ABORTED: "ABORTED",
@@ -35,8 +49,9 @@ export const AGENT_STREAM_EVENT_TYPE = {
   ACTIVITY: "ACTIVITY",
   TOOL_USE: "TOOL_USE",
   TOOL_USE_PROGRESS: "TOOL_USE_PROGRESS",
+  TOOL_AUTO_APPROVED: "TOOL_AUTO_APPROVED",
 
-  // single assistant message completed
+  USAGE: "USAGE",
   MESSAGE_DONE: "MESSAGE_DONE",
 } as const;
 export type AgentStreamEventType = (typeof AGENT_STREAM_EVENT_TYPE)[keyof typeof AGENT_STREAM_EVENT_TYPE];
@@ -45,13 +60,16 @@ export type AgentStreamEvent =
   | AgentStreamAbortedEvent
   | AgentStreamErrorEvent
   | AgentStreamInitEvent
+  | AgentStreamToolsDiscoveredEvent
   | AgentStreamContentEvent
   | AgentStreamThinkingEvent
   | AgentStreamStatusEvent
   | AgentStreamActivityEvent
   | AgentStreamToolUseEvent
   | AgentStreamToolUseProgressEvent
+  | AgentStreamToolAutoApprovedEvent
   | AgentStreamMessageDoneEvent
+  | AgentStreamUsageEvent
   | AgentStreamDoneEvent
   | AgentStreamRateLimitInfoEvent;
 
@@ -72,7 +90,11 @@ export interface AgentStreamErrorEvent extends AgentStreamEventCommon {
 
 export interface AgentStreamInitEvent extends AgentStreamEventCommon {
   type: (typeof AGENT_STREAM_EVENT_TYPE)["INIT"];
-  discoveredTools?: string[];
+}
+
+export interface AgentStreamToolsDiscoveredEvent extends AgentStreamEventCommon {
+  type: (typeof AGENT_STREAM_EVENT_TYPE)["TOOLS_DISCOVERED"];
+  discoveredTools: string[];
 }
 
 export interface AgentStreamContentEvent extends AgentStreamEventCommon {
@@ -111,10 +133,19 @@ export interface AgentStreamToolUseProgressEvent extends AgentStreamEventCommon 
   elapsedTimeSeconds: number;
 }
 
+export interface AgentStreamToolAutoApprovedEvent extends AgentStreamEventCommon {
+  type: (typeof AGENT_STREAM_EVENT_TYPE)["TOOL_AUTO_APPROVED"];
+  toolName: string;
+}
+
 export interface AgentStreamMessageDoneEvent extends AgentStreamEventCommon {
   type: (typeof AGENT_STREAM_EVENT_TYPE)["MESSAGE_DONE"];
-  messageId: UUID;
-  message: BetaMessage;
+  messageId: string;
+  message: unknown; // CLAUDE_CODE: SessionMessage; GITHUB_COPILOT: SessionEvent
+}
+
+export interface AgentStreamUsageEvent extends AgentStreamEventCommon {
+  type: (typeof AGENT_STREAM_EVENT_TYPE)["USAGE"];
   totalInputTokens: number;
   inputTokens: number;
   outputTokens: number;

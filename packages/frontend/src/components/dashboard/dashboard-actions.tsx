@@ -1,4 +1,6 @@
 import { Plus, Circle, BookmarkPlus } from "lucide-react";
+import { AGENT_TYPE } from "@crow-central-agency/shared";
+import { useSystemCapabilitiesQuery } from "../../hooks/queries/use-system-capabilities-query.js";
 import { useOpenAgentEditor } from "../../hooks/dialogs/use-open-agent-editor.js";
 import { useOpenTemplatePicker } from "../../hooks/dialogs/use-open-template-picker.js";
 import { useOpenCircleEditor } from "./circle/use-open-circle-editor.js";
@@ -6,6 +8,7 @@ import { DashboardWidget } from "./dashboard-widget.js";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../common/action-button.js";
 import { cn } from "../../utils/cn.js";
 import { useCallback } from "react";
+import { GitHubCopilotIcon } from "../common/icons/github-copilot.js";
 
 interface DashboardActionsProps {
   className?: string;
@@ -21,9 +24,11 @@ export function DashboardActions({ className, compact = false }: DashboardAction
   const openAgentEditor = useOpenAgentEditor();
   const openTemplatePicker = useOpenTemplatePicker();
   const openCircleEditor = useOpenCircleEditor();
+  const { data: capabilities } = useSystemCapabilitiesQuery();
+  const isCopilotAvailable = capabilities?.copilotAvailable === true;
 
   const handleNewFromTemplate = useCallback(() => {
-    openTemplatePicker((template) => openAgentEditor({ templatePreset: template }));
+    openTemplatePicker((template) => openAgentEditor({ templatePreset: template, agentType: template.type }));
   }, [openTemplatePicker, openAgentEditor]);
 
   const newAgentButton = (
@@ -33,6 +38,17 @@ export function DashboardActions({ className, compact = false }: DashboardAction
       variant={ACTION_BUTTON_VARIANT.PRIMARY}
       iconOnly={compact}
       onClick={() => openAgentEditor()}
+    />
+  );
+
+  const newCopilotAgentButton = (
+    <ActionButton
+      icon={GitHubCopilotIcon}
+      label="New Copilot Agent"
+      variant={ACTION_BUTTON_VARIANT.PRIMARY}
+      iconOnly={compact}
+      disabled={!isCopilotAvailable}
+      onClick={() => openAgentEditor({ agentType: AGENT_TYPE.GITHUB_COPILOT })}
     />
   );
 
@@ -60,6 +76,7 @@ export function DashboardActions({ className, compact = false }: DashboardAction
     return (
       <div className={cn("flex items-center gap-1.5", className)}>
         {newAgentButton}
+        {newCopilotAgentButton}
         {newFromTemplateButton}
         {newCircleButton}
       </div>
@@ -70,6 +87,7 @@ export function DashboardActions({ className, compact = false }: DashboardAction
     <DashboardWidget title="Actions" className={className}>
       <div className="flex flex-col gap-2">
         {newAgentButton}
+        {newCopilotAgentButton}
         {newFromTemplateButton}
         {newCircleButton}
       </div>

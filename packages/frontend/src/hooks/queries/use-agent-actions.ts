@@ -24,6 +24,8 @@ export interface AgentActions {
   newConversation: () => void;
   /** Allow a pending permission request */
   allowPermission: (toolUseId: string) => void;
+  /** Allow a pending permission request and remember the tool in the agent's auto-approved list */
+  allowAlwaysPermission: (toolUseId: string) => void;
   /** Deny a pending permission request (optionally with a text message for the agent) */
   denyPermission: (toolUseId: string, message?: string) => void;
 }
@@ -108,6 +110,20 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
     [send, agentId, removePendingPermission]
   );
 
+  /** Allow a pending permission request and remember the tool in the agent's auto-approved list */
+  const allowAlwaysPermission = useCallback(
+    (toolUseId: string) => {
+      send({
+        type: CLIENT_MESSAGE_TYPE.PERMISSION_RESPONSE,
+        agentId,
+        toolUseId,
+        decision: PERMISSION_DECISION.ALLOW_ALWAYS,
+      });
+      removePendingPermission(toolUseId);
+    },
+    [send, agentId, removePendingPermission]
+  );
+
   /** Deny a pending permission request (optionally with a text message for the agent) */
   const denyPermission = useCallback(
     (toolUseId: string, message?: string) => {
@@ -129,5 +145,13 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
   const abort = useCallback(() => abortMutate(), [abortMutate]);
   const newConversation = useCallback(() => newConversationMutate(), [newConversationMutate]);
 
-  return { sendMessage, injectMessage, abort, newConversation, allowPermission, denyPermission };
+  return {
+    sendMessage,
+    injectMessage,
+    abort,
+    newConversation,
+    allowPermission,
+    allowAlwaysPermission,
+    denyPermission,
+  };
 }

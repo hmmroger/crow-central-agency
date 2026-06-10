@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  DEFAULT_MODEL,
+  AGENT_TYPE,
+  CLAUDE_DEFAULT_MODEL,
+  COPILOT_DEFAULT_MODEL,
   DEFAULT_SETTING_SOURCES,
   PERMISSION_MODE,
   TOOL_MODE,
   TIME_MODE,
   type AgentConfigTemplate,
+  type AgentType,
   type ConfiguredFeed,
   type DayOfWeek,
   type SchedulerTime,
@@ -15,7 +18,7 @@ import {
   type ToolMode,
 } from "@crow-central-agency/shared";
 import type { AgentDetailData, AgentEditorFormState } from "./agent-editor.types.js";
-import { BUILTIN_TOOL_SET } from "./tool-constants.js";
+import { BUILTIN_TOOL_SET_BY_TYPE } from "./tool-constants.js";
 import { arraysEqual } from "../../utils/array-utils.js";
 
 /** Default form state for a new agent */
@@ -24,7 +27,7 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   description: "",
   workspace: "",
   persona: "",
-  model: DEFAULT_MODEL,
+  model: CLAUDE_DEFAULT_MODEL,
   permissionMode: PERMISSION_MODE.DEFAULT,
   settingSources: [...DEFAULT_SETTING_SOURCES],
   toolMode: TOOL_MODE.UNRESTRICTED,
@@ -54,6 +57,11 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   voiceName: "",
   voiceStylePrompt: "",
 };
+
+/** Default model for a new agent, picked by provider. */
+function defaultModelForType(agentType: AgentType): string {
+  return agentType === AGENT_TYPE.GITHUB_COPILOT ? COPILOT_DEFAULT_MODEL : CLAUDE_DEFAULT_MODEL;
+}
 
 /**
  * Build form state from a saved template. Leaves fields that templates
@@ -193,9 +201,15 @@ function configuredFeedsEqual(feedsA: ConfiguredFeed[], feedsB: ConfiguredFeed[]
  * @param agent - Existing agent data (undefined for create mode)
  * @param templatePreset - Optional template to prefill from when creating a new agent
  */
-export function useAgentEditorForm(agent?: AgentDetailData, templatePreset?: AgentConfigTemplate) {
+export function useAgentEditorForm(
+  agentType: AgentType,
+  agent?: AgentDetailData,
+  templatePreset?: AgentConfigTemplate
+) {
   const [form, setForm] = useState<AgentEditorFormState>(() =>
-    templatePreset ? formStateFromTemplate(templatePreset) : DEFAULT_FORM_STATE
+    templatePreset
+      ? formStateFromTemplate(templatePreset)
+      : { ...DEFAULT_FORM_STATE, model: defaultModelForType(agentType) }
   );
   const initialSnapshot = useRef<AgentEditorFormState>(form);
 
@@ -236,13 +250,14 @@ export function useAgentEditorForm(agent?: AgentDetailData, templatePreset?: Age
       setForm((prev) => {
         if (value === TOOL_MODE.RESTRICTED) {
           // Pre-select builtin tools that are already auto-approved
-          const selectedTools = prev.autoApprovedTools.filter((tool) => BUILTIN_TOOL_SET.has(tool));
+          const builtinToolSet = BUILTIN_TOOL_SET_BY_TYPE[agentType];
+          const selectedTools = prev.autoApprovedTools.filter((tool) => builtinToolSet.has(tool));
           return { ...prev, toolMode: value, selectedTools };
         }
 
         return { ...prev, toolMode: value, selectedTools: [] };
       }),
-    []
+    [agentType]
   );
 
   const toggleTool = useCallback(

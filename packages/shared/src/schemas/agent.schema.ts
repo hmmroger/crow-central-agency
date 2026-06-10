@@ -11,7 +11,29 @@ export const CLAUDE_MODELS = {
   OPUS_4_5: "claude-opus-4-5",
 } as const;
 
-export type AgentModels = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];
+export type ClaudeModel = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];
+
+export const GITHUB_COPILOT_MODELS = {
+  AUTO: "auto",
+  HAIKU: "claude-haiku-4.5",
+  SONNET: "claude-sonnet-4.6",
+  OPUS: "claude-opus-4.8",
+  GPT_5_5: "gpt-5.5",
+  GPT_5_4: "gpt-5.4",
+  GPT_5_3_CODEX: "gpt-5.3-codex",
+  GPT_5_4_MINI: "gpt-5.4-mini",
+  GPT_5_MINI: "gpt-5-mini",
+} as const;
+
+export type GitHubCopilotModel = (typeof GITHUB_COPILOT_MODELS)[keyof typeof GITHUB_COPILOT_MODELS];
+
+/** A selectable agent model, surfaced to the editor's model picker. */
+export const ModelOptionSchema = z.object({
+  value: z.string(),
+  label: z.string(),
+});
+
+export type ModelOption = z.infer<typeof ModelOptionSchema>;
 
 export const CLAUDE_CODE_MODEL_OPTIONS = [
   { value: CLAUDE_MODELS.SONNET, label: "Claude Sonnet 4.6" },
@@ -20,7 +42,8 @@ export const CLAUDE_CODE_MODEL_OPTIONS = [
 ] as const;
 
 /** Default model for new agents */
-export const DEFAULT_MODEL = CLAUDE_MODELS.SONNET;
+export const CLAUDE_DEFAULT_MODEL = CLAUDE_MODELS.SONNET;
+export const COPILOT_DEFAULT_MODEL = GITHUB_COPILOT_MODELS.AUTO;
 
 /**
  * Tool configuration modes for agent tool availability.
@@ -38,9 +61,9 @@ export type ToolMode = (typeof TOOL_MODE)[keyof typeof TOOL_MODE];
 export const SUBAGENT_TOOL_NAME = "Agent" as const;
 
 /**
- * Default available tools for new agent creation.
+ * Default builtin tool catalog for Claude Code agents.
  */
-export const DEFAULT_AVAILABLE_TOOLS = [
+export const DEFAULT_CLAUDE_CODE_AVAILABLE_TOOLS = [
   "AskUserQuestion",
   "Bash",
   "Glob",
@@ -64,6 +87,28 @@ export const DEFAULT_AVAILABLE_TOOLS = [
   "CronDelete",
   "CronList",
   "ToolSearch",
+] as const;
+
+/**
+ * Default builtin tool catalog for GitHub Copilot agents.
+ */
+export const DEFAULT_GITHUB_COPILOT_AVAILABLE_TOOLS = [
+  "bash",
+  "write_bash",
+  "read_bash",
+  "stop_bash",
+  "list_bash",
+  "view",
+  "create",
+  "edit",
+  "web_fetch",
+  "report_intent",
+  "fetch_copilot_cli_documentation",
+  "skill",
+  "ask_user",
+  "grep",
+  "glob",
+  "task",
 ] as const;
 
 /**
@@ -101,9 +146,18 @@ export type PermissionMode = (typeof PERMISSION_MODE)[keyof typeof PERMISSION_MO
 
 export const AGENT_TYPE = {
   CLAUDE_CODE: "CLAUDE_CODE",
+  GITHUB_COPILOT: "GITHUB_COPILOT",
 } as const;
 
 export type AgentType = (typeof AGENT_TYPE)[keyof typeof AGENT_TYPE];
+
+export const AgentTypeSchema = z.enum([AGENT_TYPE.CLAUDE_CODE, AGENT_TYPE.GITHUB_COPILOT]);
+
+/** Default builtin tool catalog per provider, used to seed new agents and the editor's tool picker. */
+export const DEFAULT_AVAILABLE_TOOLS_BY_TYPE: Record<AgentType, readonly string[]> = {
+  [AGENT_TYPE.CLAUDE_CODE]: DEFAULT_CLAUDE_CODE_AVAILABLE_TOOLS,
+  [AGENT_TYPE.GITHUB_COPILOT]: DEFAULT_GITHUB_COPILOT_AVAILABLE_TOOLS,
+};
 
 export const AgentIdSchema = z.uuid();
 
@@ -162,12 +216,12 @@ export type AgentVoiceConfig = z.infer<typeof AgentVoiceConfigSchema>;
  */
 export const AgentConfigSchema = z.object({
   id: AgentIdSchema,
-  type: z.enum([AGENT_TYPE.CLAUDE_CODE]).default(AGENT_TYPE.CLAUDE_CODE),
+  type: AgentTypeSchema.default(AGENT_TYPE.CLAUDE_CODE),
   name: z.string().min(1).max(64),
   description: z.string().optional(),
   workspace: z.string().min(1).optional(),
   persona: z.string().optional(),
-  model: z.string().default(DEFAULT_MODEL),
+  model: z.string().default(CLAUDE_DEFAULT_MODEL),
   permissionMode: PermissionModeSchema.default(PERMISSION_MODE.DEFAULT),
   settingSources: z.array(SettingSourceSchema).default([...DEFAULT_SETTING_SOURCES]),
   availableTools: z.array(z.string()).optional(),
@@ -197,6 +251,7 @@ export type AgentConfig = z.infer<typeof AgentConfigSchema>;
  * Input for creating a new agent - only required fields
  */
 export const CreateAgentInputSchema = z.object({
+  type: AgentTypeSchema.default(AGENT_TYPE.CLAUDE_CODE),
   name: z.string().min(1).max(50),
   description: z.string().optional(),
   workspace: z.string().min(1).optional(),
@@ -245,6 +300,7 @@ export const UpdateAgentInputSchema = z.object({
 export type UpdateAgentInput = z.infer<typeof UpdateAgentInputSchema>;
 
 export const AgentConfigTemplateSchema = AgentConfigSchema.pick({
+  type: true,
   description: true,
   workspace: true,
   persona: true,

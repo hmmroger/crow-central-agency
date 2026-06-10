@@ -4,7 +4,7 @@ import {
   AgentConfigTemplateSchema,
   CreateAgentInputSchema,
   UpdateAgentInputSchema,
-  DEFAULT_AVAILABLE_TOOLS,
+  DEFAULT_AVAILABLE_TOOLS_BY_TYPE,
   ENTITY_TYPE,
   RELATIONSHIP_TYPE,
   BASE_CIRCLE_ID,
@@ -155,7 +155,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     const agent = AgentConfigSchema.parse({
       ...configFields,
       id,
-      availableTools: [...DEFAULT_AVAILABLE_TOOLS],
+      availableTools: [...DEFAULT_AVAILABLE_TOOLS_BY_TYPE[validated.type]],
       createdAt: now,
       updatedAt: now,
     });
@@ -266,6 +266,38 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     });
   }
 
+  /**
+   * Add a tool to the agent's auto-approved list from an "allow always" permission decision.
+   * Runtime-only write path — not part of user-driven updates.
+   */
+  public async addAutoApprovedTool(agentId: string, toolName: string): Promise<void> {
+    const existing = this.getAgent(agentId);
+    try {
+      this.assertMutable(existing);
+    } catch {
+      return;
+    }
+
+    const current = existing.toolConfig.autoApprovedTools ?? [];
+    if (current.includes(toolName)) {
+      return;
+    }
+
+    const updated: AgentConfig = {
+      ...existing,
+      toolConfig: { ...existing.toolConfig, autoApprovedTools: [...current, toolName] },
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.agents.set(agentId, updated);
+    await this.store.set(AGENT_STORE_TABLE, agentId, updated);
+    this.broadcaster.broadcast({
+      type: SERVER_MESSAGE_TYPE.AGENT_UPDATED,
+      agentId,
+      config: sanitizeAgentConfig(updated),
+    });
+  }
+
   /** Delete an agent and its folder - system agents cannot be deleted */
   public async deleteAgent(agentId: string): Promise<void> {
     const existing = this.getAgent(agentId);
@@ -302,6 +334,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     const template = AgentConfigTemplateSchema.parse({
       templateId: existing?.templateId ?? generateId(),
       templateName,
+      type: agent.type,
       description: agent.description,
       workspace: agent.workspace,
       persona: agent.persona,

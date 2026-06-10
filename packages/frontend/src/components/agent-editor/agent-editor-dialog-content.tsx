@@ -2,9 +2,10 @@ import { useCallback, useEffect, useImperativeHandle, useState } from "react";
 import type { Ref } from "react";
 import { BookmarkPlus, Sparkles, Trash2 } from "lucide-react";
 import {
-  DEFAULT_MODEL,
+  AGENT_TYPE,
   TOOL_MODE,
   type AgentConfigTemplate,
+  type AgentType,
   type CreateAgentInput,
   type UpdateAgentInput,
 } from "@crow-central-agency/shared";
@@ -44,6 +45,8 @@ interface AgentEditorDialogContentProps {
   agentId?: string;
   /** Template to prefill the form from when creating a new agent */
   templatePreset?: AgentConfigTemplate;
+  /** Provider type for a new agent */
+  agentType?: AgentType;
   /** Injected by modal dialog provider — closes the modal */
   onClose: () => void;
   /** Injected by modal dialog renderer for dismiss guard */
@@ -56,7 +59,13 @@ interface AgentEditorDialogContentProps {
  * Uses useAgentEditorForm hook for state management and dirty tracking.
  * Exposes ModalDialogHandle so the renderer can check canDismiss before closing.
  */
-export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref }: AgentEditorDialogContentProps) {
+export function AgentEditorDialogContent({
+  agentId,
+  templatePreset,
+  agentType = AGENT_TYPE.CLAUDE_CODE,
+  onClose,
+  ref,
+}: AgentEditorDialogContentProps) {
   const confirm = useConfirmDialog();
   const prompt = usePromptDialog();
   const isEditing = agentId !== undefined;
@@ -83,8 +92,11 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
   const { data: globalMcpConfigs = [] } = useMcpConfigsQuery({ enabled: !isEditing });
   const mcpConfigs = isEditing ? agentMcpConfigs : globalMcpConfigs;
 
+  // An existing agent's saved type wins; the prop only seeds new agents.
+  const effectiveAgentType = agentQuery.data?.type ?? agentType;
+
   // Form state with dirty tracking
-  const editorForm = useAgentEditorForm(agentQuery.data, templatePreset);
+  const editorForm = useAgentEditorForm(effectiveAgentType, agentQuery.data, templatePreset);
   const { form, isDirty } = editorForm;
 
   const [generateModalType, setGenerateModalType] = useState<"persona" | "agentmd" | undefined>(undefined);
@@ -162,11 +174,12 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
         await updateMutateAsync(input);
       } else {
         const input: CreateAgentInput = {
+          type: agentType,
           name: form.name,
           workspace: form.workspace.trim() || undefined,
           description: form.description || undefined,
           persona: form.persona || undefined,
-          model: form.model !== DEFAULT_MODEL ? form.model : undefined,
+          model: form.model,
           permissionMode: form.permissionMode,
           settingSources: form.settingSources,
           toolConfig: {
@@ -193,7 +206,7 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
     } catch {
       // Error is surfaced via mutation.error in the UI
     }
-  }, [form, isEditing, updateMutateAsync, createMutateAsync, onClose, agentQuery.data?.agentVoiceConfig]);
+  }, [form, isEditing, agentType, updateMutateAsync, createMutateAsync, onClose, agentQuery.data?.agentVoiceConfig]);
 
   /** Prompt for a template name and save the current agent as a template */
   const handleSaveAsTemplate = useCallback(() => {
@@ -295,6 +308,7 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
               description={form.description}
               workspace={form.workspace}
               model={form.model}
+              agentType={effectiveAgentType}
               persona={form.persona}
               onNameChange={editorForm.setName}
               onDescriptionChange={editorForm.setDescription}
@@ -316,20 +330,24 @@ export function AgentEditorDialogContent({ agentId, templatePreset, onClose, ref
 
             <SystemPromptSection
               excludeClaudeCodeSystemPrompt={form.excludeClaudeCodeSystemPrompt}
+              agentType={effectiveAgentType}
               onExcludeClaudeCodeSystemPromptChange={editorForm.setExcludeClaudeCodeSystemPrompt}
             />
 
             <PermissionModeSection
               permissionMode={form.permissionMode}
+              agentType={effectiveAgentType}
               onPermissionModeChange={editorForm.setPermissionMode}
             />
 
             <SettingSourcesSection
               settingSources={form.settingSources}
+              agentType={effectiveAgentType}
               onSettingSourcesChange={editorForm.setSettingSources}
             />
 
             <ToolConfigSection
+              agentType={effectiveAgentType}
               toolMode={form.toolMode}
               selectedTools={form.selectedTools}
               autoApprovedTools={form.autoApprovedTools}

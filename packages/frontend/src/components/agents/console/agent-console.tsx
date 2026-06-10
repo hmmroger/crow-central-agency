@@ -25,9 +25,12 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
   const { streamingText, activeToolUse, resetStreamState } = useAgentStreamState(agentId);
   const pendingPermissions = agentState?.pendingPermissions ?? [];
-  const { sendMessage, injectMessage, abort, allowPermission, denyPermission } = useAgentActions(agentId, {
-    resetStreamState,
-  });
+  const { sendMessage, injectMessage, abort, allowPermission, allowAlwaysPermission, denyPermission } = useAgentActions(
+    agentId,
+    {
+      resetStreamState,
+    }
+  );
   const isStreaming = status === AGENT_STATUS.STREAMING;
 
   if (isLoading || !agent) {
@@ -51,7 +54,12 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
         />
 
         <div className="max-w-3xl mx-auto px-5 shrink-0">
-          <PermissionQueue permissions={pendingPermissions} onAllow={allowPermission} onDeny={denyPermission} />
+          <PermissionQueue
+            permissions={pendingPermissions}
+            onAllow={allowPermission}
+            onAllowAlways={allowAlwaysPermission}
+            onDeny={denyPermission}
+          />
         </div>
 
         <MessageInput onSend={sendMessage} onInject={injectMessage} onAbort={abort} isStreaming={isStreaming} />

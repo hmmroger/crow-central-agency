@@ -21,6 +21,9 @@ export const ARTIFACT_TIMESTAMP_WINDOW_MS = 5 * 60 * 1000;
 /** Default message sent to the agent when a tool permission is denied without a typed response */
 export const DEFAULT_PERMISSION_DENY_MESSAGE = "Permission denied by user";
 
+/** Denial reason used when an agent runs with permission prompting suppressed (Claude "dontAsk" mode). */
+export const PERMISSION_USER_UNAVAILABLE_MESSAGE = "Permission denied: no user is available to approve this request";
+
 /** Subdirectory name under CROW_SYSTEM_PATH for per-agent folders */
 export const AGENTS_DIR_NAME = "agents";
 

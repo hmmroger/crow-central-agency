@@ -1,7 +1,7 @@
-import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
-import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import type { CrowScheduler } from "../../services/crow-scheduler.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
+import { defineMcpTool } from "../crow-mcp-manager-utils.js";
+import type { McpServerDefinition } from "../crow-mcp-manager.types.js";
 import { getAddReminderToolConfig } from "./add-reminder.js";
 import { getDeleteReminderToolConfig } from "./delete-reminder.js";
 import { getListRemindersToolConfig } from "./list-reminders.js";
@@ -9,31 +9,19 @@ import { getListRemindersToolConfig } from "./list-reminders.js";
 export const REMINDERS_MCP_SERVER_NAME = "crow-reminders";
 
 /**
- * Create the crow-reminders MCP server for a specific agent.
- * Provides tools for creating, deleting, and listing reminders.
- * Each agent can only manage its own reminders.
+ * Define the crow-reminders MCP server. Provides tools for creating, deleting, and listing
+ * reminders. Each agent can only manage its own reminders.
  */
-export function createRemindersMcpServer(
-  agentId: string,
+export function getRemindersMcpServerDefinition(
   scheduler: CrowScheduler,
   sensorManager: SensorManager
-): McpSdkServerConfigWithInstance {
-  const addReminder = getAddReminderToolConfig(agentId, scheduler, sensorManager);
-  const deleteReminder = getDeleteReminderToolConfig(agentId, scheduler);
-  const listReminders = getListRemindersToolConfig(agentId, scheduler, sensorManager);
-
-  return createSdkMcpServer({
+): McpServerDefinition {
+  return {
     name: REMINDERS_MCP_SERVER_NAME,
-    tools: [
-      tool(addReminder.name, addReminder.description, addReminder.inputSchema, addReminder.handler, {
-        annotations: addReminder.annotations,
-      }),
-      tool(deleteReminder.name, deleteReminder.description, deleteReminder.inputSchema, deleteReminder.handler, {
-        annotations: deleteReminder.annotations,
-      }),
-      tool(listReminders.name, listReminders.description, listReminders.inputSchema, listReminders.handler, {
-        annotations: listReminders.annotations,
-      }),
+    getTools: (agentId) => [
+      defineMcpTool(getAddReminderToolConfig(agentId, scheduler, sensorManager)),
+      defineMcpTool(getDeleteReminderToolConfig(agentId, scheduler)),
+      defineMcpTool(getListRemindersToolConfig(agentId, scheduler, sensorManager)),
     ],
-  });
+  };
 }

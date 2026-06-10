@@ -1,44 +1,19 @@
-import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
-import type {
-  CanUseTool,
-  HookEvent,
-  HookCallbackMatcher,
-  SyncHookJSONOutput,
-  HookInput,
-  Query,
-  McpServerConfig,
-} from "@anthropic-ai/claude-agent-sdk";
-import {
-  AGENT_STATUS,
-  ENTITY_TYPE,
-  resolveModel,
-  type AgentConfig,
-  type AgentStatus,
-} from "@crow-central-agency/shared";
+import { AGENT_STATUS, ENTITY_TYPE, type AgentConfig, type AgentStatus } from "@crow-central-agency/shared";
 import { EventBus } from "../core/event-bus/event-bus.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
-import { processStream } from "./stream-processor.js";
-import { parseToolActivity } from "./tool-activity-parser.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
-import { env } from "../config/env.js";
-import { DEFAULT_PERMISSION_DENY_MESSAGE } from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 import type { MessageTemplate } from "../utils/message-template.types.js";
-import {
-  createMessageContentFromTemplate,
-  getDefaultPromptContext,
-  userMessageForAgent,
-} from "../utils/message-template.js";
+import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
 import { MessageRoles } from "../services/content-generation/content-generation.types.js";
 import { INVOKE_AGENT_TOOL_NAME } from "../mcp/agents/invoke-agent.js";
 import { FEED_MCP_SERVER_NAME } from "../mcp/feed/feed-mcp-server.js";
 import {
   AGENT_STREAM_EVENT_TYPE,
   type AgentRunnerEvents,
+  type AgentRunQueryRequest,
   type AgentStreamEvent,
-  type OOBStreamEventCallback,
-  type PermissionRequestCallback,
 } from "./agent-runner.types.js";
 import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
 import { isCrowSystemAgent } from "../utils/id-utils.js";
@@ -200,20 +175,17 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
 
 const log = logger.child({ context: "agent-runner" });
 
-export class AgentRunner extends EventBus<AgentRunnerEvents> {
+export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
   private agentStatus: AgentStatus;
-  private query?: Query;
   private abortController?: AbortController;
   private injectedMessages?: string[];
 
   constructor(
-    private readonly agentId: string,
+    protected readonly agentId: string,
     private readonly registry: AgentRegistry,
     private readonly mcpManager: CrowMcpManager,
     private readonly sensorManager: SensorManager,
-    private readonly circleManager: AgentCircleManager,
-    private readonly permissionRequestHandler: PermissionRequestCallback,
-    private readonly oobEventCallback: OOBStreamEventCallback
+    private readonly circleManager: AgentCircleManager
   ) {
     super();
     this.agentStatus = AGENT_STATUS.IDLE;
@@ -224,7 +196,7 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
   }
 
   /**
-   * Send a message to an agent - creates an SDK query and processes the stream.
+   * Send a message to an agent - runs a query turn and processes the stream.
    * If the agent is busy, the message is transparently enqueued and processed
    * when the agent becomes idle.
    */
@@ -236,13 +208,13 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
     const agentConfig = this.registry.getAgent(this.agentId);
     let nextMessage: string | undefined = message;
     while (nextMessage) {
-      const agentStream = await this.runQuery(nextMessage, messageSource, agentConfig, sessionId);
+      const agentStream = this.runQuery(nextMessage, messageSource, agentConfig, sessionId);
       for await (const agentStreamEvent of agentStream) {
         yield agentStreamEvent;
       }
 
-      // Injected messages take priority holding the same promise
-      nextMessage = this.getInjectedMessages();
+      // Injected messages not delivered mid-stream are sent as the next turn.
+      nextMessage = this.drainInjectedMessages();
       if (nextMessage) {
         log.info({ agentId: this.agentId }, "Delivering injected messages post query.");
       }
@@ -251,11 +223,11 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
 
   /**
    * Inject a message into an active agent stream.
-   * The message is buffered and delivered as a systemMessage via the PreToolUse hook
-   * on the agent's next tool use.
+   * The message is buffered and delivered by the provider subclass according to its capabilities
+   * (e.g. as a systemMessage via the next tool-use hook), falling back to the next query turn.
    */
   public injectMessage(text: string): void {
-    if (!this.query) {
+    if (!this.abortController) {
       throw new AppError(`Agent ${this.agentId} is not streaming`, APP_ERROR_CODES.AGENT_NOT_RUNNING);
     }
 
@@ -269,7 +241,37 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
 
   public async abort(): Promise<void> {
     this.abortController?.abort();
-    this.query?.close();
+    await this.cancelProviderQuery();
+  }
+
+  /**
+   * Release provider-level resources held across turns (e.g. a persistent SDK client). Called on
+   * agent deletion after {@link abort}. The base runner holds no such resources; providers that cache
+   * a client override this.
+   */
+  public async dispose(): Promise<void> {
+    // No persistent resources in the base runner.
+  }
+
+  /**
+   * Run a single provider query turn, yielding normalized stream events from the underlying SDK.
+   * Implementations read `request.abortController` to wire cancellation into the provider call and
+   * must let errors propagate so the base can synthesize the terminal ERROR event.
+   */
+  protected abstract runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown>;
+
+  /** Cancel the in-flight provider query, if any (provider-specific teardown). */
+  protected abstract cancelProviderQuery(): void | Promise<void>;
+
+  /** Take and clear any buffered injected messages, joined into a single message. */
+  protected drainInjectedMessages(): string | undefined {
+    const injectedMessages = this.injectedMessages;
+    if (!injectedMessages?.length) {
+      return undefined;
+    }
+
+    this.injectedMessages = undefined;
+    return injectedMessages.join("\n\n");
   }
 
   private async *runQuery(
@@ -279,63 +281,32 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
     sessionId?: string
   ): AsyncGenerator<AgentStreamEvent, void, unknown> {
     this.updateAgentStatus(AGENT_STATUS.ACTIVATING, messageSource);
-    // Track running agent
-    this.abortController = new AbortController();
 
     const serverConfigs = await this.mcpManager.getMcpServersForAgent(this.agentId);
-    const mcpServers = await this.buildMcpServers(serverConfigs);
     const sensorContext = await this.sensorManager.getSensorContext();
     const systemPrompt = await this.buildSystemPrompt(agentConfig, sensorContext, serverConfigs);
-    const systemPromptOption = systemPrompt
-      ? agentConfig.excludeClaudeCodeSystemPrompt
-        ? systemPrompt
-        : { type: "preset" as const, preset: "claude_code" as const, append: systemPrompt }
-      : undefined;
+    const cwd = this.registry.resolveWorkspace(agentConfig);
 
-    const toolsOption =
-      agentConfig.toolConfig.mode === "restricted"
-        ? agentConfig.toolConfig.tools
-        : { type: "preset" as const, preset: "claude_code" as const };
-    const internalMcpPrefixes = await this.mcpManager.getInternalMcpPrefixes(this.agentId);
-    const persistSession = agentConfig.persistSession === false ? false : true;
+    this.abortController = new AbortController();
+    const request: AgentRunQueryRequest = {
+      message,
+      sessionId,
+      cwd,
+      agentConfig,
+      systemPrompt,
+      timezone: sensorContext.timezone,
+      serverConfigs,
+      abortController: this.abortController,
+    };
 
-    const queryInstance = sdkQuery({
-      prompt: userMessageForAgent(new Date(), message, sensorContext.timezone),
-      options: {
-        cwd: this.registry.resolveWorkspace(agentConfig),
-        model: resolveModel(agentConfig.model),
-        resume: persistSession ? sessionId : undefined,
-        systemPrompt: systemPromptOption,
-        abortController: this.abortController,
-        includePartialMessages: true,
-        permissionMode: agentConfig.permissionMode,
-        allowedTools: [
-          ...(agentConfig.toolConfig.autoApprovedTools || []),
-          ...internalMcpPrefixes.map((prefix) => `${prefix}*`),
-        ],
-        tools: toolsOption,
-        disallowedTools: agentConfig.toolConfig.disallowedTools,
-        canUseTool: this.buildCanUseTool(),
-        settingSources: agentConfig.settingSources,
-        mcpServers,
-        persistSession,
-        agentProgressSummaries: true,
-        pathToClaudeCodeExecutable: env.CLAUDE_CLI_PATH,
-        toolConfig: {
-          askUserQuestion: { previewFormat: "html" },
-        },
-        hooks: this.buildSdkHooks(this.oobEventCallback),
-      },
-    });
-
-    this.query = queryInstance;
     this.updateAgentStatus(AGENT_STATUS.STREAMING, messageSource);
 
+    let resolvedSessionId = sessionId;
     try {
       let hasDone = false;
-      for await (const agentStreamEvent of processStream(this.agentId, queryInstance, internalMcpPrefixes)) {
-        if (!sessionId) {
-          sessionId = agentStreamEvent.sessionId;
+      for await (const agentStreamEvent of this.runProviderQuery(request)) {
+        if (!resolvedSessionId) {
+          resolvedSessionId = agentStreamEvent.sessionId;
         }
 
         if (agentStreamEvent.type === AGENT_STREAM_EVENT_TYPE.DONE) {
@@ -349,7 +320,7 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
         yield {
           agentId: this.agentId,
           type: AGENT_STREAM_EVENT_TYPE.ABORTED,
-          sessionId: sessionId ?? "",
+          sessionId: resolvedSessionId ?? "",
         };
       }
     } catch (error) {
@@ -358,11 +329,10 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
       yield {
         agentId: this.agentId,
         type: AGENT_STREAM_EVENT_TYPE.ERROR,
-        sessionId: sessionId ?? "",
+        sessionId: resolvedSessionId ?? "",
         error: errorMessage,
       };
     } finally {
-      this.query = undefined;
       this.abortController = undefined;
       this.updateAgentStatus(AGENT_STATUS.IDLE, messageSource);
     }
@@ -377,150 +347,6 @@ export class AgentRunner extends EventBus<AgentRunnerEvents> {
     log.info({ agentId: this.agentId, status }, "Agent status changed.");
 
     this.emit("agentStatusChanged", { agentId: this.agentId, status, messageSource });
-  }
-
-  private buildCanUseTool(): CanUseTool {
-    return async (toolName, input, options) => {
-      const result = await this.permissionRequestHandler(
-        this.agentId,
-        toolName,
-        input,
-        options.toolUseID,
-        options.decisionReason
-      );
-
-      if (result.behavior === "allow") {
-        return { behavior: "allow" as const, updatedInput: result.updatedInput || input, toolUseID: options.toolUseID };
-      }
-
-      return {
-        behavior: "deny" as const,
-        message: result.message ?? DEFAULT_PERMISSION_DENY_MESSAGE,
-        toolUseID: options.toolUseID,
-      };
-    };
-  }
-
-  /** Build MCP servers for a query — only includes servers the agent has access to */
-  private async buildMcpServers(serverConfigs: CrowMcpServerConfig[]): Promise<Record<string, McpServerConfig>> {
-    const servers: Record<string, McpServerConfig> = {};
-    for (const { name, serverFactory } of serverConfigs) {
-      servers[name] = serverFactory(this.agentId);
-    }
-
-    return servers;
-  }
-
-  private buildSdkHooks(
-    oobStreamEventCallback: OOBStreamEventCallback
-  ): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
-    const systemToolUseHookHandler = this.getSystemToolUseHookHandler(oobStreamEventCallback);
-
-    return {
-      SubagentStart: [
-        {
-          hooks: [
-            async (input) => {
-              try {
-                if (input.hook_event_name === "SubagentStart") {
-                  oobStreamEventCallback({
-                    type: AGENT_STREAM_EVENT_TYPE.ACTIVITY,
-                    agentId: this.agentId,
-                    sessionId: input.session_id,
-                    activity: "Agent",
-                    description: `Subagent started: ${input.agent_type}`,
-                    subAgentId: input.agent_id,
-                  });
-                }
-              } catch (error) {
-                log.warn({ agentId: this.agentId, error }, "SubagentStart hook callback event failed");
-              }
-
-              return { continue: true };
-            },
-          ],
-        },
-      ],
-      SubagentStop: [
-        {
-          hooks: [
-            async (input) => {
-              try {
-                if (input.hook_event_name === "SubagentStop") {
-                  oobStreamEventCallback({
-                    type: AGENT_STREAM_EVENT_TYPE.ACTIVITY,
-                    agentId: this.agentId,
-                    sessionId: input.session_id,
-                    activity: "Agent",
-                    description: `Subagent completed: ${input.agent_type}`,
-                    subAgentId: input.agent_id,
-                  });
-                }
-              } catch (error) {
-                log.warn({ agentId: this.agentId, error }, "SubagentStop hook callback event failed");
-              }
-
-              return { continue: true };
-            },
-          ],
-        },
-      ],
-      PreToolUse: [
-        {
-          hooks: [systemToolUseHookHandler],
-        },
-      ],
-      PostToolUse: [
-        {
-          hooks: [systemToolUseHookHandler],
-        },
-      ],
-    };
-  }
-
-  private getSystemToolUseHookHandler(
-    oobStreamEventCallback: OOBStreamEventCallback
-  ): (input: HookInput) => Promise<SyncHookJSONOutput> {
-    return async (input) => {
-      try {
-        if (input.hook_event_name === "PreToolUse") {
-          const description = parseToolActivity(input.tool_name, input.tool_input);
-          oobStreamEventCallback({
-            type: AGENT_STREAM_EVENT_TYPE.TOOL_USE,
-            agentId: this.agentId,
-            sessionId: input.session_id,
-            toolName: input.tool_name,
-            input: input.tool_input,
-            description,
-            subAgentId: input.agent_id,
-          });
-        }
-      } catch (error) {
-        log.warn({ agentId: this.agentId, error }, "PreToolUse hook broadcast failed");
-      }
-
-      // Only try to inject on main agent
-      if ((input.hook_event_name === "PreToolUse" || input.hook_event_name === "PostToolUse") && !input.agent_id) {
-        // Drain any injected messages as a systemMessage
-        const systemMessage = this.getInjectedMessages();
-        if (systemMessage) {
-          log.info({ agentId: this.agentId }, "Delivering injected messages via hook");
-          return { continue: true, systemMessage };
-        }
-      }
-
-      return { continue: true };
-    };
-  }
-
-  private getInjectedMessages(): string | undefined {
-    const injectedMessages = this.injectedMessages;
-    if (!injectedMessages?.length) {
-      return undefined;
-    }
-
-    this.injectedMessages = undefined;
-    return injectedMessages.join("\n\n");
   }
 
   private async buildSystemPrompt(

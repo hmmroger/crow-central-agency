@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type MouseEvent } from "react";
 import { ChevronDown } from "lucide-react";
-import { PERMISSION_MODE, type PermissionMode } from "@crow-central-agency/shared";
+import { AGENT_TYPE, PERMISSION_MODE, type AgentType, type PermissionMode } from "@crow-central-agency/shared";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
 import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import { cn } from "../../utils/cn.js";
@@ -13,8 +13,13 @@ const PERMISSION_MODE_OPTIONS: { value: PermissionMode; label: string }[] = [
   { value: PERMISSION_MODE.BYPASS_PERMISSIONS, label: "Bypass Permissions" },
 ];
 
+// Copilot has no preset accept-edits equivalent, and its plan-mode exit isn't wired yet, so neither
+// is offered for Copilot agents.
+const COPILOT_UNSUPPORTED_MODES = new Set<PermissionMode>([PERMISSION_MODE.ACCEPT_EDITS, PERMISSION_MODE.PLAN]);
+
 interface PermissionModeSelectorProps {
   value: PermissionMode;
+  agentType: AgentType;
   onChange: (value: PermissionMode) => void;
   menuId: string;
   buttonId?: string;
@@ -24,20 +29,27 @@ interface PermissionModeSelectorProps {
  * Permission mode selector using the context menu system
  * as a dropdown replacement for native <select>.
  */
-export function PermissionModeSelector({ value, onChange, menuId, buttonId }: PermissionModeSelectorProps) {
+export function PermissionModeSelector({ value, agentType, onChange, menuId, buttonId }: PermissionModeSelectorProps) {
   const { toggleMenu, isMenuOpen } = useContextMenu();
   const isOpen = isMenuOpen(menuId);
-  const selectedOption = PERMISSION_MODE_OPTIONS.find((option) => option.value === value);
+  const options = useMemo(
+    () =>
+      agentType === AGENT_TYPE.GITHUB_COPILOT
+        ? PERMISSION_MODE_OPTIONS.filter((option) => !COPILOT_UNSUPPORTED_MODES.has(option.value))
+        : PERMISSION_MODE_OPTIONS,
+    [agentType]
+  );
+  const selectedOption = options.find((option) => option.value === value);
 
   const menuItems = useMemo<ContextMenuItem[]>(
     () =>
-      PERMISSION_MODE_OPTIONS.map((option) => ({
+      options.map((option) => ({
         type: ContextMenuTypes.action,
         label: option.label,
         onClick: () => onChange(option.value),
         selected: option.value === value,
       })),
-    [onChange, value]
+    [options, onChange, value]
   );
 
   const handleClick = useCallback(
