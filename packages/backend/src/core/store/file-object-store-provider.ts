@@ -9,7 +9,13 @@
 
 import path from "node:path";
 import { logger } from "../../utils/logger.js";
-import { readJsonFile, writeJsonFile, assertWithinBase, deleteFile } from "../../utils/fs-utils.js";
+import {
+  readJsonFile,
+  writeJsonFile,
+  assertWithinBase,
+  deleteFile,
+  removeEmptyAncestors,
+} from "../../utils/fs-utils.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
 import { AppError } from "../error/app-error.js";
 import {
@@ -123,6 +129,7 @@ export class FileObjectStoreProvider implements ObjectStoreProvider {
     await this.serializedWithResult(state, async () => {
       state.data.clear();
       await deleteFile(state.filePath);
+      await removeEmptyAncestors(path.dirname(state.filePath), this.basePath);
       this.tables.delete(table);
     });
   }

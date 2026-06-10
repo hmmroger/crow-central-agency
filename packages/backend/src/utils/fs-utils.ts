@@ -206,3 +206,35 @@ export async function renameFile(oldPath: string, newPath: string): Promise<bool
 export async function removeDir(dirPath: string): Promise<void> {
   await fs.rm(dirPath, { recursive: true, force: true });
 }
+
+/**
+ * Walk up from `startDir` toward `basePath`, removing each directory that is
+ * empty. Stops at the first non-empty directory or when reaching `basePath`.
+ * `basePath` itself is never removed. A missing directory (ENOENT) does not
+ * stop the walk — the next ancestor is still considered.
+ */
+export async function removeEmptyAncestors(startDir: string, basePath: string): Promise<void> {
+  const resolvedBase = path.resolve(basePath);
+  let current = path.resolve(startDir);
+
+  while (current !== resolvedBase && current.startsWith(resolvedBase + path.sep)) {
+    try {
+      await fs.rmdir(current);
+    } catch (error) {
+      if (isErrnoException(error)) {
+        if (error.code === "ENOTEMPTY") {
+          return;
+        }
+
+        if (error.code === "ENOENT") {
+          current = path.dirname(current);
+          continue;
+        }
+      }
+
+      throw error;
+    }
+
+    current = path.dirname(current);
+  }
+}

@@ -16,6 +16,7 @@ import {
   listFiles,
   deleteFile,
   removeDir,
+  removeEmptyAncestors,
   statFile,
 } from "../../utils/fs-utils.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
@@ -122,6 +123,7 @@ export class FolderFileStoreProvider implements ObjectStoreProvider {
     const dirPath = path.join(this.basePath, table);
     assertWithinBase(dirPath, this.basePath);
     await removeDir(dirPath);
+    await removeEmptyAncestors(path.dirname(dirPath), this.basePath);
     this.initializedTables.delete(table);
   }
 
