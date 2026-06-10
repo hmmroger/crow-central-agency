@@ -8,6 +8,7 @@ import { DashboardWidget } from "./dashboard-widget.js";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../common/action-button.js";
 import { cn } from "../../utils/cn.js";
 import { useCallback } from "react";
+import { GitHubCopilotIcon } from "../common/icons/github-copilot.js";
 
 interface DashboardActionsProps {
   className?: string;
@@ -42,7 +43,7 @@ export function DashboardActions({ className, compact = false }: DashboardAction
 
   const newCopilotAgentButton = (
     <ActionButton
-      icon={Plus}
+      icon={GitHubCopilotIcon}
       label="New Copilot Agent"
       variant={ACTION_BUTTON_VARIANT.PRIMARY}
       iconOnly={compact}

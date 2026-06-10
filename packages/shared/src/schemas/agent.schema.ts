@@ -11,7 +11,7 @@ export const CLAUDE_MODELS = {
   OPUS_4_5: "claude-opus-4-5",
 } as const;
 
-export type CaludeModel = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];
+export type ClaudeModel = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];
 
 export const GITHUB_COPILOT_MODELS = {
   AUTO: "auto",

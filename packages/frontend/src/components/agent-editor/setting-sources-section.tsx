@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { AGENT_TYPE, SETTING_SOURCE, type AgentType, type SettingSource } from "@crow-central-agency/shared";
 import { Toggle } from "../common/toggle.js";
 import { FieldGroup } from "./field-group.js";
@@ -17,15 +18,18 @@ export function SettingSourcesSection({
 }: SettingSourcesSectionProps) {
   const isCopilot = agentType === AGENT_TYPE.GITHUB_COPILOT;
 
-  const setSourceEnabled = (source: SettingSource, enabled: boolean) => {
-    onSettingSourcesChange((prev) => {
-      if (enabled) {
-        return prev.includes(source) ? prev : [...prev, source];
-      }
+  const setSourceEnabled = useCallback(
+    (source: SettingSource, enabled: boolean) => {
+      onSettingSourcesChange((prev) => {
+        if (enabled) {
+          return prev.includes(source) ? prev : [...prev, source];
+        }
 
-      return prev.filter((existing) => existing !== source);
-    });
-  };
+        return prev.filter((existing) => existing !== source);
+      });
+    },
+    [onSettingSourcesChange]
+  );
 
   return (
     <FieldGroup label="Setting Sources">
