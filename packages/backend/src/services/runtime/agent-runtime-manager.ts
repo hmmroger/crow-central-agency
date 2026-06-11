@@ -830,8 +830,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
     const state = this.ensureState(agentConfig.id);
     state.pendingInstructionReminder = {
-      persona: personaChanged || state.pendingInstructionReminder?.persona,
-      agentMd: agentMdChanged || state.pendingInstructionReminder?.agentMd,
+      persona: personaChanged || state.pendingInstructionReminder?.persona ? true : undefined,
+      agentMd: agentMdChanged || state.pendingInstructionReminder?.agentMd ? true : undefined,
     };
 
     try {

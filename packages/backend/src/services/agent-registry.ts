@@ -395,16 +395,6 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     }
   }
 
-  /** Write the agent's AGENT.md file - system agents cannot be modified */
-  public async setAgentMd(agentId: string, content: string): Promise<void> {
-    const agent = this.getAgent(agentId);
-    this.assertMutable(agent);
-    const mdPath = this.getAgentMdPath(agentId);
-    await writeTextFile(mdPath, content);
-
-    log.info({ agentId, name: agent.name }, "AGENT.md updated");
-  }
-
   /** Find a saved template by exact templateName match, or undefined if none */
   private async findTemplateByName(templateName: string): Promise<AgentConfigTemplate | undefined> {
     const templates = await this.getTemplates();
