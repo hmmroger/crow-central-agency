@@ -294,7 +294,14 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       // Drop a persisted sessionId whose transcript is gone so the turn starts a fresh session
       // instead of silently forking off a dead one.
       await this.ensureValidSession(agentId);
-      const eventStream = agentRunner.sendMessage(message, source, state.sessionId);
+
+      const instructionReminder = state.pendingInstructionReminder;
+      if (instructionReminder) {
+        state.pendingInstructionReminder = undefined;
+        await this.persistAgentState(agentId);
+      }
+
+      const eventStream = agentRunner.sendMessage(message, source, state.sessionId, instructionReminder);
       for await (const event of eventStream) {
         switch (event.type) {
           case AGENT_STREAM_EVENT_TYPE.INIT:
@@ -813,11 +820,6 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     await this.cleanup(agentId);
   }
 
-  /**
-   * When an agent's persona or AGENT.md changes, flag a one-shot reminder so the next turn
-   * surfaces the updated instruction as a recent, prominent message rather than relying on the
-   * resumed session's front-loaded system prompt, which the established history tends to override.
-   */
   private async onAgentUpdated(
     agentConfig: AgentConfig,
     previousAgent: AgentConfig,

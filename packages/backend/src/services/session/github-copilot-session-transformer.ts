@@ -1,7 +1,7 @@
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
 import type { AssistantMessageEvent, CopilotClient, CopilotSession, SessionEvent } from "@github/copilot-sdk";
 import { parseToolActivity } from "../../runner/tool-activity-parser.js";
-import { USER_AGENT_MESSAGE_PATTERN } from "../../utils/message-template.js";
+import { INSTRUCTION_REMINDER_PATTERN, USER_AGENT_MESSAGE_PATTERN } from "../../utils/message-template.js";
 import { logger } from "../../utils/logger.js";
 
 const log = logger.child({ context: "github-copilot-session-transformer" });
@@ -11,7 +11,10 @@ function transformSessionEvent(event: SessionEvent): AgentMessage[] {
   const timestamp = new Date(event.timestamp).getTime();
 
   if (event.type === "user.message") {
-    const content = event.data.content.replace(USER_AGENT_MESSAGE_PATTERN, "").trim();
+    const content = event.data.content
+      .replace(INSTRUCTION_REMINDER_PATTERN, "")
+      .replace(USER_AGENT_MESSAGE_PATTERN, "")
+      .trim();
     if (!content) {
       return [];
     }

@@ -6,6 +6,10 @@ export const USER_AGENT_MESSAGE_SUFFIX = " ##__]: ";
 /** Strips the `[__## <datetime> ##__]: ` prefix from a user message */
 export const USER_AGENT_MESSAGE_PATTERN = /^\[__## .+? ##__]: /;
 
+const INSTRUCTION_REMINDER_OPEN = "<system-reminder>";
+const INSTRUCTION_REMINDER_CLOSE = "</system-reminder>";
+export const INSTRUCTION_REMINDER_PATTERN = /^<system-reminder>[\s\S]*?<\/system-reminder>\s*/;
+
 export const getDefaultPromptContext = (
   customContext?: { [key: string]: string | undefined },
   tz?: string
@@ -109,6 +113,16 @@ export const formatUserDateTime = (date: Date, timezone?: string): string => {
   return `${formatUserDate(date, timezone)} ${formatUserTime(date, timezone)}`;
 };
 
-export const userMessageForAgent = (date: Date, message: string, timezone?: string): string => {
-  return `${USER_AGENT_MESSAGE_PREFIX}${formatUserDateTime(date, timezone)}${USER_AGENT_MESSAGE_SUFFIX}${message}`;
+export const userMessageForAgent = (
+  date: Date,
+  message: string,
+  timezone?: string,
+  instructionReminder?: string
+): string => {
+  const userMessage = `${USER_AGENT_MESSAGE_PREFIX}${formatUserDateTime(date, timezone)}${USER_AGENT_MESSAGE_SUFFIX}${message}`;
+  if (!instructionReminder) {
+    return userMessage;
+  }
+
+  return `${INSTRUCTION_REMINDER_OPEN}\n${instructionReminder}\n${INSTRUCTION_REMINDER_CLOSE}\n\n${userMessage}`;
 };

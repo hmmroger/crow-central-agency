@@ -1,4 +1,10 @@
-import { AGENT_STATUS, ENTITY_TYPE, type AgentConfig, type AgentStatus } from "@crow-central-agency/shared";
+import {
+  AGENT_STATUS,
+  ENTITY_TYPE,
+  type AgentConfig,
+  type AgentStatus,
+  type PendingInstructionReminder,
+} from "@crow-central-agency/shared";
 import { EventBus } from "../core/event-bus/event-bus.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import { AppError } from "../core/error/app-error.js";
@@ -173,6 +179,11 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
   ],
 };
 
+const INSTRUCTION_REMINDER_INTRO =
+  "Your operating instructions changed since this conversation started. Earlier turns followed the previous version — follow the current version below from now on, even where it differs from how you have behaved so far in this conversation.";
+const INSTRUCTION_REMINDER_PERSONA_CLEARED = "(Your persona has been cleared.)";
+const INSTRUCTION_REMINDER_AGENT_MD_CLEARED = "(Your AGENT.md has been cleared.)";
+
 const log = logger.child({ context: "agent-runner" });
 
 export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
@@ -203,16 +214,19 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
   public async *sendMessage(
     message: string,
     messageSource: MessageSource,
-    sessionId?: string
+    sessionId?: string,
+    instructionReminder?: PendingInstructionReminder
   ): AsyncGenerator<AgentStreamEvent, void, unknown> {
     const agentConfig = this.registry.getAgent(this.agentId);
     let nextMessage: string | undefined = message;
+    let pendingReminder = instructionReminder;
     while (nextMessage) {
-      const agentStream = this.runQuery(nextMessage, messageSource, agentConfig, sessionId);
+      const agentStream = this.runQuery(nextMessage, messageSource, agentConfig, sessionId, pendingReminder);
       for await (const agentStreamEvent of agentStream) {
         yield agentStreamEvent;
       }
 
+      pendingReminder = undefined;
       // Injected messages not delivered mid-stream are sent as the next turn.
       nextMessage = this.drainInjectedMessages();
       if (nextMessage) {
@@ -278,13 +292,15 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     message: string,
     messageSource: MessageSource,
     agentConfig: AgentConfig,
-    sessionId?: string
+    sessionId?: string,
+    instructionReminder?: PendingInstructionReminder
   ): AsyncGenerator<AgentStreamEvent, void, unknown> {
     this.updateAgentStatus(AGENT_STATUS.ACTIVATING, messageSource);
 
     const serverConfigs = await this.mcpManager.getMcpServersForAgent(this.agentId);
     const sensorContext = await this.sensorManager.getSensorContext();
-    const systemPrompt = await this.buildSystemPrompt(agentConfig, sensorContext, serverConfigs);
+    const agentMd = await this.registry.getAgentMd(this.agentId);
+    const systemPrompt = await this.buildSystemPrompt(agentConfig, sensorContext, serverConfigs, agentMd);
     const cwd = this.registry.resolveWorkspace(agentConfig);
 
     this.abortController = new AbortController();
@@ -294,6 +310,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
       cwd,
       agentConfig,
       systemPrompt,
+      instructionReminder: this.buildInstructionReminder(agentConfig, agentMd, instructionReminder),
       timezone: sensorContext.timezone,
       serverConfigs,
       abortController: this.abortController,
@@ -352,9 +369,9 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
   private async buildSystemPrompt(
     agent: AgentConfig,
     sensorContext: SensorContext,
-    serverConfigs: CrowMcpServerConfig[]
+    serverConfigs: CrowMcpServerConfig[],
+    agentMd: string | undefined
   ): Promise<string> {
-    const agentMd = await this.registry.getAgentMd(this.agentId);
     const circles = this.circleManager.getCirclesForEntity(this.agentId, ENTITY_TYPE.AGENT);
     const agentCircles = circles.length
       ? circles
@@ -426,5 +443,26 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     );
 
     return content;
+  }
+
+  private buildInstructionReminder(
+    agent: AgentConfig,
+    agentMd: string | undefined,
+    reminder: PendingInstructionReminder | undefined
+  ): string | undefined {
+    if (!reminder?.persona && !reminder?.agentMd) {
+      return undefined;
+    }
+
+    const sections: string[] = [INSTRUCTION_REMINDER_INTRO];
+    if (reminder.persona) {
+      sections.push("", "## Persona (updated)", "", agent.persona?.trim() || INSTRUCTION_REMINDER_PERSONA_CLEARED);
+    }
+
+    if (reminder.agentMd) {
+      sections.push("", "## AGENT.md (updated)", "", agentMd?.trim() || INSTRUCTION_REMINDER_AGENT_MD_CLEARED);
+    }
+
+    return sections.join("\n");
   }
 }
