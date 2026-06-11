@@ -85,6 +85,9 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     this.permissionHandler = new PermissionHandler(broadcaster);
     this.registry.on("agentCreated", async ({ agent }) => this.onAgentCreated(agent));
     this.registry.on("agentDeleted", async ({ agentId }) => this.onAgentDeleted(agentId));
+    this.registry.on("agentUpdated", async ({ agent, previousAgent, agentMdChanged }) =>
+      this.onAgentUpdated(agent, previousAgent, agentMdChanged)
+    );
   }
 
   /**
@@ -174,6 +177,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   public async newSession(agentId: string): Promise<void> {
     const state = this.ensureState(agentId);
     state.sessionId = undefined;
+    state.pendingInstructionReminder = undefined;
     state.sessionUsage = {
       inputTokens: 0,
       outputTokens: 0,
@@ -807,6 +811,34 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
   private async onAgentDeleted(agentId: string): Promise<void> {
     await this.cleanup(agentId);
+  }
+
+  /**
+   * When an agent's persona or AGENT.md changes, flag a one-shot reminder so the next turn
+   * surfaces the updated instruction as a recent, prominent message rather than relying on the
+   * resumed session's front-loaded system prompt, which the established history tends to override.
+   */
+  private async onAgentUpdated(
+    agentConfig: AgentConfig,
+    previousAgent: AgentConfig,
+    agentMdChanged: boolean
+  ): Promise<void> {
+    const personaChanged = agentConfig.persona !== previousAgent.persona;
+    if (!personaChanged && !agentMdChanged) {
+      return;
+    }
+
+    const state = this.ensureState(agentConfig.id);
+    state.pendingInstructionReminder = {
+      persona: personaChanged || state.pendingInstructionReminder?.persona,
+      agentMd: agentMdChanged || state.pendingInstructionReminder?.agentMd,
+    };
+
+    try {
+      await this.persistAgentState(agentConfig.id);
+    } catch (error) {
+      log.error({ agentId: agentConfig.id, error }, "Failed to persist pending instruction reminder");
+    }
   }
 
   private async onAgentStatusChanged(
