@@ -296,11 +296,6 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       await this.ensureValidSession(agentId);
 
       const instructionReminder = state.pendingInstructionReminder;
-      if (instructionReminder) {
-        state.pendingInstructionReminder = undefined;
-        await this.persistAgentState(agentId);
-      }
-
       const eventStream = agentRunner.sendMessage(message, source, state.sessionId, instructionReminder);
       for await (const event of eventStream) {
         switch (event.type) {
@@ -318,6 +313,11 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
               );
               this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: userMessage });
               userMessageAdded = true;
+              // Consume the one-shot reminder only once the turn is delivered, so an error
+              // before this point leaves it pending for the retry.
+              if (instructionReminder) {
+                state.pendingInstructionReminder = undefined;
+              }
             }
 
             await this.persistAgentState(agentId);
