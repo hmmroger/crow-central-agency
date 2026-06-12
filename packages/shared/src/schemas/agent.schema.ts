@@ -221,7 +221,10 @@ export const SettingSourceConfigSchema = z.object({
   disabledSkills: z.array(z.string()).optional(),
 });
 
-export const SettingSourceConfigInputSchema = SettingSourceConfigSchema.omit({ instructionSources: true });
+export const SettingSourceConfigInputSchema = SettingSourceConfigSchema.omit({
+  instructionSources: true,
+  discoveredSkills: true,
+});
 
 /**
  * Tool configuration for agent
