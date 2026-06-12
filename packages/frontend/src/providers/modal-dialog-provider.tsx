@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef } from "react";
-import { FloatingPortal } from "@floating-ui/react";
+import { FloatingPortal, FloatingTree } from "@floating-ui/react";
 import { AnimatePresence } from "framer-motion";
 import { ModalDialogRenderer } from "../components/common/modal-dialog-renderer";
 import type { ModalDialogConfig, ModalDialogContextValue, ModalDialogShowConfig } from "./modal-dialog-provider.types";
@@ -59,16 +59,20 @@ export function ModalDialogProvider({ children }: { children: React.ReactNode })
     <ModalDialogContext.Provider value={{ showDialog, hideDialog, isDialogOpen }}>
       {children}
       <FloatingPortal>
-        <AnimatePresence>
-          {stack.map((config, index) => (
-            <ModalDialogRenderer
-              key={config.id}
-              config={config}
-              stackDepth={index}
-              onClose={() => hideDialog(config.id)}
-            />
-          ))}
-        </AnimatePresence>
+        <FloatingTree>
+          <AnimatePresence>
+            {stack.map((config, index) => (
+              <ModalDialogRenderer
+                key={config.id}
+                config={config}
+                stackDepth={index}
+                nodeId={config.id}
+                parentNodeId={index > 0 ? stack[index - 1].id : null}
+                onClose={() => hideDialog(config.id)}
+              />
+            ))}
+          </AnimatePresence>
+        </FloatingTree>
       </FloatingPortal>
     </ModalDialogContext.Provider>
   );

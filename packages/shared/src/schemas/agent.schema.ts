@@ -206,10 +206,19 @@ export const PermissionModeSchema = z.enum([
 
 export const SettingSourceSchema = z.enum([SETTING_SOURCE.USER, SETTING_SOURCE.PROJECT, SETTING_SOURCE.LOCAL]);
 
+export const DiscoveredSkillSchema = z.object({
+  name: z.string(),
+  source: z.string(),
+});
+
+export type DiscoveredSkill = z.infer<typeof DiscoveredSkillSchema>;
+
 export const SettingSourceConfigSchema = z.object({
   disableFileHooks: z.boolean().optional(),
   instructionSources: z.array(z.string()).optional(),
   disabledInstructionSources: z.array(z.string()).optional(),
+  discoveredSkills: z.array(DiscoveredSkillSchema).optional(),
+  disabledSkills: z.array(z.string()).optional(),
 });
 
 export const SettingSourceConfigInputSchema = SettingSourceConfigSchema.omit({ instructionSources: true });

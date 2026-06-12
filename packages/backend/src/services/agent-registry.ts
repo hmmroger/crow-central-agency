@@ -11,6 +11,7 @@ import {
   type AgentConfig,
   type AgentConfigTemplate,
   type CreateAgentInput,
+  type DiscoveredSkill,
   type UpdateAgentInput,
   CROW_SYSTEM_AGENT_ID,
   CROW_TASK_DISPATCHER_AGENT_ID,
@@ -28,11 +29,14 @@ import { logger } from "../utils/logger.js";
 import { generateId, SYSTEM_AGENT_IDS } from "../utils/id-utils.js";
 import { REDACTED_BOT_TOKEN, sanitizeAgentConfig } from "../utils/agent-config-sanitizer.js";
 import { readTextFile, writeTextFile, ensureDir, removeDir, assertWithinBase } from "../utils/fs-utils.js";
+import { arraysEqualUnordered } from "../utils/array-utils.js";
 import { getCrowAgent } from "../agents/crow-agent.js";
 import { getTaskDispatcherAgent } from "../agents/crow-task-dispatcher-agent.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 
 const log = logger.child({ context: "agent-registry" });
+
+const discoveredSkillKey = (skill: DiscoveredSkill): string => `${skill.source}:${skill.name}`;
 
 /** Object store table name for agent configs */
 export const AGENT_STORE_TABLE = "agents";
@@ -275,7 +279,10 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     });
   }
 
-  public async setInstructionSources(agentId: string, instructionSources: string[]): Promise<void> {
+  public async setSettingSourceConfig(
+    agentId: string,
+    options: { instructionSources?: string[]; discoveredSkills?: DiscoveredSkill[] }
+  ): Promise<void> {
     const existing = this.getAgent(agentId);
     try {
       this.assertMutable(existing);
@@ -283,17 +290,22 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
       return;
     }
 
-    const current = existing.settingSourceConfig?.instructionSources ?? [];
+    const current = existing.settingSourceConfig;
     const unchanged =
-      current.length === instructionSources.length &&
-      current.every((source, index) => source === instructionSources[index]);
+      (options.instructionSources === undefined ||
+        arraysEqualUnordered(current?.instructionSources ?? [], options.instructionSources)) &&
+      (options.discoveredSkills === undefined ||
+        arraysEqualUnordered(
+          (current?.discoveredSkills ?? []).map(discoveredSkillKey),
+          options.discoveredSkills.map(discoveredSkillKey)
+        ));
     if (unchanged) {
       return;
     }
 
     const updated: AgentConfig = {
       ...existing,
-      settingSourceConfig: { ...existing.settingSourceConfig, instructionSources },
+      settingSourceConfig: { ...current, ...options },
       updatedAt: new Date().toISOString(),
     };
 

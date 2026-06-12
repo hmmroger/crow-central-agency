@@ -233,6 +233,19 @@ async function mapSessionEvent(
       );
       return [];
 
+    case "session.skills_loaded": {
+      const skillNames = event.data.skills.map((skill) => skill.name);
+      return [
+        {
+          agentId,
+          sessionId,
+          type: AGENT_STREAM_EVENT_TYPE.ACTIVITY,
+          activity: "Skill",
+          description: `Skills loaded: ${skillNames.join(", ")}`,
+        },
+      ];
+    }
+
     case "session.start":
     case "session.resume":
     case "session.remote_steerable_changed":
@@ -256,7 +269,6 @@ async function mapSessionEvent(
     case "session.task_complete":
     case "session.custom_notification":
     case "session.background_tasks_changed":
-    case "session.skills_loaded":
     case "session.custom_agents_updated":
     case "session.autopilot_objective_changed":
     case "session.extensions_loaded":

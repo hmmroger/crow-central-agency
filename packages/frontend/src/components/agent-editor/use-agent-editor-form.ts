@@ -33,6 +33,8 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   disableFileHooks: false,
   disabledInstructionSources: [],
   instructionSources: [],
+  discoveredSkills: [],
+  disabledSkills: [],
   toolMode: TOOL_MODE.UNRESTRICTED,
   selectedTools: [],
   autoApprovedTools: [],
@@ -111,6 +113,8 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     disableFileHooks: agent.settingSourceConfig?.disableFileHooks ?? false,
     disabledInstructionSources: agent.settingSourceConfig?.disabledInstructionSources ?? [],
     instructionSources: agent.settingSourceConfig?.instructionSources ?? [],
+    discoveredSkills: agent.settingSourceConfig?.discoveredSkills ?? [],
+    disabledSkills: agent.settingSourceConfig?.disabledSkills ?? [],
     toolMode: agent.toolConfig.mode,
     selectedTools: agent.toolConfig.tools ?? [],
     autoApprovedTools: agent.toolConfig.autoApprovedTools ?? [],
@@ -159,6 +163,8 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     // instructionSources is runtime-managed (not user-editable), so it is intentionally excluded here.
     formA.disableFileHooks === formB.disableFileHooks &&
     arraysEqual(formA.disabledInstructionSources, formB.disabledInstructionSources) &&
+    // discoveredSkills is runtime-managed (not user-editable), so it is intentionally excluded here.
+    arraysEqual(formA.disabledSkills, formB.disabledSkills) &&
     arraysEqual(formA.selectedTools, formB.selectedTools) &&
     arraysEqual(formA.autoApprovedTools, formB.autoApprovedTools) &&
     arraysEqual(formA.disallowedTools, formB.disallowedTools) &&
@@ -259,14 +265,13 @@ export function useAgentEditorForm(
     []
   );
 
-  const toggleDisabledInstructionSource = useCallback(
-    (sourceId: string) =>
-      setForm((prev) => ({
-        ...prev,
-        disabledInstructionSources: prev.disabledInstructionSources.includes(sourceId)
-          ? prev.disabledInstructionSources.filter((id) => id !== sourceId)
-          : [...prev.disabledInstructionSources, sourceId],
-      })),
+  const setDisabledInstructionSources = useCallback(
+    (disabledInstructionSources: string[]) => setForm((prev) => ({ ...prev, disabledInstructionSources })),
+    []
+  );
+
+  const setDisabledSkills = useCallback(
+    (disabledSkills: string[]) => setForm((prev) => ({ ...prev, disabledSkills })),
     []
   );
 
@@ -519,7 +524,8 @@ export function useAgentEditorForm(
     setPermissionMode,
     setSettingSources,
     setDisableFileHooks,
-    toggleDisabledInstructionSource,
+    setDisabledInstructionSources,
+    setDisabledSkills,
     setToolMode,
     toggleTool,
     toggleAutoApproved,

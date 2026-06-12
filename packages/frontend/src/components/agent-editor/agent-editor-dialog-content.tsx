@@ -136,7 +136,11 @@ export function AgentEditorDialogContent({
     // don't use it. instructionSources is runtime-managed and intentionally not sent.
     const settingSourceConfig =
       effectiveAgentType === AGENT_TYPE.GITHUB_COPILOT
-        ? { disableFileHooks: form.disableFileHooks, disabledInstructionSources: form.disabledInstructionSources }
+        ? {
+            disableFileHooks: form.disableFileHooks,
+            disabledInstructionSources: form.disabledInstructionSources,
+            disabledSkills: form.disabledSkills,
+          }
         : undefined;
 
     const trimmedVoiceName = form.voiceName.trim();
@@ -370,9 +374,12 @@ export function AgentEditorDialogContent({
                 disableFileHooks={form.disableFileHooks}
                 instructionSources={form.instructionSources}
                 disabledInstructionSources={form.disabledInstructionSources}
+                discoveredSkills={form.discoveredSkills}
+                disabledSkills={form.disabledSkills}
                 excludeSystemPrompt={form.excludeClaudeCodeSystemPrompt}
                 onDisableFileHooksChange={editorForm.setDisableFileHooks}
-                onToggleDisabledInstructionSource={editorForm.toggleDisabledInstructionSource}
+                onDisabledInstructionSourcesChange={editorForm.setDisabledInstructionSources}
+                onDisabledSkillsChange={editorForm.setDisabledSkills}
               />
             )}
 

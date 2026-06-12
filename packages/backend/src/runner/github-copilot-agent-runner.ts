@@ -158,6 +158,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       tools: inProcessTools,
       enableConfigDiscovery: agentConfig.settingSources.includes(SETTING_SOURCE.PROJECT),
       enableFileHooks: !agentConfig.settingSourceConfig?.disableFileHooks,
+      disabledSkills: agentConfig.settingSourceConfig?.disabledSkills,
       mcpServers: this.buildMcpServers(serverConfigs),
       hooks: {
         onPreToolUse: (input) =>
@@ -189,9 +190,15 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       // this is needed to have permission via event
       await session.rpc.permissions.setRequired({ required: true });
 
-      // Surface the SDK-loaded instruction sources for persistence (handled by the runtime manager),
-      // then disable any the agent has opted out of for this turn. Kept inside the try so a failure
-      // here still tears the session down via the finally below.
+      const skillList = await session.rpc.skills.list();
+      const discoveredSkills = skillList.skills.map((skill) => ({ name: skill.name, source: skill.source }));
+      yield {
+        agentId: this.agentId,
+        type: AGENT_STREAM_EVENT_TYPE.SKILLS_DISCOVERED,
+        sessionId: session.sessionId,
+        discoveredSkills,
+      };
+
       const instSources = (await session.rpc.instructions.getSources()).sources.map((source) => source.id);
       yield {
         agentId: this.agentId,

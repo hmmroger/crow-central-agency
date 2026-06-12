@@ -1,10 +1,12 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useLayoutEffect } from "react";
 import {
   useFloating,
   useInteractions,
   useDismiss,
   useRole,
   useListNavigation,
+  useFloatingTree,
+  FloatingNode,
   FloatingOverlay,
   FloatingFocusManager,
   FloatingList,
@@ -19,10 +21,14 @@ interface ModalDialogRendererProps {
   config: ModalDialogConfig;
   /** Position in the dialog stack (0-based), used for z-index layering */
   stackDepth: number;
+  /** Stable id for the floating-ui tree; equals the config id */
+  nodeId: string;
+  /** Tree-parent id (previous stack entry), null for the bottom dialog */
+  parentNodeId: string | null;
   onClose: () => void;
 }
 
-export function ModalDialogRenderer({ config, stackDepth, onClose }: ModalDialogRendererProps) {
+export function ModalDialogRenderer({ config, stackDepth, nodeId, parentNodeId, onClose }: ModalDialogRendererProps) {
   const titleId = `modal-dialog-title-${config.id}`;
   const handleRef = useRef<ModalDialogHandle>(null);
 
@@ -36,8 +42,21 @@ export function ModalDialogRenderer({ config, stackDepth, onClose }: ModalDialog
     onClose();
   }, [onClose]);
 
+  const tree = useFloatingTree();
+  useLayoutEffect(() => {
+    if (!tree) {
+      return;
+    }
+
+    const node = { id: nodeId, parentId: parentNodeId };
+    tree.addNode(node);
+
+    return () => tree.removeNode(node);
+  }, [tree, nodeId, parentNodeId]);
+
   const { refs, context } = useFloating({
     open: true,
+    nodeId,
     onOpenChange: (open) => {
       if (!open) {
         guardedClose();
@@ -76,51 +95,53 @@ export function ModalDialogRenderer({ config, stackDepth, onClose }: ModalDialog
   const ContentComponent = config.component;
 
   return (
-    <FloatingOverlay
-      lockScroll
-      style={{ zIndex: `calc(var(--z-modal-base) + ${stackDepth} * var(--z-modal-step))` }}
-      className="bg-black/50 flex items-center justify-center backdrop-blur-sm"
-    >
-      <FloatingFocusManager context={context} modal>
-        <motion.div
-          ref={refs.setFloating}
-          className={cn(
-            "rounded-lg bg-surface border border-border-subtle/35 shadow-elevated focus:outline-none overflow-hidden",
-            config.className
-          )}
-          {...getFloatingProps()}
-          aria-labelledby={config.title ? titleId : config.ariaLabelledBy}
-          aria-describedby={config.ariaDescribedBy}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.15 }}
-        >
-          {config.title && (
-            <div className="flex items-center justify-between border-b border-border p-3">
-              <h2 id={titleId} className="text-sm font-medium text-text-base">
-                {config.title}
-              </h2>
-              <button
-                onClick={guardedClose}
-                className="rounded p-1 text-text-muted hover:bg-surface-hover hover:text-text-base"
-                aria-label="Close dialog"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-          {config.listNavigation ? (
-            <ModalDialogListNavContext.Provider value={{ activeIndex, getItemProps }}>
-              <FloatingList elementsRef={elementsRef} labelsRef={labelsRef}>
-                <ContentComponent {...config.componentProps} ref={handleRef} onClose={onClose} />
-              </FloatingList>
-            </ModalDialogListNavContext.Provider>
-          ) : (
-            <ContentComponent {...config.componentProps} ref={handleRef} onClose={onClose} />
-          )}
-        </motion.div>
-      </FloatingFocusManager>
-    </FloatingOverlay>
+    <FloatingNode id={nodeId}>
+      <FloatingOverlay
+        lockScroll
+        style={{ zIndex: `calc(var(--z-modal-base) + ${stackDepth} * var(--z-modal-step))` }}
+        className="bg-black/50 flex items-center justify-center backdrop-blur-sm"
+      >
+        <FloatingFocusManager context={context} modal>
+          <motion.div
+            ref={refs.setFloating}
+            className={cn(
+              "rounded-lg bg-surface border border-border-subtle/35 shadow-elevated focus:outline-none overflow-hidden",
+              config.className
+            )}
+            {...getFloatingProps()}
+            aria-labelledby={config.title ? titleId : config.ariaLabelledBy}
+            aria-describedby={config.ariaDescribedBy}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+          >
+            {config.title && (
+              <div className="flex items-center justify-between border-b border-border p-3">
+                <h2 id={titleId} className="text-sm font-medium text-text-base">
+                  {config.title}
+                </h2>
+                <button
+                  onClick={guardedClose}
+                  className="rounded p-1 text-text-muted hover:bg-surface-hover hover:text-text-base"
+                  aria-label="Close dialog"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            {config.listNavigation ? (
+              <ModalDialogListNavContext.Provider value={{ activeIndex, getItemProps }}>
+                <FloatingList elementsRef={elementsRef} labelsRef={labelsRef}>
+                  <ContentComponent {...config.componentProps} ref={handleRef} onClose={onClose} />
+                </FloatingList>
+              </ModalDialogListNavContext.Provider>
+            ) : (
+              <ContentComponent {...config.componentProps} ref={handleRef} onClose={onClose} />
+            )}
+          </motion.div>
+        </FloatingFocusManager>
+      </FloatingOverlay>
+    </FloatingNode>
   );
 }

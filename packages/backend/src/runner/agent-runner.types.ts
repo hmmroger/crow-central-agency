@@ -1,6 +1,6 @@
 import type { EventMap } from "../core/event-bus/event-bus.types.js";
 import type { PermissionResult } from "../services/runtime/permission-handler.types.js";
-import type { AgentConfig, AgentStatus } from "@crow-central-agency/shared";
+import type { AgentConfig, AgentStatus, DiscoveredSkill } from "@crow-central-agency/shared";
 import type { MessageSource } from "../services/message-queue-manager.types.js";
 import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 
@@ -36,6 +36,7 @@ export type PermissionRequestCallback = (
 export const AGENT_STREAM_EVENT_TYPE = {
   INIT: "INIT",
   TOOLS_DISCOVERED: "TOOLS_DISCOVERED",
+  SKILLS_DISCOVERED: "SKILLS_DISCOVERED",
   INSTRUCTION_SOURCES: "INSTRUCTION_SOURCES",
   DONE: "DONE",
   ERROR: "ERROR",
@@ -63,6 +64,7 @@ export type AgentStreamEvent =
   | AgentStreamErrorEvent
   | AgentStreamInitEvent
   | AgentStreamToolsDiscoveredEvent
+  | AgentStreamSkillsDiscoveredEvent
   | AgentStreamInstructionSourcesEvent
   | AgentStreamContentEvent
   | AgentStreamThinkingEvent
@@ -98,6 +100,11 @@ export interface AgentStreamInitEvent extends AgentStreamEventCommon {
 export interface AgentStreamToolsDiscoveredEvent extends AgentStreamEventCommon {
   type: (typeof AGENT_STREAM_EVENT_TYPE)["TOOLS_DISCOVERED"];
   discoveredTools: string[];
+}
+
+export interface AgentStreamSkillsDiscoveredEvent extends AgentStreamEventCommon {
+  type: (typeof AGENT_STREAM_EVENT_TYPE)["SKILLS_DISCOVERED"];
+  discoveredSkills: DiscoveredSkill[];
 }
 
 export interface AgentStreamInstructionSourcesEvent extends AgentStreamEventCommon {
