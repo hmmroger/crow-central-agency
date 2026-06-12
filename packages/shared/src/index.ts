@@ -65,6 +65,7 @@ export {
 export {
   SessionUsageSchema,
   PendingPermissionInfoSchema,
+  PendingInstructionReminderSchema,
   AgentRuntimeStateSchema,
   AgentActivitySchema,
   AGENT_ACTIVITY_TYPE,
@@ -72,6 +73,7 @@ export {
   type AgentStatus,
   type SessionUsage,
   type PendingPermissionInfo,
+  type PendingInstructionReminder,
   type AgentRuntimeState,
   type AgentActivity,
   type AgentActivityType,

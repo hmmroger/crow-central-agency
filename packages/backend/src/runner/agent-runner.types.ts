@@ -14,6 +14,7 @@ export interface AgentRunQueryRequest {
   cwd: string;
   agentConfig: AgentConfig;
   systemPrompt: string;
+  instructionReminder?: string;
   timezone?: string;
   serverConfigs: CrowMcpServerConfig[];
   /** Per-turn cancellation handle, created and owned by the base runner. */

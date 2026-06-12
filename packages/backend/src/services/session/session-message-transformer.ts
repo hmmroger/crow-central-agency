@@ -4,7 +4,7 @@ import { getSessionInfo, getSessionMessages } from "@anthropic-ai/claude-agent-s
 import { parseToolActivity } from "../../runner/tool-activity-parser.js";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta.mjs";
 import type { ContentBlockParam, MessageParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
-import { USER_AGENT_MESSAGE_PATTERN } from "../../utils/message-template.js";
+import { INSTRUCTION_REMINDER_PATTERN, USER_AGENT_MESSAGE_PATTERN } from "../../utils/message-template.js";
 import { isString } from "es-toolkit";
 import { logger } from "../../utils/logger.js";
 import { AppError } from "../../core/error/app-error.js";
@@ -61,7 +61,7 @@ function transformSingleMessage(sessionMessage: SessionMessage, baseTimestamp: n
       return [];
     }
 
-    content = content.replace(USER_AGENT_MESSAGE_PATTERN, "");
+    content = content.replace(INSTRUCTION_REMINDER_PATTERN, "").replace(USER_AGENT_MESSAGE_PATTERN, "");
     return [
       {
         id: sessionMessage.uuid,

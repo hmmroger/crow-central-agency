@@ -75,6 +75,15 @@ export const PendingPermissionInfoSchema = z.object({
 });
 
 /**
+ * One-shot flags marking which instruction sources changed since the agent's last turn.
+ * Set when persona/AGENT.md is edited and cleared after the next turn injects a reminder.
+ */
+export const PendingInstructionReminderSchema = z.object({
+  persona: z.boolean().optional(),
+  agentMd: z.boolean().optional(),
+});
+
+/**
  * Agent runtime state - maintained by the runtime manager per agent.
  */
 export const AgentRuntimeStateSchema = z.object({
@@ -90,8 +99,10 @@ export const AgentRuntimeStateSchema = z.object({
   lastGmailCheckTimestamp: z.number().optional(),
   lastError: z.string().optional(),
   pendingPermissions: z.array(PendingPermissionInfoSchema).optional(),
+  pendingInstructionReminder: PendingInstructionReminderSchema.optional(),
 });
 
 export type SessionUsage = z.infer<typeof SessionUsageSchema>;
 export type PendingPermissionInfo = z.infer<typeof PendingPermissionInfoSchema>;
+export type PendingInstructionReminder = z.infer<typeof PendingInstructionReminderSchema>;
 export type AgentRuntimeState = z.infer<typeof AgentRuntimeStateSchema>;

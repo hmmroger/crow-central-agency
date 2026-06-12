@@ -118,7 +118,17 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   }
 
   protected async *runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown> {
-    const { message, cwd, agentConfig, systemPrompt, timezone, serverConfigs, sessionId, abortController } = request;
+    const {
+      message,
+      cwd,
+      agentConfig,
+      systemPrompt,
+      instructionReminder,
+      timezone,
+      serverConfigs,
+      sessionId,
+      abortController,
+    } = request;
 
     const client = await this.getClient(cwd);
     const inProcessTools = this.buildInProcessTools(serverConfigs);
@@ -172,7 +182,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     };
 
     try {
-      const prompt = userMessageForAgent(new Date(), message, timezone);
+      const prompt = userMessageForAgent(new Date(), message, timezone, instructionReminder);
       let initEmitted = false;
       let turnComplete = false;
       for await (const event of this.iterateSessionEvents(session, abortController, prompt, agentMode)) {

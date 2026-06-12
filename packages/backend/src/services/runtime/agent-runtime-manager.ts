@@ -85,6 +85,9 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     this.permissionHandler = new PermissionHandler(broadcaster);
     this.registry.on("agentCreated", async ({ agent }) => this.onAgentCreated(agent));
     this.registry.on("agentDeleted", async ({ agentId }) => this.onAgentDeleted(agentId));
+    this.registry.on("agentUpdated", async ({ agent, previousAgent, agentMdChanged }) =>
+      this.onAgentUpdated(agent, previousAgent, agentMdChanged)
+    );
   }
 
   /**
@@ -174,6 +177,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   public async newSession(agentId: string): Promise<void> {
     const state = this.ensureState(agentId);
     state.sessionId = undefined;
+    state.pendingInstructionReminder = undefined;
     state.sessionUsage = {
       inputTokens: 0,
       outputTokens: 0,
@@ -290,7 +294,9 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       // Drop a persisted sessionId whose transcript is gone so the turn starts a fresh session
       // instead of silently forking off a dead one.
       await this.ensureValidSession(agentId);
-      const eventStream = agentRunner.sendMessage(message, source, state.sessionId);
+
+      const instructionReminder = state.pendingInstructionReminder;
+      const eventStream = agentRunner.sendMessage(message, source, state.sessionId, instructionReminder);
       for await (const event of eventStream) {
         switch (event.type) {
           case AGENT_STREAM_EVENT_TYPE.INIT:
@@ -307,6 +313,11 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
               );
               this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: userMessage });
               userMessageAdded = true;
+              // Consume the one-shot reminder only once the turn is delivered, so an error
+              // before this point leaves it pending for the retry.
+              if (instructionReminder) {
+                state.pendingInstructionReminder = undefined;
+              }
             }
 
             await this.persistAgentState(agentId);
@@ -807,6 +818,29 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
   private async onAgentDeleted(agentId: string): Promise<void> {
     await this.cleanup(agentId);
+  }
+
+  private async onAgentUpdated(
+    agentConfig: AgentConfig,
+    previousAgent: AgentConfig,
+    agentMdChanged: boolean
+  ): Promise<void> {
+    const personaChanged = agentConfig.persona !== previousAgent.persona;
+    if (!personaChanged && !agentMdChanged) {
+      return;
+    }
+
+    const state = this.ensureState(agentConfig.id);
+    state.pendingInstructionReminder = {
+      persona: personaChanged || state.pendingInstructionReminder?.persona ? true : undefined,
+      agentMd: agentMdChanged || state.pendingInstructionReminder?.agentMd ? true : undefined,
+    };
+
+    try {
+      await this.persistAgentState(agentConfig.id);
+    } catch (error) {
+      log.error({ agentId: agentConfig.id, error }, "Failed to persist pending instruction reminder");
+    }
   }
 
   private async onAgentStatusChanged(

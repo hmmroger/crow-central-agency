@@ -223,13 +223,16 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     this.agents.set(agentId, updated);
     await this.store.set(AGENT_STORE_TABLE, agentId, updated);
 
-    // Write AGENT.md if provided
+    // Write AGENT.md if provided, tracking whether the content actually changed
+    let agentMdChanged = false;
     if (agentMd !== undefined) {
+      const existingAgentMd = await this.getAgentMd(agentId);
+      agentMdChanged = agentMd !== (existingAgentMd ?? "");
       await writeTextFile(this.getAgentMdPath(agentId), agentMd);
     }
 
     log.info({ agentId, name: updated.name }, "Agent updated");
-    this.emit("agentUpdated", { agent: updated, previousAgent: existing });
+    this.emit("agentUpdated", { agent: updated, previousAgent: existing, agentMdChanged });
     this.broadcaster.broadcast({
       type: SERVER_MESSAGE_TYPE.AGENT_UPDATED,
       agentId,
@@ -390,16 +393,6 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
       throw error;
     }
-  }
-
-  /** Write the agent's AGENT.md file - system agents cannot be modified */
-  public async setAgentMd(agentId: string, content: string): Promise<void> {
-    const agent = this.getAgent(agentId);
-    this.assertMutable(agent);
-    const mdPath = this.getAgentMdPath(agentId);
-    await writeTextFile(mdPath, content);
-
-    log.info({ agentId, name: agent.name }, "AGENT.md updated");
   }
 
   /** Find a saved template by exact templateName match, or undefined if none */
