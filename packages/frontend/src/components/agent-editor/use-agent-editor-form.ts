@@ -30,6 +30,9 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   model: CLAUDE_DEFAULT_MODEL,
   permissionMode: PERMISSION_MODE.DEFAULT,
   settingSources: [...DEFAULT_SETTING_SOURCES],
+  disableFileHooks: false,
+  disabledInstructionSources: [],
+  instructionSources: [],
   toolMode: TOOL_MODE.UNRESTRICTED,
   selectedTools: [],
   autoApprovedTools: [],
@@ -105,6 +108,9 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     model: agent.model,
     permissionMode: agent.permissionMode,
     settingSources: agent.settingSources,
+    disableFileHooks: agent.settingSourceConfig?.disableFileHooks ?? false,
+    disabledInstructionSources: agent.settingSourceConfig?.disabledInstructionSources ?? [],
+    instructionSources: agent.settingSourceConfig?.instructionSources ?? [],
     toolMode: agent.toolConfig.mode,
     selectedTools: agent.toolConfig.tools ?? [],
     autoApprovedTools: agent.toolConfig.autoApprovedTools ?? [],
@@ -150,6 +156,8 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     formA.loopPrompt === formB.loopPrompt &&
     formA.agentMd === formB.agentMd &&
     arraysEqual(formA.settingSources, formB.settingSources) &&
+    formA.disableFileHooks === formB.disableFileHooks &&
+    arraysEqual(formA.disabledInstructionSources, formB.disabledInstructionSources) &&
     arraysEqual(formA.selectedTools, formB.selectedTools) &&
     arraysEqual(formA.autoApprovedTools, formB.autoApprovedTools) &&
     arraysEqual(formA.disallowedTools, formB.disallowedTools) &&
@@ -242,6 +250,22 @@ export function useAgentEditorForm(
   const setSettingSources = useCallback(
     (updater: (prev: SettingSource[]) => SettingSource[]) =>
       setForm((prev) => ({ ...prev, settingSources: updater(prev.settingSources) })),
+    []
+  );
+
+  const setDisableFileHooks = useCallback(
+    (value: boolean) => setForm((prev) => ({ ...prev, disableFileHooks: value })),
+    []
+  );
+
+  const toggleDisabledInstructionSource = useCallback(
+    (sourceId: string) =>
+      setForm((prev) => ({
+        ...prev,
+        disabledInstructionSources: prev.disabledInstructionSources.includes(sourceId)
+          ? prev.disabledInstructionSources.filter((id) => id !== sourceId)
+          : [...prev.disabledInstructionSources, sourceId],
+      })),
     []
   );
 
@@ -493,6 +517,8 @@ export function useAgentEditorForm(
     setAgentMd,
     setPermissionMode,
     setSettingSources,
+    setDisableFileHooks,
+    toggleDisabledInstructionSource,
     setToolMode,
     toggleTool,
     toggleAutoApproved,

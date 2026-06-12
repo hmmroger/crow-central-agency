@@ -220,6 +220,12 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
       updated.discordConfig = { ...updated.discordConfig, botToken: existing.discordConfig.botToken };
     }
 
+    // The input carries only the user-editable subset of settingSourceConfig; merge over the existing
+    // config so the runtime-managed instructionSources list survives a user-driven update.
+    if (validated.settingSourceConfig) {
+      updated.settingSourceConfig = { ...existing.settingSourceConfig, ...validated.settingSourceConfig };
+    }
+
     this.agents.set(agentId, updated);
     await this.store.set(AGENT_STORE_TABLE, agentId, updated);
 
@@ -257,6 +263,37 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     const updated: AgentConfig = {
       ...existing,
       availableTools: tools,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.agents.set(agentId, updated);
+    await this.store.set(AGENT_STORE_TABLE, agentId, updated);
+    this.broadcaster.broadcast({
+      type: SERVER_MESSAGE_TYPE.AGENT_UPDATED,
+      agentId,
+      config: sanitizeAgentConfig(updated),
+    });
+  }
+
+  public async setInstructionSources(agentId: string, instructionSources: string[]): Promise<void> {
+    const existing = this.getAgent(agentId);
+    try {
+      this.assertMutable(existing);
+    } catch {
+      return;
+    }
+
+    const current = existing.settingSourceConfig?.instructionSources ?? [];
+    const unchanged =
+      current.length === instructionSources.length &&
+      current.every((source, index) => source === instructionSources[index]);
+    if (unchanged) {
+      return;
+    }
+
+    const updated: AgentConfig = {
+      ...existing,
+      settingSourceConfig: { ...existing.settingSourceConfig, instructionSources },
       updatedAt: new Date().toISOString(),
     };
 

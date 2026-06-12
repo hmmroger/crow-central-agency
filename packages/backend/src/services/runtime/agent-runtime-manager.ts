@@ -330,6 +330,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
             break;
 
+          case AGENT_STREAM_EVENT_TYPE.INSTRUCTION_SOURCES:
+            await this.registry.setInstructionSources(agentId, event.instructionSources);
+            break;
+
           case AGENT_STREAM_EVENT_TYPE.MESSAGE_DONE: {
             const agentMessages = await this.sessionManager.addMessage(
               agent.type,

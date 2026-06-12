@@ -36,6 +36,7 @@ export type PermissionRequestCallback = (
 export const AGENT_STREAM_EVENT_TYPE = {
   INIT: "INIT",
   TOOLS_DISCOVERED: "TOOLS_DISCOVERED",
+  INSTRUCTION_SOURCES: "INSTRUCTION_SOURCES",
   DONE: "DONE",
   ERROR: "ERROR",
   ABORTED: "ABORTED",
@@ -62,6 +63,7 @@ export type AgentStreamEvent =
   | AgentStreamErrorEvent
   | AgentStreamInitEvent
   | AgentStreamToolsDiscoveredEvent
+  | AgentStreamInstructionSourcesEvent
   | AgentStreamContentEvent
   | AgentStreamThinkingEvent
   | AgentStreamStatusEvent
@@ -96,6 +98,11 @@ export interface AgentStreamInitEvent extends AgentStreamEventCommon {
 export interface AgentStreamToolsDiscoveredEvent extends AgentStreamEventCommon {
   type: (typeof AGENT_STREAM_EVENT_TYPE)["TOOLS_DISCOVERED"];
   discoveredTools: string[];
+}
+
+export interface AgentStreamInstructionSourcesEvent extends AgentStreamEventCommon {
+  type: (typeof AGENT_STREAM_EVENT_TYPE)["INSTRUCTION_SOURCES"];
+  instructionSources: string[];
 }
 
 export interface AgentStreamContentEvent extends AgentStreamEventCommon {

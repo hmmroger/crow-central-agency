@@ -1,4 +1,10 @@
-import { PERMISSION_MODE, SETTING_SOURCE, resolveModel, type PermissionMode } from "@crow-central-agency/shared";
+import {
+  PERMISSION_MODE,
+  SETTING_SOURCE,
+  resolveModel,
+  type AgentConfig,
+  type PermissionMode,
+} from "@crow-central-agency/shared";
 import { CopilotClient } from "@github/copilot-sdk";
 import type {
   CopilotSession,
@@ -151,6 +157,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       excludedTools: agentConfig.toolConfig.disallowedTools,
       tools: inProcessTools,
       enableConfigDiscovery: agentConfig.settingSources.includes(SETTING_SOURCE.PROJECT),
+      enableFileHooks: !agentConfig.settingSourceConfig?.disableFileHooks,
       mcpServers: this.buildMcpServers(serverConfigs),
       hooks: {
         onPreToolUse: (input) =>
@@ -166,6 +173,17 @@ export class GithubCopilotAgentRunner extends AgentRunner {
 
     // this is needed to have permission via event
     await session.rpc.permissions.setRequired({ required: true });
+
+    // Surface the SDK-loaded instruction sources for persistence (handled by the runtime manager),
+    // then disable any the agent has opted out of for this turn.
+    const instSources = (await session.rpc.instructions.getSources()).sources.map((source) => source.id);
+    yield {
+      agentId: this.agentId,
+      type: AGENT_STREAM_EVENT_TYPE.INSTRUCTION_SOURCES,
+      sessionId: session.sessionId,
+      instructionSources: instSources,
+    };
+    await this.applyDisabledInstructionSources(session, agentConfig, instSources);
 
     // toolCallId -> tool name/input, populated from the event stream so permission requests
     // (which only carry a toolCallId) can be resolved back to a tool name.
@@ -238,6 +256,24 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     } catch (error) {
       log.warn({ agentId: this.agentId, error }, "Failed to stop Copilot client during dispose");
     }
+  }
+
+  /**
+   * Disable the instruction sources the agent has opted out of, intersected with this run's live
+   * source set. Skips the RPC entirely when nothing resolves to disable.
+   */
+  private async applyDisabledInstructionSources(
+    session: CopilotSession,
+    agentConfig: AgentConfig,
+    instSources: string[]
+  ): Promise<void> {
+    const disabledSelection = agentConfig.settingSourceConfig?.disabledInstructionSources ?? [];
+    const disabledInstructionSources = disabledSelection.filter((id) => instSources.includes(id));
+    if (disabledInstructionSources.length === 0) {
+      return;
+    }
+
+    await session.rpc.options.update({ disabledInstructionSources });
   }
 
   /** Internal MCP servers become flat in-process tools; auto-approved ones skip the permission prompt. */
