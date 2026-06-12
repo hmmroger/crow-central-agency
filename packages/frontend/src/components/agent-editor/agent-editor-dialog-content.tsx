@@ -30,6 +30,7 @@ import { VoiceConfigSection } from "./voice-config-section.js";
 import { SystemPromptSection } from "./system-prompt-section.js";
 import { PermissionModeSection } from "./permission-mode-section.js";
 import { SettingSourcesSection } from "./setting-sources-section.js";
+import { SettingSourceConfigSection } from "./setting-source-config-section.js";
 import { ToolConfigSection } from "./tool-config-section.js";
 import { McpServersSection } from "./mcp-servers-section.js";
 import { GmailNotificationSection } from "./gmail-notification-section.js";
@@ -131,6 +132,17 @@ export function AgentEditorDialogContent({
       syncBotName: form.discordSyncBotName,
     };
 
+    // Copilot-only: the editable subset of setting-source config. Omitted for Claude agents, which
+    // don't use it. instructionSources is runtime-managed and intentionally not sent.
+    const settingSourceConfig =
+      effectiveAgentType === AGENT_TYPE.GITHUB_COPILOT
+        ? {
+            disableFileHooks: form.disableFileHooks,
+            disabledInstructionSources: form.disabledInstructionSources,
+            disabledSkills: form.disabledSkills,
+          }
+        : undefined;
+
     const trimmedVoiceName = form.voiceName.trim();
     const trimmedVoiceStylePrompt = form.voiceStylePrompt.trim();
     const existingVoiceConfig = agentQuery.data?.agentVoiceConfig;
@@ -154,6 +166,7 @@ export function AgentEditorDialogContent({
           model: form.model,
           permissionMode: form.permissionMode,
           settingSources: form.settingSources,
+          settingSourceConfig,
           toolConfig: {
             mode: form.toolMode,
             tools: form.toolMode === TOOL_MODE.RESTRICTED ? form.selectedTools : undefined,
@@ -182,6 +195,7 @@ export function AgentEditorDialogContent({
           model: form.model,
           permissionMode: form.permissionMode,
           settingSources: form.settingSources,
+          settingSourceConfig,
           toolConfig: {
             mode: form.toolMode,
             tools: form.toolMode === TOOL_MODE.RESTRICTED ? form.selectedTools : undefined,
@@ -206,7 +220,16 @@ export function AgentEditorDialogContent({
     } catch {
       // Error is surfaced via mutation.error in the UI
     }
-  }, [form, isEditing, agentType, updateMutateAsync, createMutateAsync, onClose, agentQuery.data?.agentVoiceConfig]);
+  }, [
+    form,
+    isEditing,
+    agentType,
+    effectiveAgentType,
+    updateMutateAsync,
+    createMutateAsync,
+    onClose,
+    agentQuery.data?.agentVoiceConfig,
+  ]);
 
   /** Prompt for a template name and save the current agent as a template */
   const handleSaveAsTemplate = useCallback(() => {
@@ -345,6 +368,20 @@ export function AgentEditorDialogContent({
               agentType={effectiveAgentType}
               onSettingSourcesChange={editorForm.setSettingSources}
             />
+
+            {effectiveAgentType === AGENT_TYPE.GITHUB_COPILOT && (
+              <SettingSourceConfigSection
+                disableFileHooks={form.disableFileHooks}
+                instructionSources={form.instructionSources}
+                disabledInstructionSources={form.disabledInstructionSources}
+                discoveredSkills={form.discoveredSkills}
+                disabledSkills={form.disabledSkills}
+                excludeSystemPrompt={form.excludeClaudeCodeSystemPrompt}
+                onDisableFileHooksChange={editorForm.setDisableFileHooks}
+                onDisabledInstructionSourcesChange={editorForm.setDisabledInstructionSources}
+                onDisabledSkillsChange={editorForm.setDisabledSkills}
+              />
+            )}
 
             <ToolConfigSection
               agentType={effectiveAgentType}

@@ -1,6 +1,7 @@
 import type {
   ConfiguredFeed,
   DayOfWeek,
+  DiscoveredSkill,
   SchedulerTime,
   PermissionMode,
   SettingSource,
@@ -19,6 +20,11 @@ export interface AgentEditorFormState {
   model: string;
   permissionMode: PermissionMode;
   settingSources: SettingSource[];
+  disableFileHooks: boolean;
+  disabledInstructionSources: string[];
+  instructionSources: string[];
+  discoveredSkills: DiscoveredSkill[];
+  disabledSkills: string[];
   toolMode: ToolMode;
   selectedTools: string[];
   autoApprovedTools: string[];

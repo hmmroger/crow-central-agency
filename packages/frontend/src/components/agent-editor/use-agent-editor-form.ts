@@ -30,6 +30,11 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   model: CLAUDE_DEFAULT_MODEL,
   permissionMode: PERMISSION_MODE.DEFAULT,
   settingSources: [...DEFAULT_SETTING_SOURCES],
+  disableFileHooks: false,
+  disabledInstructionSources: [],
+  instructionSources: [],
+  discoveredSkills: [],
+  disabledSkills: [],
   toolMode: TOOL_MODE.UNRESTRICTED,
   selectedTools: [],
   autoApprovedTools: [],
@@ -105,6 +110,11 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     model: agent.model,
     permissionMode: agent.permissionMode,
     settingSources: agent.settingSources,
+    disableFileHooks: agent.settingSourceConfig?.disableFileHooks ?? false,
+    disabledInstructionSources: agent.settingSourceConfig?.disabledInstructionSources ?? [],
+    instructionSources: agent.settingSourceConfig?.instructionSources ?? [],
+    discoveredSkills: agent.settingSourceConfig?.discoveredSkills ?? [],
+    disabledSkills: agent.settingSourceConfig?.disabledSkills ?? [],
     toolMode: agent.toolConfig.mode,
     selectedTools: agent.toolConfig.tools ?? [],
     autoApprovedTools: agent.toolConfig.autoApprovedTools ?? [],
@@ -150,6 +160,11 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     formA.loopPrompt === formB.loopPrompt &&
     formA.agentMd === formB.agentMd &&
     arraysEqual(formA.settingSources, formB.settingSources) &&
+    // instructionSources is runtime-managed (not user-editable), so it is intentionally excluded here.
+    formA.disableFileHooks === formB.disableFileHooks &&
+    arraysEqual(formA.disabledInstructionSources, formB.disabledInstructionSources) &&
+    // discoveredSkills is runtime-managed (not user-editable), so it is intentionally excluded here.
+    arraysEqual(formA.disabledSkills, formB.disabledSkills) &&
     arraysEqual(formA.selectedTools, formB.selectedTools) &&
     arraysEqual(formA.autoApprovedTools, formB.autoApprovedTools) &&
     arraysEqual(formA.disallowedTools, formB.disallowedTools) &&
@@ -242,6 +257,21 @@ export function useAgentEditorForm(
   const setSettingSources = useCallback(
     (updater: (prev: SettingSource[]) => SettingSource[]) =>
       setForm((prev) => ({ ...prev, settingSources: updater(prev.settingSources) })),
+    []
+  );
+
+  const setDisableFileHooks = useCallback(
+    (value: boolean) => setForm((prev) => ({ ...prev, disableFileHooks: value })),
+    []
+  );
+
+  const setDisabledInstructionSources = useCallback(
+    (disabledInstructionSources: string[]) => setForm((prev) => ({ ...prev, disabledInstructionSources })),
+    []
+  );
+
+  const setDisabledSkills = useCallback(
+    (disabledSkills: string[]) => setForm((prev) => ({ ...prev, disabledSkills })),
     []
   );
 
@@ -493,6 +523,9 @@ export function useAgentEditorForm(
     setAgentMd,
     setPermissionMode,
     setSettingSources,
+    setDisableFileHooks,
+    setDisabledInstructionSources,
+    setDisabledSkills,
     setToolMode,
     toggleTool,
     toggleAutoApproved,

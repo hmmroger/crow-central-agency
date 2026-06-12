@@ -11,6 +11,7 @@ import {
   type AgentConfig,
   type AgentConfigTemplate,
   type CreateAgentInput,
+  type DiscoveredSkill,
   type UpdateAgentInput,
   CROW_SYSTEM_AGENT_ID,
   CROW_TASK_DISPATCHER_AGENT_ID,
@@ -28,11 +29,14 @@ import { logger } from "../utils/logger.js";
 import { generateId, SYSTEM_AGENT_IDS } from "../utils/id-utils.js";
 import { REDACTED_BOT_TOKEN, sanitizeAgentConfig } from "../utils/agent-config-sanitizer.js";
 import { readTextFile, writeTextFile, ensureDir, removeDir, assertWithinBase } from "../utils/fs-utils.js";
+import { arraysEqualUnordered } from "../utils/array-utils.js";
 import { getCrowAgent } from "../agents/crow-agent.js";
 import { getTaskDispatcherAgent } from "../agents/crow-task-dispatcher-agent.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 
 const log = logger.child({ context: "agent-registry" });
+
+const discoveredSkillKey = (skill: DiscoveredSkill): string => `${skill.source}:${skill.name}`;
 
 /** Object store table name for agent configs */
 export const AGENT_STORE_TABLE = "agents";
@@ -220,6 +224,12 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
       updated.discordConfig = { ...updated.discordConfig, botToken: existing.discordConfig.botToken };
     }
 
+    // The input carries only the user-editable subset of settingSourceConfig; merge over the existing
+    // config so the runtime-managed instructionSources list survives a user-driven update.
+    if (validated.settingSourceConfig) {
+      updated.settingSourceConfig = { ...existing.settingSourceConfig, ...validated.settingSourceConfig };
+    }
+
     this.agents.set(agentId, updated);
     await this.store.set(AGENT_STORE_TABLE, agentId, updated);
 
@@ -257,6 +267,45 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     const updated: AgentConfig = {
       ...existing,
       availableTools: tools,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.agents.set(agentId, updated);
+    await this.store.set(AGENT_STORE_TABLE, agentId, updated);
+    this.broadcaster.broadcast({
+      type: SERVER_MESSAGE_TYPE.AGENT_UPDATED,
+      agentId,
+      config: sanitizeAgentConfig(updated),
+    });
+  }
+
+  public async setSettingSourceConfig(
+    agentId: string,
+    options: { instructionSources?: string[]; discoveredSkills?: DiscoveredSkill[] }
+  ): Promise<void> {
+    const existing = this.getAgent(agentId);
+    try {
+      this.assertMutable(existing);
+    } catch {
+      return;
+    }
+
+    const current = existing.settingSourceConfig;
+    const unchanged =
+      (options.instructionSources === undefined ||
+        arraysEqualUnordered(current?.instructionSources ?? [], options.instructionSources)) &&
+      (options.discoveredSkills === undefined ||
+        arraysEqualUnordered(
+          (current?.discoveredSkills ?? []).map(discoveredSkillKey),
+          options.discoveredSkills.map(discoveredSkillKey)
+        ));
+    if (unchanged) {
+      return;
+    }
+
+    const updated: AgentConfig = {
+      ...existing,
+      settingSourceConfig: { ...current, ...options },
       updatedAt: new Date().toISOString(),
     };
 

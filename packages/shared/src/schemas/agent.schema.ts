@@ -206,6 +206,26 @@ export const PermissionModeSchema = z.enum([
 
 export const SettingSourceSchema = z.enum([SETTING_SOURCE.USER, SETTING_SOURCE.PROJECT, SETTING_SOURCE.LOCAL]);
 
+export const DiscoveredSkillSchema = z.object({
+  name: z.string(),
+  source: z.string(),
+});
+
+export type DiscoveredSkill = z.infer<typeof DiscoveredSkillSchema>;
+
+export const SettingSourceConfigSchema = z.object({
+  disableFileHooks: z.boolean().optional(),
+  instructionSources: z.array(z.string()).optional(),
+  disabledInstructionSources: z.array(z.string()).optional(),
+  discoveredSkills: z.array(DiscoveredSkillSchema).optional(),
+  disabledSkills: z.array(z.string()).optional(),
+});
+
+export const SettingSourceConfigInputSchema = SettingSourceConfigSchema.omit({
+  instructionSources: true,
+  discoveredSkills: true,
+});
+
 /**
  * Tool configuration for agent
  */
@@ -238,6 +258,7 @@ export const AgentConfigSchema = z.object({
   model: z.string().default(CLAUDE_DEFAULT_MODEL),
   permissionMode: PermissionModeSchema.default(PERMISSION_MODE.DEFAULT),
   settingSources: z.array(SettingSourceSchema).default([...DEFAULT_SETTING_SOURCES]),
+  settingSourceConfig: SettingSourceConfigSchema.optional(),
   availableTools: z.array(z.string()).optional(),
   toolConfig: ToolConfigSchema.default({ mode: TOOL_MODE.UNRESTRICTED }),
   agentVoiceConfig: AgentVoiceConfigSchema.optional(),
@@ -273,6 +294,7 @@ export const CreateAgentInputSchema = z.object({
   model: z.string().optional(),
   permissionMode: PermissionModeSchema.optional(),
   settingSources: z.array(SettingSourceSchema).optional(),
+  settingSourceConfig: SettingSourceConfigInputSchema.optional(),
   toolConfig: ToolConfigSchema.optional(),
   agentVoiceConfig: AgentVoiceConfigSchema.optional(),
   mcpServerIds: z.array(z.string()).optional(),
@@ -298,6 +320,7 @@ export const UpdateAgentInputSchema = z.object({
   model: z.string().optional(),
   permissionMode: PermissionModeSchema.optional(),
   settingSources: z.array(SettingSourceSchema).optional(),
+  settingSourceConfig: SettingSourceConfigInputSchema.optional(),
   toolConfig: ToolConfigSchema.optional(),
   agentVoiceConfig: AgentVoiceConfigSchema.optional(),
   mcpServerIds: z.array(z.string()).optional(),
