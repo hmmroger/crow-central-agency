@@ -27,12 +27,10 @@ export function SettingSourceConfigSection({
 }: SettingSourceConfigSectionProps) {
   return (
     <FieldGroup label="Instruction Sources">
-      <p className="mb-1 text-xs text-text-muted">Control which environment-discovered sources Copilot loads.</p>
-
       <Toggle
         checked={disableFileHooks}
         onChange={onDisableFileHooksChange}
-        label="Disable file hooks (.github/hooks)"
+        label="Disable file-based hooks (.github/hooks)"
         variant="secondary"
       />
 

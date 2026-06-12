@@ -156,6 +156,7 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     formA.loopPrompt === formB.loopPrompt &&
     formA.agentMd === formB.agentMd &&
     arraysEqual(formA.settingSources, formB.settingSources) &&
+    // instructionSources is runtime-managed (not user-editable), so it is intentionally excluded here.
     formA.disableFileHooks === formB.disableFileHooks &&
     arraysEqual(formA.disabledInstructionSources, formB.disabledInstructionSources) &&
     arraysEqual(formA.selectedTools, formB.selectedTools) &&

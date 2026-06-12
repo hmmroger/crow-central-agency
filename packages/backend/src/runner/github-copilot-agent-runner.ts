@@ -171,20 +171,6 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       : await client.createSession(sessionConfig);
     this.session = session;
 
-    // this is needed to have permission via event
-    await session.rpc.permissions.setRequired({ required: true });
-
-    // Surface the SDK-loaded instruction sources for persistence (handled by the runtime manager),
-    // then disable any the agent has opted out of for this turn.
-    const instSources = (await session.rpc.instructions.getSources()).sources.map((source) => source.id);
-    yield {
-      agentId: this.agentId,
-      type: AGENT_STREAM_EVENT_TYPE.INSTRUCTION_SOURCES,
-      sessionId: session.sessionId,
-      instructionSources: instSources,
-    };
-    await this.applyDisabledInstructionSources(session, agentConfig, instSources);
-
     // toolCallId -> tool name/input, populated from the event stream so permission requests
     // (which only carry a toolCallId) can be resolved back to a tool name.
     const toolCalls = new Map<string, CopilotToolCall>();
@@ -200,6 +186,21 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     };
 
     try {
+      // this is needed to have permission via event
+      await session.rpc.permissions.setRequired({ required: true });
+
+      // Surface the SDK-loaded instruction sources for persistence (handled by the runtime manager),
+      // then disable any the agent has opted out of for this turn. Kept inside the try so a failure
+      // here still tears the session down via the finally below.
+      const instSources = (await session.rpc.instructions.getSources()).sources.map((source) => source.id);
+      yield {
+        agentId: this.agentId,
+        type: AGENT_STREAM_EVENT_TYPE.INSTRUCTION_SOURCES,
+        sessionId: session.sessionId,
+        instructionSources: instSources,
+      };
+      await this.applyDisabledInstructionSources(session, agentConfig, instSources);
+
       const prompt = userMessageForAgent(new Date(), message, timezone, instructionReminder);
       let initEmitted = false;
       let turnComplete = false;
