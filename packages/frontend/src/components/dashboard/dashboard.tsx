@@ -1,14 +1,6 @@
 import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
-import {
-  ENTITY_TYPE,
-  RELATIONSHIP_TYPE,
-  applyAgentOrder,
-  type AgentConfig,
-  type AgentCircle,
-  type AgentTaskItem,
-  type Relationship,
-} from "@crow-central-agency/shared";
+import { applyAgentOrder, type AgentTaskItem } from "@crow-central-agency/shared";
 import { useAgentsContext } from "../../providers/agents-provider.js";
 import { useCirclesQuery } from "../../hooks/queries/use-circles-query.js";
 import { useUpdateCircle } from "../../hooks/queries/use-circle-mutations.js";
@@ -17,6 +9,7 @@ import { useRelationshipsQuery } from "../../hooks/queries/use-relationships-que
 import { useTasksContext } from "../../providers/tasks-provider.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { EmptyState } from "../common/empty-state.js";
+import { groupAgentsByCircle, sortCirclesByDisplayOrder } from "../../utils/circle-agent-order.js";
 import { TaskStatsPanel } from "./task-stats-panel.js";
 import { CircleSection } from "./circle/circle-section.js";
 import { PinnedSection } from "./pinned-section.js";
@@ -75,18 +68,7 @@ export function Dashboard() {
     [agents, circles, relationships]
   );
 
-  // Sort circles by displayOrder, then alphabetically by name
-  const sortedCircles = useMemo(() => {
-    return [...circles].sort((circleA, circleB) => {
-      const orderA = circleA.displayOrder ?? Number.MAX_SAFE_INTEGER;
-      const orderB = circleB.displayOrder ?? Number.MAX_SAFE_INTEGER;
-      if (orderA !== orderB) {
-        return orderA - orderB;
-      }
-
-      return circleA.name.localeCompare(circleB.name);
-    });
-  }, [circles]);
+  const sortedCircles = useMemo(() => sortCirclesByDisplayOrder(circles), [circles]);
 
   const handleReorderCircle = useCallback(
     (circleId: string, orderedAgentIds: string[]) => {
@@ -260,55 +242,6 @@ function renderTopSection(layout: TopLayout, tasks: AgentTaskItem[]): ReactNode 
         </>
       );
   }
-}
-
-/**
- * Group agents by circle using relationship data.
- */
-function groupAgentsByCircle(
-  agents: AgentConfig[],
-  circles: AgentCircle[],
-  relationships: Relationship[]
-): Map<string, AgentConfig[]> {
-  const agentToCircles = new Map<string, Set<string>>();
-  for (const relationship of relationships) {
-    if (
-      relationship.relationshipType === RELATIONSHIP_TYPE.MEMBERSHIP &&
-      relationship.sourceEntityType === ENTITY_TYPE.AGENT_CIRCLE &&
-      relationship.targetEntityType === ENTITY_TYPE.AGENT
-    ) {
-      const circleId = relationship.sourceEntityId;
-      const agentId = relationship.targetEntityId;
-      const existing = agentToCircles.get(agentId);
-      if (existing) {
-        existing.add(circleId);
-      } else {
-        agentToCircles.set(agentId, new Set([circleId]));
-      }
-    }
-  }
-
-  // Initialize groups for all circles
-  const groups = new Map<string, AgentConfig[]>();
-  for (const circle of circles) {
-    groups.set(circle.id, []);
-  }
-
-  // Place agents into their circles
-  for (const agent of agents) {
-    if (agent.isSystemAgent) {
-      continue;
-    }
-
-    const circleIds = agentToCircles.get(agent.id);
-    if (circleIds && circleIds.size > 0) {
-      for (const circleId of circleIds) {
-        groups.get(circleId)?.push(agent);
-      }
-    }
-  }
-
-  return groups;
 }
 
 const subscribeToTopLayoutQueries = (notify: () => void) => {
