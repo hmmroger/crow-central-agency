@@ -1,9 +1,5 @@
 import { SUBAGENT_TOOL_NAME } from "@crow-central-agency/shared";
-
-/** Type guard - returns true when value is a non-null, non-array object */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+import { isRecord } from "./tool-activity-parser-utils.js";
 
 /**
  * Extracts a human-readable description from a tool name and its input.

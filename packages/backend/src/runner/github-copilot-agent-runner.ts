@@ -1,3 +1,4 @@
+import path from "node:path";
 import {
   PERMISSION_MODE,
   SETTING_SOURCE,
@@ -20,8 +21,15 @@ import {
   type CopilotEventContext,
   type CopilotToolCall,
 } from "./github-copilot-stream-processor.js";
+import { expandPath } from "../utils/fs-utils.js";
 import { generateId } from "../utils/id-utils.js";
-import { DEFAULT_PERMISSION_DENY_MESSAGE, PERMISSION_USER_UNAVAILABLE_MESSAGE } from "../config/constants.js";
+import {
+  COPILOT_DEFAULT_HOME_DIR_NAME,
+  COPILOT_HOME_ENV,
+  COPILOT_SKILLS_DIR_NAME,
+  DEFAULT_PERMISSION_DENY_MESSAGE,
+  PERMISSION_USER_UNAVAILABLE_MESSAGE,
+} from "../config/constants.js";
 import { logger } from "../utils/logger.js";
 import { userMessageForAgent } from "../utils/message-template.js";
 import {
@@ -37,6 +45,7 @@ import type { SensorManager } from "../sensors/sensor-manager.js";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
 import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 import { toCopilotMcpServer, toCopilotTools } from "../mcp/copilot-mcp-adapter.js";
+import { toToolArgsRecord } from "./tool-activity-parser-utils.js";
 
 const log = logger.child({ context: "github-copilot-agent-runner" });
 
@@ -69,8 +78,12 @@ function resolvePermissionMode(permissionMode: PermissionMode): {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+/**
+ * User-level skills live under the Copilot home (`COPILOT_HOME`, else `~/.copilot`).
+ */
+function userSkillDirectory(): string {
+  const copilotHome = expandPath(process.env[COPILOT_HOME_ENV] ?? `~/${COPILOT_DEFAULT_HOME_DIR_NAME}`);
+  return path.join(copilotHome, COPILOT_SKILLS_DIR_NAME);
 }
 
 /** Match a tool name against the auto-approve patterns, where a trailing `*` matches by prefix (`*` matches all). */
@@ -86,20 +99,6 @@ function isToolAutoApproved(patterns: Set<string>, toolName: string): boolean {
   }
 
   return false;
-}
-
-/** Tool-call arguments arrive as a JSON string (function-call arguments) or an object; normalize to a record. */
-function toToolArgsRecord(value: unknown): Record<string, unknown> {
-  if (typeof value === "string") {
-    try {
-      const parsed: unknown = JSON.parse(value);
-      return isRecord(parsed) ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
-
-  return isRecord(value) ? value : {};
 }
 
 /**
@@ -146,6 +145,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         ? { mode: "replace", content: systemPrompt }
         : { mode: "append", content: systemPrompt }
       : undefined;
+    const enableConfigDiscovery = agentConfig.settingSources.includes(SETTING_SOURCE.PROJECT);
     // No onPermissionRequest handler: per the SDK, omitting it surfaces permission requests as
     // events that we resolve from the drain loop via the pending-permission RPC.
     const sessionConfig: SessionConfig = {
@@ -156,7 +156,12 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       // Supports unrestricted tools plus a disallow list for now
       excludedTools: agentConfig.toolConfig.disallowedTools,
       tools: inProcessTools,
-      enableConfigDiscovery: agentConfig.settingSources.includes(SETTING_SOURCE.PROJECT),
+      enableConfigDiscovery,
+      enableSkills: true,
+      skillDirectories:
+        !enableConfigDiscovery && agentConfig.settingSources.includes(SETTING_SOURCE.USER)
+          ? [userSkillDirectory()]
+          : undefined,
       enableFileHooks: !agentConfig.settingSourceConfig?.disableFileHooks,
       disabledSkills: agentConfig.settingSourceConfig?.disabledSkills,
       mcpServers: this.buildMcpServers(serverConfigs),
@@ -189,7 +194,6 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     try {
       // this is needed to have permission via event
       await session.rpc.permissions.setRequired({ required: true });
-
       const skillList = await session.rpc.skills.list();
       const discoveredSkills = skillList.skills.map((skill) => ({ name: skill.name, source: skill.source }));
       yield {

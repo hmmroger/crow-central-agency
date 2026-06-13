@@ -57,3 +57,12 @@ export const REMINDERS_STORE_TABLE = "reminders";
 export const CLIENT_STORE_TABLE = "client";
 export const CLIENT_STORE_TIMEZONE_KEY = "timezone";
 export const CLIENT_STORE_LOCATION_KEY = "location";
+
+/** Environment variable the Copilot runtime reads for its home directory. */
+export const COPILOT_HOME_ENV = "COPILOT_HOME";
+
+/** Default Copilot home directory name under the user's home when COPILOT_HOME is unset. */
+export const COPILOT_DEFAULT_HOME_DIR_NAME = ".copilot";
+
+/** Subdirectory under the Copilot home holding user-level skills. */
+export const COPILOT_SKILLS_DIR_NAME = "skills";

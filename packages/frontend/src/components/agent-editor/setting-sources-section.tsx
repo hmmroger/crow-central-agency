@@ -11,6 +11,8 @@ interface SettingSourcesSectionProps {
 
 const SETTING_SOURCE_OPTIONS = [SETTING_SOURCE.USER, SETTING_SOURCE.PROJECT, SETTING_SOURCE.LOCAL] as const;
 
+const COPILOT_SUPPORTED_SOURCES: readonly SettingSource[] = [SETTING_SOURCE.PROJECT, SETTING_SOURCE.USER];
+
 export function SettingSourcesSection({
   settingSources,
   agentType,
@@ -35,7 +37,7 @@ export function SettingSourcesSection({
     <FieldGroup label="Setting Sources">
       <p className="mb-1.5 text-xs text-text-muted">
         {isCopilot
-          ? 'Copilot only supports the "Project" source, which enables project-local config discovery.'
+          ? '"Project" enables MCP and skills discovery across both user and project scope; "User" adds user-level skills only.'
           : "SDK configuration sources included in queries."}
       </p>
       <div className="flex flex-wrap gap-4">
@@ -46,7 +48,7 @@ export function SettingSourcesSection({
             onChange={(enabled) => setSourceEnabled(source, enabled)}
             label={source.charAt(0).toUpperCase() + source.slice(1)}
             variant="secondary"
-            disabled={isCopilot && source !== SETTING_SOURCE.PROJECT}
+            disabled={isCopilot && !COPILOT_SUPPORTED_SOURCES.includes(source)}
           />
         ))}
       </div>

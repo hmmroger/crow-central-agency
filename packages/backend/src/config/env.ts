@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { expandPath } from "../utils/fs-utils.js";
 
 const CONFIG_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.resolve(CONFIG_DIR, "..");
@@ -17,14 +18,6 @@ function getOptionalNumber(key: string, defaultValue?: number): number | undefin
 function getBoolean(key: string): boolean {
   const value = process.env[key]?.trim().toLowerCase();
   return value === "true" || value === "1";
-}
-
-function expandPath(filePath: string): string {
-  if (filePath.startsWith("~")) {
-    return path.join(os.homedir(), filePath.slice(1));
-  }
-
-  return path.resolve(filePath);
 }
 
 function readRequired(key: string): string {
