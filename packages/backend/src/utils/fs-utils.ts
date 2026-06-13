@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import type { Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
@@ -8,6 +9,15 @@ import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 /** Type guard for Node.js filesystem errors with an error code */
 export function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
+}
+
+/** Expand a leading `~` to the user's home directory; otherwise resolve to an absolute path. */
+export function expandPath(filePath: string): string {
+  if (filePath.startsWith("~")) {
+    return path.join(os.homedir(), filePath.slice(1));
+  }
+
+  return path.resolve(filePath);
 }
 
 /**
