@@ -24,6 +24,7 @@ export function AgentArtifactsTab({ agentId }: AgentArtifactsTabProps) {
 
   return (
     <ArtifactPanel
+      key={agentId}
       artifacts={artifacts}
       loading={isLoading}
       isError={isError}

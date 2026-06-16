@@ -1,4 +1,4 @@
-import { CircleDot, FileText, Maximize2, Trash2 } from "lucide-react";
+import { CircleDot, FileText, Maximize2, Tag, Trash2 } from "lucide-react";
 import { AGENT_TASK_SOURCE_TYPE, ENTITY_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { formatRelativeTime, formatSize } from "../../../utils/format-utils.js";
@@ -20,6 +20,9 @@ export function ArtifactItem({ artifact, onClick, onExpand, onDelete }: Artifact
   const { sourceType } = artifact.createdBy;
   const canDelete = sourceType === AGENT_TASK_SOURCE_TYPE.USER || sourceType === AGENT_TASK_SOURCE_TYPE.SYSTEM;
 
+  const tags = artifact.tags ?? [];
+  const tagCount = tags.length;
+
   return (
     <div className="group flex items-center hover:bg-surface-elevated transition-colors">
       <button type="button" className="flex-1 flex items-center gap-2 px-3 py-1.5 text-left min-w-0" onClick={onClick}>
@@ -30,8 +33,19 @@ export function ArtifactItem({ artifact, onClick, onExpand, onDelete }: Artifact
         )}
         <div className="flex-1 min-w-0">
           <div className="text-xs text-text-neutral truncate">{artifact.filename}</div>
-          <div className="text-xs text-text-muted">
-            {formatSize(artifact.size)} &middot; {formatRelativeTime(artifact.updatedTimestamp)}
+          <div className="flex items-center gap-1.5 text-xs text-text-muted">
+            <span className="truncate">
+              {formatSize(artifact.size)} &middot; {formatRelativeTime(artifact.updatedTimestamp)}
+            </span>
+            {tagCount > 0 && (
+              <span
+                className="ml-auto flex items-center gap-0.5 shrink-0 text-text-muted"
+                title={`Tags: ${tags.join(", ")}`}
+              >
+                <Tag className="h-3 w-3" />
+                <span className="text-2xs tabular-nums">{tagCount}</span>
+              </span>
+            )}
           </div>
         </div>
       </button>

@@ -1,11 +1,14 @@
-import { useCallback, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Upload } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { unwrapResponse, uploadArtifact, uploadCircleArtifact } from "../../../services/api-client.js";
 import { useAgentCirclesQuery } from "../../../hooks/queries/use-agent-circles-query.js";
+import { useAgentArtifactsQuery } from "../../../hooks/queries/use-agent-artifacts-query.js";
+import { useCircleArtifactsQuery } from "../../../hooks/queries/use-circle-artifacts-query.js";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../../common/action-button.js";
 import { CircleSelector } from "../../common/circle-selector.js";
+import { TagCombobox } from "./tag-combobox.js";
 import type { ApiError } from "../../../services/api-client.types.js";
 
 interface AddArtifactDialogProps {
@@ -24,9 +27,23 @@ export function AddArtifactDialog({ agentId, isCircle, onClose, onUploaded }: Ad
   const [selectedFile, setSelectedFile] = useState<File | undefined>(undefined);
   const [filenameOverride, setFilenameOverride] = useState("");
   const [selectedCircleId, setSelectedCircleId] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
 
   const { data: circles = [] } = useAgentCirclesQuery(agentId);
+  const { data: agentArtifacts = [] } = useAgentArtifactsQuery(agentId);
+  const { data: circleArtifacts = [] } = useCircleArtifactsQuery(agentId);
   const resolvedFilename = resolveFilename(filenameOverride.trim(), selectedFile?.name);
+
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    for (const artifact of [...agentArtifacts, ...circleArtifacts]) {
+      for (const tag of artifact.tags ?? []) {
+        tagSet.add(tag);
+      }
+    }
+
+    return [...tagSet].sort();
+  }, [agentArtifacts, circleArtifacts]);
 
   const uploadMutation = useMutation<ArtifactMetadata, ApiError, void>({
     mutationFn: async () => {
@@ -35,8 +52,8 @@ export function AddArtifactDialog({ agentId, isCircle, onClose, onUploaded }: Ad
       }
 
       const response = isCircle
-        ? await uploadCircleArtifact<ArtifactMetadata>(selectedCircleId, selectedFile, resolvedFilename)
-        : await uploadArtifact<ArtifactMetadata>(agentId, selectedFile, resolvedFilename);
+        ? await uploadCircleArtifact<ArtifactMetadata>(selectedCircleId, selectedFile, resolvedFilename, tags)
+        : await uploadArtifact<ArtifactMetadata>(agentId, selectedFile, resolvedFilename, tags);
 
       return unwrapResponse(response);
     },
@@ -70,6 +87,14 @@ export function AddArtifactDialog({ agentId, isCircle, onClose, onUploaded }: Ad
   const handleUpload = useCallback(() => {
     uploadMutation.mutate();
   }, [uploadMutation]);
+
+  const handleToggleTag = useCallback((tag: string) => {
+    setTags((current) => (current.includes(tag) ? current.filter((value) => value !== tag) : [...current, tag]));
+  }, []);
+
+  const handleClearTags = useCallback(() => {
+    setTags([]);
+  }, []);
 
   return (
     <div className="flex flex-col">
@@ -114,6 +139,19 @@ export function AddArtifactDialog({ agentId, isCircle, onClose, onUploaded }: Ad
             placeholder={selectedFile?.name ?? "Uses original filename if empty"}
             value={filenameOverride}
             onChange={handleFilenameChange}
+          />
+        </div>
+
+        {/* Tags */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-text-neutral">Tags (optional)</label>
+          <TagCombobox
+            allowCreate
+            availableTags={availableTags}
+            selectedTags={tags}
+            onToggle={handleToggleTag}
+            onClear={handleClearTags}
+            placeholder="Add or create tags..."
           />
         </div>
 

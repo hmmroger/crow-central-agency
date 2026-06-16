@@ -24,6 +24,7 @@ export function CircleArtifactsTab({ agentId }: CircleArtifactsTabProps) {
 
   return (
     <ArtifactPanel
+      key={agentId}
       artifacts={artifacts}
       loading={isLoading}
       isError={isError}

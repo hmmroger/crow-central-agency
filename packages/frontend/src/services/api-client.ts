@@ -128,12 +128,24 @@ export const apiClient = {
 };
 
 /** Upload a file as an artifact via multipart form data */
-async function uploadFormData<T>(path: string, file: File, filename?: string): Promise<ApiResponse<T>> {
+async function uploadFormData<T>(
+  path: string,
+  file: File,
+  filename?: string,
+  tags?: string[]
+): Promise<ApiResponse<T>> {
   const formData = new FormData();
-  formData.append("file", file);
+  // Append scalar fields before the file so the server can read them from the
+  // multipart fields without having to consume the file stream first.
   if (filename) {
     formData.append("filename", filename);
   }
+
+  if (tags && tags.length > 0) {
+    formData.append("tags", JSON.stringify(tags));
+  }
+
+  formData.append("file", file);
 
   const headers = getDefaultHeaders();
   // Do not set Content-Type — browser sets it with the boundary
@@ -148,17 +160,23 @@ async function uploadFormData<T>(path: string, file: File, filename?: string): P
 }
 
 /** Upload a file as an agent artifact */
-export async function uploadArtifact<T>(agentId: string, file: File, filename?: string): Promise<ApiResponse<T>> {
-  return uploadFormData(`/agents/${agentId}/artifacts`, file, filename);
+export async function uploadArtifact<T>(
+  agentId: string,
+  file: File,
+  filename?: string,
+  tags?: string[]
+): Promise<ApiResponse<T>> {
+  return uploadFormData(`/agents/${agentId}/artifacts`, file, filename, tags);
 }
 
 /** Upload a file as a circle artifact */
 export async function uploadCircleArtifact<T>(
   circleId: string,
   file: File,
-  filename?: string
+  filename?: string,
+  tags?: string[]
 ): Promise<ApiResponse<T>> {
-  return uploadFormData(`/circles/${circleId}/artifacts`, file, filename);
+  return uploadFormData(`/circles/${circleId}/artifacts`, file, filename, tags);
 }
 
 /** Delete an agent artifact */
