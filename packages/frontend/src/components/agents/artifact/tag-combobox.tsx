@@ -191,7 +191,9 @@ export function TagCombobox({
   // mousedown (focus stays in the input) and the chevron lives inside the
   // container, so neither selecting an option nor toggling falsely closes it.
   // This covers clicks elsewhere inside a modal dialog, where floating-ui's
-  // outside-press dismissal does not fire.
+  // outside-press dismissal does not fire. The portaled dropdown is not a DOM
+  // descendant of the container, but it never takes focus, so containment on the
+  // container is sufficient — keep dropdown content non-focusable.
   const handleBlur = useCallback((event: ReactFocusEvent<HTMLDivElement>) => {
     const nextFocus = event.relatedTarget;
     if (nextFocus instanceof Node && event.currentTarget.contains(nextFocus)) {
@@ -259,7 +261,7 @@ export function TagCombobox({
             ) : (
               options.map((option, index) => (
                 <button
-                  key={option.isNew ? `__new__${option.tag}` : option.tag}
+                  key={option.isNew ? `create:${option.tag}` : `existing:${option.tag}`}
                   type="button"
                   role="option"
                   aria-selected={index === safeActiveIndex}
