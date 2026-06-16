@@ -22,7 +22,7 @@ function escapeAttr(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-// Custom renderer to open all links in a new tab
+// Custom renderers: wrap tables in a scroll container; open links in a new tab
 const renderer = {
   // Wrap tables in a scroll container so wide tables get their own horizontal
   // scrollbar instead of overflowing the whole view.
