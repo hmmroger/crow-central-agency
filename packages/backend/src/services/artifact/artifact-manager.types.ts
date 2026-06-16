@@ -1,4 +1,10 @@
 import type { AgentTaskSource, ArtifactContentType, ArtifactMetadata, ArtifactType } from "@crow-central-agency/shared";
+import type { EventMap } from "../../core/event-bus/event-bus.types.js";
+
+export interface ArtifactManagerEvents extends EventMap {
+  artifactSaved: { metadata: ArtifactMetadata };
+  artifactDeleted: { metadata: ArtifactMetadata };
+}
 
 export interface ArtifactContentMatch {
   lineNumber: number;

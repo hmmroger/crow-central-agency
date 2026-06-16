@@ -14,6 +14,7 @@ import type { MessageTemplate } from "../utils/message-template.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
 import { MessageRoles } from "../services/content-generation/content-generation.types.js";
 import { INVOKE_AGENT_TOOL_NAME } from "../mcp/agents/invoke-agent.js";
+import { SEARCH_WORKSPACE_TOOL_NAME } from "../mcp/agents/search-workspace.js";
 import { FEED_MCP_SERVER_NAME } from "../mcp/feed/feed-mcp-server.js";
 import {
   AGENT_STREAM_EVENT_TYPE,
@@ -50,6 +51,8 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
         "",
         "Avoid speculation and never fabricate data or sources. Be transparent if you do not have enough information.",
         "You have artifact tools for storing and retrieving information that can be referenced later by you or other agents.",
+        "Save useful knowledge as artifacts. When a task finally succeeds after user feedback, record the preferred workflow that worked so you can reuse it next time.",
+        `Do not assume information is unavailable just because it is not in your current context - use the "${SEARCH_WORKSPACE_TOOL_NAME}" tool to look it up first.`,
         `If you commit to follow up on something later or need to act at a specific time, use ${ADD_REMINDER_TOOL_NAME} to schedule a reminder that surfaces the work back to you when due.`,
         "",
       ],
@@ -124,6 +127,8 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
         "",
         "You have access to `crow-tasks` tools for getting task details by ID, create task, and assign task.",
         "You have artifact tools for storing and retrieving information that can be referenced later by you or other agents.",
+        "Save useful knowledge as artifacts. When a task finally succeeds after user feedback, record the preferred workflow that worked so you can reuse it next time.",
+        `Do not assume information is unavailable just because it is not in your current context - use the "${SEARCH_WORKSPACE_TOOL_NAME}" tool to look it up first.`,
         `If you commit to follow up on something later or need to act at a specific time, use ${ADD_REMINDER_TOOL_NAME} to schedule a reminder that surfaces the work back to you when due.`,
         "",
       ],

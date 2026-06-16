@@ -25,11 +25,13 @@ import type { ObjectStoreProvider } from "../../core/store/object-store.types.js
 import type { AgentRegistry } from "../agent-registry.js";
 import type { AgentCircleManager } from "../agent-circle-manager.js";
 import { getMimeTypeByFilename, DOCX_MIME_TYPE } from "../../utils/mime-type.js";
+import { EventBus } from "../../core/event-bus/event-bus.js";
 import type {
   ArtifactAdapter,
   ArtifactContentFindResult,
   ArtifactContentMatch,
   ArtifactListOptions,
+  ArtifactManagerEvents,
   ReadArtifactOptions,
   ReadArtifactResult,
   UpdateArtifactOptions,
@@ -69,7 +71,7 @@ type MaybeLegacyArtifactMetadata = Omit<ArtifactMetadata, "id"> & { id?: string 
  * Metadata is stored in per-entity object store tables for fast lookup.
  * Path traversal protection on all operations.
  */
-export class ArtifactManager {
+export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
   // mime type to adapter mapping
   private adapters: Map<string, ArtifactAdapter> = new Map();
 
@@ -78,6 +80,7 @@ export class ArtifactManager {
     private readonly registry: AgentRegistry,
     private readonly circleManager: AgentCircleManager
   ) {
+    super();
     this.adapters.set(DOCX_MIME_TYPE, new WordArtifactAdapter());
   }
 
@@ -299,6 +302,7 @@ export class ArtifactManager {
       "Artifact written"
     );
 
+    this.emit("artifactSaved", { metadata });
     return metadata;
   }
 
@@ -365,6 +369,7 @@ export class ArtifactManager {
       "Artifact updated"
     );
 
+    this.emit("artifactSaved", { metadata });
     return metadata;
   }
 
@@ -480,6 +485,7 @@ export class ArtifactManager {
       const filePath = this.getEntityArtifactPath(entityType, entityId, existing.value.id);
       await deleteFile(filePath);
       log.info({ entityType, entityId, filename: normalizedFilename, id: existing.value.id }, "Artifact deleted");
+      this.emit("artifactDeleted", { metadata: existing.value });
     }
 
     return deleted;

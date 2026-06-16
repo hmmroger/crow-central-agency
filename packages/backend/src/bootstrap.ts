@@ -11,6 +11,7 @@ import { SessionManager } from "./services/session/session-manager.js";
 import { CopilotClientManager } from "./services/copilot/copilot-client-manager.js";
 import { WsBroadcaster } from "./services/ws-broadcaster.js";
 import { ArtifactManager } from "./services/artifact/artifact-manager.js";
+import { DocumentSearchService } from "./services/search/document-search-service.js";
 import { PlacesManager } from "./services/places/places-manager.js";
 import { setupWebSocket } from "./server/setup-websocket.js";
 import { registerArtifactRoutes } from "./routes/artifact.routes.js";
@@ -95,6 +96,8 @@ export async function bootstrap(options: BootstrapOptions) {
   const feedManager = new SimplyFeedManager(storeProvider, folderFileProvider, crowScheduler);
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
+  const documentSearchService = new DocumentSearchService(artifactManager, taskManager, registry, circleManager);
+  await documentSearchService.initialize();
   const placesManager = new PlacesManager();
   const connectorManager = new ConnectorManager(storeProvider, registry, crowScheduler);
   connectorManager.registerConnector(new GoogleConnector());
@@ -154,7 +157,9 @@ export async function bootstrap(options: BootstrapOptions) {
   mcpManager.registerMcpServer(
     getArtifactsMcpServerDefinition(artifactManager, registry, circleManager, sensorManager)
   );
-  mcpManager.registerMcpServer(getAgentsMcpServerDefinition(registry, runtimeManager, taskManager));
+  mcpManager.registerMcpServer(
+    getAgentsMcpServerDefinition(registry, runtimeManager, taskManager, documentSearchService, circleManager)
+  );
   mcpManager.registerMcpServer(getTasksMcpServerDefinition(taskManager, circleManager, sensorManager));
   mcpManager.registerMcpServer(getFeedMcpServerDefinition(registry, feedManager, sensorManager, systemSettingsManager));
   mcpManager.registerMcpServer(getAudioMcpServerDefinition(registry, artifactManager));
