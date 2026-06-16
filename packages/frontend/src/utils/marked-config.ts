@@ -24,8 +24,6 @@ function escapeAttr(value: string): string {
 
 // Custom renderers: wrap tables in a scroll container; open links in a new tab
 const renderer = {
-  // Wrap tables in a scroll container so wide tables get their own horizontal
-  // scrollbar instead of overflowing the whole view.
   table(this: MarkedRenderer, token: Tokens.Table): string {
     return `<div class="markdown-table-scroll">${renderDefaultTable.call(this, token)}</div>`;
   },
