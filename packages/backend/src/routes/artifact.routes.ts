@@ -34,6 +34,25 @@ function getFieldValue(field: Multipart | Multipart[] | undefined): string | und
   return value || undefined;
 }
 
+/** Parse a JSON-encoded string array from a multipart field, or undefined */
+function getTagsValue(field: Multipart | Multipart[] | undefined): string[] | undefined {
+  const raw = getFieldValue(field);
+  if (!raw) {
+    return undefined;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.every((item): item is string => typeof item === "string")) {
+      return parsed;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
 /**
  * Register artifact REST routes
  */
@@ -59,11 +78,13 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
 
     const resolvedFilename = getFieldValue(file.fields["filename"]) ?? file.filename;
     const contentType = ArtifactContentTypeSchema.safeParse(getFieldValue(file.fields["contentType"])).data;
+    const tags = getTagsValue(file.fields["tags"]);
 
     const content = await file.toBuffer();
     const metadata = await artifactManager.writeArtifact(agentId, resolvedFilename, content, {
       type: ARTIFACT_TYPE.USER,
       contentType,
+      tags,
       createdBy: { sourceType: AGENT_TASK_SOURCE_TYPE.USER },
     });
 
@@ -114,11 +135,13 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
 
     const resolvedFilename = getFieldValue(file.fields["filename"]) ?? file.filename;
     const contentType = ArtifactContentTypeSchema.safeParse(getFieldValue(file.fields["contentType"])).data;
+    const tags = getTagsValue(file.fields["tags"]);
 
     const content = await file.toBuffer();
     const metadata = await artifactManager.writeCircleArtifact(circleId, resolvedFilename, content, {
       type: ARTIFACT_TYPE.USER,
       contentType,
+      tags,
       createdBy: { sourceType: AGENT_TASK_SOURCE_TYPE.USER },
     });
 

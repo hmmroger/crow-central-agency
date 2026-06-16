@@ -1,10 +1,11 @@
+import { useCallback } from "react";
 import { X } from "lucide-react";
 import { cn } from "../../../utils/cn.js";
 
 interface TagChipProps {
   label: string;
-  /** When provided, renders a trailing remove button */
-  onRemove?: () => void;
+  /** When provided, renders a trailing remove button; called with this chip's label */
+  onRemove?: (label: string) => void;
   className?: string;
 }
 
@@ -13,6 +14,8 @@ interface TagChipProps {
  * aesthetic. Read-only by default; pass `onRemove` to render a remove control.
  */
 export function TagChip({ label, onRemove, className }: TagChipProps) {
+  const handleRemove = useCallback(() => onRemove?.(label), [onRemove, label]);
+
   return (
     <span
       className={cn(
@@ -25,7 +28,7 @@ export function TagChip({ label, onRemove, className }: TagChipProps) {
       {onRemove && (
         <button
           type="button"
-          onClick={onRemove}
+          onClick={handleRemove}
           className="shrink-0 rounded-xs p-0.5 text-text-muted hover:text-error transition-colors"
           aria-label={`Remove tag ${label}`}
         >

@@ -3,6 +3,9 @@ import type { EntityType } from "@crow-central-agency/shared";
 import { ArtifactContentRenderer } from "./artifact-content-renderer.js";
 import { ArtifactTagList } from "./artifact-tag-list.js";
 
+/** Tags shown before collapsing in the narrow inline viewer */
+const VISIBLE_TAG_LIMIT = 6;
+
 interface ArtifactViewerProps {
   entityType: EntityType;
   entityId: string;
@@ -31,7 +34,7 @@ export function ArtifactViewer({ entityType, entityId, filename, tags, onClose }
         </button>
         <div className="flex flex-col gap-1.5 min-w-0 flex-1 pt-0.5">
           <span className="text-sm font-mono text-text-neutral truncate">{filename}</span>
-          {tags && <ArtifactTagList tags={tags} />}
+          {tags && tags.length > 0 && <ArtifactTagList tags={tags} maxVisible={VISIBLE_TAG_LIMIT} />}
         </div>
       </div>
 

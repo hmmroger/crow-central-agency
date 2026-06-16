@@ -6,7 +6,7 @@ import { deleteAgentArtifact, deleteCircleArtifact, unwrapResponse } from "../..
 import { useConfirmDialog } from "../../../hooks/dialogs/use-confirm-dialog.js";
 import { useOpenArtifactViewer } from "./use-open-artifact-viewer.js";
 import { ArtifactItem } from "./artifact-item.js";
-import { ArtifactTagFilter } from "./artifact-tag-filter.js";
+import { TagCombobox } from "./tag-combobox.js";
 import { ArtifactViewer } from "./artifact-viewer.js";
 
 interface ArtifactPanelProps {
@@ -54,11 +54,16 @@ export function ArtifactPanel({ artifacts, loading, isError, onRefresh, onAdd, l
     return artifacts.filter((artifact) => activeTags.every((tag) => artifact.tags?.includes(tag)));
   }, [artifacts, activeTags]);
 
-  const handleToggleTag = useCallback((tag: string) => {
-    setSelectedTags((current) =>
-      current.includes(tag) ? current.filter((value) => value !== tag) : [...current, tag]
-    );
-  }, []);
+  const handleToggleTag = useCallback(
+    (tag: string) => {
+      setSelectedTags((current) => {
+        // Drop any tag no longer present in the list so state never accumulates ghosts
+        const valid = current.filter((value) => allTags.includes(value));
+        return valid.includes(tag) ? valid.filter((value) => value !== tag) : [...valid, tag];
+      });
+    },
+    [allTags]
+  );
 
   const handleClearTags = useCallback(() => {
     setSelectedTags([]);
@@ -127,8 +132,8 @@ export function ArtifactPanel({ artifacts, loading, isError, onRefresh, onAdd, l
       {/* Tag filter — only shown when the list carries tags */}
       {allTags.length > 0 && (
         <div className="px-3 py-2 border-b border-border-subtle">
-          <ArtifactTagFilter
-            allTags={allTags}
+          <TagCombobox
+            availableTags={allTags}
             selectedTags={activeTags}
             onToggle={handleToggleTag}
             onClear={handleClearTags}
