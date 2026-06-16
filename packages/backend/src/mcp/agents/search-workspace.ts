@@ -13,6 +13,7 @@ import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { applyPagination, formatPaginationHeader, getErrorToolResult, textToolResult } from "../tool-utils.js";
 
 const DEFAULT_SEARCH_LIMIT = 25;
+const MAX_SEARCH_LIMIT = 200;
 
 export const SEARCH_WORKSPACE_TOOL_NAME = "search_workspace";
 
@@ -46,7 +47,7 @@ export function getSearchWorkspaceToolConfig(
   const handler: ToolHandler<typeof inputSchema> = async ({ query, sources, limit, skip }) => {
     try {
       const filter = buildAccessFilter(agentId, taskManager, circleManager, sources);
-      const hits = documentSearchService.search(query, { filter });
+      const hits = documentSearchService.search(query, { filter, limit: MAX_SEARCH_LIMIT });
       if (hits.length === 0) {
         return textToolResult([`No matches found for query "${query}".`]);
       }
