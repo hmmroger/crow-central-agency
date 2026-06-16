@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { ENTITY_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
@@ -6,6 +6,7 @@ import { deleteAgentArtifact, deleteCircleArtifact, unwrapResponse } from "../..
 import { useConfirmDialog } from "../../../hooks/dialogs/use-confirm-dialog.js";
 import { useOpenArtifactViewer } from "./use-open-artifact-viewer.js";
 import { ArtifactItem } from "./artifact-item.js";
+import { ArtifactTagFilter } from "./artifact-tag-filter.js";
 import { ArtifactViewer } from "./artifact-viewer.js";
 
 interface ArtifactPanelProps {
@@ -22,6 +23,7 @@ interface ArtifactPanelProps {
  */
 export function ArtifactPanel({ artifacts, loading, isError, onRefresh, onAdd, label }: ArtifactPanelProps) {
   const [selectedArtifact, setSelectedArtifact] = useState<ArtifactMetadata | undefined>(undefined);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const handleRefresh = useCallback(() => {
     onRefresh();
@@ -29,6 +31,38 @@ export function ArtifactPanel({ artifacts, loading, isError, onRefresh, onAdd, l
 
   const confirm = useConfirmDialog();
   const openArtifactViewer = useOpenArtifactViewer();
+
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    for (const artifact of artifacts) {
+      for (const tag of artifact.tags ?? []) {
+        tagSet.add(tag);
+      }
+    }
+
+    return [...tagSet].sort();
+  }, [artifacts]);
+
+  // Ignore any selected tag no longer present in the list (e.g. after a refetch)
+  const activeTags = useMemo(() => selectedTags.filter((tag) => allTags.includes(tag)), [selectedTags, allTags]);
+
+  const filteredArtifacts = useMemo(() => {
+    if (activeTags.length === 0) {
+      return artifacts;
+    }
+
+    return artifacts.filter((artifact) => activeTags.every((tag) => artifact.tags?.includes(tag)));
+  }, [artifacts, activeTags]);
+
+  const handleToggleTag = useCallback((tag: string) => {
+    setSelectedTags((current) =>
+      current.includes(tag) ? current.filter((value) => value !== tag) : [...current, tag]
+    );
+  }, []);
+
+  const handleClearTags = useCallback(() => {
+    setSelectedTags([]);
+  }, []);
 
   const handleDelete = useCallback(
     (artifact: ArtifactMetadata) => {
@@ -57,6 +91,7 @@ export function ArtifactPanel({ artifacts, loading, isError, onRefresh, onAdd, l
         entityType={selectedArtifact.entityType}
         entityId={selectedArtifact.entityId}
         filename={selectedArtifact.filename}
+        tags={selectedArtifact.tags}
         onClose={() => setSelectedArtifact(undefined)}
       />
     );
@@ -89,6 +124,18 @@ export function ArtifactPanel({ artifacts, loading, isError, onRefresh, onAdd, l
         </div>
       </div>
 
+      {/* Tag filter — only shown when the list carries tags */}
+      {allTags.length > 0 && (
+        <div className="px-3 py-2 border-b border-border-subtle">
+          <ArtifactTagFilter
+            allTags={allTags}
+            selectedTags={activeTags}
+            onToggle={handleToggleTag}
+            onClear={handleClearTags}
+          />
+        </div>
+      )}
+
       {/* File list */}
       <div className="flex-1 overflow-y-auto">
         {loading && <div className="p-3 text-xs text-text-muted">Loading...</div>}
@@ -101,7 +148,11 @@ export function ArtifactPanel({ artifacts, loading, isError, onRefresh, onAdd, l
           <div className="p-3 text-xs text-text-muted italic">No artifacts</div>
         )}
 
-        {artifacts.map((artifact) => (
+        {!loading && !isError && artifacts.length > 0 && filteredArtifacts.length === 0 && (
+          <div className="p-3 text-xs text-text-muted italic">No artifacts match the selected tags.</div>
+        )}
+
+        {filteredArtifacts.map((artifact) => (
           <ArtifactItem
             key={`${artifact.entityId}/${artifact.filename}`}
             artifact={artifact}

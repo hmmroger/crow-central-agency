@@ -14,9 +14,9 @@ export const VIEW_MODE = {
 export type ViewMode = (typeof VIEW_MODE)[keyof typeof VIEW_MODE];
 
 /** Default side panel width in pixels */
-const DEFAULT_SIDE_PANEL_WIDTH = 280;
+const DEFAULT_SIDE_PANEL_WIDTH = 300;
 /** Minimum side panel width in pixels */
-export const SIDE_PANEL_MIN_WIDTH = 220;
+export const SIDE_PANEL_MIN_WIDTH = 300;
 /** Maximum side panel width in pixels */
 export const SIDE_PANEL_MAX_WIDTH = 480;
 
