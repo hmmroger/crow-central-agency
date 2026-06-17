@@ -4,6 +4,7 @@ import { BookmarkPlus, Sparkles, Trash2 } from "lucide-react";
 import {
   AGENT_TYPE,
   TOOL_MODE,
+  resolveModel,
   type AgentConfigTemplate,
   type AgentType,
   type CreateAgentInput,
@@ -113,6 +114,30 @@ export function AgentEditorDialogContent({
     [confirmDiscard]
   );
 
+  /**
+   * Change the model and drop the effort when the new model doesn't support the current level.
+   * Capabilities live here (not in the pure form hook), so the reset is resolved at the call site.
+   */
+  const handleModelChange = useCallback(
+    (model: string) => {
+      editorForm.setModel(model);
+      if (!form.effort) {
+        return;
+      }
+
+      const modelOptions =
+        effectiveAgentType === AGENT_TYPE.GITHUB_COPILOT
+          ? (capabilities?.copilotSupportedModels ?? [])
+          : (capabilities?.claudeSupportedModels ?? []);
+      const supportedEfforts =
+        modelOptions.find((option) => option.value === resolveModel(model))?.supportedEfforts ?? [];
+      if (!supportedEfforts.includes(form.effort)) {
+        editorForm.setEffort(undefined);
+      }
+    },
+    [editorForm, form.effort, effectiveAgentType, capabilities]
+  );
+
   /** Save - create or update */
   const handleSave = useCallback(async () => {
     const loopConfig = {
@@ -164,6 +189,7 @@ export function AgentEditorDialogContent({
           workspace: form.workspace.trim() || "",
           persona: form.persona,
           model: form.model,
+          effort: form.effort,
           permissionMode: form.permissionMode,
           settingSources: form.settingSources,
           settingSourceConfig,
@@ -193,6 +219,7 @@ export function AgentEditorDialogContent({
           description: form.description || undefined,
           persona: form.persona || undefined,
           model: form.model,
+          effort: form.effort,
           permissionMode: form.permissionMode,
           settingSources: form.settingSources,
           settingSourceConfig,
@@ -331,12 +358,14 @@ export function AgentEditorDialogContent({
               description={form.description}
               workspace={form.workspace}
               model={form.model}
+              effort={form.effort}
               agentType={effectiveAgentType}
               persona={form.persona}
               onNameChange={editorForm.setName}
               onDescriptionChange={editorForm.setDescription}
               onWorkspaceChange={editorForm.setWorkspace}
-              onModelChange={editorForm.setModel}
+              onModelChange={handleModelChange}
+              onEffortChange={editorForm.setEffort}
               onPersonaChange={editorForm.setPersona}
               onGeneratePersona={() => setGenerateModalType("persona")}
               canGenerate={canGenerate}

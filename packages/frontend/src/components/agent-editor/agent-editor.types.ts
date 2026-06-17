@@ -2,6 +2,7 @@ import type {
   ConfiguredFeed,
   DayOfWeek,
   DiscoveredSkill,
+  ReasoningEffort,
   SchedulerTime,
   PermissionMode,
   SettingSource,
@@ -18,6 +19,7 @@ export interface AgentEditorFormState {
   workspace: string;
   persona?: string;
   model: string;
+  effort?: ReasoningEffort;
   permissionMode: PermissionMode;
   settingSources: SettingSource[];
   disableFileHooks: boolean;

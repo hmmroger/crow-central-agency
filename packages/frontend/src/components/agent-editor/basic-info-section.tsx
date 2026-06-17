@@ -1,19 +1,24 @@
+import { useMemo } from "react";
 import { Sparkles } from "lucide-react";
-import type { AgentType } from "@crow-central-agency/shared";
+import { AGENT_TYPE, resolveModel, type AgentType, type ReasoningEffort } from "@crow-central-agency/shared";
+import { useSystemCapabilitiesQuery } from "../../hooks/queries/use-system-capabilities-query.js";
 import { FieldGroup } from "./field-group.js";
 import { ModelSelector } from "./model-selector.js";
+import { EffortSelector } from "./effort-selector.js";
 
 interface BasicInfoSectionProps {
   name: string;
   description?: string;
   workspace: string;
   model: string;
+  effort?: ReasoningEffort;
   agentType: AgentType;
   persona?: string;
   onNameChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onWorkspaceChange: (value: string) => void;
   onModelChange: (value: string) => void;
+  onEffortChange: (value: ReasoningEffort | undefined) => void;
   onPersonaChange: (value: string) => void;
   onGeneratePersona: () => void;
   canGenerate: boolean;
@@ -25,16 +30,29 @@ export function BasicInfoSection({
   description,
   workspace,
   model,
+  effort,
   agentType,
   persona,
   onNameChange,
   onDescriptionChange,
   onWorkspaceChange,
   onModelChange,
+  onEffortChange,
   onPersonaChange,
   onGeneratePersona,
   canGenerate,
 }: BasicInfoSectionProps) {
+  const { data: capabilities } = useSystemCapabilitiesQuery();
+  const resolvedModel = resolveModel(model);
+  const modelOptions = useMemo(
+    () =>
+      agentType === AGENT_TYPE.GITHUB_COPILOT
+        ? (capabilities?.copilotSupportedModels ?? [])
+        : (capabilities?.claudeSupportedModels ?? []),
+    [agentType, capabilities]
+  );
+  const supportedEfforts = modelOptions.find((option) => option.value === resolvedModel)?.supportedEfforts ?? [];
+
   return (
     <>
       <FieldGroup label="Name" required>
@@ -72,6 +90,17 @@ export function BasicInfoSection({
       <FieldGroup label="Model">
         <ModelSelector value={model} agentType={agentType} onChange={onModelChange} menuId="agent-editor-model" />
       </FieldGroup>
+
+      {supportedEfforts.length > 0 && (
+        <FieldGroup label="Reasoning Effort">
+          <EffortSelector
+            value={effort}
+            supportedEfforts={supportedEfforts}
+            onChange={onEffortChange}
+            menuId="agent-editor-effort"
+          />
+        </FieldGroup>
+      )}
 
       <FieldGroup
         label="Persona"
