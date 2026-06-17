@@ -64,8 +64,9 @@ export class CopilotClientManager {
   }
 
   /**
-   * Models the Copilot provider exposes, as `{ value, label }` options. Returns an empty list when
-   * Copilot is unavailable or the lookup fails; caches the result after the first successful fetch.
+   * Models the Copilot provider exposes, as model options carrying each model's reasoning effort
+   * capability. Returns an empty list when Copilot is unavailable or the lookup fails; caches the
+   * result after the first successful fetch.
    */
   public async listModelOptions(): Promise<ModelOption[]> {
     if (this.modelOptions) {
@@ -78,7 +79,12 @@ export class CopilotClientManager {
 
     try {
       const models = await this.client.listModels();
-      this.modelOptions = models.map((model) => ({ value: model.id, label: model.name }));
+      this.modelOptions = models.map((model) => ({
+        value: model.id,
+        label: model.name,
+        // Effort-incapable models omit the field so the editor hides the control (matches Haiku).
+        supportedEfforts: model.capabilities.supports.reasoningEffort ? model.supportedReasoningEfforts : undefined,
+      }));
       return this.modelOptions;
     } catch (error) {
       log.warn({ error }, "Failed to list Copilot models");
