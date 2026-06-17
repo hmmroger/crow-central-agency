@@ -1,5 +1,8 @@
-import { marked, type Tokens, type TokenizerAndRendererExtension } from "marked";
+import { marked, Renderer, type Tokens, type TokenizerAndRendererExtension } from "marked";
 import { sanitizeHtml } from "./html-sanitizer";
+
+type MarkedRenderer = Renderer;
+const renderDefaultTable = Renderer.prototype.table;
 
 const mermaidExtension: TokenizerAndRendererExtension = {
   name: "code",
@@ -19,8 +22,12 @@ function escapeAttr(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-// Custom renderer to open all links in a new tab
+// Custom renderers: wrap tables in a scroll container; open links in a new tab
 const renderer = {
+  table(this: MarkedRenderer, token: Tokens.Table): string {
+    return `<div class="markdown-table-scroll">${renderDefaultTable.call(this, token)}</div>`;
+  },
+
   link(
     this: { parser: { parseInline: (tokens: Tokens.Generic[]) => string } },
     { href, title, tokens }: Tokens.Link
