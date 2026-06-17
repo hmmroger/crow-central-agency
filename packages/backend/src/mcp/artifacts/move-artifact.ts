@@ -24,10 +24,6 @@ export function getMoveArtifactToolConfig(agentId: string, artifactManager: Arti
       .string()
       .optional()
       .describe("Filename at the destination. Defaults to the source filename."),
-    overwrite: z
-      .boolean()
-      .optional()
-      .describe("Replace an existing destination file with the same name. Defaults to false (a name collision fails)."),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async ({
@@ -35,7 +31,6 @@ export function getMoveArtifactToolConfig(agentId: string, artifactManager: Arti
     source_circle_id,
     destination_circle_id,
     destination_filename,
-    overwrite,
   }) => {
     const source: ArtifactLocation = source_circle_id
       ? { entityType: ENTITY_TYPE.AGENT_CIRCLE, entityId: source_circle_id }
@@ -75,7 +70,6 @@ export function getMoveArtifactToolConfig(agentId: string, artifactManager: Arti
       const metadata = await artifactManager.moveArtifact(source, destination, filename, {
         destinationFilename: destination_filename,
         movedBy: { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId },
-        overwrite,
       });
 
       const sourceLabel = source_circle_id ? `circle ${source_circle_id}` : "your artifacts";
@@ -97,7 +91,7 @@ export function getMoveArtifactToolConfig(agentId: string, artifactManager: Arti
   const config: McpToolConfig<typeof inputSchema> = {
     name: MOVE_ARTIFACT_TOOL_NAME,
     description:
-      "Move one of your artifacts between your own folder and a circle you are a direct member of (own↔circle, or circle↔circle). Omit source_circle_id/destination_circle_id to use your own folder. You can only move artifacts you authored from your own folder, or agent-authored artifacts from a circle. Fails on a destination name collision unless overwrite is set.",
+      "Move one of your artifacts between your own folder and a circle you are a direct member of (own↔circle, or circle↔circle). Omit source_circle_id/destination_circle_id to use your own folder. You can only move artifacts you authored from your own folder, or agent-authored artifacts from a circle. Fails if an artifact with the destination name already exists; move it under a different destination_filename or delete the existing one first.",
     inputSchema,
     handler,
   };

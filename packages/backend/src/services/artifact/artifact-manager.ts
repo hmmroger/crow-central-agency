@@ -248,9 +248,9 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
     const destinationFilename = normalizeArtifactFilename(options.destinationFilename ?? sourceMetadata.filename);
     const destinationTable = this.getStoreTable(destination.entityType, destination.entityId);
     const existingDestination = await this.store.get<ArtifactMetadata>(destinationTable, destinationFilename);
-    if (existingDestination && !options.overwrite) {
+    if (existingDestination) {
       throw new AppError(
-        `An artifact named ${destinationFilename} already exists at the destination. Pass overwrite to replace it.`,
+        `An artifact named ${destinationFilename} already exists at the destination. Move it under a different destination_filename or delete the existing artifact first.`,
         APP_ERROR_CODES.CONFLICT
       );
     }

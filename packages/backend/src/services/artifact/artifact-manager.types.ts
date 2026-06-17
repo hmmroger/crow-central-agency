@@ -49,7 +49,6 @@ export interface ArtifactLocation {
 export interface MoveArtifactOptions {
   destinationFilename?: string;
   movedBy: AgentTaskSource;
-  overwrite?: boolean;
 }
 
 export interface UpdateArtifactOptions {
