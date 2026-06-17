@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { ModelOption } from "@crow-central-agency/shared";
+import { type ModelOption, type ReasoningEffort, ReasoningEffortSchema } from "@crow-central-agency/shared";
 import { CopilotClient } from "@github/copilot-sdk";
 import { env } from "../../config/env.js";
 import { SYSTEM_AGENTS_PROJECT_DIR_NAME } from "../../config/constants.js";
@@ -82,8 +82,10 @@ export class CopilotClientManager {
       this.modelOptions = models.map((model) => ({
         value: model.id,
         label: model.name,
-        // Effort-incapable models omit the field so the editor hides the control (matches Haiku).
-        supportedEfforts: model.capabilities.supports.reasoningEffort ? model.supportedReasoningEfforts : undefined,
+        supportedEfforts: this.toSupportedEfforts(
+          model.capabilities.supports.reasoningEffort,
+          model.supportedReasoningEfforts
+        ),
       }));
       return this.modelOptions;
     } catch (error) {
@@ -108,5 +110,24 @@ export class CopilotClientManager {
     } catch (error) {
       log.warn({ error }, "Failed to stop Copilot client");
     }
+  }
+
+  private toSupportedEfforts(
+    supportsReasoningEffort: boolean,
+    efforts: readonly string[] | undefined
+  ): ReasoningEffort[] | undefined {
+    if (!supportsReasoningEffort || !efforts) {
+      return undefined;
+    }
+
+    const supported: ReasoningEffort[] = [];
+    for (const effort of efforts) {
+      const parsed = ReasoningEffortSchema.safeParse(effort);
+      if (parsed.success) {
+        supported.push(parsed.data);
+      }
+    }
+
+    return supported.length > 0 ? supported : undefined;
   }
 }
