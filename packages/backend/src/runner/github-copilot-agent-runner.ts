@@ -170,6 +170,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       streaming: true,
       model: resolveModel(agentConfig.model),
       reasoningEffort: toCopilotReasoningEffort(agentConfig.effort),
+      reasoningSummary: "detailed",
       systemMessage,
       // Supports unrestricted tools plus a disallow list for now
       excludedTools: agentConfig.toolConfig.disallowedTools,
