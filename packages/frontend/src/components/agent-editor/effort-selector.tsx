@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type MouseEvent } from "react";
 import { ChevronDown } from "lucide-react";
-import type { ReasoningEffort } from "@crow-central-agency/shared";
+import { REASONING_EFFORT, type ReasoningEffort } from "@crow-central-agency/shared";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
 import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import { cn } from "../../utils/cn.js";
@@ -15,10 +15,14 @@ interface EffortSelectorProps {
 /** Label for the unset effort, which leaves the provider's adaptive default in place. */
 const DEFAULT_EFFORT_LABEL = "Default";
 
-/** Capitalize the effort level for display (e.g. "high" -> "High"). */
-function formatEffortLabel(effort: ReasoningEffort): string {
-  return effort.charAt(0).toUpperCase() + effort.slice(1);
-}
+/** Display labels per effort level; exhaustive so a new level forces an explicit label. */
+const EFFORT_LABELS: Record<ReasoningEffort, string> = {
+  [REASONING_EFFORT.LOW]: "Low",
+  [REASONING_EFFORT.MEDIUM]: "Medium",
+  [REASONING_EFFORT.HIGH]: "High",
+  [REASONING_EFFORT.XHIGH]: "X-High",
+  [REASONING_EFFORT.MAX]: "Max",
+};
 
 /**
  * Reasoning effort selector using the context menu system as a dropdown
@@ -39,7 +43,7 @@ export function EffortSelector({ value, supportedEfforts, onChange, menuId }: Ef
       },
       ...supportedEfforts.map((effort) => ({
         type: ContextMenuTypes.action,
-        label: formatEffortLabel(effort),
+        label: EFFORT_LABELS[effort],
         onClick: () => onChange(effort),
         selected: value === effort,
       })),
@@ -73,7 +77,7 @@ export function EffortSelector({ value, supportedEfforts, onChange, menuId }: Ef
       aria-haspopup="menu"
       aria-expanded={isOpen}
     >
-      <span className="flex-1 truncate text-text-base">{value ? formatEffortLabel(value) : DEFAULT_EFFORT_LABEL}</span>
+      <span className="flex-1 truncate text-text-base">{value ? EFFORT_LABELS[value] : DEFAULT_EFFORT_LABEL}</span>
       <ChevronDown
         className={cn("h-3.5 w-3.5 shrink-0 text-text-muted transition-transform", isOpen && "rotate-180")}
       />

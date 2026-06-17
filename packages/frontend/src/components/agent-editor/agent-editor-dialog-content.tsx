@@ -99,7 +99,7 @@ export function AgentEditorDialogContent({
 
   // Form state with dirty tracking
   const editorForm = useAgentEditorForm(effectiveAgentType, agentQuery.data, templatePreset);
-  const { form, isDirty } = editorForm;
+  const { form, isDirty, setModel, setEffort } = editorForm;
 
   const [generateModalType, setGenerateModalType] = useState<"persona" | "agentmd" | undefined>(undefined);
 
@@ -120,7 +120,7 @@ export function AgentEditorDialogContent({
    */
   const handleModelChange = useCallback(
     (model: string) => {
-      editorForm.setModel(model);
+      setModel(model);
       if (!form.effort) {
         return;
       }
@@ -132,10 +132,10 @@ export function AgentEditorDialogContent({
       const supportedEfforts =
         modelOptions.find((option) => option.value === resolveModel(model))?.supportedEfforts ?? [];
       if (!supportedEfforts.includes(form.effort)) {
-        editorForm.setEffort(undefined);
+        setEffort(undefined);
       }
     },
-    [editorForm, form.effort, effectiveAgentType, capabilities]
+    [setModel, setEffort, form.effort, effectiveAgentType, capabilities]
   );
 
   /** Save - create or update */
@@ -365,7 +365,7 @@ export function AgentEditorDialogContent({
               onDescriptionChange={editorForm.setDescription}
               onWorkspaceChange={editorForm.setWorkspace}
               onModelChange={handleModelChange}
-              onEffortChange={editorForm.setEffort}
+              onEffortChange={setEffort}
               onPersonaChange={editorForm.setPersona}
               onGeneratePersona={() => setGenerateModalType("persona")}
               canGenerate={canGenerate}
