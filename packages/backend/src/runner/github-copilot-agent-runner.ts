@@ -1,10 +1,12 @@
 import path from "node:path";
 import {
   PERMISSION_MODE,
+  REASONING_EFFORT,
   SETTING_SOURCE,
   resolveModel,
   type AgentConfig,
   type PermissionMode,
+  type ReasoningEffort,
 } from "@crow-central-agency/shared";
 import { CopilotClient } from "@github/copilot-sdk";
 import type {
@@ -54,6 +56,21 @@ type CopilotAgentMode = "interactive" | "plan" | "autopilot";
 
 /** How the current turn resolves permission requests: prompt the user, deny outright, or allow all. */
 type PermissionPolicy = "prompt" | "deny" | "allow";
+
+/** Copilot's reasoning effort levels, derived from the SDK's session config (no `max`; not exported by name). */
+type CopilotReasoningEffort = NonNullable<SessionConfig["reasoningEffort"]>;
+
+/**
+ * Map a shared reasoning effort to Copilot's narrower set. `max` is Claude-only, so it collapses to
+ * Copilot's deepest level (`xhigh`) to preserve the "deepest" intent; undefined keeps the model default.
+ */
+function toCopilotReasoningEffort(effort: ReasoningEffort | undefined): CopilotReasoningEffort | undefined {
+  if (!effort) {
+    return undefined;
+  }
+
+  return effort === REASONING_EFFORT.MAX ? REASONING_EFFORT.XHIGH : effort;
+}
 
 /**
  * Map the agent's permission mode to a Copilot send mode plus how we resolve permission requests.
@@ -152,6 +169,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       workingDirectory: cwd,
       streaming: true,
       model: resolveModel(agentConfig.model),
+      reasoningEffort: toCopilotReasoningEffort(agentConfig.effort),
       systemMessage,
       // Supports unrestricted tools plus a disallow list for now
       excludedTools: agentConfig.toolConfig.disallowedTools,

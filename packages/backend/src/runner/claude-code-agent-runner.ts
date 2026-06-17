@@ -88,6 +88,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
       options: {
         cwd,
         model: resolveModel(agentConfig.model),
+        effort: agentConfig.effort,
         resume: persistSession ? sessionId : undefined,
         systemPrompt: systemPromptOption,
         abortController,

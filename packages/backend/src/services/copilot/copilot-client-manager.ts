@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { ModelOption } from "@crow-central-agency/shared";
+import { type ModelOption, type ReasoningEffort, ReasoningEffortSchema } from "@crow-central-agency/shared";
 import { CopilotClient } from "@github/copilot-sdk";
 import { env } from "../../config/env.js";
 import { SYSTEM_AGENTS_PROJECT_DIR_NAME } from "../../config/constants.js";
@@ -64,8 +64,9 @@ export class CopilotClientManager {
   }
 
   /**
-   * Models the Copilot provider exposes, as `{ value, label }` options. Returns an empty list when
-   * Copilot is unavailable or the lookup fails; caches the result after the first successful fetch.
+   * Models the Copilot provider exposes, as model options carrying each model's reasoning effort
+   * capability. Returns an empty list when Copilot is unavailable or the lookup fails; caches the
+   * result after the first successful fetch.
    */
   public async listModelOptions(): Promise<ModelOption[]> {
     if (this.modelOptions) {
@@ -78,7 +79,14 @@ export class CopilotClientManager {
 
     try {
       const models = await this.client.listModels();
-      this.modelOptions = models.map((model) => ({ value: model.id, label: model.name }));
+      this.modelOptions = models.map((model) => ({
+        value: model.id,
+        label: model.name,
+        supportedEfforts: this.toSupportedEfforts(
+          model.capabilities.supports.reasoningEffort,
+          model.supportedReasoningEfforts
+        ),
+      }));
       return this.modelOptions;
     } catch (error) {
       log.warn({ error }, "Failed to list Copilot models");
@@ -102,5 +110,24 @@ export class CopilotClientManager {
     } catch (error) {
       log.warn({ error }, "Failed to stop Copilot client");
     }
+  }
+
+  private toSupportedEfforts(
+    supportsReasoningEffort: boolean,
+    efforts: readonly string[] | undefined
+  ): ReasoningEffort[] | undefined {
+    if (!supportsReasoningEffort || !efforts) {
+      return undefined;
+    }
+
+    const supported: ReasoningEffort[] = [];
+    for (const effort of efforts) {
+      const parsed = ReasoningEffortSchema.safeParse(effort);
+      if (parsed.success) {
+        supported.push(parsed.data);
+      }
+    }
+
+    return supported.length > 0 ? supported : undefined;
   }
 }

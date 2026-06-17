@@ -3,6 +3,8 @@ export {
   GITHUB_COPILOT_MODELS,
   CLAUDE_CODE_MODEL_OPTIONS,
   ModelOptionSchema,
+  REASONING_EFFORT,
+  ReasoningEffortSchema,
   CLAUDE_DEFAULT_MODEL,
   COPILOT_DEFAULT_MODEL,
   AgentIdSchema,
@@ -43,6 +45,7 @@ export type {
   AgentType,
   AgentVoiceConfig,
   ModelOption,
+  ReasoningEffort,
 } from "./schemas/agent.schema.js";
 
 export {
