@@ -29,21 +29,75 @@ export const GITHUB_COPILOT_MODELS = {
 
 export type GitHubCopilotModel = (typeof GITHUB_COPILOT_MODELS)[keyof typeof GITHUB_COPILOT_MODELS];
 
+export const REASONING_EFFORT = {
+  LOW: "low",
+  MEDIUM: "medium",
+  HIGH: "high",
+  XHIGH: "xhigh",
+  MAX: "max",
+} as const;
+
+export type ReasoningEffort = (typeof REASONING_EFFORT)[keyof typeof REASONING_EFFORT];
+
+export const ReasoningEffortSchema = z.enum([
+  REASONING_EFFORT.LOW,
+  REASONING_EFFORT.MEDIUM,
+  REASONING_EFFORT.HIGH,
+  REASONING_EFFORT.XHIGH,
+  REASONING_EFFORT.MAX,
+]);
+
 /** A selectable agent model, surfaced to the editor's model picker. */
 export const ModelOptionSchema = z.object({
   value: z.string(),
   label: z.string(),
+  /** Reasoning effort levels the model supports; omitted when the model has no effort control. */
+  supportedEfforts: z.array(ReasoningEffortSchema).optional(),
 });
 
 export type ModelOption = z.infer<typeof ModelOptionSchema>;
 
-export const CLAUDE_CODE_MODEL_OPTIONS = [
-  { value: CLAUDE_MODELS.SONNET, label: "Claude Sonnet 4.6" },
-  { value: CLAUDE_MODELS.OPUS, label: "Claude Opus 4.8" },
-  { value: CLAUDE_MODELS.OPUS_4_7, label: "Claude Opus 4.7" },
+export const CLAUDE_CODE_MODEL_OPTIONS: readonly ModelOption[] = [
+  {
+    value: CLAUDE_MODELS.SONNET,
+    label: "Claude Sonnet 4.6",
+    supportedEfforts: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH, REASONING_EFFORT.MAX],
+  },
+  {
+    value: CLAUDE_MODELS.OPUS,
+    label: "Claude Opus 4.8",
+    supportedEfforts: [
+      REASONING_EFFORT.LOW,
+      REASONING_EFFORT.MEDIUM,
+      REASONING_EFFORT.HIGH,
+      REASONING_EFFORT.XHIGH,
+      REASONING_EFFORT.MAX,
+    ],
+  },
+  {
+    value: CLAUDE_MODELS.OPUS_4_7,
+    label: "Claude Opus 4.7",
+    supportedEfforts: [
+      REASONING_EFFORT.LOW,
+      REASONING_EFFORT.MEDIUM,
+      REASONING_EFFORT.HIGH,
+      REASONING_EFFORT.XHIGH,
+      REASONING_EFFORT.MAX,
+    ],
+  },
   { value: CLAUDE_MODELS.HAIKU, label: "Claude Haiku 4.5" },
-  { value: CLAUDE_MODELS.FABLE, label: "Claude Fable 5" },
-] as const;
+  {
+    value: CLAUDE_MODELS.FABLE,
+    label: "Claude Fable 5",
+    supportedEfforts: [
+      REASONING_EFFORT.LOW,
+      REASONING_EFFORT.MEDIUM,
+      REASONING_EFFORT.HIGH,
+      REASONING_EFFORT.XHIGH,
+      REASONING_EFFORT.MAX,
+    ],
+  },
+];
 
 /** Default model for new agents */
 export const CLAUDE_DEFAULT_MODEL = CLAUDE_MODELS.SONNET;
@@ -256,6 +310,7 @@ export const AgentConfigSchema = z.object({
   workspace: z.string().min(1).optional(),
   persona: z.string().optional(),
   model: z.string().default(CLAUDE_DEFAULT_MODEL),
+  effort: ReasoningEffortSchema.optional(),
   permissionMode: PermissionModeSchema.default(PERMISSION_MODE.DEFAULT),
   settingSources: z.array(SettingSourceSchema).default([...DEFAULT_SETTING_SOURCES]),
   settingSourceConfig: SettingSourceConfigSchema.optional(),
@@ -292,6 +347,7 @@ export const CreateAgentInputSchema = z.object({
   workspace: z.string().min(1).optional(),
   persona: z.string().optional(),
   model: z.string().optional(),
+  effort: ReasoningEffortSchema.optional(),
   permissionMode: PermissionModeSchema.optional(),
   settingSources: z.array(SettingSourceSchema).optional(),
   settingSourceConfig: SettingSourceConfigInputSchema.optional(),
@@ -318,6 +374,7 @@ export const UpdateAgentInputSchema = z.object({
   workspace: z.string().optional(),
   persona: z.string().optional(),
   model: z.string().optional(),
+  effort: ReasoningEffortSchema.optional(),
   permissionMode: PermissionModeSchema.optional(),
   settingSources: z.array(SettingSourceSchema).optional(),
   settingSourceConfig: SettingSourceConfigInputSchema.optional(),
@@ -342,6 +399,7 @@ export const AgentConfigTemplateSchema = AgentConfigSchema.pick({
   workspace: true,
   persona: true,
   model: true,
+  effort: true,
   permissionMode: true,
   settingSources: true,
   availableTools: true,
