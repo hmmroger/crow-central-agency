@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { ENTITY_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
@@ -18,11 +18,16 @@ interface ArtifactPanelProps {
   label: string;
 }
 
+/** Stable identity for an artifact within a panel's list */
+function buildArtifactKey(artifact: ArtifactMetadata): string {
+  return `${artifact.entityId}/${artifact.filename}`;
+}
+
 /**
  * Browse a list of artifacts. Shows file list with click to view content.
  */
 export function ArtifactPanel({ artifacts, loading, isError, onRefresh, onAdd, label }: ArtifactPanelProps) {
-  const [selectedArtifact, setSelectedArtifact] = useState<ArtifactMetadata | undefined>(undefined);
+  const [selectedKey, setSelectedKey] = useState<string | undefined>(undefined);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const handleRefresh = useCallback(() => {
@@ -42,6 +47,27 @@ export function ArtifactPanel({ artifacts, loading, isError, onRefresh, onAdd, l
 
     return [...tagSet].sort();
   }, [artifacts]);
+
+  // Derive the open artifact from the live list (by key) so its tags stay current after a
+  // refetch following an edit; the selection drops automatically when it no longer exists.
+  const selectedArtifact = useMemo(
+    () => (selectedKey ? artifacts.find((artifact) => buildArtifactKey(artifact) === selectedKey) : undefined),
+    [artifacts, selectedKey]
+  );
+
+  useEffect(() => {
+    if (selectedKey && !selectedArtifact) {
+      setSelectedKey(undefined);
+    }
+  }, [selectedKey, selectedArtifact]);
+
+  const handleSelect = useCallback((artifact: ArtifactMetadata) => {
+    setSelectedKey(buildArtifactKey(artifact));
+  }, []);
+
+  const handleCloseViewer = useCallback(() => {
+    setSelectedKey(undefined);
+  }, []);
 
   // Ignore any selected tag no longer present in the list (e.g. after a refetch)
   const activeTags = useMemo(() => selectedTags.filter((tag) => allTags.includes(tag)), [selectedTags, allTags]);
@@ -93,11 +119,10 @@ export function ArtifactPanel({ artifacts, loading, isError, onRefresh, onAdd, l
   if (selectedArtifact) {
     return (
       <ArtifactViewer
-        entityType={selectedArtifact.entityType}
-        entityId={selectedArtifact.entityId}
-        filename={selectedArtifact.filename}
-        tags={selectedArtifact.tags}
-        onClose={() => setSelectedArtifact(undefined)}
+        artifact={selectedArtifact}
+        availableTags={allTags}
+        onUpdated={onRefresh}
+        onClose={handleCloseViewer}
       />
     );
   }
@@ -159,9 +184,9 @@ export function ArtifactPanel({ artifacts, loading, isError, onRefresh, onAdd, l
 
         {filteredArtifacts.map((artifact) => (
           <ArtifactItem
-            key={`${artifact.entityId}/${artifact.filename}`}
+            key={buildArtifactKey(artifact)}
             artifact={artifact}
-            onClick={() => setSelectedArtifact(artifact)}
+            onClick={() => handleSelect(artifact)}
             onExpand={openArtifactViewer}
             onDelete={handleDelete}
           />
