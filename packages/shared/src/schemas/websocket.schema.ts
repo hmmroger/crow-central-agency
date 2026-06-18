@@ -75,6 +75,7 @@ export const CommandMessageSchema = z.object({
   type: z.literal(CLIENT_MESSAGE_TYPE.COMMAND),
   agentId: z.string(),
   command: AgentCommandSchema,
+  message: z.string().optional(),
 });
 
 export const ClientMessageSchema = z.discriminatedUnion("type", [

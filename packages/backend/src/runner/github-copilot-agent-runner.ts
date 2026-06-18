@@ -149,7 +149,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   protected async *runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown> {
     const { messageSource } = request;
     if (messageSource.sourceType === MESSAGE_SOURCE_TYPE.COMMAND) {
-      yield* this.runCommandQuery(request, messageSource.command);
+      yield* this.runCommand(request, messageSource.command);
       return;
     }
 
@@ -291,12 +291,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       }
     } finally {
       this.session = undefined;
-      await session.disconnect().catch((error) => {
-        log.warn(
-          { agentId: this.agentId, sessionId: session.sessionId, error },
-          "Failed to disconnect Copilot session"
-        );
-      });
+      await this.disconnectSession(session);
     }
   }
 
@@ -324,15 +319,16 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   }
 
   /**
-   * Run an operator command against the existing session. Compaction resumes the session with a
-   * minimal config and drives `rpc.history.compact()` directly — no `send()` turn — bracketing it
-   * with INIT/COMPACTING/DONE so the runtime broadcasts status the same way as a normal turn.
+   * Run an operator command against the existing session. Compaction resumes the session and drives
+   * `rpc.history.compact()` directly — no `send()` turn — bracketing it with INIT/COMPACTING/DONE so
+   * the runtime broadcasts status the same way as a normal turn. A USAGE event resets the token
+   * display to the context retained after compaction.
    */
-  private async *runCommandQuery(
+  private async *runCommand(
     request: AgentRunQueryRequest,
     command: AgentCommand
   ): AsyncGenerator<AgentStreamEvent, void, unknown> {
-    const { cwd, sessionId, agentConfig } = request;
+    const { cwd, sessionId, agentConfig, message } = request;
     if (command !== AGENT_COMMAND.COMPACT) {
       log.warn({ agentId: this.agentId, command }, "Unknown agent command; skipping");
       return;
@@ -349,7 +345,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       model: resolveModel(agentConfig.model),
     });
     this.session = session;
-    const turnStartedAtMs = Date.now();
+    const startedAtMs = Date.now();
     try {
       yield { agentId: this.agentId, type: AGENT_STREAM_EVENT_TYPE.INIT, sessionId: session.sessionId };
       yield {
@@ -358,35 +354,39 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         sessionId: session.sessionId,
         status: AGENT_STATUS.COMPACTING,
       };
-      const result = await session.rpc.history.compact();
+      const steering = message.trim();
+      const result = await session.rpc.history.compact(steering ? { customInstructions: steering } : undefined);
       log.info(
         { agentId: this.agentId, tokensRemoved: result.tokensRemoved, messagesRemoved: result.messagesRemoved },
         "Compacted Copilot session"
       );
       yield {
         agentId: this.agentId,
+        type: AGENT_STREAM_EVENT_TYPE.USAGE,
+        sessionId: session.sessionId,
+        totalInputTokens: result.contextWindow?.currentTokens ?? 0,
+        inputTokens: result.contextWindow?.currentTokens ?? 0,
+        outputTokens: 0,
+      };
+      yield {
+        agentId: this.agentId,
         type: AGENT_STREAM_EVENT_TYPE.DONE,
         sessionId: session.sessionId,
         isSuccess: result.success,
         doneType: COMPACT_DONE_TYPE,
-        durationMs: Date.now() - turnStartedAtMs,
-        usage: {
-          totalCostUsd: 0,
-          inputTokens: 0,
-          outputTokens: 0,
-          contextTotal: result.contextWindow?.tokenLimit ?? 0,
-          contextUsed: result.contextWindow?.currentTokens ?? 0,
-        },
+        durationMs: Date.now() - startedAtMs,
       };
     } finally {
       this.session = undefined;
-      await session.disconnect().catch((error) => {
-        log.warn(
-          { agentId: this.agentId, sessionId: session.sessionId, error },
-          "Failed to disconnect Copilot session"
-        );
-      });
+      await this.disconnectSession(session);
     }
+  }
+
+  /** Disconnect a Copilot session, swallowing teardown failures with a warning. */
+  private async disconnectSession(session: CopilotSession): Promise<void> {
+    await session.disconnect().catch((error) => {
+      log.warn({ agentId: this.agentId, sessionId: session.sessionId, error }, "Failed to disconnect Copilot session");
+    });
   }
 
   /**

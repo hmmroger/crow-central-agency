@@ -11,7 +11,7 @@ const log = logger.child({ context: "websocket" });
 
 /**
  * Set up WebSocket endpoint with message routing.
- * Handles send_message, inject_message, permission_response.
+ * Handles send_message, command, inject_message, permission_response.
  * No subscribe/unsubscribe - server broadcasts all messages to all connected clients.
  */
 export async function setupWebSocket(
@@ -70,7 +70,7 @@ export async function setupWebSocket(
 
           case CLIENT_MESSAGE_TYPE.COMMAND:
             runtimeManager
-              .sendMessage(message.agentId, message.command, {
+              .sendMessage(message.agentId, message.message ?? "", {
                 sourceType: MESSAGE_SOURCE_TYPE.COMMAND,
                 command: message.command,
               })
