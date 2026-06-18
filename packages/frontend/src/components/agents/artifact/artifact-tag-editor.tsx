@@ -19,6 +19,12 @@ export function ArtifactTagEditor({ artifact, availableTags, onUpdated }: Artifa
 
   const handleToggle = useCallback(
     (tag: string) => {
+      // Ignore toggles while an update is in flight — selectedTags come from props and only
+      // refresh after the refetch lands, so acting now would compute add/remove from stale tags.
+      if (updateTags.isPending) {
+        return;
+      }
+
       const isPresent = (artifact.tags ?? []).includes(tag);
       const update = isPresent ? { removeTags: [tag] } : { addTags: [tag] };
       updateTags.mutate({ artifact, ...update }, { onSuccess: onUpdated });

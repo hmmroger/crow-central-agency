@@ -237,7 +237,8 @@ class InterAgentTaskRoutine {
       task = parentTask;
     } else {
       // Don't transition to COMPLETED/INCOMPLETE if sub-tasks are still unresolved or inflight
-      const subtaskStatus = await this.getSubTasksStatus(task, agentId, targetState);
+      // Use INCOMPLETE as target state so we accept any terminal state of subtasks
+      const subtaskStatus = await this.getSubTasksStatus(task, agentId, AGENT_TASK_STATE.INCOMPLETE);
       if (subtaskStatus !== SUBTASK_STATUS.NONE) {
         log.info(
           { taskId: task.id, targetState },

@@ -171,7 +171,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
       results.push(...artifacts);
     }
 
-    return results;
+    return results.sort((artifactA, artifactB) => artifactB.updatedTimestamp - artifactA.updatedTimestamp);
   }
 
   /** Read circle artifact content and metadata. Content is string for TEXT, Buffer for binary types. */
