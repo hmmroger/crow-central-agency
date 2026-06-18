@@ -1,7 +1,8 @@
 import { CircleDot, FileText, Maximize2, Tag, Trash2 } from "lucide-react";
-import { AGENT_TASK_SOURCE_TYPE, ENTITY_TYPE } from "@crow-central-agency/shared";
+import { ENTITY_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { formatRelativeTime, formatSize } from "../../../utils/format-utils.js";
+import { canUserModifyArtifact } from "./artifact-permissions.js";
 
 interface ArtifactItemProps {
   artifact: ArtifactMetadata;
@@ -17,8 +18,7 @@ interface ArtifactItemProps {
  * (created by the user directly or attributed to SYSTEM).
  */
 export function ArtifactItem({ artifact, onClick, onExpand, onDelete }: ArtifactItemProps) {
-  const { sourceType } = artifact.createdBy;
-  const canDelete = sourceType === AGENT_TASK_SOURCE_TYPE.USER || sourceType === AGENT_TASK_SOURCE_TYPE.SYSTEM;
+  const canDelete = canUserModifyArtifact(artifact);
 
   const tags = artifact.tags ?? [];
   const tagCount = tags.length;

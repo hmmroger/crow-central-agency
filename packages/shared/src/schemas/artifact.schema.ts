@@ -57,3 +57,14 @@ export const ArtifactMetadataSchema = z.object({
 });
 
 export type ArtifactMetadata = z.infer<typeof ArtifactMetadataSchema>;
+
+/**
+ * Request body for updating an artifact's tags. Applies a remove-then-add delta to the
+ * current tag set; at least one of addTags/removeTags must be non-empty.
+ */
+export const ArtifactTagsUpdateSchema = z.object({
+  addTags: z.array(z.string()).optional(),
+  removeTags: z.array(z.string()).optional(),
+});
+
+export type ArtifactTagsUpdate = z.infer<typeof ArtifactTagsUpdateSchema>;
