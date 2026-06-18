@@ -1,9 +1,13 @@
 import path from "node:path";
 import {
+  AGENT_COMMAND,
+  AGENT_STATUS,
+  MESSAGE_SOURCE_TYPE,
   PERMISSION_MODE,
   REASONING_EFFORT,
   SETTING_SOURCE,
   resolveModel,
+  type AgentCommand,
   type AgentConfig,
   type PermissionMode,
   type ReasoningEffort,
@@ -50,6 +54,9 @@ import { toCopilotMcpServer, toCopilotTools } from "../mcp/copilot-mcp-adapter.j
 import { toToolArgsRecord } from "./tool-activity-parser-utils.js";
 
 const log = logger.child({ context: "github-copilot-agent-runner" });
+
+/** DONE event subtype reported when a compact command finishes. */
+const COMPACT_DONE_TYPE = "compact";
 
 /** Copilot agent interaction mode applied per send. */
 type CopilotAgentMode = "interactive" | "plan" | "autopilot";
@@ -140,6 +147,12 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   }
 
   protected async *runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown> {
+    const { messageSource } = request;
+    if (messageSource.sourceType === MESSAGE_SOURCE_TYPE.COMMAND) {
+      yield* this.runCommandQuery(request, messageSource.command);
+      return;
+    }
+
     const {
       message,
       cwd,
@@ -307,6 +320,72 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       }
     } catch (error) {
       log.warn({ agentId: this.agentId, error }, "Failed to stop Copilot client during dispose");
+    }
+  }
+
+  /**
+   * Run an operator command against the existing session. Compaction resumes the session with a
+   * minimal config and drives `rpc.history.compact()` directly — no `send()` turn — bracketing it
+   * with INIT/COMPACTING/DONE so the runtime broadcasts status the same way as a normal turn.
+   */
+  private async *runCommandQuery(
+    request: AgentRunQueryRequest,
+    command: AgentCommand
+  ): AsyncGenerator<AgentStreamEvent, void, unknown> {
+    const { cwd, sessionId, agentConfig } = request;
+    if (command !== AGENT_COMMAND.COMPACT) {
+      log.warn({ agentId: this.agentId, command }, "Unknown agent command; skipping");
+      return;
+    }
+
+    if (!sessionId) {
+      log.warn({ agentId: this.agentId, command }, "No active session to compact; skipping");
+      return;
+    }
+
+    const client = await this.getClient(cwd);
+    const session = await client.resumeSession(sessionId, {
+      workingDirectory: cwd,
+      model: resolveModel(agentConfig.model),
+    });
+    this.session = session;
+    const turnStartedAtMs = Date.now();
+    try {
+      yield { agentId: this.agentId, type: AGENT_STREAM_EVENT_TYPE.INIT, sessionId: session.sessionId };
+      yield {
+        agentId: this.agentId,
+        type: AGENT_STREAM_EVENT_TYPE.STATUS,
+        sessionId: session.sessionId,
+        status: AGENT_STATUS.COMPACTING,
+      };
+      const result = await session.rpc.history.compact();
+      log.info(
+        { agentId: this.agentId, tokensRemoved: result.tokensRemoved, messagesRemoved: result.messagesRemoved },
+        "Compacted Copilot session"
+      );
+      yield {
+        agentId: this.agentId,
+        type: AGENT_STREAM_EVENT_TYPE.DONE,
+        sessionId: session.sessionId,
+        isSuccess: result.success,
+        doneType: COMPACT_DONE_TYPE,
+        durationMs: Date.now() - turnStartedAtMs,
+        usage: {
+          totalCostUsd: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          contextTotal: result.contextWindow?.tokenLimit ?? 0,
+          contextUsed: result.contextWindow?.currentTokens ?? 0,
+        },
+      };
+    } finally {
+      this.session = undefined;
+      await session.disconnect().catch((error) => {
+        log.warn(
+          { agentId: this.agentId, sessionId: session.sessionId, error },
+          "Failed to disconnect Copilot session"
+        );
+      });
     }
   }
 

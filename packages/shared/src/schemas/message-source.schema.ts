@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AgentCommandSchema } from "./agent-command.schema.js";
 
 /** Source type identifiers for messages */
 export const MESSAGE_SOURCE_TYPE = {
@@ -10,6 +11,7 @@ export const MESSAGE_SOURCE_TYPE = {
   RECOVERY: "RECOVERY",
   NOTIFICATION: "NOTIFICATION",
   DISCORD: "DISCORD",
+  COMMAND: "COMMAND",
 } as const;
 export type MessageSourceType = (typeof MESSAGE_SOURCE_TYPE)[keyof typeof MESSAGE_SOURCE_TYPE];
 
@@ -29,6 +31,7 @@ export const MessageSourceSchema = z.discriminatedUnion("sourceType", [
     discordUsername: z.string(),
     isDm: z.boolean(),
   }),
+  z.object({ sourceType: z.literal(MESSAGE_SOURCE_TYPE.COMMAND), command: AgentCommandSchema }),
 ]);
 
 export type MessageSource = z.infer<typeof MessageSourceSchema>;

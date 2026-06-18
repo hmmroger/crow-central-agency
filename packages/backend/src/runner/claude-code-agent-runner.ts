@@ -8,7 +8,7 @@ import type {
   Query,
   McpServerConfig,
 } from "@anthropic-ai/claude-agent-sdk";
-import { resolveModel } from "@crow-central-agency/shared";
+import { AGENT_COMMAND, MESSAGE_SOURCE_TYPE, resolveModel, type AgentCommand } from "@crow-central-agency/shared";
 import { AgentRunner } from "./agent-runner.js";
 import { processStream } from "./stream-processor.js";
 import { parseToolActivity } from "./tool-activity-parser.js";
@@ -32,6 +32,11 @@ import { toClaudeServer, toClaudeTransport } from "../mcp/claude-mcp-adapter.js"
 
 const log = logger.child({ context: "claude-code-agent-runner" });
 
+/** Maps an agent command to the slash command prompt the Claude SDK interprets. */
+const CLAUDE_COMMAND_PROMPT: Record<AgentCommand, string> = {
+  [AGENT_COMMAND.COMPACT]: "/compact",
+};
+
 /**
  * Claude Code agent runner. Translates a provider-agnostic AgentRunQueryRequest into a
  * `@anthropic-ai/claude-agent-sdk` query, drives the SDK stream through the shared stream
@@ -54,6 +59,12 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
   }
 
   protected async *runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown> {
+    const { messageSource } = request;
+    if (messageSource.sourceType === MESSAGE_SOURCE_TYPE.COMMAND) {
+      yield* this.runCommandQuery(request, messageSource.command);
+      return;
+    }
+
     const {
       message,
       agentConfig,
@@ -122,6 +133,56 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
       log.error(
         { agentId: this.agentId, error: error instanceof Error ? error.message : String(error) },
         "Agent stream processing failed"
+      );
+    } finally {
+      this.query = undefined;
+    }
+  }
+
+  /**
+   * Run an operator command against the existing session. Commands map to a raw slash prompt
+   * (e.g. `/compact`) sent with a minimal query — no MCP servers, tools, hooks, or permission
+   * gating — and resume the current session so there is something to act on.
+   */
+  private async *runCommandQuery(
+    request: AgentRunQueryRequest,
+    command: AgentCommand
+  ): AsyncGenerator<AgentStreamEvent, void, unknown> {
+    const { agentConfig, cwd, sessionId, abortController } = request;
+    const commandPrompt = CLAUDE_COMMAND_PROMPT[command];
+    if (!commandPrompt) {
+      log.warn({ agentId: this.agentId, command }, "Unknown agent command; skipping");
+      return;
+    }
+
+    if (!sessionId) {
+      log.warn({ agentId: this.agentId, command }, "No active session to run command against; skipping");
+      return;
+    }
+
+    const persistSession = agentConfig.persistSession === false ? false : true;
+    const queryInstance = sdkQuery({
+      prompt: commandPrompt,
+      options: {
+        cwd,
+        model: resolveModel(agentConfig.model),
+        resume: sessionId,
+        abortController,
+        includePartialMessages: true,
+        persistSession,
+        pathToClaudeCodeExecutable: env.CLAUDE_CLI_PATH,
+      },
+    });
+
+    this.query = queryInstance;
+    try {
+      for await (const agentStreamEvent of processStream(this.agentId, queryInstance, [])) {
+        yield agentStreamEvent;
+      }
+    } catch (error) {
+      log.error(
+        { agentId: this.agentId, command, error: error instanceof Error ? error.message : String(error) },
+        "Agent command stream processing failed"
       );
     } finally {
       this.query = undefined;

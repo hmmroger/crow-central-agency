@@ -311,6 +311,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     this.abortController = new AbortController();
     const request: AgentRunQueryRequest = {
       message,
+      messageSource,
       sessionId,
       cwd,
       agentConfig,

@@ -92,6 +92,7 @@ export {
   SendMessageSchema,
   InjectMessageSchema,
   PermissionResponseWsSchema,
+  CommandMessageSchema,
   AgentTextWsMessageSchema,
   AgentActivityWsMessageSchema,
   AgentResultWsMessageSchema,
@@ -107,6 +108,7 @@ export {
   type SendMessage,
   type InjectMessage,
   type PermissionResponseWs,
+  type CommandMessage,
   type AgentTextWsMessage,
   type AgentActivityWsMessage,
   type AgentResultWsMessage,
@@ -275,6 +277,8 @@ export {
   type MessageSourceType,
   type MessageSource,
 } from "./schemas/message-source.schema.js";
+
+export { AGENT_COMMAND, AgentCommandSchema, type AgentCommand } from "./schemas/agent-command.schema.js";
 
 export {
   GraphNodeSchema,
