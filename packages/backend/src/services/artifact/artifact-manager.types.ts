@@ -1,4 +1,10 @@
-import type { AgentTaskSource, ArtifactContentType, ArtifactMetadata, ArtifactType } from "@crow-central-agency/shared";
+import type {
+  AgentTaskSource,
+  ArtifactContentType,
+  ArtifactMetadata,
+  ArtifactType,
+  EntityType,
+} from "@crow-central-agency/shared";
 import type { EventMap } from "../../core/event-bus/event-bus.types.js";
 
 export interface ArtifactManagerEvents extends EventMap {
@@ -32,6 +38,17 @@ export interface WriteArtifactOptions {
   type?: ArtifactType;
   contentType?: ArtifactContentType;
   tags?: string[];
+}
+
+/** Identifies an artifact-owning entity (an agent's own folder or a circle). */
+export interface ArtifactLocation {
+  entityType: EntityType;
+  entityId: string;
+}
+
+export interface MoveArtifactOptions {
+  destinationFilename?: string;
+  movedBy: AgentTaskSource;
 }
 
 export interface UpdateArtifactOptions {

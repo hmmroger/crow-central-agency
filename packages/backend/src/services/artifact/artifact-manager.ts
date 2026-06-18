@@ -31,7 +31,9 @@ import type {
   ArtifactContentFindResult,
   ArtifactContentMatch,
   ArtifactListOptions,
+  ArtifactLocation,
   ArtifactManagerEvents,
+  MoveArtifactOptions,
   ReadArtifactOptions,
   ReadArtifactResult,
   UpdateArtifactOptions,
@@ -227,6 +229,55 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
     } catch {
       return false;
     }
+  }
+
+  public async moveArtifact(
+    source: ArtifactLocation,
+    destination: ArtifactLocation,
+    filename: string,
+    options: MoveArtifactOptions
+  ): Promise<ArtifactMetadata> {
+    if (source.entityType === destination.entityType && source.entityId === destination.entityId) {
+      throw new AppError("Source and destination are the same location; nothing to move.", APP_ERROR_CODES.VALIDATION);
+    }
+
+    const sourceMetadata = await this.getEntityArtifactMetadata(source.entityType, source.entityId, filename);
+    const sourcePath = this.getEntityArtifactPath(source.entityType, source.entityId, sourceMetadata.id);
+    const content = await readBinaryFile(sourcePath);
+
+    const destinationFilename = normalizeArtifactFilename(options.destinationFilename ?? sourceMetadata.filename);
+    const destinationTable = this.getStoreTable(destination.entityType, destination.entityId);
+    const existingDestination = await this.store.get<ArtifactMetadata>(destinationTable, destinationFilename);
+    if (existingDestination) {
+      throw new AppError(
+        `An artifact named ${destinationFilename} already exists at the destination. Move it under a different destination_filename or delete the existing artifact first.`,
+        APP_ERROR_CODES.CONFLICT
+      );
+    }
+
+    const destinationMetadata = await this.writeEntityArtifact(
+      destination.entityType,
+      destination.entityId,
+      destinationFilename,
+      content,
+      {
+        contentType: sourceMetadata.contentType,
+        type: sourceMetadata.type,
+        tags: sourceMetadata.tags,
+        createdBy: options.movedBy,
+      }
+    );
+
+    try {
+      await this.deleteEntityArtifact(source.entityType, source.entityId, filename);
+    } catch (error) {
+      throw new AppError(
+        `Artifact was written to the destination as ${destinationFilename}, but removing the source copy failed; remove it manually. Cause: ${error instanceof Error ? error.message : String(error)}`,
+        APP_ERROR_CODES.UNKNOWN
+      );
+    }
+
+    return destinationMetadata;
   }
 
   private async readEntityArtifact(

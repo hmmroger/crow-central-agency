@@ -16,6 +16,7 @@ import { getReadCircleArtifactToolConfig } from "./read-circle-artifact.js";
 import { getListCircleArtifactsToolConfig } from "./list-circle-artifacts.js";
 import { getDeleteCircleArtifactToolConfig } from "./delete-circle-artifact.js";
 import { getFindContentInCircleArtifactToolConfig } from "./find-content-in-circle-artifact.js";
+import { getMoveArtifactToolConfig } from "./move-artifact.js";
 
 export const ARTIFACTS_MCP_SERVER_NAME = "crow-artifacts";
 
@@ -40,6 +41,7 @@ export function getArtifactsMcpServerDefinition(
       defineMcpTool(getListCircleArtifactsToolConfig(agentId, artifactManager, sensorManager)),
       defineMcpTool(getDeleteCircleArtifactToolConfig(agentId, artifactManager)),
       defineMcpTool(getFindContentInCircleArtifactToolConfig(agentId, artifactManager)),
+      defineMcpTool(getMoveArtifactToolConfig(agentId, artifactManager)),
     ],
   };
 }
