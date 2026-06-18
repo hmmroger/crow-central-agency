@@ -185,8 +185,29 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       disabledSkills: agentConfig.settingSourceConfig?.disabledSkills,
       mcpServers: this.buildMcpServers(serverConfigs),
       hooks: {
-        onPreToolUse: (input) =>
-          this.resolveExternalMcpToolPermission(input.toolName, input.toolArgs, serverConfigs, autoApproved, policy),
+        onPreToolUse: async (input, invocation) => {
+          const permission = await this.resolveExternalMcpToolPermission(
+            input.toolName,
+            input.toolArgs,
+            serverConfigs,
+            autoApproved,
+            policy
+          );
+          const additionalContext = this.drainInjectedContextForHook(input, invocation);
+          if (!permission && !additionalContext) {
+            return undefined;
+          }
+
+          return { ...permission, ...(additionalContext ? { additionalContext } : {}) };
+        },
+        onPostToolUse: (input, invocation) => {
+          const additionalContext = this.drainInjectedContextForHook(input, invocation);
+          return additionalContext ? { additionalContext } : undefined;
+        },
+        onPostToolUseFailure: (input, invocation) => {
+          const additionalContext = this.drainInjectedContextForHook(input, invocation);
+          return additionalContext ? { additionalContext } : undefined;
+        },
       },
       onPermissionRequest: undefined,
     };
@@ -402,6 +423,22 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       abortController.signal.removeEventListener("abort", onAbort);
       await sendSettled;
     }
+  }
+
+  /**
+   * Drain buffered injected messages as model-facing additionalContext at a tool boundary.
+   * Main agent only — sub-agent tool calls carry a different runtime sessionId than the
+   * session the hook is registered on, and main-thread guidance must not leak into them.
+   */
+  private drainInjectedContextForHook(
+    input: { sessionId: string },
+    invocation: { sessionId: string }
+  ): string | undefined {
+    if (input.sessionId !== invocation.sessionId) {
+      return undefined;
+    }
+
+    return this.drainInjectedMessages();
   }
 
   private async resolveExternalMcpToolPermission(
