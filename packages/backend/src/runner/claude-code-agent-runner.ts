@@ -265,11 +265,18 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
 
       // Only try to inject on main agent
       if ((input.hook_event_name === "PreToolUse" || input.hook_event_name === "PostToolUse") && !input.agent_id) {
-        // Drain any injected messages as a systemMessage
-        const systemMessage = this.drainInjectedMessages();
-        if (systemMessage) {
+        // Drain any injected messages and deliver as additionalContext so the model actually reads them.
+        // systemMessage is user-facing only and never reaches the model.
+        const additionalContext = this.drainInjectedMessages();
+        if (additionalContext) {
           log.info({ agentId: this.agentId }, "Delivering injected messages via hook");
-          return { continue: true, systemMessage };
+          return {
+            continue: true,
+            hookSpecificOutput: {
+              hookEventName: input.hook_event_name,
+              additionalContext,
+            },
+          };
         }
       }
 
