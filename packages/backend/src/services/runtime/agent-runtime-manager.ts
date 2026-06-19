@@ -159,6 +159,25 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   }
 
   /**
+   * Run a single turn directly (not queued) and resolve with the agent's final assistant message.
+   * Used for internal request/response generation on a dedicated agent; the caller awaits the result.
+   * Throws if the agent is already busy.
+   */
+  public async runAgentForResult(
+    agentId: string,
+    message: string,
+    source: MessageSource = { sourceType: MESSAGE_SOURCE_TYPE.INTERNAL }
+  ): Promise<string | undefined> {
+    const state = this.ensureState(agentId);
+    const agentRunner = this.getAgentRunner(agentId);
+    if (agentRunner.getAgentStatus() !== AGENT_STATUS.IDLE) {
+      throw new AppError(`Agent ${agentId} is busy`, APP_ERROR_CODES.CONFLICT);
+    }
+
+    return this.runAgent(agentId, message, state, source);
+  }
+
+  /**
    * Inject a message into an active agent stream.
    */
   public injectMessage(agentId: string, text: string): void {
@@ -278,7 +297,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     message: string,
     state: AgentRuntimeState,
     source: MessageSource
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     const agentRunner = this.getAgentRunner(agentId);
     const agent = this.registry.getAgent(agentId);
     const workspace = this.registry.resolveWorkspace(agent);
@@ -286,7 +305,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     this.activeQuerySpans.set(agentId, querySpan);
 
     // Process stream via async generator
-    const persistUserMessage = source.sourceType !== MESSAGE_SOURCE_TYPE.COMMAND;
+    const persistUserMessage =
+      source.sourceType !== MESSAGE_SOURCE_TYPE.COMMAND && source.sourceType !== MESSAGE_SOURCE_TYPE.INTERNAL;
     let userMessageAdded = false;
     let lastAssistantMessage: string | undefined;
     const artifactsWritten: ArtifactRecord[] = [];
@@ -499,6 +519,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
         error: state.lastError,
       });
     }
+
+    return lastAssistantMessage;
   }
 
   private handleOobStreamEvent(
@@ -888,6 +910,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
         case MESSAGE_SOURCE_TYPE.RECOVERY:
         case MESSAGE_SOURCE_TYPE.TASK_RESULT:
         case MESSAGE_SOURCE_TYPE.COMMAND:
+        case MESSAGE_SOURCE_TYPE.INTERNAL:
           break;
       }
     }

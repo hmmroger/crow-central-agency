@@ -243,6 +243,14 @@ export {
 
 export { SystemCapabilitiesSchema, type SystemCapabilities } from "./schemas/system-capabilities.schema.js";
 
+export {
+  GENERATION_TYPE,
+  GenerationTypeSchema,
+  GenerateRequestSchema,
+  type GenerationType,
+  type GenerateRequest,
+} from "./schemas/generation.schema.js";
+
 export { applyAgentOrder } from "./utils/apply-agent-order.js";
 export { MODEL_ALIASES, resolveModel } from "./utils/resolve-model.js";
 

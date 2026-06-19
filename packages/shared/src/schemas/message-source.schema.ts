@@ -12,6 +12,7 @@ export const MESSAGE_SOURCE_TYPE = {
   NOTIFICATION: "NOTIFICATION",
   DISCORD: "DISCORD",
   COMMAND: "COMMAND",
+  INTERNAL: "INTERNAL",
 } as const;
 export type MessageSourceType = (typeof MESSAGE_SOURCE_TYPE)[keyof typeof MESSAGE_SOURCE_TYPE];
 
@@ -32,6 +33,7 @@ export const MessageSourceSchema = z.discriminatedUnion("sourceType", [
     isDm: z.boolean(),
   }),
   z.object({ sourceType: z.literal(MESSAGE_SOURCE_TYPE.COMMAND), command: AgentCommandSchema }),
+  z.object({ sourceType: z.literal(MESSAGE_SOURCE_TYPE.INTERNAL) }),
 ]);
 
 export type MessageSource = z.infer<typeof MessageSourceSchema>;

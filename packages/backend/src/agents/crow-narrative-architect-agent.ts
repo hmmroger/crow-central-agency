@@ -11,12 +11,9 @@ import { env } from "../config/env.js";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
 import { SYSTEM_AGENTS_PROJECT_DIR_NAME } from "../config/constants.js";
+import { NARRATIVE_ARTIFACT_BEGIN, NARRATIVE_ARTIFACT_END } from "../services/world-builder/world-builder.constants.js";
 
 const CROW_NARRATIVE_ARCHITECT_AGENT_NAME = "Crow Narrative Architect";
-
-/** Sentinel markers the architect must wrap its sole artifact in, so the caller can extract it cleanly. */
-export const NARRATIVE_ARTIFACT_BEGIN = "<<<WB:BEGIN>>>";
-export const NARRATIVE_ARTIFACT_END = "<<<WB:END>>>";
 
 const CROW_NARRATIVE_ARCHITECT_AGENT_PERSONA: MessageTemplate = {
   role: "system",
