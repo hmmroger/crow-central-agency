@@ -107,7 +107,17 @@ function handleSystemMessage(
 
     case "compact_boundary": {
       log.info({ agentId }, "Compact boundary reached");
-      break;
+      const inputTokens = message.compact_metadata.post_tokens ?? 0;
+      return [
+        {
+          agentId,
+          type: AGENT_STREAM_EVENT_TYPE.USAGE,
+          sessionId: message.session_id,
+          totalInputTokens: inputTokens,
+          inputTokens,
+          outputTokens: 0,
+        },
+      ];
     }
 
     case "local_command_output":

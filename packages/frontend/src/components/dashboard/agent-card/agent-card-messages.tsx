@@ -85,6 +85,13 @@ export function AgentCardMessages({
               </span>
             </div>
           )}
+
+          {message.role === AGENT_MESSAGE_ROLE.SYSTEM && message.type === AGENT_MESSAGE_TYPE.COMMAND && (
+            <div className="text-2xs font-mono leading-relaxed text-text-muted">
+              <span className="text-secondary-muted">{"& "}</span>
+              <span className="italic">{message.content}</span>
+            </div>
+          )}
         </div>
       ))}
 

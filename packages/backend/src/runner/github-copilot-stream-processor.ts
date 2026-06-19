@@ -108,14 +108,12 @@ function mapAssistantEvent(context: CopilotEventContext, event: AssistantEvent):
 
     case "assistant.usage": {
       const inputTokens = event.data.inputTokens ?? 0;
-      const cacheReadTokens = event.data.cacheReadTokens ?? 0;
-      const cacheWriteTokens = event.data.cacheWriteTokens ?? 0;
       return [
         {
           agentId,
           type: AGENT_STREAM_EVENT_TYPE.USAGE,
           sessionId,
-          totalInputTokens: inputTokens + cacheReadTokens + cacheWriteTokens,
+          totalInputTokens: inputTokens,
           inputTokens,
           outputTokens: event.data.outputTokens ?? 0,
         },

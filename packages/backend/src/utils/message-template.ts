@@ -10,6 +10,13 @@ const INSTRUCTION_REMINDER_OPEN = "<system-reminder>";
 const INSTRUCTION_REMINDER_CLOSE = "</system-reminder>";
 export const INSTRUCTION_REMINDER_PATTERN = /^<system-reminder>[\s\S]*?<\/system-reminder>\s*/;
 
+/** Captures a slash-command user message the SDK persists; group 1 is the command name, group 2 the args */
+export const COMMAND_MESSAGE_PATTERN =
+  /^\s*<command-name>(\/[\s\S]*?)<\/command-name>(?:[\s\S]*?<command-args>([\s\S]*?)<\/command-args>)?/;
+
+/** Captures the `<local-command-stdout>` echo the SDK persists after running a slash command; group 1 is the output */
+export const LOCAL_COMMAND_OUTPUT_PATTERN = /^\s*<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/;
+
 export const getDefaultPromptContext = (
   customContext?: { [key: string]: string | undefined },
   tz?: string
