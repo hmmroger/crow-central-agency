@@ -14,8 +14,8 @@ export const INSTRUCTION_REMINDER_PATTERN = /^<system-reminder>[\s\S]*?<\/system
 export const COMMAND_MESSAGE_PATTERN =
   /^\s*<command-name>(\/[\s\S]*?)<\/command-name>(?:[\s\S]*?<command-args>([\s\S]*?)<\/command-args>)?/;
 
-/** Captures the `<local-command-stdout>` echo the SDK persists after running a slash command; group 1 is the output */
-export const LOCAL_COMMAND_OUTPUT_PATTERN = /^\s*<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/;
+/** Matches the `<local-command-stdout>` echo the SDK persists after running a slash command */
+export const LOCAL_COMMAND_OUTPUT_PATTERN = /^\s*<local-command-stdout>[\s\S]*?<\/local-command-stdout>/;
 
 export const getDefaultPromptContext = (
   customContext?: { [key: string]: string | undefined },

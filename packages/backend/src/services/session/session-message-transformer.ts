@@ -150,8 +150,9 @@ function transformSingleMessage(sessionMessage: SessionMessage, baseTimestamp: n
 
 /**
  * Detect a persisted slash-command message and return its display content.
- * Returns the command invocation (e.g. `/compact focus on api`) or its stdout echo,
- * an empty string for a command with no surfaceable text, or undefined for a normal message.
+ * Returns the command invocation string (e.g. `/compact focus on api`),
+ * an empty string for a stdout-echo message that should be dropped,
+ * or undefined when the content is a normal user message.
  */
 function extractCommandContent(content: string): string | undefined {
   const commandMatch = COMMAND_MESSAGE_PATTERN.exec(content);

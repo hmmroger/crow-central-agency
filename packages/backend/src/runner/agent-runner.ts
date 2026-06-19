@@ -234,7 +234,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
       }
 
       pendingReminder = undefined;
-      // Injected messages not delivered mid-stream are sent as the next turn. The messages are assume to be from user via injected WS request.
+      // Injected messages not delivered mid-stream are sent as the next turn. The messages are assumed to be from user via injected WS request.
       nextMessage = this.drainInjectedMessages();
       nextMessageSource = { sourceType: MESSAGE_SOURCE_TYPE.USER };
       if (nextMessage) {
