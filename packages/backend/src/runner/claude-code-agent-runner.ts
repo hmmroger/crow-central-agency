@@ -8,7 +8,7 @@ import type {
   Query,
   McpServerConfig,
 } from "@anthropic-ai/claude-agent-sdk";
-import { resolveModel } from "@crow-central-agency/shared";
+import { AGENT_COMMAND, MESSAGE_SOURCE_TYPE, resolveModel, type AgentCommand } from "@crow-central-agency/shared";
 import { AgentRunner } from "./agent-runner.js";
 import { processStream } from "./stream-processor.js";
 import { parseToolActivity } from "./tool-activity-parser.js";
@@ -31,6 +31,18 @@ import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 import { toClaudeServer, toClaudeTransport } from "../mcp/claude-mcp-adapter.js";
 
 const log = logger.child({ context: "claude-code-agent-runner" });
+
+/** Maps an agent command to the slash command prompt the Claude SDK interprets. */
+const CLAUDE_COMMAND_PROMPT: Record<AgentCommand, string> = {
+  [AGENT_COMMAND.COMPACT]: "/compact",
+};
+
+/** Build the slash-command prompt for a command turn, appending any operator steering text. */
+function buildClaudeCommandPrompt(command: AgentCommand, steering: string): string {
+  const slash = CLAUDE_COMMAND_PROMPT[command];
+  const trimmed = steering.trim();
+  return trimmed ? `${slash} ${trimmed}` : slash;
+}
 
 /**
  * Claude Code agent runner. Translates a provider-agnostic AgentRunQueryRequest into a
@@ -56,6 +68,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
   protected async *runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown> {
     const {
       message,
+      messageSource,
       agentConfig,
       cwd,
       systemPrompt,
@@ -84,7 +97,10 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
     const persistSession = agentConfig.persistSession === false ? false : true;
 
     const queryInstance = sdkQuery({
-      prompt: userMessageForAgent(new Date(), message, timezone, instructionReminder),
+      prompt:
+        messageSource.sourceType === MESSAGE_SOURCE_TYPE.COMMAND
+          ? buildClaudeCommandPrompt(messageSource.command, message)
+          : userMessageForAgent(new Date(), message, timezone, instructionReminder),
       options: {
         cwd,
         model: resolveModel(agentConfig.model),

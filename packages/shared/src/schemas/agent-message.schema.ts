@@ -12,6 +12,7 @@ export const AGENT_MESSAGE_TYPE = {
   TEXT: "TEXT",
   THINKING: "THINKING",
   TOOL_USE: "TOOL_USE",
+  COMMAND: "COMMAND",
 } as const;
 export type AgentMessageType = (typeof AGENT_MESSAGE_TYPE)[keyof typeof AGENT_MESSAGE_TYPE];
 
@@ -59,6 +60,12 @@ const ToolUseMessageSchema = AgentMessageBase.extend({
   toolInput: z.record(z.string(), z.unknown()),
 });
 
+/** Slash-command invocation or its output (system-generated) */
+const CommandMessageSchema = AgentMessageBase.extend({
+  role: z.literal(AGENT_MESSAGE_ROLE.SYSTEM),
+  type: z.literal(AGENT_MESSAGE_TYPE.COMMAND),
+});
+
 /**
  * Agent message - the standard message data model for the conversation.
  * Created exclusively by SessionManager from SDK SessionMessage data.
@@ -68,6 +75,7 @@ export const AgentMessageSchema = z.discriminatedUnion("type", [
   TextMessageSchema,
   ThinkingMessageSchema,
   ToolUseMessageSchema,
+  CommandMessageSchema,
 ]);
 
 export type AgentMessage = z.infer<typeof AgentMessageSchema>;

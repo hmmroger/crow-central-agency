@@ -286,6 +286,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     this.activeQuerySpans.set(agentId, querySpan);
 
     // Process stream via async generator
+    const persistUserMessage = source.sourceType !== MESSAGE_SOURCE_TYPE.COMMAND;
     let userMessageAdded = false;
     let lastAssistantMessage: string | undefined;
     const artifactsWritten: ArtifactRecord[] = [];
@@ -304,7 +305,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             querySpan.setSessionId(event.sessionId);
             state.lastError = undefined;
             state.sessionId = event.sessionId;
-            if (!userMessageAdded) {
+            if (persistUserMessage && !userMessageAdded) {
               const userMessage = await this.sessionManager.addUserMessage(
                 agent.type,
                 event.sessionId,
@@ -886,6 +887,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
         case MESSAGE_SOURCE_TYPE.NOTIFICATION:
         case MESSAGE_SOURCE_TYPE.RECOVERY:
         case MESSAGE_SOURCE_TYPE.TASK_RESULT:
+        case MESSAGE_SOURCE_TYPE.COMMAND:
           break;
       }
     }

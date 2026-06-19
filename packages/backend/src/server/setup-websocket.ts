@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { CLIENT_MESSAGE_TYPE, ClientMessageSchema } from "@crow-central-agency/shared";
+import { CLIENT_MESSAGE_TYPE, ClientMessageSchema, MESSAGE_SOURCE_TYPE } from "@crow-central-agency/shared";
 import type { WsBroadcaster } from "../services/ws-broadcaster.js";
 import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
 import { AppError } from "../core/error/app-error.js";
@@ -11,7 +11,7 @@ const log = logger.child({ context: "websocket" });
 
 /**
  * Set up WebSocket endpoint with message routing.
- * Handles send_message, inject_message, permission_response.
+ * Handles send_message, command, inject_message, permission_response.
  * No subscribe/unsubscribe - server broadcasts all messages to all connected clients.
  */
 export async function setupWebSocket(
@@ -66,6 +66,23 @@ export async function setupWebSocket(
                 message: error instanceof Error ? error.message : "Failed to send message",
               });
             });
+            break;
+
+          case CLIENT_MESSAGE_TYPE.COMMAND:
+            runtimeManager
+              .sendMessage(message.agentId, message.message ?? "", {
+                sourceType: MESSAGE_SOURCE_TYPE.COMMAND,
+                command: message.command,
+              })
+              .catch((error) => {
+                log.error({ agentId: message.agentId, error }, "Failed to send command");
+                broadcaster.sendTo(socket, {
+                  type: "error",
+                  agentId: message.agentId,
+                  code: error instanceof AppError ? error.errorCode : "sdk_error",
+                  message: error instanceof Error ? error.message : "Failed to send command",
+                });
+              });
             break;
 
           case CLIENT_MESSAGE_TYPE.INJECT_MESSAGE:

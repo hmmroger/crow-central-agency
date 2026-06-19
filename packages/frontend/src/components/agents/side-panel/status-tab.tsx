@@ -1,9 +1,10 @@
 import type { ComponentType } from "react";
 import { useCallback } from "react";
-import { Plus } from "lucide-react";
+import { Plus, FoldVertical } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AGENT_STATUS } from "@crow-central-agency/shared";
+import { AGENT_COMMAND, AGENT_STATUS, CLIENT_MESSAGE_TYPE } from "@crow-central-agency/shared";
 import { cn } from "../../../utils/cn.js";
+import { useWs } from "../../../hooks/use-ws.js";
 import { useAgentStateQuery, DEFAULT_SESSION_USAGE } from "../../../hooks/queries/use-agent-state-query.js";
 import { apiClient, unwrapResponse } from "../../../services/api-client.js";
 import { agentKeys } from "../../../services/query-keys.js";
@@ -34,6 +35,7 @@ interface ControlButtonProps {
  */
 export function StatusTab({ agentId }: StatusTabProps) {
   const queryClient = useQueryClient();
+  const { send } = useWs();
   const { data: agentState } = useAgentStateQuery(agentId);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
   const usage = agentState?.sessionUsage ?? DEFAULT_SESSION_USAGE;
@@ -54,6 +56,10 @@ export function StatusTab({ agentId }: StatusTabProps) {
   });
 
   const newConversation = useCallback(() => newConversationMutation.mutate(), [newConversationMutation]);
+
+  const compactSession = useCallback(() => {
+    send({ type: CLIENT_MESSAGE_TYPE.COMMAND, agentId, command: AGENT_COMMAND.COMPACT });
+  }, [send, agentId]);
 
   return (
     <div className="flex-1 min-h-0 px-3 pt-2 pb-3 gap-4 flex flex-col">
@@ -83,6 +89,12 @@ export function StatusTab({ agentId }: StatusTabProps) {
         <GaugeLabel>Controls</GaugeLabel>
         <div className="flex gap-1.5">
           <ControlButton icon={Plus} label="New" onClick={newConversation} />
+          <ControlButton
+            icon={FoldVertical}
+            label="Compact"
+            onClick={compactSession}
+            disabled={status !== AGENT_STATUS.IDLE}
+          />
         </div>
       </div>
 

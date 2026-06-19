@@ -1,6 +1,7 @@
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
 import { MarkdownRenderer } from "../../common/markdown-renderer.js";
 import { ActivityItem } from "./activity-item.js";
+import { CommandItem } from "./command-item.js";
 import { ThinkingMessage } from "./thinking-message.js";
 import { MessageActions } from "./message-actions.js";
 
@@ -47,6 +48,10 @@ export function AgentMessageView({ agentId, message }: AgentMessageProps) {
     case AGENT_MESSAGE_ROLE.SYSTEM:
       if (message.type === AGENT_MESSAGE_TYPE.TOOL_USE) {
         return <ActivityItem toolName={message.toolName} content={message.content} />;
+      }
+
+      if (message.type === AGENT_MESSAGE_TYPE.COMMAND) {
+        return <CommandItem content={message.content} />;
       }
 
       return null;

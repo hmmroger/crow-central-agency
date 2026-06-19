@@ -4,7 +4,12 @@ import { getSessionInfo, getSessionMessages } from "@anthropic-ai/claude-agent-s
 import { parseToolActivity } from "../../runner/tool-activity-parser.js";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta.mjs";
 import type { ContentBlockParam, MessageParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
-import { INSTRUCTION_REMINDER_PATTERN, USER_AGENT_MESSAGE_PATTERN } from "../../utils/message-template.js";
+import {
+  COMMAND_MESSAGE_PATTERN,
+  INSTRUCTION_REMINDER_PATTERN,
+  LOCAL_COMMAND_OUTPUT_PATTERN,
+  USER_AGENT_MESSAGE_PATTERN,
+} from "../../utils/message-template.js";
 import { isString } from "es-toolkit";
 import { logger } from "../../utils/logger.js";
 import { AppError } from "../../core/error/app-error.js";
@@ -56,12 +61,29 @@ function transformSingleMessage(sessionMessage: SessionMessage, baseTimestamp: n
   }
 
   if (sessionMessage.type === "user") {
-    let content = extractTextFromBlocks(sessionMessage.message.content);
-    if (!content) {
+    const rawContent = extractTextFromBlocks(sessionMessage.message.content);
+    if (!rawContent) {
       return [];
     }
 
-    content = content.replace(INSTRUCTION_REMINDER_PATTERN, "").replace(USER_AGENT_MESSAGE_PATTERN, "");
+    const commandContent = extractCommandContent(rawContent);
+    if (commandContent !== undefined) {
+      if (!commandContent) {
+        return [];
+      }
+
+      return [
+        {
+          id: sessionMessage.uuid,
+          role: AGENT_MESSAGE_ROLE.SYSTEM,
+          type: AGENT_MESSAGE_TYPE.COMMAND,
+          content: commandContent,
+          timestamp: baseTimestamp,
+        },
+      ];
+    }
+
+    const content = rawContent.replace(INSTRUCTION_REMINDER_PATTERN, "").replace(USER_AGENT_MESSAGE_PATTERN, "");
     return [
       {
         id: sessionMessage.uuid,
@@ -124,6 +146,28 @@ function transformSingleMessage(sessionMessage: SessionMessage, baseTimestamp: n
   }
 
   return [];
+}
+
+/**
+ * Detect a persisted slash-command message and return its display content.
+ * Returns the command invocation string (e.g. `/compact focus on api`),
+ * an empty string for a stdout-echo message that should be dropped,
+ * or undefined when the content is a normal user message.
+ */
+function extractCommandContent(content: string): string | undefined {
+  const commandMatch = COMMAND_MESSAGE_PATTERN.exec(content);
+  if (commandMatch) {
+    const name = commandMatch[1].trim();
+    const args = commandMatch[2]?.trim();
+    return args ? `${name} ${args}` : name;
+  }
+
+  const outputMatch = LOCAL_COMMAND_OUTPUT_PATTERN.exec(content);
+  if (outputMatch) {
+    return "";
+  }
+
+  return undefined;
 }
 
 /** Extract text content from an array of content blocks */

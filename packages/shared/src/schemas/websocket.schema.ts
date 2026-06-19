@@ -6,6 +6,7 @@ import { AgentTaskItemSchema, AgentTaskStateSchema } from "./agent-task.schema.j
 import { AgentCircleSchema, RelationshipSchema } from "./agent-circle.schema.js";
 import { AGENT_STATUS, AgentActivitySchema } from "./agent-runtime-state.schema.js";
 import { MessageSourceSchema } from "./message-source.schema.js";
+import { AgentCommandSchema } from "./agent-command.schema.js";
 
 /**
  * WebSocket message types - Client -> Server
@@ -14,6 +15,7 @@ export const CLIENT_MESSAGE_TYPE = {
   SEND_MESSAGE: "send_message",
   INJECT_MESSAGE: "inject_message",
   PERMISSION_RESPONSE: "permission_response",
+  COMMAND: "command",
 } as const;
 
 export type ClientMessageType = (typeof CLIENT_MESSAGE_TYPE)[keyof typeof CLIENT_MESSAGE_TYPE];
@@ -69,16 +71,25 @@ export const PermissionResponseWsSchema = z.object({
   message: z.string().optional(),
 });
 
+export const CommandMessageSchema = z.object({
+  type: z.literal(CLIENT_MESSAGE_TYPE.COMMAND),
+  agentId: z.string(),
+  command: AgentCommandSchema,
+  message: z.string().optional(),
+});
+
 export const ClientMessageSchema = z.discriminatedUnion("type", [
   SendMessageSchema,
   InjectMessageSchema,
   PermissionResponseWsSchema,
+  CommandMessageSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 export type SendMessage = z.infer<typeof SendMessageSchema>;
 export type InjectMessage = z.infer<typeof InjectMessageSchema>;
 export type PermissionResponseWs = z.infer<typeof PermissionResponseWsSchema>;
+export type CommandMessage = z.infer<typeof CommandMessageSchema>;
 
 export const AgentTextWsMessageSchema = z.object({
   type: z.literal("agent_text"),

@@ -1,6 +1,7 @@
 import {
   AGENT_STATUS,
   ENTITY_TYPE,
+  MESSAGE_SOURCE_TYPE,
   type AgentConfig,
   type AgentStatus,
   type PendingInstructionReminder,
@@ -224,16 +225,18 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
   ): AsyncGenerator<AgentStreamEvent, void, unknown> {
     const agentConfig = this.registry.getAgent(this.agentId);
     let nextMessage: string | undefined = message;
+    let nextMessageSource = messageSource;
     let pendingReminder = instructionReminder;
-    while (nextMessage) {
-      const agentStream = this.runQuery(nextMessage, messageSource, agentConfig, sessionId, pendingReminder);
+    while (nextMessage || (nextMessage !== undefined && nextMessageSource.sourceType === MESSAGE_SOURCE_TYPE.COMMAND)) {
+      const agentStream = this.runQuery(nextMessage, nextMessageSource, agentConfig, sessionId, pendingReminder);
       for await (const agentStreamEvent of agentStream) {
         yield agentStreamEvent;
       }
 
       pendingReminder = undefined;
-      // Injected messages not delivered mid-stream are sent as the next turn.
+      // Injected messages not delivered mid-stream are sent as the next turn. The messages are assumed to be from user via injected WS request.
       nextMessage = this.drainInjectedMessages();
+      nextMessageSource = { sourceType: MESSAGE_SOURCE_TYPE.USER };
       if (nextMessage) {
         log.info({ agentId: this.agentId }, "Delivering injected messages post query.");
       }
@@ -311,6 +314,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     this.abortController = new AbortController();
     const request: AgentRunQueryRequest = {
       message,
+      messageSource,
       sessionId,
       cwd,
       agentConfig,

@@ -10,6 +10,7 @@ export interface AgentRunnerEvents extends EventMap {
 
 export interface AgentRunQueryRequest {
   message: string;
+  messageSource: MessageSource;
   sessionId?: string;
   cwd: string;
   agentConfig: AgentConfig;
