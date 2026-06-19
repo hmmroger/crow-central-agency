@@ -15,13 +15,22 @@ export const GenerationTypeSchema = z.enum([GENERATION_TYPE.PERSONA, GENERATION_
  * agent being authored. Presence of `currentPersona` / `currentAgentMd` switches the operation from
  * author/generate to refine/reinforce.
  */
+/** Upper bounds keep the always-reachable generation endpoint from driving unbounded token usage. */
+export const GENERATION_LIMITS = {
+  PROMPT: 4000,
+  NAME: 200,
+  DESCRIPTION: 2000,
+  PERSONA: 20000,
+  AGENT_MD: 50000,
+} as const;
+
 export const GenerateRequestSchema = z.object({
   type: GenerationTypeSchema,
-  prompt: z.string().min(1),
-  name: z.string().optional(),
-  description: z.string().optional(),
-  currentPersona: z.string().optional(),
-  currentAgentMd: z.string().optional(),
+  prompt: z.string().min(1).max(GENERATION_LIMITS.PROMPT),
+  name: z.string().max(GENERATION_LIMITS.NAME).optional(),
+  description: z.string().max(GENERATION_LIMITS.DESCRIPTION).optional(),
+  currentPersona: z.string().max(GENERATION_LIMITS.PERSONA).optional(),
+  currentAgentMd: z.string().max(GENERATION_LIMITS.AGENT_MD).optional(),
 });
 
 export type GenerateRequest = z.infer<typeof GenerateRequestSchema>;
