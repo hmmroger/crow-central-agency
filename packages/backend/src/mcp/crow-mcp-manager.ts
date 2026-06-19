@@ -7,6 +7,7 @@ import {
   type UpdateMcpConfigInput,
   MCP_CONFIG_TYPE,
   CROW_SYSTEM_AGENT_ID,
+  CROW_NARRATIVE_ARCHITECT_AGENT_ID,
   type InternalMcpConfig,
   type AgentConfig,
   AGENT_TYPE,
@@ -104,8 +105,10 @@ export class CrowMcpManager {
       });
     }
 
+    // The Narrative Architect is a tool-less system agent and must not inherit enableForCrow user MCP servers.
+    const inheritsCrowMcp = isCrowSystemAgent(agentId) && agentId !== CROW_NARRATIVE_ARCHITECT_AGENT_ID;
     const userMcpConfigs = this.getUserMcpConfigs().filter((config) => {
-      return (isCrowSystemAgent(agentId) && config.enableForCrow) || configuredMcpIds.has(config.id);
+      return (inheritsCrowMcp && config.enableForCrow) || configuredMcpIds.has(config.id);
     });
     for (const config of userMcpConfigs) {
       const name = this.normalizeMcpName(config.name);

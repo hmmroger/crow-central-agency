@@ -1,8 +1,16 @@
-import { CROW_SYSTEM_AGENT_ID, CROW_TASK_DISPATCHER_AGENT_ID } from "@crow-central-agency/shared";
+import {
+  CROW_SYSTEM_AGENT_ID,
+  CROW_TASK_DISPATCHER_AGENT_ID,
+  CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+} from "@crow-central-agency/shared";
 import { randomUUID } from "node:crypto";
 
 /** Known system agent IDs */
-export const SYSTEM_AGENT_IDS = new Set([CROW_SYSTEM_AGENT_ID, CROW_TASK_DISPATCHER_AGENT_ID]);
+export const SYSTEM_AGENT_IDS = new Set([
+  CROW_SYSTEM_AGENT_ID,
+  CROW_TASK_DISPATCHER_AGENT_ID,
+  CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+]);
 
 /**
  * Generate a new UUID v4

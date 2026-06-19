@@ -269,7 +269,11 @@ export {
   type RelationshipType,
 } from "./schemas/agent-circle.schema.js";
 
-export { CROW_SYSTEM_AGENT_ID, CROW_TASK_DISPATCHER_AGENT_ID } from "./constants/system-agent.js";
+export {
+  CROW_SYSTEM_AGENT_ID,
+  CROW_TASK_DISPATCHER_AGENT_ID,
+  CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+} from "./constants/system-agent.js";
 
 export {
   MESSAGE_SOURCE_TYPE,
