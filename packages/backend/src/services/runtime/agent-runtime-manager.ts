@@ -171,7 +171,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     const state = this.ensureState(agentId);
     const agentRunner = this.getAgentRunner(agentId);
     if (agentRunner.getAgentStatus() !== AGENT_STATUS.IDLE) {
-      throw new AppError(`Agent ${agentId} is busy`, APP_ERROR_CODES.CONFLICT);
+      throw new AppError(
+        "The agent is busy with another request. Please try again in a moment.",
+        APP_ERROR_CODES.CONFLICT
+      );
     }
 
     return this.runAgent(agentId, message, state, source);

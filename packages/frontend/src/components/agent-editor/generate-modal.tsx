@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { X } from "lucide-react";
 import type { GenerateRequest, GenerationType } from "@crow-central-agency/shared";
 import { useGenerateMutation } from "../../hooks/queries/use-generate-mutation.js";
@@ -20,11 +20,7 @@ const TYPE_LABELS: Record<GenerationType, string> = {
   agentmd: "AGENT.md",
 };
 
-/**
- * Modal dialog for AI text generation.
- * User provides a prompt, clicks Generate, previews result,
- * then applies or re-generates.
- */
+/** Modal dialog for AI persona / AGENT.md generation with prompt, preview, and apply. */
 export function GenerateModal({ type, hints, onApply, onClose }: GenerateModalProps) {
   const [prompt, setPrompt] = useState("");
   const [preview, setPreview] = useState<string | undefined>(undefined);
@@ -32,7 +28,6 @@ export function GenerateModal({ type, hints, onApply, onClose }: GenerateModalPr
   const error = mutationError?.message;
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
-  // Focus prompt input on mount
   useEffect(() => {
     promptRef.current?.focus();
   }, []);
@@ -68,6 +63,20 @@ export function GenerateModal({ type, hints, onApply, onClose }: GenerateModalPr
     }
   }, [preview, onApply, onClose]);
 
+  const handlePromptChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
+    setPrompt(event.target.value);
+  }, []);
+
+  const handlePromptKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        handleGenerate();
+      }
+    },
+    [handleGenerate]
+  );
+
   const hasPreview = preview !== undefined;
   const label = TYPE_LABELS[type];
 
@@ -90,13 +99,8 @@ export function GenerateModal({ type, hints, onApply, onClose }: GenerateModalPr
             <textarea
               ref={promptRef}
               value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-                  event.preventDefault();
-                  handleGenerate();
-                }
-              }}
+              onChange={handlePromptChange}
+              onKeyDown={handlePromptKeyDown}
               placeholder={
                 type === "persona"
                   ? "e.g. Create a persona for a security-focused code reviewer that is thorough but friendly"

@@ -13,8 +13,7 @@ function isAudioGenerationAvailable(): boolean {
 }
 
 function isTextGenerationAvailable(): boolean {
-  // Persona / AGENT.md generation now runs on the internal Narrative Architect (Claude Code runtime),
-  // so it no longer depends on the external text-generation provider being configured.
+  // Generation runs on the internal Narrative Architect (Claude Code runtime), not an env-gated provider.
   return true;
 }
 

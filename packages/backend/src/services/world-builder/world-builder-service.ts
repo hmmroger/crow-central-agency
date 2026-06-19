@@ -16,7 +16,7 @@ const log = logger.child({ context: "world-builder-service" });
 export class WorldBuilderService {
   constructor(private readonly runtimeManager: AgentRuntimeManager) {}
 
-  /** Compose the instruction, run the architect, and return the clean artifact text. */
+  /** Produce a persona or AGENT.md for the given request. */
   public async generateAgentText(request: GenerateRequest): Promise<string> {
     const instruction = composeGenerationInstruction(request);
     const raw = await this.runtimeManager.runAgentForResult(CROW_NARRATIVE_ARCHITECT_AGENT_ID, instruction);
