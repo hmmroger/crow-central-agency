@@ -1,12 +1,9 @@
 import { useMutation } from "@tanstack/react-query";
+import type { GenerateRequest } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
-interface GenerateInput {
-  type: "persona" | "agentmd";
-  prompt: string;
-  context?: string;
-}
+export type GenerateInput = GenerateRequest;
 
 interface GenerateResult {
   content: string;
