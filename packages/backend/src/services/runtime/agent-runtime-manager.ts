@@ -163,11 +163,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
    * Used for internal request/response generation on a dedicated agent; the caller awaits the result.
    * Throws if the agent is already busy.
    */
-  public async runAgentForResult(
-    agentId: string,
-    message: string,
-    source: MessageSource = { sourceType: MESSAGE_SOURCE_TYPE.INTERNAL }
-  ): Promise<string | undefined> {
+  public async runAgentForResult(agentId: string, message: string, source: MessageSource): Promise<string | undefined> {
     const state = this.ensureState(agentId);
     const agentRunner = this.getAgentRunner(agentId);
     if (agentRunner.getAgentStatus() !== AGENT_STATUS.IDLE) {

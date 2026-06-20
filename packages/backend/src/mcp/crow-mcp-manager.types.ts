@@ -52,6 +52,8 @@ export interface McpServerDefinition {
   isConfigurable?: boolean;
   /** When set, the server is only available to these agent IDs. */
   allowedAgentIds?: string[];
+  /** When set, the server is hidden from these agent IDs */
+  disallowedAgentIds?: string[];
   getTools: InternalMcpToolsFactory;
   hasRequiredConnections?: McpServerConnectionsFunc;
   getConnectionProfiles?: McpServerConnectionProfilesFunc;

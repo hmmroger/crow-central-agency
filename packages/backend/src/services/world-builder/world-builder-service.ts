@@ -1,4 +1,8 @@
-import { CROW_NARRATIVE_ARCHITECT_AGENT_ID, type GenerateRequest } from "@crow-central-agency/shared";
+import {
+  CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+  MESSAGE_SOURCE_TYPE,
+  type GenerateRequest,
+} from "@crow-central-agency/shared";
 import type { AgentRuntimeManager } from "../runtime/agent-runtime-manager.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
@@ -19,7 +23,9 @@ export class WorldBuilderService {
   /** Produce a persona or AGENT.md for the given request. */
   public async generateAgentText(request: GenerateRequest): Promise<string> {
     const instruction = composeGenerationInstruction(request);
-    const raw = await this.runtimeManager.runAgentForResult(CROW_NARRATIVE_ARCHITECT_AGENT_ID, instruction);
+    const raw = await this.runtimeManager.runAgentForResult(CROW_NARRATIVE_ARCHITECT_AGENT_ID, instruction, {
+      sourceType: MESSAGE_SOURCE_TYPE.INTERNAL,
+    });
     const content = extractGenerated(raw ?? "").trim();
     if (!content) {
       log.warn({ type: request.type }, "Narrative Architect returned empty content");
