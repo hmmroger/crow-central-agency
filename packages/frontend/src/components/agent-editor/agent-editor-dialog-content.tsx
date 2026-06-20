@@ -207,7 +207,7 @@ export function AgentEditorDialogContent({
           discordConfig,
           excludeClaudeCodeSystemPrompt: form.excludeClaudeCodeSystemPrompt,
           enableGmailNotification: form.enableGmailNotification,
-          agentMd: form.agentMd.trim() || undefined,
+          agentMd: form.agentMd.trim() || "",
         };
 
         await updateMutateAsync(input);
