@@ -6,13 +6,14 @@ const OPERATION_BRIEF = {
   [GENERATION_TYPE.PERSONA]: {
     author:
       "Author a new agent persona from scratch: who this agent is — its role and character, inner voice " +
-      "and temperament, the register in which it speaks, and any social or cultural sensibilities its " +
-      "framing implies. Identity only — no workflows, tool usage, or operating rules (those live in " +
-      "AGENT.md). A few short paragraphs of cohesive prose, no labeled sections or headers.",
+      "and temperament, and the register in which it speaks. Identity only — no workflows, tool usage, or " +
+      "operating rules (those live in AGENT.md). Keep it tight: one or two short paragraphs of cohesive " +
+      "prose, roughly 100 words or fewer, no labeled sections or headers.",
     refine:
       "Refine the existing agent persona below. Preserve what already works and the established voice; " +
       "apply the requested change and sharpen weak or generic passages. Keep it identity, not procedure — " +
-      "move any operating rules out — and keep it tight, cohesive prose without labeled sections.",
+      "move any operating rules out — and keep it tight: one or two short paragraphs of cohesive prose, " +
+      "roughly 100 words or fewer, without labeled sections.",
   },
   [GENERATION_TYPE.AGENT_MD]: {
     author:
