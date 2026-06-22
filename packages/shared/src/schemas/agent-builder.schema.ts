@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+/** Scenario discriminant for the World Builder's output contract. */
+export const AGENT_BUILDER_SCENARIO = {
+  FLEET: "fleet",
+} as const;
+
 /**
  * Upper bounds for the World Builder fleet contract. Names/descriptions mirror the generation
  * endpoint bounds; briefs are bounded like a prompt since they direct the Narrative Architect.
@@ -24,15 +29,15 @@ export const FleetAgentSchema = z.object({
   personaBrief: z.string().min(1).max(AGENT_BUILDER_LIMITS.PERSONA_BRIEF),
   /** Directional prompt for the Narrative Architect's AGENT_MD generation; omit = persona-only agent. */
   agentMdBrief: z.string().min(1).max(AGENT_BUILDER_LIMITS.AGENT_MD_BRIEF).optional(),
-  mcpServerIds: z.array(z.string()).optional(),
-  circleIds: z.array(z.string()).optional(),
+  mcpServerIds: z.array(z.string().min(1)).optional(),
+  circleIds: z.array(z.string().min(1)).optional(),
 });
 
 export type FleetAgent = z.infer<typeof FleetAgentSchema>;
 
 /** The World Builder's JSON output contract. Agent count is `agents.length`. */
 export const FleetResponseSchema = z.object({
-  scenario: z.literal("fleet"),
+  scenario: z.literal(AGENT_BUILDER_SCENARIO.FLEET),
   agents: z.array(FleetAgentSchema).min(1),
 });
 
@@ -44,6 +49,7 @@ export type FleetResponse = z.infer<typeof FleetResponseSchema>;
  */
 export const AgentBuilderDraftSchema = z.object({
   projectPath: z.string().min(1).max(AGENT_BUILDER_LIMITS.PROJECT_PATH).optional(),
+  // Empty agents is valid: a draft can hold a projectPath before the World Builder has produced a fleet.
   agents: z.array(FleetAgentSchema),
 });
 

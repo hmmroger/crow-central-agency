@@ -252,6 +252,7 @@ export {
 } from "./schemas/generation.schema.js";
 
 export {
+  AGENT_BUILDER_SCENARIO,
   AGENT_BUILDER_LIMITS,
   FleetAgentSchema,
   FleetResponseSchema,
