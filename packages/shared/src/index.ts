@@ -251,6 +251,16 @@ export {
   type GenerateRequest,
 } from "./schemas/generation.schema.js";
 
+export {
+  AGENT_BUILDER_LIMITS,
+  FleetAgentSchema,
+  FleetResponseSchema,
+  AgentBuilderDraftSchema,
+  type FleetAgent,
+  type FleetResponse,
+  type AgentBuilderDraft,
+} from "./schemas/agent-builder.schema.js";
+
 export { applyAgentOrder } from "./utils/apply-agent-order.js";
 export { MODEL_ALIASES, resolveModel } from "./utils/resolve-model.js";
 
