@@ -2,6 +2,7 @@ import {
   CROW_SYSTEM_AGENT_ID,
   CROW_TASK_DISPATCHER_AGENT_ID,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+  CROW_WORLD_BUILDER_AGENT_ID,
 } from "@crow-central-agency/shared";
 import { randomUUID } from "node:crypto";
 
@@ -10,6 +11,7 @@ export const SYSTEM_AGENT_IDS = new Set([
   CROW_SYSTEM_AGENT_ID,
   CROW_TASK_DISPATCHER_AGENT_ID,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+  CROW_WORLD_BUILDER_AGENT_ID,
 ]);
 
 /**

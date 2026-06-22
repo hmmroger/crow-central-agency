@@ -292,6 +292,7 @@ export {
   CROW_SYSTEM_AGENT_ID,
   CROW_TASK_DISPATCHER_AGENT_ID,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+  CROW_WORLD_BUILDER_AGENT_ID,
 } from "./constants/system-agent.js";
 
 export {

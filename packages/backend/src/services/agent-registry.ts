@@ -16,6 +16,7 @@ import {
   CROW_SYSTEM_AGENT_ID,
   CROW_TASK_DISPATCHER_AGENT_ID,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+  CROW_WORLD_BUILDER_AGENT_ID,
   SERVER_MESSAGE_TYPE,
 } from "@crow-central-agency/shared";
 import { EventBus } from "../core/event-bus/event-bus.js";
@@ -34,6 +35,7 @@ import { arraysEqualUnordered } from "../utils/array-utils.js";
 import { getCrowAgent } from "../agents/crow-agent.js";
 import { getTaskDispatcherAgent } from "../agents/crow-task-dispatcher-agent.js";
 import { getNarrativeArchitectAgent } from "../agents/crow-narrative-architect-agent.js";
+import { getWorldBuilderAgent } from "../agents/crow-world-builder-agent.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 
 const log = logger.child({ context: "agent-registry" });
@@ -74,6 +76,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     this.agents.set(CROW_SYSTEM_AGENT_ID, getCrowAgent());
     this.agents.set(CROW_TASK_DISPATCHER_AGENT_ID, getTaskDispatcherAgent());
     this.agents.set(CROW_NARRATIVE_ARCHITECT_AGENT_ID, getNarrativeArchitectAgent());
+    this.agents.set(CROW_WORLD_BUILDER_AGENT_ID, getWorldBuilderAgent());
 
     const storeEntries = await this.store.getAll<AgentConfig>(AGENT_STORE_TABLE);
     for (const entry of storeEntries) {

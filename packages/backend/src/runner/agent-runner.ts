@@ -3,6 +3,7 @@ import {
   ENTITY_TYPE,
   MESSAGE_SOURCE_TYPE,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+  CROW_WORLD_BUILDER_AGENT_ID,
   type AgentConfig,
   type AgentStatus,
   type PendingInstructionReminder,
@@ -194,6 +195,20 @@ const NARRATIVE_ARCHITECT_SYSTEM_PROMPT: MessageTemplate = {
     { content: ["## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."] },
   ],
   keys: ["agentId", "agentName", "persona", "currentDate", "currentTime"],
+};
+
+const WORLD_BUILDER_SYSTEM_PROMPT: MessageTemplate = {
+  role: MessageRoles.system,
+  content: [
+    { content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your name is: {agentName}", ""] },
+    { content: ["## Core persona", "", "{persona}", ""], keys: ["persona"] },
+    {
+      content: ["## Circles", "", "Circles currently in the system:", "{agentCircles}", ""],
+      keys: ["agentCircles"],
+    },
+    { content: ["## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."] },
+  ],
+  keys: ["agentId", "agentName", "persona", "agentCircles", "currentDate", "currentTime"],
 };
 
 const INSTRUCTION_REMINDER_INTRO =
@@ -447,9 +462,11 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     const systemPromptTemplate =
       this.agentId === CROW_NARRATIVE_ARCHITECT_AGENT_ID
         ? NARRATIVE_ARCHITECT_SYSTEM_PROMPT
-        : isCrowSystemAgent(this.agentId)
-          ? CROW_SYSTEM_PROMPT
-          : DEFAULT_SYSTEM_PROMPT;
+        : this.agentId === CROW_WORLD_BUILDER_AGENT_ID
+          ? WORLD_BUILDER_SYSTEM_PROMPT
+          : isCrowSystemAgent(this.agentId)
+            ? CROW_SYSTEM_PROMPT
+            : DEFAULT_SYSTEM_PROMPT;
     const content = createMessageContentFromTemplate(
       systemPromptTemplate,
       getDefaultPromptContext(
