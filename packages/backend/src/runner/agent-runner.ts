@@ -78,6 +78,7 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
         "{peerAgents}",
         `If a task does not fall explicitly within your own scope, check whether a peer agent is better suited and use the "${INVOKE_AGENT_TOOL_NAME}" tool from the crow-agents MCP server to delegate.`,
         "Do NOT attempt to perform tasks that fall under another agent's responsibility - invoke that agent instead.",
+        `When ${INVOKE_AGENT_TOOL_NAME} is used, must NOT respond until ALL invoked agents have returned results. Consolidate everything into one response.`,
         "",
       ],
       keys: ["peerAgents"],
@@ -152,6 +153,7 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
       content: [
         `The following agents are available for task delegation with the "${INVOKE_AGENT_TOOL_NAME}" tool from the crow-agents MCP server:`,
         "{peerAgents}",
+        `When ${INVOKE_AGENT_TOOL_NAME} is used, must NOT respond until ALL invoked agents have returned results. Consolidate everything into one response.`,
         "",
       ],
       keys: ["peerAgents"],
