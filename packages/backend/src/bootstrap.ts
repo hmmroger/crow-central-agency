@@ -27,6 +27,7 @@ import { SystemSettingsManager } from "./services/system-settings-manager.js";
 import { MessageQueueManager } from "./services/message-queue-manager.js";
 import { AgentTaskManager } from "./services/agent-task-manager.js";
 import { registerGenerationRoutes } from "./routes/generation.routes.js";
+import { WorldBuilderService } from "./services/world-builder/world-builder-service.js";
 import { registerTaskRoutes } from "./routes/task.routes.js";
 import { CrowMcpManager } from "./mcp/crow-mcp-manager.js";
 import { registerMcpRoutes } from "./routes/mcp.routes.js";
@@ -125,6 +126,8 @@ export async function bootstrap(options: BootstrapOptions) {
   );
   await runtimeManager.initialize();
 
+  const worldBuilderService = new WorldBuilderService(runtimeManager);
+
   const routineManager = new RoutineManager(registry, runtimeManager, taskManager, crowScheduler, feedManager);
   const interAgentRoutine = createInterAgentTaskRoutine(registry, runtimeManager, taskManager);
   routineManager.addRoutine(interAgentRoutine);
@@ -195,7 +198,7 @@ export async function bootstrap(options: BootstrapOptions) {
   );
   await registerArtifactRoutes(server, artifactManager);
   await registerTaskRoutes(server, taskManager, registry);
-  await registerGenerationRoutes(server);
+  await registerGenerationRoutes(server, worldBuilderService);
   await registerMcpRoutes(server, mcpManager);
   await registerSensorRoutes(server, sensorManager);
   await registerCircleRoutes(server, circleManager, registry);

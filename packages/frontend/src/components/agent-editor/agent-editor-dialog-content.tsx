@@ -207,7 +207,7 @@ export function AgentEditorDialogContent({
           discordConfig,
           excludeClaudeCodeSystemPrompt: form.excludeClaudeCodeSystemPrompt,
           enableGmailNotification: form.enableGmailNotification,
-          agentMd: form.agentMd.trim() || undefined,
+          agentMd: form.agentMd.trim() || "",
         };
 
         await updateMutateAsync(input);
@@ -505,11 +505,12 @@ export function AgentEditorDialogContent({
         {generateModalType && (
           <GenerateModal
             type={generateModalType}
-            context={
-              generateModalType === "agentmd"
-                ? [form.description, form.persona].filter(Boolean).join("\n") || undefined
-                : form.description || undefined
-            }
+            hints={{
+              name: form.name || undefined,
+              description: form.description || undefined,
+              currentPersona: form.persona || undefined,
+              currentAgentMd: form.agentMd || undefined,
+            }}
             onApply={(content) => {
               if (generateModalType === "persona") {
                 editorForm.setPersona(content);

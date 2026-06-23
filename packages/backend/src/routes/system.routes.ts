@@ -13,12 +13,8 @@ function isAudioGenerationAvailable(): boolean {
 }
 
 function isTextGenerationAvailable(): boolean {
-  try {
-    void container.textGenProvider;
-    return true;
-  } catch {
-    return false;
-  }
+  // Generation runs on the internal Narrative Architect (Claude Code runtime), not an env-gated provider.
+  return true;
 }
 
 /**

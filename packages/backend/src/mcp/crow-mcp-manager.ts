@@ -104,22 +104,24 @@ export class CrowMcpManager {
       });
     }
 
-    const userMcpConfigs = this.getUserMcpConfigs().filter((config) => {
-      return (isCrowSystemAgent(agentId) && config.enableForCrow) || configuredMcpIds.has(config.id);
-    });
-    for (const config of userMcpConfigs) {
-      const name = this.normalizeMcpName(config.name);
-      if (serverConfigMap.has(name)) {
-        log.warn({ configId: config.id, name }, "User MCP config name collides with an internal server, skipping");
-        continue;
-      }
-
-      serverConfigMap.set(name, {
-        kind: "external",
-        name,
-        mcpToolPrefix: agentConfig.type === AGENT_TYPE.CLAUDE_CODE ? `mcp__${name}__` : `${name}-`,
-        transport: this.toTransport(config),
+    if (!agentConfig.isBackgroundAgent) {
+      const userMcpConfigs = this.getUserMcpConfigs().filter((config) => {
+        return (isCrowSystemAgent(agentId) && config.enableForCrow) || configuredMcpIds.has(config.id);
       });
+      for (const config of userMcpConfigs) {
+        const name = this.normalizeMcpName(config.name);
+        if (serverConfigMap.has(name)) {
+          log.warn({ configId: config.id, name }, "User MCP config name collides with an internal server, skipping");
+          continue;
+        }
+
+        serverConfigMap.set(name, {
+          kind: "external",
+          name,
+          mcpToolPrefix: agentConfig.type === AGENT_TYPE.CLAUDE_CODE ? `mcp__${name}__` : `${name}-`,
+          transport: this.toTransport(config),
+        });
+      }
     }
 
     return Array.from(serverConfigMap.values());
@@ -249,6 +251,7 @@ export class CrowMcpManager {
     return Array.from(this.mcpServers.values()).filter(
       (definition) =>
         (!definition.allowedAgentIds || definition.allowedAgentIds.includes(agentId)) &&
+        !definition.disallowedAgentIds?.includes(agentId) &&
         (definition.name !== FEED_MCP_SERVER_NAME || hasConfiguredFeedIds)
     );
   }

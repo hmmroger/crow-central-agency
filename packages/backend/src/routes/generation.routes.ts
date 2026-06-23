@@ -1,34 +1,19 @@
 import type { FastifyInstance } from "fastify";
+import { GenerateRequestSchema } from "@crow-central-agency/shared";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
-import { isString } from "es-toolkit";
-import { generatePersona, generateAgentMd } from "../services/content-generation/md-generation.js";
+import type { WorldBuilderService } from "../services/world-builder/world-builder-service.js";
 
-export const GENERATION_TYPE = {
-  PERSONA: "persona",
-  AGENT_MD: "agentmd",
-} as const;
-
-const VALID_TYPES = new Set<string>(Object.values(GENERATION_TYPE));
-
-/** Register the text generation route. */
-export async function registerGenerationRoutes(server: FastifyInstance) {
-  /** Generate text from a user prompt with type-specific system prompt */
-  server.post<{ Body: { type?: string; prompt?: string; context?: string } }>("/api/generate", async (request) => {
-    const { type, prompt, context } = request.body ?? {};
-    if (!type || !VALID_TYPES.has(type)) {
-      throw new AppError(`Invalid type - must be one of: ${[...VALID_TYPES].join(", ")}`, APP_ERROR_CODES.VALIDATION);
+/** Register the text generation route, backed by the internal Narrative Architect agent. */
+export async function registerGenerationRoutes(server: FastifyInstance, worldBuilderService: WorldBuilderService) {
+  /** Generate a persona or AGENT.md from a structured request. */
+  server.post("/api/generate", async (request) => {
+    const parsed = GenerateRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError("Invalid generation request", APP_ERROR_CODES.VALIDATION);
     }
 
-    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      throw new AppError("Prompt is required", APP_ERROR_CODES.VALIDATION);
-    }
-
-    const content =
-      type === GENERATION_TYPE.PERSONA
-        ? await generatePersona(prompt.trim(), isString(context) ? context : undefined)
-        : await generateAgentMd(prompt.trim(), isString(context) ? context : undefined);
-
+    const content = await worldBuilderService.generateAgentText(parsed.data);
     return { success: true, data: { content } };
   });
 }

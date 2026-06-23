@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { X } from "lucide-react";
+import type { GenerateRequest, GenerationType } from "@crow-central-agency/shared";
 import { useGenerateMutation } from "../../hooks/queries/use-generate-mutation.js";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
 
-type GenerationType = "persona" | "agentmd";
+/** Structured hints describing the agent being authored, taken from the editor form. */
+export type GenerationHints = Pick<GenerateRequest, "name" | "description" | "currentPersona" | "currentAgentMd">;
 
 interface GenerateModalProps {
   type: GenerationType;
-  /** Optional context to send with the prompt (e.g. existing description, persona) */
-  context?: string;
+  /** Editor-form hints sent with the prompt so the architect can author or refine accurately. */
+  hints: GenerationHints;
   onApply: (content: string) => void;
   onClose: () => void;
 }
@@ -18,19 +20,14 @@ const TYPE_LABELS: Record<GenerationType, string> = {
   agentmd: "AGENT.md",
 };
 
-/**
- * Modal dialog for AI text generation.
- * User provides a prompt, clicks Generate, previews result,
- * then applies or re-generates.
- */
-export function GenerateModal({ type, context, onApply, onClose }: GenerateModalProps) {
+/** Modal dialog for AI persona / AGENT.md generation with prompt, preview, and apply. */
+export function GenerateModal({ type, hints, onApply, onClose }: GenerateModalProps) {
   const [prompt, setPrompt] = useState("");
   const [preview, setPreview] = useState<string | undefined>(undefined);
   const { mutateAsync: generateAsync, isPending: generating, error: mutationError } = useGenerateMutation();
   const error = mutationError?.message;
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
-  // Focus prompt input on mount
   useEffect(() => {
     promptRef.current?.focus();
   }, []);
@@ -49,14 +46,14 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
       const result = await generateAsync({
         type,
         prompt: trimmedPrompt,
-        context,
+        ...hints,
       });
 
       setPreview(result.content);
     } catch {
       // Error is surfaced via mutation.error in the UI
     }
-  }, [prompt, type, context, generateAsync]);
+  }, [prompt, type, hints, generateAsync]);
 
   /** Apply preview content and close */
   const handleApply = useCallback(() => {
@@ -65,6 +62,20 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
       onClose();
     }
   }, [preview, onApply, onClose]);
+
+  const handlePromptChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
+    setPrompt(event.target.value);
+  }, []);
+
+  const handlePromptKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        handleGenerate();
+      }
+    },
+    [handleGenerate]
+  );
 
   const hasPreview = preview !== undefined;
   const label = TYPE_LABELS[type];
@@ -88,13 +99,8 @@ export function GenerateModal({ type, context, onApply, onClose }: GenerateModal
             <textarea
               ref={promptRef}
               value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-                  event.preventDefault();
-                  handleGenerate();
-                }
-              }}
+              onChange={handlePromptChange}
+              onKeyDown={handlePromptKeyDown}
               placeholder={
                 type === "persona"
                   ? "e.g. Create a persona for a security-focused code reviewer that is thorough but friendly"

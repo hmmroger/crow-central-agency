@@ -8,7 +8,8 @@ import { ModelOptionSchema } from "./agent.schema.js";
 export const SystemCapabilitiesSchema = z.object({
   /** True when the audio generation provider, API key, and model are all configured. */
   audioGeneration: z.boolean(),
-  /** True when the chat-completion text generation provider is configured (powers persona / AGENT.md generation). */
+  // True when persona / AGENT.md generation is available. Backed by the internal Narrative Architect
+  // (Claude Code runtime), so effectively always available.
   textGeneration: z.boolean(),
   /** True when the shared Copilot SDK client started successfully (Copilot agents can run). */
   copilotAvailable: z.boolean(),

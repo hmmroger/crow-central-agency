@@ -2,6 +2,7 @@ import {
   AGENT_STATUS,
   ENTITY_TYPE,
   MESSAGE_SOURCE_TYPE,
+  CROW_NARRATIVE_ARCHITECT_AGENT_ID,
   type AgentConfig,
   type AgentStatus,
   type PendingInstructionReminder,
@@ -183,6 +184,16 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
     "hasFeedMcp",
     "sensorReadings",
   ],
+};
+
+const NARRATIVE_ARCHITECT_SYSTEM_PROMPT: MessageTemplate = {
+  role: MessageRoles.system,
+  content: [
+    { content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your name is: {agentName}", ""] },
+    { content: ["## Core persona", "", "{persona}", ""], keys: ["persona"] },
+    { content: ["## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."] },
+  ],
+  keys: ["agentId", "agentName", "persona", "currentDate", "currentTime"],
 };
 
 const INSTRUCTION_REMINDER_INTRO =
@@ -433,8 +444,14 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
       (server) => server.name === GMAIL_MCP_SERVER_NAME
     )?.connectionProfiles;
     const hasFeedMcp = serverConfigs.find((server) => server.name === FEED_MCP_SERVER_NAME) ? "true" : undefined;
+    const systemPromptTemplate =
+      this.agentId === CROW_NARRATIVE_ARCHITECT_AGENT_ID
+        ? NARRATIVE_ARCHITECT_SYSTEM_PROMPT
+        : isCrowSystemAgent(this.agentId)
+          ? CROW_SYSTEM_PROMPT
+          : DEFAULT_SYSTEM_PROMPT;
     const content = createMessageContentFromTemplate(
-      isCrowSystemAgent(this.agentId) ? CROW_SYSTEM_PROMPT : DEFAULT_SYSTEM_PROMPT,
+      systemPromptTemplate,
       getDefaultPromptContext(
         {
           agentId: agent.id,
