@@ -171,15 +171,13 @@ export class CrowMcpManager {
       }
     }
 
-    this.getUserMcpConfigs().map((config) =>
-      configurableServers.push({
-        id: config.id,
-        displayName: config.displayName ?? config.name,
-        description: config.description,
-      })
-    );
+    const userConfigs = this.getUserMcpConfigs().map((config) => ({
+      id: config.id,
+      displayName: config.displayName ?? config.name,
+      description: config.description,
+    }));
 
-    return configurableServers;
+    return configurableServers.concat(userConfigs);
   }
 
   public getMcpServerDisplayName(id: string): string | undefined {
