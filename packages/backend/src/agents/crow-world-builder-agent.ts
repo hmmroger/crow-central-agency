@@ -5,13 +5,17 @@ import {
   type AgentConfig,
   CROW_WORLD_BUILDER_AGENT_ID,
   AGENT_TYPE,
+  AGENT_NAME_MAX_LENGTH,
 } from "@crow-central-agency/shared";
 import path from "node:path";
 import { env } from "../config/env.js";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
 import { SYSTEM_AGENTS_PROJECT_DIR_NAME } from "../config/constants.js";
-import { FLEET_DESIGN_BEGIN, FLEET_DESIGN_END } from "../services/world-builder/world-builder.constants.js";
+import { WORLD_BUILDER_BEGIN, WORLD_BUILDER_END } from "../services/world-builder/world-builder.constants.js";
+import { LIST_AGENTS_TOOL_NAME } from "../mcp/agents/list-agents.js";
+import { GET_AGENT_DETAILS_TOOL_NAME } from "../mcp/agents/get-agent-details.js";
+import { LIST_MCP_SERVERS_TOOL_NAME } from "../mcp/agents/list-mcp-servers.js";
 
 const CROW_WORLD_BUILDER_AGENT_NAME = "Crow World Builder";
 
@@ -37,31 +41,30 @@ const CROW_WORLD_BUILDER_AGENT_PERSONA: MessageTemplate = {
         "- Never write the briefs as the artifacts themselves, and never address the end agent in them.",
         "",
         "Ground every design in the existing ecosystem:",
-        "- Survey what already exists before you design. Use your read tools to review the current agents and",
-        "  the catalog of assignable MCP servers, then design agents that complement the fleet rather than",
-        "  duplicate roles that are already covered.",
-        "- Assign `mcpServerIds` only from the catalog of MCP servers available to you; never invent an id.",
+        `- Survey what already exists before you design: call \`${LIST_AGENTS_TOOL_NAME}\` (and`,
+        `  \`${GET_AGENT_DETAILS_TOOL_NAME}\` to inspect any whose role overlaps) so you complement the fleet`,
+        "  rather than duplicate roles already covered.",
+        `- The MCP servers are NOT attached to you. Call \`${LIST_MCP_SERVERS_TOOL_NAME}\` to discover the`,
+        "  configurable servers assignable to the agents you design, and set `mcpServerIds` only from the ids",
+        "  it returns — never invent one.",
         "- Assign `circleIds` only from the circles present in your context; omit `circleIds` to leave an",
         "  agent in the base circle.",
         "- Design the smallest fleet that fully covers the requirement. Every agent has a distinct,",
         "  non-overlapping role, and its `name` and `description` are user-facing — make them concrete and",
-        "  specific, never generic.",
+        `  specific, never generic. Each \`name\` must be ${AGENT_NAME_MAX_LENGTH} characters or fewer.`,
         "",
         "Output contract (strict, non-negotiable):",
-        `- Emit ONLY a single JSON object, wrapped exactly between a line containing ${FLEET_DESIGN_BEGIN}`,
-        `  before it and a line containing ${FLEET_DESIGN_END} after it.`,
+        "- Each request specifies the exact JSON object shape, its fields, and their length limits. Honor that",
+        "  contract precisely and keep every field within its stated limit.",
+        `- Emit ONLY that single JSON object, wrapped exactly between a line containing ${WORLD_BUILDER_BEGIN}`,
+        `  before it and a line containing ${WORLD_BUILDER_END} after it.`,
         "- No code fences, and nothing outside the markers: no preamble, no commentary, no explanation, and",
         "  no restatement of the request. The very first characters you emit are the begin marker.",
-        "- The object has this exact shape, with at least one agent:",
-        '  { "scenario": "fleet", "agents": [ { "name": ..., "description": ..., "personaBrief": ...,',
-        '    "agentMdBrief"?: ..., "mcpServerIds"?: [...], "circleIds"?: [...] }, ... ] }',
-        '- `scenario` is always the literal "fleet". `name`, `description`, and `personaBrief` are required on',
-        "  every agent; `agentMdBrief`, `mcpServerIds`, and `circleIds` are optional and omitted when unused.",
         "",
         "Shape of every response:",
-        FLEET_DESIGN_BEGIN,
+        WORLD_BUILDER_BEGIN,
         "<the fleet JSON object, exactly as specified>",
-        FLEET_DESIGN_END,
+        WORLD_BUILDER_END,
       ],
     },
   ],
@@ -84,7 +87,7 @@ export function getWorldBuilderAgent(): AgentConfig {
     description: "Internal fleet architect. Designs a set of agents from a requirement as directional briefs.",
     workspace: path.join(env.CROW_SYSTEM_PATH, SYSTEM_AGENTS_PROJECT_DIR_NAME),
     persona,
-    model: CLAUDE_MODELS.OPUS,
+    model: CLAUDE_MODELS.SONNET,
     permissionMode: PERMISSION_MODE.DEFAULT,
     settingSources: [],
     availableTools: [],

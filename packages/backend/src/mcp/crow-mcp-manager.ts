@@ -16,7 +16,12 @@ import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { generateId, isCrowSystemAgent } from "../utils/id-utils.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
-import type { CrowMcpServerConfig, McpServerDefinition, CrowMcpTransport } from "./crow-mcp-manager.types.js";
+import type {
+  CrowMcpServerConfig,
+  McpServerDefinition,
+  CrowMcpTransport,
+  ConfigurableMcpMetadata,
+} from "./crow-mcp-manager.types.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { SystemSettingsManager } from "../services/system-settings-manager.js";
 import { FEED_MCP_SERVER_NAME } from "./feed/feed-mcp-server.js";
@@ -156,6 +161,35 @@ export class CrowMcpManager {
   /** Get user-configured MCP server configs persisted to the object store */
   public getUserMcpConfigs(): McpServerConfig[] {
     return Array.from(this.mcpConfigs.values());
+  }
+
+  public getConfigurableMcpServers(): ConfigurableMcpMetadata[] {
+    const configurableServers: ConfigurableMcpMetadata[] = [];
+    for (const definition of this.mcpServers.values()) {
+      if (definition.isConfigurable && !definition.hasRequiredConnections) {
+        configurableServers.push({ id: definition.name, displayName: definition.displayName ?? definition.name });
+      }
+    }
+
+    this.getUserMcpConfigs().map((config) =>
+      configurableServers.push({
+        id: config.id,
+        displayName: config.displayName ?? config.name,
+        description: config.description,
+      })
+    );
+
+    return configurableServers;
+  }
+
+  public getMcpServerDisplayName(id: string): string | undefined {
+    const internal = this.mcpServers.get(id);
+    if (internal) {
+      return internal.displayName ?? internal.name;
+    }
+
+    const userConfig = this.mcpConfigs.get(id);
+    return userConfig ? (userConfig.displayName ?? userConfig.name) : undefined;
   }
 
   /**

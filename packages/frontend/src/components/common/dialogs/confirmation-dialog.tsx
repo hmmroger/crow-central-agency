@@ -6,6 +6,8 @@ interface ConfirmationDialogProps {
   message: string;
   /** Label for the confirm button (default: "Confirm") */
   confirmLabel?: string;
+  /** Label for the confirm button while an async onConfirm is in flight (default: "...") */
+  pendingLabel?: string;
   /** Label for the cancel button (default: "Cancel") */
   cancelLabel?: string;
   /** When true, styles the confirm button as destructive */
@@ -21,6 +23,7 @@ interface ConfirmationDialogProps {
 export function ConfirmationDialog({
   message,
   confirmLabel = "Confirm",
+  pendingLabel = "...",
   cancelLabel = "Cancel",
   destructive = false,
   confirmOnly = false,
@@ -54,7 +57,7 @@ export function ConfirmationDialog({
       <div className="flex justify-end gap-2 px-3 py-2 bg-surface-elevated">
         {!confirmOnly && <ActionButton label={cancelLabel} onClick={onClose} disabled={isPending} />}
         <ActionButton
-          label={isPending ? "..." : confirmLabel}
+          label={isPending ? pendingLabel : confirmLabel}
           variant={destructive ? ACTION_BUTTON_VARIANT.DESTRUCTIVE : ACTION_BUTTON_VARIANT.PRIMARY}
           onClick={handleConfirm}
           disabled={isPending}

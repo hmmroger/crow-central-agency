@@ -59,6 +59,12 @@ export interface McpServerDefinition {
   getConnectionProfiles?: McpServerConnectionProfilesFunc;
 }
 
+export interface ConfigurableMcpMetadata {
+  id: string;
+  displayName: string;
+  description?: string;
+}
+
 /** Fields shared by every per-agent resolved MCP server. */
 export interface CrowMcpServerConfigBase {
   name: string;

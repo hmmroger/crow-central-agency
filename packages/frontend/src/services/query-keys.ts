@@ -136,6 +136,16 @@ export const mcpConfigKeys = {
 };
 
 /**
+ * Query key factory for agent-builder queries.
+ */
+export const agentBuilderKeys = {
+  /** Root key for all agent-builder queries */
+  all: ["agent-builder"] as const,
+  /** The single active draft */
+  draft: () => [...agentBuilderKeys.all, "draft"] as const,
+};
+
+/**
  * Query key factory for connector queries.
  */
 export const connectorKeys = {

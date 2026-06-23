@@ -459,14 +459,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
       (server) => server.name === GMAIL_MCP_SERVER_NAME
     )?.connectionProfiles;
     const hasFeedMcp = serverConfigs.find((server) => server.name === FEED_MCP_SERVER_NAME) ? "true" : undefined;
-    const systemPromptTemplate =
-      this.agentId === CROW_NARRATIVE_ARCHITECT_AGENT_ID
-        ? NARRATIVE_ARCHITECT_SYSTEM_PROMPT
-        : this.agentId === CROW_WORLD_BUILDER_AGENT_ID
-          ? WORLD_BUILDER_SYSTEM_PROMPT
-          : isCrowSystemAgent(this.agentId)
-            ? CROW_SYSTEM_PROMPT
-            : DEFAULT_SYSTEM_PROMPT;
+    const systemPromptTemplate = this.selectSystemPromptTemplate();
     const content = createMessageContentFromTemplate(
       systemPromptTemplate,
       getDefaultPromptContext(
@@ -486,6 +479,17 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     );
 
     return content;
+  }
+
+  private selectSystemPromptTemplate(): MessageTemplate {
+    switch (this.agentId) {
+      case CROW_NARRATIVE_ARCHITECT_AGENT_ID:
+        return NARRATIVE_ARCHITECT_SYSTEM_PROMPT;
+      case CROW_WORLD_BUILDER_AGENT_ID:
+        return WORLD_BUILDER_SYSTEM_PROMPT;
+      default:
+        return isCrowSystemAgent(this.agentId) ? CROW_SYSTEM_PROMPT : DEFAULT_SYSTEM_PROMPT;
+    }
   }
 
   private buildInstructionReminder(

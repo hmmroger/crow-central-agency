@@ -20,7 +20,7 @@ import {
   SERVER_MESSAGE_TYPE,
 } from "@crow-central-agency/shared";
 import { EventBus } from "../core/event-bus/event-bus.js";
-import type { AgentRegistryEvents } from "./agent-registry.types.js";
+import type { AgentRegistryEvents, AgentDetails } from "./agent-registry.types.js";
 import type { WsBroadcaster } from "./ws-broadcaster.js";
 import type { AgentCircleManager } from "./agent-circle-manager.js";
 import { AppError } from "../core/error/app-error.js";
@@ -448,6 +448,24 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
       throw error;
     }
+  }
+
+  /** Curated design-facing view of an agent: identity, circle names, raw mcpServerIds, and AGENT.md presence. */
+  public async getAgentDetails(agentId: string): Promise<AgentDetails> {
+    const agent = this.getAgent(agentId);
+    const circles = this.circleManager.getCirclesForEntity(agentId, ENTITY_TYPE.AGENT).map((circle) => circle.name);
+    const hasAgentMd = (await this.getAgentMd(agentId)) !== undefined;
+
+    return {
+      id: agent.id,
+      name: agent.name,
+      description: agent.description,
+      persona: agent.persona || undefined,
+      workspace: agent.workspace,
+      circles,
+      mcpServerIds: agent.mcpServerIds ?? [],
+      hasAgentMd,
+    };
   }
 
   /** Find a saved template by exact templateName match, or undefined if none */

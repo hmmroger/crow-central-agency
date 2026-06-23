@@ -28,6 +28,9 @@ export {
   DEFAULT_AVAILABLE_TOOLS_BY_TYPE,
   SUBAGENT_TOOL_NAME,
   AGENT_TYPE,
+  AgentTypeSchema,
+  DEFAULT_AGENT_TYPE,
+  AGENT_NAME_MAX_LENGTH,
 } from "./schemas/agent.schema.js";
 
 export type {
@@ -252,14 +255,22 @@ export {
 } from "./schemas/generation.schema.js";
 
 export {
-  AGENT_BUILDER_SCENARIO,
   AGENT_BUILDER_LIMITS,
+  AGENT_BUILDER_WORD_BUDGET,
   FleetAgentSchema,
   FleetResponseSchema,
   AgentBuilderDraftSchema,
+  AgentBuilderDesignRequestSchema,
+  AgentBuilderPatchRequestSchema,
   type FleetAgent,
   type FleetResponse,
   type AgentBuilderDraft,
+  type AgentBuilderDesignRequest,
+  type AgentBuilderPatchRequest,
+  type AgentBuilderBuildResult,
+  type FleetNamedRef,
+  type FleetAgentView,
+  type AgentBuilderDraftView,
 } from "./schemas/agent-builder.schema.js";
 
 export { applyAgentOrder } from "./utils/apply-agent-order.js";

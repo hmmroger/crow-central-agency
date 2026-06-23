@@ -732,8 +732,9 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     const agentsToResetTasks: string[] = [];
 
     for (const [agentId, state] of this.runtimeStates) {
+      let agent: AgentConfig;
       try {
-        this.registry.getAgent(agentId);
+        agent = this.registry.getAgent(agentId);
       } catch {
         log.warn({ agentId }, "Orphaned runtime state - agent no longer exists, cleaning up");
         this.runtimeStates.delete(agentId);
@@ -749,6 +750,12 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       }
 
       state.discordDmChannelId = undefined;
+
+      // Background agents run request-scoped work with no persisted session — there is nothing to resume.
+      if (agent.isBackgroundAgent) {
+        state.status = AGENT_STATUS.IDLE;
+        continue;
+      }
 
       switch (state.status) {
         case AGENT_STATUS.ACTIVATING:

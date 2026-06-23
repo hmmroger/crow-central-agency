@@ -7,3 +7,15 @@ export interface AgentRegistryEvents extends EventMap {
   agentUpdated: { agent: AgentConfig; previousAgent: AgentConfig; agentMdChanged: boolean };
   agentDeleted: { agentId: string };
 }
+
+/** Curated, design-facing view of an agent. Circle names are resolved; mcpServerIds are raw. */
+export interface AgentDetails {
+  id: string;
+  name: string;
+  description?: string;
+  persona?: string;
+  workspace?: string;
+  circles: string[];
+  mcpServerIds: string[];
+  hasAgentMd: boolean;
+}
