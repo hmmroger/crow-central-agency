@@ -23,7 +23,9 @@ export function getMoveArtifactToolConfig(agentId: string, artifactManager: Arti
     destination_filename: z
       .string()
       .optional()
-      .describe("Filename at the destination. Defaults to the source filename."),
+      .describe(
+        "Filename at the destination. Defaults to the source filename. Required, and must differ from the source, to rename in place when the source and destination location are the same."
+      ),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async ({
@@ -39,8 +41,14 @@ export function getMoveArtifactToolConfig(agentId: string, artifactManager: Arti
       ? { entityType: ENTITY_TYPE.AGENT_CIRCLE, entityId: destination_circle_id }
       : { entityType: ENTITY_TYPE.AGENT, entityId: agentId };
 
-    if (source.entityType === destination.entityType && source.entityId === destination.entityId) {
-      return textToolResult(["Error: source and destination are the same location; nothing to move."], true);
+    const sameLocation = source.entityType === destination.entityType && source.entityId === destination.entityId;
+    if (sameLocation && !destination_filename) {
+      return textToolResult(
+        [
+          "Error: source and destination are the same location. Provide destination_filename to rename in place, or a different circle to move.",
+        ],
+        true
+      );
     }
 
     if (source_circle_id && !artifactManager.isDirectCircleMember(source_circle_id, agentId)) {
@@ -61,8 +69,9 @@ export function getMoveArtifactToolConfig(agentId: string, artifactManager: Arti
         ? createdBy.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT
         : createdBy.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT && createdBy.agentId === agentId;
       if (!canRemoveSource) {
+        const action = sameLocation ? "rename" : "move";
         return textToolResult(
-          [`Error: cannot move ${filename} - it is not yours to move (created by: ${createdBy.sourceType}).`],
+          [`Error: cannot ${action} ${filename} - it is not yours (created by: ${createdBy.sourceType}).`],
           true
         );
       }
@@ -80,9 +89,11 @@ export function getMoveArtifactToolConfig(agentId: string, artifactManager: Arti
           ? ` (normalized from "${requestedFilename}" - use this exact filename on subsequent reads)`
           : "";
 
-      return textToolResult([
-        `Moved ${filename} from ${sourceLabel} to ${destinationLabel} as ${metadata.filename}${normalizedNote}`,
-      ]);
+      const summary = sameLocation
+        ? `Renamed ${filename} to ${metadata.filename} in ${destinationLabel}${normalizedNote}`
+        : `Moved ${filename} from ${sourceLabel} to ${destinationLabel} as ${metadata.filename}${normalizedNote}`;
+
+      return textToolResult([summary]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to move artifact.");
     }
@@ -91,7 +102,7 @@ export function getMoveArtifactToolConfig(agentId: string, artifactManager: Arti
   const config: McpToolConfig<typeof inputSchema> = {
     name: MOVE_ARTIFACT_TOOL_NAME,
     description:
-      "Move one of your artifacts between your own folder and a circle you are a direct member of (own↔circle, or circle↔circle). Omit source_circle_id/destination_circle_id to use your own folder. You can only move artifacts you authored from your own folder, or agent-authored artifacts from a circle. Fails if an artifact with the destination name already exists; move it under a different destination_filename or delete the existing one first.",
+      "Move or rename one of your artifacts. Move it between your own folder and a circle you are a direct member of (own↔circle, or circle↔circle), or rename it in place by keeping the same location and passing a new destination_filename. Omit source_circle_id/destination_circle_id to use your own folder. You can only move or rename artifacts you authored from your own folder, or agent-authored artifacts from a circle. Fails if an artifact with the destination name already exists; use a different destination_filename or delete the existing one first.",
     inputSchema,
     handler,
   };

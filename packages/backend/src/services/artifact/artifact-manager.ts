@@ -237,15 +237,18 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
     filename: string,
     options: MoveArtifactOptions
   ): Promise<ArtifactMetadata> {
-    if (source.entityType === destination.entityType && source.entityId === destination.entityId) {
-      throw new AppError("Source and destination are the same location; nothing to move.", APP_ERROR_CODES.VALIDATION);
-    }
+    const sameLocation = source.entityType === destination.entityType && source.entityId === destination.entityId;
 
     const sourceMetadata = await this.getEntityArtifactMetadata(source.entityType, source.entityId, filename);
-    const sourcePath = this.getEntityArtifactPath(source.entityType, source.entityId, sourceMetadata.id);
-    const content = await readBinaryFile(sourcePath);
-
     const destinationFilename = normalizeArtifactFilename(options.destinationFilename ?? sourceMetadata.filename);
+
+    if (sameLocation && destinationFilename === sourceMetadata.filename) {
+      throw new AppError(
+        "Source and destination are identical (same location and filename); nothing to move.",
+        APP_ERROR_CODES.VALIDATION
+      );
+    }
+
     const destinationTable = this.getStoreTable(destination.entityType, destination.entityId);
     const existingDestination = await this.store.get<ArtifactMetadata>(destinationTable, destinationFilename);
     if (existingDestination) {
@@ -255,6 +258,12 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
       );
     }
 
+    if (sameLocation) {
+      return this.renameEntityArtifact(source.entityType, source.entityId, sourceMetadata, destinationFilename);
+    }
+
+    const sourcePath = this.getEntityArtifactPath(source.entityType, source.entityId, sourceMetadata.id);
+    const content = await readBinaryFile(sourcePath);
     const destinationMetadata = await this.writeEntityArtifact(
       destination.entityType,
       destination.entityId,
@@ -278,6 +287,31 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
     }
 
     return destinationMetadata;
+  }
+
+  private async renameEntityArtifact(
+    entityType: EntityType,
+    entityId: string,
+    sourceMetadata: ArtifactMetadata,
+    destinationFilename: string
+  ): Promise<ArtifactMetadata> {
+    const table = this.getStoreTable(entityType, entityId);
+    const renamed: ArtifactMetadata = {
+      ...sourceMetadata,
+      filename: destinationFilename,
+      updatedTimestamp: Date.now(),
+    };
+
+    await this.store.set(table, destinationFilename, renamed);
+    await this.store.delete(table, sourceMetadata.filename);
+    log.info(
+      { entityType, entityId, from: sourceMetadata.filename, to: destinationFilename, id: sourceMetadata.id },
+      "Artifact renamed"
+    );
+
+    this.emit("artifactDeleted", { metadata: sourceMetadata });
+    this.emit("artifactSaved", { metadata: renamed });
+    return renamed;
   }
 
   private async readEntityArtifact(
