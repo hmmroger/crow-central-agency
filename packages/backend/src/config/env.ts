@@ -85,6 +85,10 @@ export const env = {
   GMAIL_CHECK_INTERVAL_IN_MINUTES: getOptionalNumber("GMAIL_CHECK_INTERVAL_IN_MINUTES"),
   PHOTON_API_URL: getOptional("PHOTON_API_URL") ?? "https://photon.komoot.io",
   OVERPASS_INTERPRETER_URL: getOptional("OVERPASS_INTERPRETER_URL") ?? "https://overpass-api.de/api/interpreter",
+  GOOGLE_PLACES_API_KEY: getOptional("GOOGLE_PLACES_API_KEY"),
+  GOOGLE_PLACES_API_BASE_URL: getOptional("GOOGLE_PLACES_API_BASE_URL") ?? "https://places.googleapis.com/v1",
+  GOOGLE_GEOCODING_API_URL:
+    getOptional("GOOGLE_GEOCODING_API_URL") ?? "https://maps.googleapis.com/maps/api/geocode/json",
 };
 
 /**

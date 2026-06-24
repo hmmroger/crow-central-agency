@@ -1,6 +1,7 @@
 import { env } from "../../config/env.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
+import { GooglePlacesAdapter } from "./google/google-places-adapter.js";
 import { OsmPlacesAdapter } from "./osm/osm-places-adapter.js";
 import { parsePlaceId } from "./places-manager-utils.js";
 import type {
@@ -29,6 +30,15 @@ export class PlacesManager {
     });
     this.adapters.set(osmAdapter.source, osmAdapter);
     this.defaultSource = osmAdapter.source;
+
+    if (env.GOOGLE_PLACES_API_KEY) {
+      const googleAdapter = new GooglePlacesAdapter({
+        apiKey: env.GOOGLE_PLACES_API_KEY,
+        placesBaseUrl: env.GOOGLE_PLACES_API_BASE_URL,
+        geocodingUrl: env.GOOGLE_GEOCODING_API_URL,
+      });
+      this.adapters.set(googleAdapter.source, googleAdapter);
+    }
   }
 
   public listSources(): PlacesSource[] {
