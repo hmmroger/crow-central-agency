@@ -73,6 +73,10 @@ export class WorldBuilderService {
    */
   public async design(input: string): Promise<AgentBuilderDraftView> {
     const existing = await this.draftStore.getDraft();
+    if (existing?.status === AGENT_BUILDER_DRAFT_STATUS.BUILDING) {
+      throw new AppError("Cannot redesign while a fleet build is in progress", APP_ERROR_CODES.CONFLICT);
+    }
+
     const currentAgents = existing?.agents.length ? existing.agents : undefined;
 
     const instruction = composeFleetInstruction({ input, currentAgents });
@@ -100,6 +104,10 @@ export class WorldBuilderService {
     const trimmed = config.projectPath?.trim();
     const normalized = trimmed ? trimmed : undefined;
     const existing = await this.draftStore.getDraft();
+    if (existing?.status === AGENT_BUILDER_DRAFT_STATUS.BUILDING) {
+      throw new AppError("Cannot change fleet config while a build is in progress", APP_ERROR_CODES.CONFLICT);
+    }
+
     const saved = await this.draftStore.saveDraft({
       projectPath: normalized,
       agentType: config.agentType,
@@ -127,6 +135,10 @@ export class WorldBuilderService {
 
     if (draft.status === AGENT_BUILDER_DRAFT_STATUS.BUILDING) {
       throw new AppError("A fleet build is already in progress", APP_ERROR_CODES.CONFLICT);
+    }
+
+    if (draft.status === AGENT_BUILDER_DRAFT_STATUS.COMPLETED) {
+      throw new AppError("Fleet is already built — acknowledge or discard the draft first", APP_ERROR_CODES.CONFLICT);
     }
 
     const building = await this.draftStore.saveDraft({
