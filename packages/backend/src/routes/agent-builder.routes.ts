@@ -1,5 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { AgentBuilderDesignRequestSchema, AgentBuilderPatchRequestSchema } from "@crow-central-agency/shared";
+import {
+  AgentBuilderDesignRequestSchema,
+  AgentBuilderPatchRequestSchema,
+  type AgentBuilderDraftResponse,
+  type AgentBuilderDraftMutationResponse,
+} from "@crow-central-agency/shared";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import type { WorldBuilderService } from "../services/world-builder/world-builder-service.js";
@@ -9,7 +14,8 @@ export async function registerAgentBuilderRoutes(server: FastifyInstance, worldB
   /** Get the single active draft, or null when none exists. */
   server.get("/api/agent-builder/draft", async () => {
     const draft = await worldBuilderService.getDraft();
-    return { success: true, data: { draft: draft ?? null } };
+    const data: AgentBuilderDraftResponse = { draft: draft ?? null };
+    return { success: true, data };
   });
 
   /** Design or refine the fleet from a requirement, persisting the result as the draft. */
@@ -20,7 +26,8 @@ export async function registerAgentBuilderRoutes(server: FastifyInstance, worldB
     }
 
     const draft = await worldBuilderService.design(parsed.data.input);
-    return { success: true, data: { draft } };
+    const data: AgentBuilderDraftMutationResponse = { draft };
+    return { success: true, data };
   });
 
   /** Replace the draft's fleet-level config (project path + agent type). */
@@ -31,7 +38,8 @@ export async function registerAgentBuilderRoutes(server: FastifyInstance, worldB
     }
 
     const draft = await worldBuilderService.setFleetConfig(parsed.data);
-    return { success: true, data: { draft } };
+    const data: AgentBuilderDraftMutationResponse = { draft };
+    return { success: true, data };
   });
 
   /** Clear the active draft entirely. */
@@ -40,9 +48,13 @@ export async function registerAgentBuilderRoutes(server: FastifyInstance, worldB
     return { success: true };
   });
 
-  /** Build the drafted fleet: author, create, and place each agent. Best-effort and per-agent. */
-  server.post("/api/agent-builder/build", async () => {
-    const result = await worldBuilderService.build();
-    return { success: true, data: { result } };
+  /**
+   * Start building the drafted fleet. Returns 202 immediately; the build runs server-side and its
+   * progress/outcome reach clients via the agent-builder draft-updated WS broadcast.
+   */
+  server.post("/api/agent-builder/build", async (_request, reply) => {
+    await worldBuilderService.startBuild();
+    reply.code(202);
+    return { success: true };
   });
 }

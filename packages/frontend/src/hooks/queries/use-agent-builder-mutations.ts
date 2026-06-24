@@ -1,21 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
   AgentBuilderDraftView,
+  AgentBuilderDraftMutationResponse,
   AgentBuilderDesignRequest,
   AgentBuilderPatchRequest,
-  AgentBuilderBuildResult,
 } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { agentBuilderKeys } from "../../services/query-keys.js";
 import type { ApiError } from "../../services/api-client.types.js";
-
-interface DraftMutationResponse {
-  draft: AgentBuilderDraftView;
-}
-
-interface BuildMutationResponse {
-  result: AgentBuilderBuildResult;
-}
 
 /**
  * Design or refine the fleet from a requirement, returning the updated draft. Invalidates the draft
@@ -26,7 +18,7 @@ export function useDesignFleet() {
 
   return useMutation<AgentBuilderDraftView, ApiError, AgentBuilderDesignRequest>({
     mutationFn: async (input) => {
-      const response = await apiClient.post<DraftMutationResponse>("/agent-builder/design", input);
+      const response = await apiClient.post<AgentBuilderDraftMutationResponse>("/agent-builder/design", input);
       return unwrapResponse(response).draft;
     },
     onSuccess: () => {
@@ -44,7 +36,7 @@ export function useSetFleetConfig() {
 
   return useMutation<AgentBuilderDraftView, ApiError, AgentBuilderPatchRequest>({
     mutationFn: async (input) => {
-      const response = await apiClient.patch<DraftMutationResponse>("/agent-builder/draft", input);
+      const response = await apiClient.patch<AgentBuilderDraftMutationResponse>("/agent-builder/draft", input);
       return unwrapResponse(response).draft;
     },
     onSuccess: () => {
@@ -54,20 +46,15 @@ export function useSetFleetConfig() {
 }
 
 /**
- * Build the drafted fleet (best-effort, server-orchestrated). Returns the per-agent created/failed
- * result and invalidates the draft query — the board then reflects the post-build draft (succeeded
- * agents removed server-side, failed agents remaining, empty on full success).
+ * Start building the drafted fleet (best-effort, server-orchestrated). Returns immediately (202); the
+ * build runs server-side and its progress/outcome reach the draft via the draft-updated WS broadcast,
+ * so this mutation does not own the page busy state — `draft.status` does.
  */
 export function useBuildFleet() {
-  const queryClient = useQueryClient();
-
-  return useMutation<AgentBuilderBuildResult, ApiError, void>({
+  return useMutation<void, ApiError, void>({
     mutationFn: async () => {
-      const response = await apiClient.post<BuildMutationResponse>("/agent-builder/build");
-      return unwrapResponse(response).result;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: agentBuilderKeys.draft() });
+      const response = await apiClient.post<void>("/agent-builder/build");
+      return unwrapResponse(response);
     },
   });
 }

@@ -135,7 +135,8 @@ export async function bootstrap(options: BootstrapOptions) {
     worldBuilderDraftStore,
     registry,
     circleManager,
-    mcpManager
+    mcpManager,
+    broadcaster
   );
 
   const routineManager = new RoutineManager(registry, runtimeManager, taskManager, crowScheduler, feedManager);
@@ -222,6 +223,8 @@ export async function bootstrap(options: BootstrapOptions) {
   // Start listening
   await server.listen({ host: env.HOST, port: env.PORT });
   logger.info({ host: env.HOST, port: env.PORT, static: options.serveStatic }, "Server started");
+
+  await worldBuilderService.recoverInterruptedBuild();
 
   // Graceful shutdown
   const shutdown = async () => {

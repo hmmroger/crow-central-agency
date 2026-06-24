@@ -39,7 +39,8 @@ function appendDataContract(lines: string[]): void {
   lines.push(
     "",
     "Return a single JSON object of exactly this shape:",
-    '  { "agents": [ { "name", "description", "personaBrief", "agentMdBrief"?, "mcpServerIds"?, "circleIds"? } ] }',
+    '  { "agents": [ { "name", "description", "personaBrief", "agentMdBrief"?, "mcpServerIds"?, "circleIds"? } ],',
+    '    "existingAgents"?: [ { "id", "name" } ] }',
     "",
     "Field rules — each value becomes part of the built agent; stay within each word budget (hard limits):",
     `  - name (required, <= ${AGENT_BUILDER_LIMITS.NAME} characters): concrete, specific, user-facing agent name.`,
@@ -59,9 +60,14 @@ function appendDataContract(lines: string[]): void {
     "    assign only servers whose tools the role actually needs, and omit when it needs none.",
     "  - circleIds (optional): circles group agents that work together and see each other as peers; place the",
     "    agent in the circles where it collaborates, or omit to leave it in the base circle.",
+    "  - existingAgents (optional): existing agents that belong to this fleet — ones that already cover part of",
+    "    the requirement, or that the agents you design should collaborate with. List each by its real id and",
+    "    name (from the agent tools — never invent one) and do NOT redesign it in `agents`. When a designed agent",
+    "    works with one, add that agent's circles to its `circleIds` so the two become peers.",
     "",
-    "Design the smallest fleet that fully covers the requirement, with at least one agent and every agent",
-    "holding a distinct, non-overlapping role."
+    "Design the smallest fleet that fully covers the requirement: every agent in `agents` holds a distinct,",
+    "non-overlapping role not already covered by an existingAgents entry. If existing agents already cover the",
+    "whole requirement, return `agents` as an empty array and list those agents in `existingAgents`."
   );
 }
 

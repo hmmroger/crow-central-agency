@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Hammer, Loader2, RotateCcw } from "lucide-react";
-import { AGENT_STATUS, CROW_WORLD_BUILDER_AGENT_ID, type AgentBuilderBuildResult } from "@crow-central-agency/shared";
-import { useQueryClient } from "@tanstack/react-query";
+import { AGENT_STATUS, AGENT_BUILDER_DRAFT_STATUS, CROW_WORLD_BUILDER_AGENT_ID } from "@crow-central-agency/shared";
 import { HeaderPortal } from "../layout/header-portal.js";
-import { useAgentBuilderDraftQuery } from "../../hooks/queries/use-agent-builder-draft-query.js";
+import { useAgentBuilderContext } from "../../providers/agent-builder-provider.js";
 import { useAgentStateQuery } from "../../hooks/queries/use-agent-state-query.js";
 import { useDesignFleet, useResetDraft, useBuildFleet } from "../../hooks/queries/use-agent-builder-mutations.js";
-import { agentBuilderKeys } from "../../services/query-keys.js";
 import { useModalDialog } from "../../providers/modal-dialog-provider.js";
 import { ConfirmationDialog } from "../common/dialogs/confirmation-dialog.js";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../common/action-button.js";
@@ -14,55 +12,87 @@ import { FleetConfigBar } from "./fleet-config-bar.js";
 import { FleetBoard } from "./fleet-board.js";
 import { FleetComposer } from "./fleet-composer.js";
 import { BuildResultNotice } from "./build-result-notice.js";
+import { AvailableAgentsNotice } from "./available-agents-notice.js";
 
-/**
- * Agent Builder view — design or refine a fleet of agents from a requirement and render the resulting
- * board. The board reflects GET /draft (backend is the source of truth); design/refine mode is derived
- * from whether that draft already has agents, not from local state.
- */
 export function AgentBuilderView() {
-  const draftQuery = useAgentBuilderDraftQuery();
+  const { draft, isLoading } = useAgentBuilderContext();
   const worldBuilderState = useAgentStateQuery(CROW_WORLD_BUILDER_AGENT_ID);
   const { mutateAsync: designFleet, isPending: isDesigningMutation, error: designError } = useDesignFleet();
   const { mutateAsync: resetDraft } = useResetDraft();
-  const { mutateAsync: buildFleet, isPending: isBuilding } = useBuildFleet();
+  const { mutateAsync: buildFleet } = useBuildFleet();
   const { showDialog } = useModalDialog();
-  const queryClient = useQueryClient();
 
-  const [buildResult, setBuildResult] = useState<AgentBuilderBuildResult | undefined>(undefined);
+  const [showResultNotice, setShowResultNotice] = useState(true);
 
-  const draft = draftQuery.data;
   const agents = draft?.agents ?? [];
   const agentCount = agents.length;
   const hasAgents = agentCount > 0;
   const projectPath = draft?.projectPath;
+  const status = draft?.status;
+  const buildResult = draft?.lastBuildResult;
+  const existingAgents = draft?.existingAgents ?? [];
 
   const worldBuilderStatus = worldBuilderState.data?.status ?? AGENT_STATUS.IDLE;
   const isDesigning = isDesigningMutation || worldBuilderStatus !== AGENT_STATUS.IDLE;
-
-  const prevStatusRef = useRef(worldBuilderStatus);
-  useEffect(() => {
-    if (prevStatusRef.current !== AGENT_STATUS.IDLE && worldBuilderStatus === AGENT_STATUS.IDLE) {
-      void queryClient.invalidateQueries({ queryKey: agentBuilderKeys.draft() });
-    }
-
-    prevStatusRef.current = worldBuilderStatus;
-  }, [worldBuilderStatus, queryClient]);
+  const isBuilding = status === AGENT_BUILDER_DRAFT_STATUS.BUILDING;
+  const isCompleted = status === AGENT_BUILDER_DRAFT_STATUS.COMPLETED;
+  const isBusy = isDesigning || isBuilding;
+  const builtCount = draft?.builtAgents?.length ?? 0;
+  const hasContent = hasAgents || existingAgents.length > 0;
 
   const errorsByName = useMemo(
     () => new Map(buildResult?.failed.map((item): [string, string] => [item.name, item.error]) ?? []),
     [buildResult]
   );
 
+  const builtNames = useMemo(
+    () => new Set(draft?.builtAgents?.map((builtAgent) => builtAgent.name) ?? []),
+    [draft?.builtAgents]
+  );
+
+  useEffect(() => {
+    if (isBuilding) {
+      setShowResultNotice(true);
+    }
+  }, [isBuilding]);
+
+  const completionShownRef = useRef(false);
+  useEffect(() => {
+    if (!isCompleted) {
+      completionShownRef.current = false;
+      return;
+    }
+
+    if (completionShownRef.current) {
+      return;
+    }
+
+    completionShownRef.current = true;
+
+    const createdCount = buildResult?.created.length ?? agentCount;
+    showDialog({
+      id: "agent-builder-complete",
+      component: ConfirmationDialog,
+      componentProps: {
+        message: `Fleet built — ${createdCount} agent${createdCount === 1 ? "" : "s"} created.`,
+        confirmLabel: "OK",
+        pendingLabel: "Finishing...",
+        confirmOnly: true,
+        onConfirm: () => resetDraft(),
+      },
+      title: "Build Complete",
+      className: "w-80",
+    });
+  }, [isCompleted, buildResult, agentCount, showDialog, resetDraft]);
+
   const handleSubmit = useCallback(
     async (input: string) => {
-      setBuildResult(undefined);
       await designFleet({ input });
     },
     [designFleet]
   );
 
-  const handleDismissBuildResult = useCallback(() => setBuildResult(undefined), []);
+  const handleDismissResultNotice = useCallback(() => setShowResultNotice(false), []);
 
   const handleReset = useCallback(() => {
     showDialog({
@@ -72,10 +102,7 @@ export function AgentBuilderView() {
         message: "Discard the current draft fleet? This clears all designed agents.",
         confirmLabel: "Discard",
         destructive: true,
-        onConfirm: () => {
-          setBuildResult(undefined);
-          return resetDraft();
-        },
+        onConfirm: () => resetDraft(),
       },
       title: "Discard Fleet",
       className: "w-80",
@@ -92,30 +119,25 @@ export function AgentBuilderView() {
       id: "agent-builder-build",
       component: ConfirmationDialog,
       componentProps: {
-        message: `Create ${agentCount} agent${agentCount === 1 ? "" : "s"} ${
-          projectPath ? `in ${projectPath}` : "without a workspace"
+        message: `Create ${agentCount} agent${agentCount === 1 ? "" : "s"} with ${
+          projectPath ? `workspace ${projectPath}` : "the default workspace"
         }?`,
         confirmLabel: "Build",
-        pendingLabel: "Building...",
-        onConfirm: async () => {
-          const result = await buildFleet();
-          setBuildResult(result);
-        },
+        pendingLabel: "Starting...",
+        onConfirm: () => buildFleet(),
       },
       title: "Build Fleet",
       className: "w-80",
     });
   }, [isBuilding, showDialog, buildFleet, agentCount, projectPath]);
 
-  const busyLabel = isBuilding ? "Building fleet..." : hasAgents ? "Refining fleet..." : "Designing fleet...";
+  const busyLabel = hasContent ? "Refining fleet..." : "Designing fleet...";
+  const showPartialFailureNotice = Boolean(
+    showResultNotice && !isBuilding && buildResult && buildResult.failed.length > 0
+  );
 
   const composer = (
-    <FleetComposer
-      hasAgents={hasAgents}
-      isPending={isDesigning || isBuilding}
-      error={designError?.message}
-      onSubmit={handleSubmit}
-    />
+    <FleetComposer hasAgents={hasContent} isPending={isBusy} error={designError?.message} onSubmit={handleSubmit} />
   );
   const configBar = <FleetConfigBar seedProjectPath={draft?.projectPath} seedAgentType={draft?.agentType} />;
 
@@ -123,11 +145,11 @@ export function AgentBuilderView() {
     <div className="flex h-full flex-col">
       <HeaderPortal title="Agent Builder" />
 
-      {draftQuery.isLoading ? (
+      {isLoading ? (
         <div className="flex flex-1 items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-text-muted" />
         </div>
-      ) : hasAgents ? (
+      ) : hasContent ? (
         <>
           <div className="shrink-0 border-b border-border-subtle px-4 py-4">
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
@@ -136,18 +158,27 @@ export function AgentBuilderView() {
             </div>
           </div>
 
-          {buildResult && <BuildResultNotice result={buildResult} onDismiss={handleDismissBuildResult} />}
+          {showPartialFailureNotice && buildResult && (
+            <BuildResultNotice result={buildResult} onDismiss={handleDismissResultNotice} />
+          )}
+
+          <AvailableAgentsNotice agents={existingAgents} />
 
           <FleetBoard
             agents={agents}
-            isBusy={isDesigning || isBuilding}
+            isBusy={isDesigning}
             busyLabel={busyLabel}
             errorsByName={errorsByName}
+            builtNames={builtNames}
           />
 
           <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border-subtle px-6 py-3">
             <span className="text-xs text-text-muted">
-              {agentCount} agent{agentCount === 1 ? "" : "s"} designed
+              {isBuilding
+                ? `Building… ${builtCount}/${agentCount}`
+                : hasAgents
+                  ? `${agentCount} agent${agentCount === 1 ? "" : "s"} designed`
+                  : "Requirement already covered — refine or discard"}
             </span>
             <div className="flex items-center gap-2">
               <ActionButton
@@ -161,7 +192,7 @@ export function AgentBuilderView() {
                 icon={Hammer}
                 variant={ACTION_BUTTON_VARIANT.PRIMARY_SOLID}
                 onClick={handleBuild}
-                disabled={isBuilding}
+                disabled={!hasAgents || isBuilding || isCompleted}
               />
             </div>
           </div>

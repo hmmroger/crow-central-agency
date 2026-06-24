@@ -7,9 +7,12 @@ import {
   RELATIONSHIP_TYPE,
   BASE_CIRCLE_ID,
   DEFAULT_AGENT_TYPE,
+  AGENT_BUILDER_DRAFT_STATUS,
+  SERVER_MESSAGE_TYPE,
   type GenerateRequest,
   type AgentBuilderDraft,
   type AgentBuilderBuildResult,
+  type AgentBuilderBuiltAgent,
   type AgentType,
   type AgentConfig,
   type FleetAgent,
@@ -21,6 +24,7 @@ import type { AgentRuntimeManager } from "../runtime/agent-runtime-manager.js";
 import type { AgentRegistry } from "../agent-registry.js";
 import type { AgentCircleManager } from "../agent-circle-manager.js";
 import type { CrowMcpManager } from "../../mcp/crow-mcp-manager.js";
+import type { WsBroadcaster } from "../ws-broadcaster.js";
 import type { WorldBuilderDraftStore } from "./world-builder-draft-store.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
@@ -37,7 +41,8 @@ export class WorldBuilderService {
     private readonly draftStore: WorldBuilderDraftStore,
     private readonly registry: AgentRegistry,
     private readonly circleManager: AgentCircleManager,
-    private readonly mcpManager: CrowMcpManager
+    private readonly mcpManager: CrowMcpManager,
+    private readonly broadcaster: WsBroadcaster
   ) {}
 
   /** Produce a persona or AGENT.md for the given request. */
@@ -79,10 +84,12 @@ export class WorldBuilderService {
     const draft: AgentBuilderDraft = {
       projectPath: existing?.projectPath,
       agentType: existing?.agentType,
+      status: AGENT_BUILDER_DRAFT_STATUS.READY,
+      existingAgents: this.resolveExistingAgents(fleet.existingAgents),
       agents: fleet.agents,
     };
     const saved = await this.draftStore.saveDraft(draft);
-    return this.toDraftView(saved);
+    return this.broadcastDraft(saved);
   }
 
   /**
@@ -96,55 +103,126 @@ export class WorldBuilderService {
     const saved = await this.draftStore.saveDraft({
       projectPath: normalized,
       agentType: config.agentType,
+      status: AGENT_BUILDER_DRAFT_STATUS.READY,
+      lastBuildResult: existing?.lastBuildResult,
+      existingAgents: existing?.existingAgents,
+      builtAgents: existing?.builtAgents,
       agents: existing?.agents ?? [],
     });
-    return this.toDraftView(saved);
+    return this.broadcastDraft(saved);
   }
 
-  /** Clear the active draft entirely. */
+  /** Clear the active draft entirely and notify clients the draft is gone. */
   public async resetDraft(): Promise<void> {
     await this.draftStore.clearDraft();
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_BUILDER_DRAFT_UPDATED, draft: null });
   }
 
-  /**
-   * Build the drafted fleet: author each agent's persona (and AGENT.md when briefed), create it, and
-   * place it in its circles. Best-effort and sequential — a failed agent does not abort the rest.
-   * Succeeded agents leave the draft; failed agents are kept so the build can be retried. The draft is
-   * cleared only when every agent succeeds.
-   */
-  public async build(): Promise<AgentBuilderBuildResult> {
+  /** Mark the draft BUILDING and run the build detached so the request does not block on it. */
+  public async startBuild(): Promise<void> {
     const draft = await this.draftStore.getDraft();
     if (!draft || draft.agents.length === 0) {
-      return { created: [], failed: [] };
+      throw new AppError("No drafted fleet to build", APP_ERROR_CODES.NOT_FOUND);
     }
 
-    const created: AgentBuilderBuildResult["created"] = [];
+    if (draft.status === AGENT_BUILDER_DRAFT_STATUS.BUILDING) {
+      throw new AppError("A fleet build is already in progress", APP_ERROR_CODES.CONFLICT);
+    }
+
+    const building = await this.draftStore.saveDraft({
+      projectPath: draft.projectPath,
+      agentType: draft.agentType,
+      status: AGENT_BUILDER_DRAFT_STATUS.BUILDING,
+      lastBuildResult: undefined,
+      existingAgents: draft.existingAgents,
+      builtAgents: draft.builtAgents,
+      agents: draft.agents,
+    });
+    this.broadcastDraft(building);
+
+    void this.runBuild(building);
+  }
+
+  /** Resume a build left in BUILDING by a crash/restart; already-built agents are skipped. */
+  public async recoverInterruptedBuild(): Promise<void> {
+    const draft = await this.draftStore.getDraft();
+    if (draft?.status !== AGENT_BUILDER_DRAFT_STATUS.BUILDING) {
+      return;
+    }
+
+    log.info({ built: draft.builtAgents?.length ?? 0, total: draft.agents.length }, "Resuming interrupted fleet build");
+    void this.runBuild(draft);
+  }
+
+  private async runBuild(draft: AgentBuilderDraft): Promise<void> {
+    const builtAgents: AgentBuilderBuiltAgent[] = [...(draft.builtAgents ?? [])];
+    const builtNames = new Set(builtAgents.map((builtAgent) => builtAgent.name));
     const failed: AgentBuilderBuildResult["failed"] = [];
-    const remaining: FleetAgent[] = [];
 
     for (const agent of draft.agents) {
+      if (builtNames.has(agent.name)) {
+        continue;
+      }
+
       try {
         const builtAgent = await this.buildAgent(agent, draft);
-        created.push({ id: builtAgent.id, name: builtAgent.name });
+        builtAgents.push({ id: builtAgent.id, name: builtAgent.name });
+        builtNames.add(builtAgent.name);
+        const progress = await this.draftStore.saveDraft({
+          projectPath: draft.projectPath,
+          agentType: draft.agentType,
+          status: AGENT_BUILDER_DRAFT_STATUS.BUILDING,
+          existingAgents: draft.existingAgents,
+          builtAgents,
+          agents: draft.agents,
+        });
+        this.broadcastDraft(progress);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         log.warn({ name: agent.name, error: message }, "Failed to build fleet agent");
         failed.push({ name: agent.name, error: message });
-        remaining.push(agent);
       }
     }
 
-    if (failed.length === 0) {
-      await this.draftStore.clearDraft();
-    } else {
-      await this.draftStore.saveDraft({
+    const allSucceeded = failed.length === 0;
+    try {
+      const saved = await this.draftStore.saveDraft({
         projectPath: draft.projectPath,
         agentType: draft.agentType,
-        agents: remaining,
+        status: allSucceeded ? AGENT_BUILDER_DRAFT_STATUS.COMPLETED : AGENT_BUILDER_DRAFT_STATUS.READY,
+        lastBuildResult: { created: builtAgents, failed },
+        existingAgents: draft.existingAgents,
+        builtAgents,
+        agents: draft.agents,
       });
+      this.broadcastDraft(saved);
+    } catch (error) {
+      // The draft stays BUILDING with builtAgents persisted; startup recovery resumes and retries.
+      log.error({ error }, "Failed to persist fleet build outcome");
+    }
+  }
+
+  private resolveExistingAgents(refs: AgentBuilderBuiltAgent[] | undefined): AgentBuilderBuiltAgent[] | undefined {
+    if (!refs?.length) {
+      return undefined;
     }
 
-    return { created, failed };
+    const resolved: AgentBuilderBuiltAgent[] = [];
+    for (const ref of refs) {
+      try {
+        resolved.push({ id: ref.id, name: this.registry.getAgentName(ref.id) });
+      } catch {
+        log.warn({ id: ref.id }, "World Builder referenced a non-existent agent; dropping it");
+      }
+    }
+
+    return resolved.length ? resolved : undefined;
+  }
+
+  private broadcastDraft(draft: AgentBuilderDraft): AgentBuilderDraftView {
+    const view = this.toDraftView(draft);
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_BUILDER_DRAFT_UPDATED, draft: view });
+    return view;
   }
 
   /**
@@ -166,7 +244,15 @@ export class WorldBuilderService {
       circles: (agent.circleIds ?? []).map((id) => ({ id, name: circleNameById.get(id) ?? id })),
     }));
 
-    return { projectPath: draft.projectPath, agentType: draft.agentType, agents };
+    return {
+      projectPath: draft.projectPath,
+      agentType: draft.agentType,
+      status: draft.status,
+      lastBuildResult: draft.lastBuildResult,
+      existingAgents: draft.existingAgents,
+      builtAgents: draft.builtAgents,
+      agents,
+    };
   }
 
   /**
