@@ -150,6 +150,8 @@ export {
   type RelationshipDeletedWsMessage,
   type AgentBuilderDraftUpdatedWsMessage,
   type ServerMessage,
+  type AgentServerMessage,
+  isAgentServerMessage,
   CLIENT_MESSAGE_TYPE,
   SERVER_MESSAGE_TYPE,
   type ClientMessageType,

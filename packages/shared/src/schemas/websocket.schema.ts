@@ -292,3 +292,10 @@ export type RelationshipCreatedWsMessage = z.infer<typeof RelationshipCreatedWsM
 export type RelationshipDeletedWsMessage = z.infer<typeof RelationshipDeletedWsMessageSchema>;
 export type AgentBuilderDraftUpdatedWsMessage = z.infer<typeof AgentBuilderDraftUpdatedWsMessageSchema>;
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
+
+/** The server messages scoped to a single agent — those carrying an `agentId`. */
+export type AgentServerMessage = Extract<ServerMessage, { agentId: string }>;
+
+export function isAgentServerMessage(message: ServerMessage): message is AgentServerMessage {
+  return "agentId" in message && typeof message.agentId === "string";
+}

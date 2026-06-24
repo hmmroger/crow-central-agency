@@ -1,5 +1,5 @@
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { AgentMessageWsMessageSchema, type AgentMessage } from "@crow-central-agency/shared";
+import { SERVER_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { agentKeys } from "../../services/query-keys.js";
 import { useWsSubscription } from "../use-ws-subscription.js";
@@ -25,19 +25,20 @@ export function useAgentMessagesQuery(agentId: string) {
     refetchOnMount: "always",
   });
 
-  useWsSubscription(agentId, (data) => {
-    const parsed = AgentMessageWsMessageSchema.safeParse(data);
-
-    if (parsed.success) {
-      queryClient.setQueryData<AgentMessage[]>(agentKeys.messages(agentId), (prev) => {
-        const existing = prev ?? [];
-        if (existing.some((msg) => msg.id === parsed.data.message.id)) {
-          return existing;
-        }
-
-        return [...existing, parsed.data.message];
-      });
+  useWsSubscription(agentId, (message) => {
+    if (message.type !== SERVER_MESSAGE_TYPE.AGENT_MESSAGE) {
+      return;
     }
+
+    const incoming = message.message;
+    queryClient.setQueryData<AgentMessage[]>(agentKeys.messages(agentId), (prev) => {
+      const existing = prev ?? [];
+      if (existing.some((msg) => msg.id === incoming.id)) {
+        return existing;
+      }
+
+      return [...existing, incoming];
+    });
   });
 
   return query;
