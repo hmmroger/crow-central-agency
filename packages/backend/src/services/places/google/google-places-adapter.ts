@@ -23,11 +23,6 @@ import type {
   GooglePlacesAdapterConfig,
 } from "./google-places-adapter.types.js";
 
-/** Places API (New) searchNearby caps the locationRestriction radius at 50 km. */
-const MAX_SEARCH_RADIUS_METERS = 50_000;
-const EARTH_RADIUS_METERS = 6_371_000;
-const LOCALITY_TYPE = "locality";
-
 /** A normalized address component bridging Places-New and Geocoding shapes. */
 interface NormalizedAddressComponent {
   types: readonly string[];
@@ -41,6 +36,11 @@ interface ResolvedAdminParts {
   state?: string;
   countryCode?: string;
 }
+
+/** Places API (New) searchNearby caps the locationRestriction radius at 50 km. */
+const MAX_SEARCH_RADIUS_METERS = 50_000;
+const EARTH_RADIUS_METERS = 6_371_000;
+const LOCALITY_TYPE = "locality";
 
 /**
  * Google-backed implementation of the `PlacesSourceAdapter`.
@@ -207,11 +207,9 @@ function normalizePlaceComponent(component: GoogleAddressComponent): NormalizedA
   return { types: component.types, long: component.longText, short: component.shortText };
 }
 
-function normalizeGeocodingComponent(component: {
-  long_name: string;
-  short_name: string;
-  types: string[];
-}): NormalizedAddressComponent {
+function normalizeGeocodingComponent(
+  component: GoogleGeocodingResult["address_components"][number]
+): NormalizedAddressComponent {
   return { types: component.types, long: component.long_name, short: component.short_name };
 }
 

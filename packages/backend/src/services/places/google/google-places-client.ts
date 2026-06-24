@@ -1,4 +1,4 @@
-import type z from "zod";
+import z from "zod";
 import { RequestError } from "../../../core/error/request-error.js";
 import type { LocationPoint } from "../places-manager.types.js";
 import {
@@ -25,6 +25,16 @@ const GEOCODE_BIAS_RADIUS_METERS = 50_000;
 /** Geocoding API status values that are non-errors (no match found). */
 const GEOCODING_EMPTY_STATUSES: ReadonlySet<string> = new Set(["ZERO_RESULTS"]);
 const GEOCODING_OK_STATUS = "OK";
+
+/** Places API (New) error envelope, surfaced in the thrown message for diagnosis. */
+const GooglePlacesErrorSchema = z.object({
+  error: z
+    .object({
+      message: z.string().optional(),
+      status: z.string().optional(),
+    })
+    .optional(),
+});
 
 /** Place fields requested for search + geocode results (Basic tier, lean). */
 const BASE_PLACE_FIELDS = [
@@ -163,8 +173,9 @@ export class GooglePlacesClient {
     }
 
     if (!response.ok) {
+      const apiMessage = await readPlacesErrorMessage(response);
       throw new RequestError(
-        `Google Places request failed: HTTP ${response.status}`,
+        `Google Places request failed: HTTP ${response.status}${apiMessage ? ` (${apiMessage})` : ""}`,
         response.status,
         undefined,
         GOOGLE_PLACES_SERVICE_NAME
@@ -231,4 +242,21 @@ function clampResultCount(limit: number | undefined): number {
 
 function toLatLng(point: LocationPoint): { latitude: number; longitude: number } {
   return { latitude: point.latitude, longitude: point.longitude };
+}
+
+/** Best-effort extraction of Google's `error.message`/`error.status` from a failed Places response. */
+async function readPlacesErrorMessage(response: Response): Promise<string | undefined> {
+  let json: unknown;
+  try {
+    json = await response.json();
+  } catch {
+    return undefined;
+  }
+
+  const parsed = GooglePlacesErrorSchema.safeParse(json);
+  if (!parsed.success) {
+    return undefined;
+  }
+
+  return parsed.data.error?.message ?? parsed.data.error?.status;
 }
