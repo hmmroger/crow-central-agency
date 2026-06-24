@@ -1,4 +1,4 @@
-import { Bot, LayoutDashboard, ListTodo, Network, Settings, type LucideIcon } from "lucide-react";
+import { Bot, Boxes, LayoutDashboard, ListTodo, Network, Settings, type LucideIcon } from "lucide-react";
 import { VIEW_MODE, type ViewMode } from "../../stores/app-store.js";
 
 export interface AppNavItem {
@@ -15,5 +15,6 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
   { mode: VIEW_MODE.AGENTS, icon: Bot, label: "Agents" },
   { mode: VIEW_MODE.TASKS, icon: ListTodo, label: "Tasks" },
   { mode: VIEW_MODE.GRAPH, icon: Network, label: "Circles Map" },
+  { mode: VIEW_MODE.AGENT_BUILDER, icon: Boxes, label: "Agent Builder", pinBottom: true },
   { mode: VIEW_MODE.SETTINGS, icon: Settings, label: "Settings", pinBottom: true },
 ];

@@ -1,13 +1,6 @@
 import { createContext, useContext, useEffect } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import {
-  TaskAddedWsMessageSchema,
-  TaskUpdatedWsMessageSchema,
-  TaskAssignedWsMessageSchema,
-  TaskStateChangedWsMessageSchema,
-  TaskDeletedWsMessageSchema,
-  type AgentTaskItem,
-} from "@crow-central-agency/shared";
+import { SERVER_MESSAGE_TYPE, type AgentTaskItem } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../services/api-client.js";
 import { taskKeys } from "../services/query-keys.js";
 import { useWs } from "../hooks/use-ws.js";
@@ -45,54 +38,36 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
 
   // Subscribe to WS events to keep cache in sync
   useEffect(() => {
-    const unregister = onMessage((raw) => {
-      // task_added — append to list
-      const addedResult = TaskAddedWsMessageSchema.safeParse(raw);
-      if (addedResult.success) {
+    const unregister = onMessage((message) => {
+      if (message.type === SERVER_MESSAGE_TYPE.TASK_ADDED) {
         queryClient.setQueryData<AgentTaskItem[]>(taskKeys.list(), (prev) => {
           if (!prev) {
-            return [addedResult.data.task];
+            return [message.task];
           }
 
-          return [...prev, addedResult.data.task];
+          return [...prev, message.task];
         });
 
         return;
       }
 
-      // task_updated — replace in list (content edit)
-      const updatedResult = TaskUpdatedWsMessageSchema.safeParse(raw);
-      if (updatedResult.success) {
-        replaceTaskInCache(queryClient, updatedResult.data.task);
+      if (
+        message.type === SERVER_MESSAGE_TYPE.TASK_UPDATED ||
+        message.type === SERVER_MESSAGE_TYPE.TASK_ASSIGNED ||
+        message.type === SERVER_MESSAGE_TYPE.TASK_STATE_CHANGED
+      ) {
+        replaceTaskInCache(queryClient, message.task);
 
         return;
       }
 
-      // task_assigned — replace in list
-      const assignedResult = TaskAssignedWsMessageSchema.safeParse(raw);
-      if (assignedResult.success) {
-        replaceTaskInCache(queryClient, assignedResult.data.task);
-
-        return;
-      }
-
-      // task_state_changed — replace in list
-      const stateResult = TaskStateChangedWsMessageSchema.safeParse(raw);
-      if (stateResult.success) {
-        replaceTaskInCache(queryClient, stateResult.data.task);
-
-        return;
-      }
-
-      // task_deleted — remove from list
-      const deletedResult = TaskDeletedWsMessageSchema.safeParse(raw);
-      if (deletedResult.success) {
+      if (message.type === SERVER_MESSAGE_TYPE.TASK_DELETED) {
         queryClient.setQueryData<AgentTaskItem[]>(taskKeys.list(), (prev) => {
           if (!prev) {
             return [];
           }
 
-          return prev.filter((task) => task.id !== deletedResult.data.taskId);
+          return prev.filter((task) => task.id !== message.taskId);
         });
       }
     });

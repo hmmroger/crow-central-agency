@@ -1,10 +1,7 @@
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   AGENT_STATUS,
-  AgentStatusWsMessageSchema,
-  AgentUsageWsMessageSchema,
-  PermissionRequestWsMessageSchema,
-  PermissionCancelledWsMessageSchema,
+  SERVER_MESSAGE_TYPE,
   type AgentRuntimeState,
   type SessionUsage,
   type PendingPermissionInfo,
@@ -50,41 +47,39 @@ export function useAgentStateQuery(agentId: string) {
     refetchOnMount: "always",
   });
 
-  useWsSubscription(agentId, (data) => {
-    const statusParsed = AgentStatusWsMessageSchema.safeParse(data);
-    if (statusParsed.success) {
+  useWsSubscription(agentId, (message) => {
+    if (message.type === SERVER_MESSAGE_TYPE.AGENT_STATUS) {
       queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => ({
         ...(prev ?? { ...DEFAULT_STATE, agentId }),
-        status: statusParsed.data.status,
-        messageSource: statusParsed.data.messageSource ?? undefined,
+        status: message.status,
+        messageSource: message.messageSource ?? undefined,
       }));
       void queryClient.invalidateQueries({ queryKey: agentKeys.messages(agentId) });
+
       return;
     }
 
-    const usageParsed = AgentUsageWsMessageSchema.safeParse(data);
-    if (usageParsed.success) {
+    if (message.type === SERVER_MESSAGE_TYPE.AGENT_USAGE) {
       queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => ({
         ...(prev ?? { ...DEFAULT_STATE, agentId }),
         sessionUsage: {
-          inputTokens: usageParsed.data.inputTokens,
-          outputTokens: usageParsed.data.outputTokens,
-          totalCostUsd: usageParsed.data.totalCostUsd,
-          contextUsed: usageParsed.data.contextUsed,
-          contextTotal: usageParsed.data.contextTotal,
+          inputTokens: message.inputTokens,
+          outputTokens: message.outputTokens,
+          totalCostUsd: message.totalCostUsd,
+          contextUsed: message.contextUsed,
+          contextTotal: message.contextTotal,
         },
       }));
 
       return;
     }
 
-    const permRequestParsed = PermissionRequestWsMessageSchema.safeParse(data);
-    if (permRequestParsed.success) {
+    if (message.type === SERVER_MESSAGE_TYPE.PERMISSION_REQUEST) {
       const permInfo: PendingPermissionInfo = {
-        toolUseId: permRequestParsed.data.toolUseId,
-        toolName: permRequestParsed.data.toolName,
-        input: permRequestParsed.data.input,
-        decisionReason: permRequestParsed.data.decisionReason,
+        toolUseId: message.toolUseId,
+        toolName: message.toolName,
+        input: message.input,
+        decisionReason: message.decisionReason,
       };
 
       queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
@@ -104,8 +99,8 @@ export function useAgentStateQuery(agentId: string) {
       return;
     }
 
-    const permCancelledParsed = PermissionCancelledWsMessageSchema.safeParse(data);
-    if (permCancelledParsed.success) {
+    if (message.type === SERVER_MESSAGE_TYPE.PERMISSION_CANCELLED) {
+      const { toolUseId } = message;
       queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
         if (!prev) {
           return { ...DEFAULT_STATE, agentId };
@@ -113,9 +108,7 @@ export function useAgentStateQuery(agentId: string) {
 
         return {
           ...prev,
-          pendingPermissions: prev.pendingPermissions?.filter(
-            (perm) => perm.toolUseId !== permCancelledParsed.data.toolUseId
-          ),
+          pendingPermissions: prev.pendingPermissions?.filter((perm) => perm.toolUseId !== toolUseId),
         };
       });
     }

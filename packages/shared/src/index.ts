@@ -28,6 +28,9 @@ export {
   DEFAULT_AVAILABLE_TOOLS_BY_TYPE,
   SUBAGENT_TOOL_NAME,
   AGENT_TYPE,
+  AgentTypeSchema,
+  DEFAULT_AGENT_TYPE,
+  AGENT_NAME_MAX_LENGTH,
 } from "./schemas/agent.schema.js";
 
 export type {
@@ -139,12 +142,16 @@ export {
   CircleDeletedWsMessageSchema,
   RelationshipCreatedWsMessageSchema,
   RelationshipDeletedWsMessageSchema,
+  AgentBuilderDraftUpdatedWsMessageSchema,
   type CircleCreatedWsMessage,
   type CircleUpdatedWsMessage,
   type CircleDeletedWsMessage,
   type RelationshipCreatedWsMessage,
   type RelationshipDeletedWsMessage,
+  type AgentBuilderDraftUpdatedWsMessage,
   type ServerMessage,
+  type AgentServerMessage,
+  isAgentServerMessage,
   CLIENT_MESSAGE_TYPE,
   SERVER_MESSAGE_TYPE,
   type ClientMessageType,
@@ -251,6 +258,38 @@ export {
   type GenerateRequest,
 } from "./schemas/generation.schema.js";
 
+export {
+  AGENT_BUILDER_LIMITS,
+  AGENT_BUILDER_WORD_BUDGET,
+  AGENT_BUILDER_DRAFT_STATUS,
+  AgentBuilderDraftStatusSchema,
+  AgentBuilderBuiltAgentSchema,
+  AgentBuilderBuildResultSchema,
+  FleetAgentSchema,
+  FleetResponseSchema,
+  AgentBuilderDraftSchema,
+  AgentBuilderDesignRequestSchema,
+  AgentBuilderPatchRequestSchema,
+  FleetNamedRefSchema,
+  FleetAgentViewSchema,
+  AgentBuilderDraftViewSchema,
+  AgentBuilderDraftResponseSchema,
+  AgentBuilderDraftMutationResponseSchema,
+  type FleetAgent,
+  type FleetResponse,
+  type AgentBuilderDraft,
+  type AgentBuilderDesignRequest,
+  type AgentBuilderPatchRequest,
+  type AgentBuilderBuildResult,
+  type AgentBuilderBuiltAgent,
+  type AgentBuilderDraftStatus,
+  type FleetNamedRef,
+  type FleetAgentView,
+  type AgentBuilderDraftView,
+  type AgentBuilderDraftResponse,
+  type AgentBuilderDraftMutationResponse,
+} from "./schemas/agent-builder.schema.js";
+
 export { applyAgentOrder } from "./utils/apply-agent-order.js";
 export { MODEL_ALIASES, resolveModel } from "./utils/resolve-model.js";
 
@@ -281,6 +320,7 @@ export {
   CROW_SYSTEM_AGENT_ID,
   CROW_TASK_DISPATCHER_AGENT_ID,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+  CROW_WORLD_BUILDER_AGENT_ID,
 } from "./constants/system-agent.js";
 
 export {

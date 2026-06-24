@@ -221,6 +221,9 @@ export type AgentType = (typeof AGENT_TYPE)[keyof typeof AGENT_TYPE];
 
 export const AgentTypeSchema = z.enum([AGENT_TYPE.CLAUDE_CODE, AGENT_TYPE.GITHUB_COPILOT]);
 
+/** Default agent type applied when none is specified. */
+export const DEFAULT_AGENT_TYPE = AGENT_TYPE.CLAUDE_CODE;
+
 /** Default builtin tool catalog per provider, used to seed new agents and the editor's tool picker. */
 export const DEFAULT_AVAILABLE_TOOLS_BY_TYPE: Record<AgentType, readonly string[]> = {
   [AGENT_TYPE.CLAUDE_CODE]: DEFAULT_CLAUDE_CODE_AVAILABLE_TOOLS,
@@ -228,6 +231,9 @@ export const DEFAULT_AVAILABLE_TOOLS_BY_TYPE: Record<AgentType, readonly string[
 };
 
 export const AgentIdSchema = z.uuid();
+
+/** Maximum length of an agent name, enforced on the create/update input path. */
+export const AGENT_NAME_MAX_LENGTH = 50;
 
 /** Maximum number of time entries allowed in a loop config */
 export const MAX_LOOP_TIMES = 6;
@@ -304,7 +310,7 @@ export type AgentVoiceConfig = z.infer<typeof AgentVoiceConfigSchema>;
  */
 export const AgentConfigSchema = z.object({
   id: AgentIdSchema,
-  type: AgentTypeSchema.default(AGENT_TYPE.CLAUDE_CODE),
+  type: AgentTypeSchema.default(DEFAULT_AGENT_TYPE),
   name: z.string().min(1).max(64),
   description: z.string().optional(),
   workspace: z.string().min(1).optional(),
@@ -341,8 +347,8 @@ export type AgentConfig = z.infer<typeof AgentConfigSchema>;
  * Input for creating a new agent - only required fields
  */
 export const CreateAgentInputSchema = z.object({
-  type: AgentTypeSchema.default(AGENT_TYPE.CLAUDE_CODE),
-  name: z.string().min(1).max(50),
+  type: AgentTypeSchema.default(DEFAULT_AGENT_TYPE),
+  name: z.string().min(1).max(AGENT_NAME_MAX_LENGTH),
   description: z.string().optional(),
   workspace: z.string().min(1).optional(),
   persona: z.string().optional(),
@@ -369,7 +375,7 @@ export type CreateAgentInput = z.infer<typeof CreateAgentInputSchema>;
  * Input for updating an existing agent - all fields optional
  */
 export const UpdateAgentInputSchema = z.object({
-  name: z.string().min(1).max(50).optional(),
+  name: z.string().min(1).max(AGENT_NAME_MAX_LENGTH).optional(),
   description: z.string().optional(),
   workspace: z.string().optional(),
   persona: z.string().optional(),

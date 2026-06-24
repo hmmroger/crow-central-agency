@@ -3,6 +3,7 @@ import {
   ENTITY_TYPE,
   MESSAGE_SOURCE_TYPE,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+  CROW_WORLD_BUILDER_AGENT_ID,
   type AgentConfig,
   type AgentStatus,
   type PendingInstructionReminder,
@@ -77,6 +78,7 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
         "{peerAgents}",
         `If a task does not fall explicitly within your own scope, check whether a peer agent is better suited and use the "${INVOKE_AGENT_TOOL_NAME}" tool from the crow-agents MCP server to delegate.`,
         "Do NOT attempt to perform tasks that fall under another agent's responsibility - invoke that agent instead.",
+        `When ${INVOKE_AGENT_TOOL_NAME} is used, must NOT respond until ALL invoked agents have returned results. Consolidate everything into one response.`,
         "",
       ],
       keys: ["peerAgents"],
@@ -151,6 +153,7 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
       content: [
         `The following agents are available for task delegation with the "${INVOKE_AGENT_TOOL_NAME}" tool from the crow-agents MCP server:`,
         "{peerAgents}",
+        `When ${INVOKE_AGENT_TOOL_NAME} is used, must NOT respond until ALL invoked agents have returned results. Consolidate everything into one response.`,
         "",
       ],
       keys: ["peerAgents"],
@@ -194,6 +197,20 @@ const NARRATIVE_ARCHITECT_SYSTEM_PROMPT: MessageTemplate = {
     { content: ["## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."] },
   ],
   keys: ["agentId", "agentName", "persona", "currentDate", "currentTime"],
+};
+
+const WORLD_BUILDER_SYSTEM_PROMPT: MessageTemplate = {
+  role: MessageRoles.system,
+  content: [
+    { content: ["# Your identity", "", "Your agent ID is: {agentId}", "Your name is: {agentName}", ""] },
+    { content: ["## Core persona", "", "{persona}", ""], keys: ["persona"] },
+    {
+      content: ["## Circles", "", "Circles currently in the system:", "{agentCircles}", ""],
+      keys: ["agentCircles"],
+    },
+    { content: ["## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."] },
+  ],
+  keys: ["agentId", "agentName", "persona", "agentCircles", "currentDate", "currentTime"],
 };
 
 const INSTRUCTION_REMINDER_INTRO =
@@ -444,12 +461,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
       (server) => server.name === GMAIL_MCP_SERVER_NAME
     )?.connectionProfiles;
     const hasFeedMcp = serverConfigs.find((server) => server.name === FEED_MCP_SERVER_NAME) ? "true" : undefined;
-    const systemPromptTemplate =
-      this.agentId === CROW_NARRATIVE_ARCHITECT_AGENT_ID
-        ? NARRATIVE_ARCHITECT_SYSTEM_PROMPT
-        : isCrowSystemAgent(this.agentId)
-          ? CROW_SYSTEM_PROMPT
-          : DEFAULT_SYSTEM_PROMPT;
+    const systemPromptTemplate = this.selectSystemPromptTemplate();
     const content = createMessageContentFromTemplate(
       systemPromptTemplate,
       getDefaultPromptContext(
@@ -469,6 +481,17 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     );
 
     return content;
+  }
+
+  private selectSystemPromptTemplate(): MessageTemplate {
+    switch (this.agentId) {
+      case CROW_NARRATIVE_ARCHITECT_AGENT_ID:
+        return NARRATIVE_ARCHITECT_SYSTEM_PROMPT;
+      case CROW_WORLD_BUILDER_AGENT_ID:
+        return WORLD_BUILDER_SYSTEM_PROMPT;
+      default:
+        return isCrowSystemAgent(this.agentId) ? CROW_SYSTEM_PROMPT : DEFAULT_SYSTEM_PROMPT;
+    }
   }
 
   private buildInstructionReminder(

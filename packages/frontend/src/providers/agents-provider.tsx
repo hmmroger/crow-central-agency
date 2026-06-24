@@ -1,11 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AgentCreatedWsMessageSchema,
-  AgentDeletedWsMessageSchema,
-  AgentUpdatedWsMessageSchema,
-  type AgentConfig,
-} from "@crow-central-agency/shared";
+import { SERVER_MESSAGE_TYPE, type AgentConfig } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../services/api-client.js";
 import { agentKeys } from "../services/query-keys.js";
 import { useWs } from "../hooks/use-ws.js";
@@ -46,10 +41,9 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
   // WS listener — apply create/update/delete directly to the cache.
   // TODO: consider doing away with mutation invalidate and centralize update here.
   useEffect(() => {
-    const unregister = onMessage((raw) => {
-      const updatedResult = AgentUpdatedWsMessageSchema.safeParse(raw);
-      if (updatedResult.success) {
-        const { agentId, config } = updatedResult.data;
+    const unregister = onMessage((message) => {
+      if (message.type === SERVER_MESSAGE_TYPE.AGENT_UPDATED) {
+        const { agentId, config } = message;
         queryClient.setQueryData<AgentConfig[]>(agentKeys.list(), (prev) => {
           if (!prev) {
             return [config];
@@ -68,9 +62,8 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const createdResult = AgentCreatedWsMessageSchema.safeParse(raw);
-      if (createdResult.success) {
-        const { config } = createdResult.data;
+      if (message.type === SERVER_MESSAGE_TYPE.AGENT_CREATED) {
+        const { config } = message;
         queryClient.setQueryData<AgentConfig[]>(agentKeys.list(), (prev) => {
           if (!prev) {
             return [config];
@@ -86,9 +79,8 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const deletedResult = AgentDeletedWsMessageSchema.safeParse(raw);
-      if (deletedResult.success) {
-        const { agentId } = deletedResult.data;
+      if (message.type === SERVER_MESSAGE_TYPE.AGENT_DELETED) {
+        const { agentId } = message;
         queryClient.setQueryData<AgentConfig[]>(agentKeys.list(), (prev) => {
           if (!prev) {
             return [];

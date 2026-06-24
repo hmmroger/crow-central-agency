@@ -1,7 +1,6 @@
 import { GENERATION_TYPE, type GenerateRequest } from "@crow-central-agency/shared";
-import { NARRATIVE_ARTIFACT_BEGIN, NARRATIVE_ARTIFACT_END } from "./world-builder.constants.js";
+import { WORLD_BUILDER_BEGIN, WORLD_BUILDER_END } from "./world-builder.constants.js";
 
-/** Directorial brief per (artifact, operation), selected by artifact type and whether a current draft exists. */
 const OPERATION_BRIEF = {
   [GENERATION_TYPE.PERSONA]: {
     author:
@@ -32,7 +31,6 @@ const HINT_LABEL = {
   currentAgentMd: "Current AGENT.md (reinforce this)",
 } as const;
 
-/** Append a labeled hint block to the instruction lines when the value is present and non-empty. */
 function appendHint(lines: string[], label: string, value: string | undefined): void {
   const trimmed = value?.trim();
   if (trimmed) {
@@ -40,11 +38,6 @@ function appendHint(lines: string[], label: string, value: string | undefined): 
   }
 }
 
-/**
- * Build the per-request instruction sent to the Narrative Architect. Carries the operation (author vs
- * refine/reinforce, derived from whether a current draft is present), the user's prompt, and the
- * structured hints, and restates the sentinel-wrapped output contract.
- */
 export function composeGenerationInstruction(request: GenerateRequest): string {
   const { type, prompt, name, description, currentPersona, currentAgentMd } = request;
   const currentDraft = type === GENERATION_TYPE.PERSONA ? currentPersona : currentAgentMd;
@@ -63,7 +56,7 @@ export function composeGenerationInstruction(request: GenerateRequest): string {
   lines.push(
     "",
     `Take cues from the hints above where present. Emit ONLY the finished artifact, wrapped exactly ` +
-      `between ${NARRATIVE_ARTIFACT_BEGIN} and ${NARRATIVE_ARTIFACT_END} on their own lines, with no other text.`
+      `between ${WORLD_BUILDER_BEGIN} and ${WORLD_BUILDER_END} on their own lines, with no other text.`
   );
 
   return lines.join("\n");

@@ -1,12 +1,5 @@
 import { useCallback, useState } from "react";
-import {
-  AGENT_STATUS,
-  AgentTextWsMessageSchema,
-  AgentMessageWsMessageSchema,
-  AgentResultWsMessageSchema,
-  AgentStatusWsMessageSchema,
-  AgentToolProgressWsMessageSchema,
-} from "@crow-central-agency/shared";
+import { AGENT_STATUS, SERVER_MESSAGE_TYPE } from "@crow-central-agency/shared";
 import { useWsSubscription } from "../use-ws-subscription.js";
 import type { QueryResult, ActiveToolUse } from "./use-agent-stream-state.types.js";
 
@@ -34,61 +27,58 @@ export function useAgentStreamState(agentId: string): AgentStreamState {
   const [activeToolUse, setActiveToolUse] = useState<ActiveToolUse | undefined>();
   const [lastResult, setLastResult] = useState<QueryResult | undefined>();
 
-  useWsSubscription(agentId, (data) => {
-    const textParsed = AgentTextWsMessageSchema.safeParse(data);
-    if (textParsed.success) {
-      setStreamingText((prev) => prev + textParsed.data.text);
+  useWsSubscription(agentId, (message) => {
+    if (message.type === SERVER_MESSAGE_TYPE.AGENT_TEXT) {
+      setStreamingText((prev) => prev + message.text);
+
       return;
     }
 
     // Committed message - clear streaming display buffer
-    const messageParsed = AgentMessageWsMessageSchema.safeParse(data);
-    if (messageParsed.success) {
+    if (message.type === SERVER_MESSAGE_TYPE.AGENT_MESSAGE) {
       setStreamingText("");
       setActiveToolUse(undefined);
+
       return;
     }
 
-    const toolProgressParsed = AgentToolProgressWsMessageSchema.safeParse(data);
-    if (toolProgressParsed.success) {
+    if (message.type === SERVER_MESSAGE_TYPE.AGENT_TOOL_PROGRESS) {
       setActiveToolUse((prev) =>
         prev
-          ? { ...prev, elapsedTimeSeconds: toolProgressParsed.data.elapsedTimeSeconds }
+          ? { ...prev, elapsedTimeSeconds: message.elapsedTimeSeconds }
           : {
-              toolName: toolProgressParsed.data.toolName,
+              toolName: message.toolName,
               description: "",
-              elapsedTimeSeconds: toolProgressParsed.data.elapsedTimeSeconds,
+              elapsedTimeSeconds: message.elapsedTimeSeconds,
             }
       );
+
       return;
     }
 
-    const resultParsed = AgentResultWsMessageSchema.safeParse(data);
-    if (resultParsed.success) {
+    if (message.type === SERVER_MESSAGE_TYPE.AGENT_RESULT) {
       setLastResult({
-        subtype: resultParsed.data.subtype,
-        costUsd: resultParsed.data.totalCostUsd,
-        durationMs: resultParsed.data.durationMs,
+        subtype: message.subtype,
+        costUsd: message.totalCostUsd,
+        durationMs: message.durationMs,
       });
       setStreamingText("");
       setActiveToolUse(undefined);
+
       return;
     }
 
-    const statusParsed = AgentStatusWsMessageSchema.safeParse(data);
-    if (statusParsed.success) {
+    if (message.type === SERVER_MESSAGE_TYPE.AGENT_STATUS) {
       // Clear stale result banner when a new query starts
-      if (statusParsed.data.status === AGENT_STATUS.STREAMING) {
+      if (message.status === AGENT_STATUS.STREAMING) {
         setLastResult(undefined);
       }
 
       // Clear streaming state when agent becomes idle or errors
-      if (statusParsed.data.status === AGENT_STATUS.IDLE) {
+      if (message.status === AGENT_STATUS.IDLE) {
         setStreamingText("");
         setActiveToolUse(undefined);
       }
-
-      return;
     }
   });
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { isAgentServerMessage, type AgentServerMessage } from "@crow-central-agency/shared";
 import { useWs } from "./use-ws.js";
 
 /**
@@ -9,10 +10,7 @@ import { useWs } from "./use-ws.js";
  * @param agentId - The agent to filter for (pass undefined to skip)
  * @param onMessage - Callback for incoming messages matching this agent
  */
-export function useWsSubscription(
-  agentId: string | undefined,
-  onMessage: (data: { type: string; agentId?: string; [key: string]: unknown }) => void
-): void {
+export function useWsSubscription(agentId: string | undefined, onMessage: (message: AgentServerMessage) => void): void {
   const { onMessage: registerHandler } = useWs();
 
   // Stabilize the callback reference so the effect only re-runs when agentId changes
@@ -24,11 +22,9 @@ export function useWsSubscription(
       return;
     }
 
-    const unregister = registerHandler((raw) => {
-      const message = raw as { type?: string; agentId?: string };
-
-      if (message.agentId === agentId) {
-        onMessageRef.current(message as { type: string; agentId: string; [key: string]: unknown });
+    const unregister = registerHandler((message) => {
+      if (isAgentServerMessage(message) && message.agentId === agentId) {
+        onMessageRef.current(message);
       }
     });
 

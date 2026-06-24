@@ -7,6 +7,7 @@ import { AgentCircleSchema, RelationshipSchema } from "./agent-circle.schema.js"
 import { AGENT_STATUS, AgentActivitySchema } from "./agent-runtime-state.schema.js";
 import { MessageSourceSchema } from "./message-source.schema.js";
 import { AgentCommandSchema } from "./agent-command.schema.js";
+import { AgentBuilderDraftViewSchema } from "./agent-builder.schema.js";
 
 /**
  * WebSocket message types - Client -> Server
@@ -47,6 +48,7 @@ export const SERVER_MESSAGE_TYPE = {
   CIRCLE_DELETED: "circle_deleted",
   RELATIONSHIP_CREATED: "relationship_created",
   RELATIONSHIP_DELETED: "relationship_deleted",
+  AGENT_BUILDER_DRAFT_UPDATED: "agent_builder_draft_updated",
 } as const;
 
 export type ServerMessageType = (typeof SERVER_MESSAGE_TYPE)[keyof typeof SERVER_MESSAGE_TYPE];
@@ -231,6 +233,12 @@ export const RelationshipDeletedWsMessageSchema = z.object({
   relationshipId: z.string(),
 });
 
+/** The single agent-builder draft changed; carries the resolved view, or null when it was cleared. */
+export const AgentBuilderDraftUpdatedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.AGENT_BUILDER_DRAFT_UPDATED),
+  draft: AgentBuilderDraftViewSchema.nullable(),
+});
+
 /** Server -> Client discriminated union for runtime parsing */
 export const ServerMessageSchema = z.discriminatedUnion("type", [
   AgentTextWsMessageSchema,
@@ -256,6 +264,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   CircleDeletedWsMessageSchema,
   RelationshipCreatedWsMessageSchema,
   RelationshipDeletedWsMessageSchema,
+  AgentBuilderDraftUpdatedWsMessageSchema,
 ]);
 
 export type AgentTextWsMessage = z.infer<typeof AgentTextWsMessageSchema>;
@@ -281,4 +290,12 @@ export type CircleUpdatedWsMessage = z.infer<typeof CircleUpdatedWsMessageSchema
 export type CircleDeletedWsMessage = z.infer<typeof CircleDeletedWsMessageSchema>;
 export type RelationshipCreatedWsMessage = z.infer<typeof RelationshipCreatedWsMessageSchema>;
 export type RelationshipDeletedWsMessage = z.infer<typeof RelationshipDeletedWsMessageSchema>;
+export type AgentBuilderDraftUpdatedWsMessage = z.infer<typeof AgentBuilderDraftUpdatedWsMessageSchema>;
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
+
+/** The server messages scoped to a single agent — those carrying an `agentId`. */
+export type AgentServerMessage = Extract<ServerMessage, { agentId: string }>;
+
+export function isAgentServerMessage(message: ServerMessage): message is AgentServerMessage {
+  return "agentId" in message && typeof message.agentId === "string";
+}

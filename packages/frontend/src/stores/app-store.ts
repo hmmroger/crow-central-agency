@@ -6,6 +6,7 @@ import { persist } from "zustand/middleware";
 export const VIEW_MODE = {
   DASHBOARD: "dashboard",
   AGENTS: "agents",
+  AGENT_BUILDER: "agent-builder",
   TASKS: "tasks",
   GRAPH: "graph",
   SETTINGS: "settings",

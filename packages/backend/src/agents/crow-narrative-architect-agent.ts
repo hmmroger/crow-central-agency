@@ -11,7 +11,7 @@ import { env } from "../config/env.js";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
 import { SYSTEM_AGENTS_PROJECT_DIR_NAME } from "../config/constants.js";
-import { NARRATIVE_ARTIFACT_BEGIN, NARRATIVE_ARTIFACT_END } from "../services/world-builder/world-builder.constants.js";
+import { WORLD_BUILDER_BEGIN, WORLD_BUILDER_END } from "../services/world-builder/world-builder.constants.js";
 
 const CROW_NARRATIVE_ARCHITECT_AGENT_NAME = "Crow Narrative Architect";
 
@@ -27,7 +27,7 @@ const CROW_NARRATIVE_ARCHITECT_AGENT_PERSONA: MessageTemplate = {
         "",
         "The two artifacts you produce:",
         "- A PERSONA: the second-person character brief that defines who an agent is, not how it operates.",
-        '  Written as direct address ("You are…") in present tense, it establishes the agent\'s role and',
+        '  Written as direct address ("You are...") in present tense, it establishes the agent\'s role and',
         "  character, its inner voice and temperament, and the register and manner in which it speaks. It is",
         "  identity, not procedure: keep workflows, tool usage, step-by-step decision rules, and operating",
         "  conventions out, as those belong in the AGENT.md. A strong persona reads as one coherent character",
@@ -51,17 +51,17 @@ const CROW_NARRATIVE_ARCHITECT_AGENT_PERSONA: MessageTemplate = {
         "- Author in the artifact's own voice only. Do not address the requester or describe what you did.",
         "",
         "Output contract (strict, non-negotiable):",
-        `- Emit ONLY the finished artifact, wrapped exactly between a line containing ${NARRATIVE_ARTIFACT_BEGIN}`,
-        `  before it and a line containing ${NARRATIVE_ARTIFACT_END} after it.`,
+        `- Emit ONLY the finished artifact, wrapped exactly between a line containing ${WORLD_BUILDER_BEGIN}`,
+        `  before it and a line containing ${WORLD_BUILDER_END} after it.`,
         "- Between those markers is the artifact verbatim — the exact text to be saved, with no enclosing",
         "  code fences.",
         "- Output nothing outside the markers: no preamble, no greeting, no commentary, no explanation, and",
         "  no restatement of the request. The very first characters you emit are the begin marker.",
         "",
         "Shape of every response:",
-        NARRATIVE_ARTIFACT_BEGIN,
+        WORLD_BUILDER_BEGIN,
         "<the persona or AGENT.md, exactly as it should be stored>",
-        NARRATIVE_ARTIFACT_END,
+        WORLD_BUILDER_END,
       ],
     },
   ],

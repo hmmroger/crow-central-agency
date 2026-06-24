@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AgentActivityWsMessageSchema, type AgentActivity } from "@crow-central-agency/shared";
+import { SERVER_MESSAGE_TYPE, type AgentActivity } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { agentKeys } from "../../services/query-keys.js";
 import { useWsSubscription } from "../use-ws-subscription.js";
@@ -22,13 +22,12 @@ export function useAgentActivitiesQuery(agentId: string) {
     refetchOnMount: "always",
   });
 
-  useWsSubscription(agentId, (data) => {
-    const activityParsed = AgentActivityWsMessageSchema.safeParse(data);
-    if (!activityParsed.success) {
+  useWsSubscription(agentId, (message) => {
+    if (message.type !== SERVER_MESSAGE_TYPE.AGENT_ACTIVITY) {
       return;
     }
 
-    const incoming = activityParsed.data.agentActivity;
+    const incoming = message.agentActivity;
     queryClient.setQueryData<AgentActivity[]>(agentKeys.activities(agentId), (prev) => {
       const existing = prev ?? [];
       if (existing.some((activity) => activity.id === incoming.id)) {

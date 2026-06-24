@@ -18,6 +18,7 @@ import { registerArtifactRoutes } from "./routes/artifact.routes.js";
 import { getArtifactsMcpServerDefinition } from "./mcp/artifacts/artifacts-mcp-server.js";
 import { getAgentsMcpServerDefinition } from "./mcp/agents/agents-mcp-server.js";
 import { getSuperAgentMcpServerDefinition } from "./mcp/agents/super-agent-mcp-server.js";
+import { getBuilderAgentMcpServerDefinition } from "./mcp/agents/builder-agent-mcp-server.js";
 import { getTasksMcpServerDefinition } from "./mcp/tasks/tasks-mcp-server.js";
 import { getSuperTasksMcpServerDefinition } from "./mcp/tasks/super-tasks-mcp-server.js";
 import { getRemindersMcpServerDefinition } from "./mcp/reminders/reminders-mcp-server.js";
@@ -27,7 +28,9 @@ import { SystemSettingsManager } from "./services/system-settings-manager.js";
 import { MessageQueueManager } from "./services/message-queue-manager.js";
 import { AgentTaskManager } from "./services/agent-task-manager.js";
 import { registerGenerationRoutes } from "./routes/generation.routes.js";
+import { registerAgentBuilderRoutes } from "./routes/agent-builder.routes.js";
 import { WorldBuilderService } from "./services/world-builder/world-builder-service.js";
+import { WorldBuilderDraftStore } from "./services/world-builder/world-builder-draft-store.js";
 import { registerTaskRoutes } from "./routes/task.routes.js";
 import { CrowMcpManager } from "./mcp/crow-mcp-manager.js";
 import { registerMcpRoutes } from "./routes/mcp.routes.js";
@@ -126,7 +129,15 @@ export async function bootstrap(options: BootstrapOptions) {
   );
   await runtimeManager.initialize();
 
-  const worldBuilderService = new WorldBuilderService(runtimeManager);
+  const worldBuilderDraftStore = new WorldBuilderDraftStore(storeProvider);
+  const worldBuilderService = new WorldBuilderService(
+    runtimeManager,
+    worldBuilderDraftStore,
+    registry,
+    circleManager,
+    mcpManager,
+    broadcaster
+  );
 
   const routineManager = new RoutineManager(registry, runtimeManager, taskManager, crowScheduler, feedManager);
   const interAgentRoutine = createInterAgentTaskRoutine(registry, runtimeManager, taskManager);
@@ -168,6 +179,7 @@ export async function bootstrap(options: BootstrapOptions) {
   mcpManager.registerMcpServer(getAudioMcpServerDefinition(registry, artifactManager));
   mcpManager.registerMcpServer(getSuperTasksMcpServerDefinition(taskManager, registry, circleManager, sensorManager));
   mcpManager.registerMcpServer(getSuperAgentMcpServerDefinition(registry, runtimeManager, sessionManager));
+  mcpManager.registerMcpServer(getBuilderAgentMcpServerDefinition(registry, mcpManager));
   mcpManager.registerMcpServer(getRemindersMcpServerDefinition(crowScheduler, sensorManager));
   mcpManager.registerMcpServer(getGmailMcpServerDefinition(connectorManager, sensorManager));
   mcpManager.registerMcpServer(getGoogleCalendarMcpServerDefinition(connectorManager, sensorManager));
@@ -199,6 +211,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerArtifactRoutes(server, artifactManager);
   await registerTaskRoutes(server, taskManager, registry);
   await registerGenerationRoutes(server, worldBuilderService);
+  await registerAgentBuilderRoutes(server, worldBuilderService);
   await registerMcpRoutes(server, mcpManager);
   await registerSensorRoutes(server, sensorManager);
   await registerCircleRoutes(server, circleManager, registry);
@@ -210,6 +223,8 @@ export async function bootstrap(options: BootstrapOptions) {
   // Start listening
   await server.listen({ host: env.HOST, port: env.PORT });
   logger.info({ host: env.HOST, port: env.PORT, static: options.serveStatic }, "Server started");
+
+  await worldBuilderService.recoverInterruptedBuild();
 
   // Graceful shutdown
   const shutdown = async () => {

@@ -86,6 +86,6 @@ async function createTask(
 
   return [
     `Task sent to agent "${targetAgentConfig.name}" (${targetAgentConfig.id}). The agent is working on it and you will be notified when the result is ready.`,
-    "If you need this result to answer, wait for it before responding - do not answer from your own knowledge in the meantime, and do not reply in fragments as each delegated result arrives. Once all outstanding results are in, consolidate them into a single final response.",
+    "Must NOT answer from your own knowledge in the meantime, and do not reply in fragments as each delegated result arrives. Once all outstanding results are in, consolidate them into a single final response.",
   ].join(" ");
 }

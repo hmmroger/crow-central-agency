@@ -1,4 +1,9 @@
+import type { ServerMessage } from "@crow-central-agency/shared";
 import { WS_STATE, type WsState, type WsMessageHandler } from "./ws-client.types.js";
+
+function isServerMessage(data: unknown): data is ServerMessage {
+  return typeof data === "object" && data !== null && "type" in data && typeof data.type === "string";
+}
 
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
@@ -39,7 +44,10 @@ export class WsClient {
 
     this.ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data as string);
+        const data: unknown = JSON.parse(event.data as string);
+        if (!isServerMessage(data)) {
+          return;
+        }
 
         for (const handler of this.messageHandlers) {
           handler(data);

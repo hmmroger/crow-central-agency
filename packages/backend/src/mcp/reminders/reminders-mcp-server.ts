@@ -5,7 +5,11 @@ import type { McpServerDefinition } from "../crow-mcp-manager.types.js";
 import { getAddReminderToolConfig } from "./add-reminder.js";
 import { getDeleteReminderToolConfig } from "./delete-reminder.js";
 import { getListRemindersToolConfig } from "./list-reminders.js";
-import { CROW_NARRATIVE_ARCHITECT_AGENT_ID, CROW_TASK_DISPATCHER_AGENT_ID } from "@crow-central-agency/shared";
+import {
+  CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+  CROW_TASK_DISPATCHER_AGENT_ID,
+  CROW_WORLD_BUILDER_AGENT_ID,
+} from "@crow-central-agency/shared";
 
 export const REMINDERS_MCP_SERVER_NAME = "crow-reminders";
 
@@ -19,7 +23,7 @@ export function getRemindersMcpServerDefinition(
 ): McpServerDefinition {
   return {
     name: REMINDERS_MCP_SERVER_NAME,
-    disallowedAgentIds: [CROW_TASK_DISPATCHER_AGENT_ID, CROW_NARRATIVE_ARCHITECT_AGENT_ID],
+    disallowedAgentIds: [CROW_TASK_DISPATCHER_AGENT_ID, CROW_NARRATIVE_ARCHITECT_AGENT_ID, CROW_WORLD_BUILDER_AGENT_ID],
     getTools: (agentId) => [
       defineMcpTool(getAddReminderToolConfig(agentId, scheduler, sensorManager)),
       defineMcpTool(getDeleteReminderToolConfig(agentId, scheduler)),
