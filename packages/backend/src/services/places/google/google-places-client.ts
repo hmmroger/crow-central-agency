@@ -40,7 +40,18 @@ const PRO_FIELDS = [
   "googleMapsUri",
   "businessStatus",
 ] as const;
-const ENTERPRISE_FIELDS = ["regularOpeningHours", "internationalPhoneNumber", "websiteUri"] as const;
+const ENTERPRISE_TRANSIT_FIELDS = [
+  "transitStation.agencies.displayName",
+  "transitStation.agencies.lines.displayName",
+  "transitStation.agencies.lines.shortDisplayName",
+  "transitStation.agencies.lines.vehicleType",
+] as const;
+const ENTERPRISE_FIELDS = [
+  "regularOpeningHours",
+  "internationalPhoneNumber",
+  "websiteUri",
+  ...ENTERPRISE_TRANSIT_FIELDS,
+] as const;
 
 /** Search + geocode requests: every <= Pro field, billed Pro (displayName is Pro). */
 const BASE_PLACE_FIELDS = [...ESSENTIALS_IDS_ONLY_FIELDS, ...PRO_FIELDS];

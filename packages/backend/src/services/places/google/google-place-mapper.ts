@@ -6,6 +6,7 @@ import {
   type LocationBoundingBox,
   type Place,
   type PlaceDetails,
+  type TransitLine,
   type WheelchairAccess,
 } from "../places-manager.types.js";
 import {
@@ -16,6 +17,7 @@ import {
 } from "./google-address-utils.js";
 import { categoryFromGoogleTypes } from "./google-place-type-mapping.js";
 import { parseGoogleOpeningHours } from "./google-opening-hours-parser.js";
+import { transitVehicleTypeFromGoogle } from "./google-transit-mapping.js";
 import type { GoogleGeocodingResult, GooglePlace } from "./google-places-adapter.types.js";
 
 /** Map a Places API (New) place into the lean domain `Place`; undefined when it has no location. */
@@ -87,6 +89,11 @@ export function googlePlaceToPlaceDetails(place: GooglePlace): PlaceDetails | un
     details.wheelchairAccess = wheelchairAccess;
   }
 
+  const lines = readTransitStation(place.transitStation);
+  if (lines.length > 0) {
+    details.transit = { lines };
+  }
+
   return details;
 }
 
@@ -116,6 +123,38 @@ export function geocodingResultToPlace(result: GoogleGeocodingResult): Place {
   }
 
   return place;
+}
+
+/** Flatten Google's agencies[].lines[] into neutral TransitLine[], dropping lines with no name. */
+function readTransitStation(station: GooglePlace["transitStation"]): TransitLine[] {
+  const lines: TransitLine[] = [];
+  for (const agency of station?.agencies ?? []) {
+    const operator = agency.displayName?.text;
+    for (const line of agency.lines ?? []) {
+      const name = line.displayName?.text;
+      if (!name) {
+        continue;
+      }
+
+      const transitLine: TransitLine = {
+        name,
+        vehicleType: transitVehicleTypeFromGoogle(line.vehicleType),
+      };
+
+      const shortName = line.shortDisplayName?.text;
+      if (shortName) {
+        transitLine.shortName = shortName;
+      }
+
+      if (operator) {
+        transitLine.operator = operator;
+      }
+
+      lines.push(transitLine);
+    }
+  }
+
+  return lines;
 }
 
 function readWheelchairAccess(place: GooglePlace): WheelchairAccess | undefined {
