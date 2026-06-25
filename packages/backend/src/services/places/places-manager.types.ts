@@ -59,6 +59,19 @@ export type LocationArea =
   | { type: "boundingBox"; boundingBox: LocationBoundingBox };
 
 /**
+ * Operational state of a place when the provider reports it. Mirrors Google's
+ * `businessStatus`; providers without the concept (e.g. OSM) leave it unset.
+ */
+export const BUSINESS_STATUS = {
+  OPERATIONAL: "OPERATIONAL",
+  CLOSED_TEMPORARILY: "CLOSED_TEMPORARILY",
+  CLOSED_PERMANENTLY: "CLOSED_PERMANENTLY",
+  FUTURE_OPENING: "FUTURE_OPENING",
+} as const;
+
+export type BusinessStatus = (typeof BUSINESS_STATUS)[keyof typeof BUSINESS_STATUS];
+
+/**
  * A resolved place. `id` is prefixed with its source so the manager can dispatch
  * id-based lookups across providers: `${source}:${nativeId}` (e.g. `OSM:node/12345`).
  */
@@ -76,6 +89,10 @@ export interface Place {
   state?: string;
   /** ISO 3166-1 alpha-2 when available (e.g. "FR"). Adapter best-effort. */
   country?: string;
+  /** Provider map page for the place, when available (e.g. Google Maps URL). */
+  mapsUrl?: string;
+  /** Operational state when the provider reports it. */
+  businessStatus?: BusinessStatus;
 }
 
 export const WEEKDAY = {

@@ -3,10 +3,6 @@ import type { LocationPoint } from "../places-manager.types.js";
 
 export interface GooglePlacesAdapterConfig {
   apiKey: string;
-  /** Places API (New) base, e.g. https://places.googleapis.com/v1 */
-  placesBaseUrl: string;
-  /** Geocoding API endpoint, e.g. https://maps.googleapis.com/maps/api/geocode/json */
-  geocodingUrl: string;
 }
 
 const GoogleLatLngSchema = z.object({
@@ -67,10 +63,11 @@ export const GooglePlaceSchema = z.object({
   primaryType: z.string().optional(),
   types: z.array(z.string()).optional(),
   viewport: GoogleViewportSchema.optional(),
+  googleMapsUri: z.string().optional(),
+  businessStatus: z.string().optional(),
   regularOpeningHours: GoogleRegularOpeningHoursSchema.optional(),
   internationalPhoneNumber: z.string().optional(),
   websiteUri: z.string().optional(),
-  editorialSummary: GoogleLocalizedTextSchema.optional(),
   accessibilityOptions: GoogleAccessibilityOptionsSchema.optional(),
 });
 
@@ -82,47 +79,26 @@ export const GooglePlacesSearchResponseSchema = z.object({
   places: z.array(GooglePlaceSchema).optional(),
 });
 
-const GoogleGeocodingLatLngSchema = z.object({
-  lat: z.number(),
-  lng: z.number(),
-});
-
-const GoogleGeocodingAddressComponentSchema = z.object({
-  long_name: z.string(),
-  short_name: z.string(),
-  types: z.array(z.string()),
-});
-
-const GoogleGeocodingGeometrySchema = z.object({
-  location: GoogleGeocodingLatLngSchema,
-  bounds: z
-    .object({
-      northeast: GoogleGeocodingLatLngSchema,
-      southwest: GoogleGeocodingLatLngSchema,
-    })
-    .optional(),
-  viewport: z
-    .object({
-      northeast: GoogleGeocodingLatLngSchema,
-      southwest: GoogleGeocodingLatLngSchema,
-    })
-    .optional(),
-});
-
+/**
+ * Geocoding API (v4) result. v4 shares the Places API (New) lat/lng, viewport
+ * (low/high), and address-component (longText/shortText) shapes, so the same
+ * schemas are reused here instead of the snake_case v3 equivalents.
+ */
 export const GoogleGeocodingResultSchema = z.object({
-  place_id: z.string(),
-  formatted_address: z.string().optional(),
-  address_components: z.array(GoogleGeocodingAddressComponentSchema),
-  geometry: GoogleGeocodingGeometrySchema,
+  placeId: z.string(),
+  formattedAddress: z.string().optional(),
+  addressComponents: z.array(GoogleAddressComponentSchema).optional(),
+  location: GoogleLatLngSchema,
+  viewport: GoogleViewportSchema.optional(),
+  bounds: GoogleViewportSchema.optional(),
   types: z.array(z.string()),
 });
 
 export type GoogleGeocodingResult = z.infer<typeof GoogleGeocodingResultSchema>;
 
+/** Geocoding API (v4) reverse-geocode response: results only; errors surface via HTTP status. */
 export const GoogleGeocodingResponseSchema = z.object({
-  status: z.string(),
-  results: z.array(GoogleGeocodingResultSchema),
-  error_message: z.string().optional(),
+  results: z.array(GoogleGeocodingResultSchema).optional(),
 });
 
 export interface GoogleSearchTextRequest {

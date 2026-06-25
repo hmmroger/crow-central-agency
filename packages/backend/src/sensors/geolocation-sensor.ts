@@ -2,7 +2,7 @@ import type { ClientLocation } from "../server/request-context.types.js";
 import type { Sensor, SensorContext } from "./sensor-manager.types.js";
 import { logger } from "../utils/logger.js";
 import type { PlacesManager } from "../services/places/places-manager.js";
-import { REVERSE_GEOCODE_PRIORITY } from "../services/places/places-manager.types.js";
+import { PLACES_SOURCE, REVERSE_GEOCODE_PRIORITY } from "../services/places/places-manager.types.js";
 
 export const GEOLOCATION_SENSOR_ID = "geolocation";
 
@@ -73,10 +73,13 @@ export class GeoLocationSensor implements Sensor {
   }
 
   private async lookupLocationData(clientLocation: ClientLocation): Promise<LocationData> {
-    const place = await this.placesManager.reverseGeocode({
-      point: { latitude: clientLocation.latitude, longitude: clientLocation.longitude },
-      priority: REVERSE_GEOCODE_PRIORITY.CITY,
-    });
+    const place = await this.placesManager.reverseGeocode(
+      {
+        point: { latitude: clientLocation.latitude, longitude: clientLocation.longitude },
+        priority: REVERSE_GEOCODE_PRIORITY.CITY,
+      },
+      PLACES_SOURCE.OSM
+    );
 
     if (!place?.address) {
       throw new Error(`Unable to determine address`);

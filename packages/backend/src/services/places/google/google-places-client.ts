@@ -1,4 +1,4 @@
-import z from "zod";
+import type z from "zod";
 import { RequestError } from "../../../core/error/request-error.js";
 import type { LocationPoint } from "../places-manager.types.js";
 import {
@@ -11,51 +11,41 @@ import {
   type GoogleSearchNearbyRequest,
   type GoogleSearchTextRequest,
 } from "./google-places-adapter.types.js";
+import { clampResultCount, readGoogleErrorMessage, toLatLng } from "./google-request-utils.js";
 
 const GOOGLE_PLACES_SERVICE_NAME = "GooglePlacesAPI";
 const GOOGLE_GEOCODING_SERVICE_NAME = "GoogleGeocodingAPI";
 const GOOGLE_REQUEST_TIMEOUT_MS = 5_000;
 const GOOGLE_USER_AGENT = "CrowCentralAgency/1.0";
 
-/** Places API (New) caps maxResultCount at 20 for both searchText and searchNearby. */
-const MAX_RESULT_COUNT = 20;
+const GOOGLE_PLACES_BASE_URL = "https://places.googleapis.com/v1";
+const GOOGLE_GEOCODING_BASE_URL = "https://geocode.googleapis.com/v4/geocode";
+
 /** Soft locationBias circle radius (meters) applied to free-text geocode. */
 const GEOCODE_BIAS_RADIUS_METERS = 50_000;
 
-/** Geocoding API status values that are non-errors (no match found). */
-const GEOCODING_EMPTY_STATUSES: ReadonlySet<string> = new Set(["ZERO_RESULTS"]);
-const GEOCODING_OK_STATUS = "OK";
-
-/** Places API (New) error envelope, surfaced in the thrown message for diagnosis. */
-const GooglePlacesErrorSchema = z.object({
-  error: z
-    .object({
-      message: z.string().optional(),
-      status: z.string().optional(),
-    })
-    .optional(),
-});
-
-/** Place fields requested for search + geocode results (Basic tier, lean). */
-const BASE_PLACE_FIELDS = [
-  "id",
-  "displayName",
+/**
+ * Place fields grouped by Google SKU tier.
+ */
+const ESSENTIALS_IDS_ONLY_FIELDS = ["id"] as const;
+const PRO_FIELDS = [
   "location",
-  "formattedAddress",
   "addressComponents",
-  "primaryType",
   "types",
   "viewport",
-] as const;
-
-/** Additional fields requested only for details lookups. */
-const DETAIL_PLACE_FIELDS = [
-  "regularOpeningHours",
-  "internationalPhoneNumber",
-  "websiteUri",
-  "editorialSummary",
+  "displayName",
+  "formattedAddress",
+  "primaryType",
   "accessibilityOptions",
+  "googleMapsUri",
+  "businessStatus",
 ] as const;
+const ENTERPRISE_FIELDS = ["regularOpeningHours", "internationalPhoneNumber", "websiteUri"] as const;
+
+/** Search + geocode requests: every <= Pro field, billed Pro (displayName is Pro). */
+const BASE_PLACE_FIELDS = [...ESSENTIALS_IDS_ONLY_FIELDS, ...PRO_FIELDS];
+/** Place Details requests: base plus Enterprise contact/hours fields, billed Enterprise. */
+const DETAILS_PLACE_FIELDS = [...BASE_PLACE_FIELDS, ...ENTERPRISE_FIELDS];
 
 /**
  * Search/geocode responses wrap results in `places[]`, so the field mask must
@@ -63,24 +53,17 @@ const DETAIL_PLACE_FIELDS = [
  * bare Place resource and uses the field names directly.
  */
 const SEARCH_FIELD_MASK = BASE_PLACE_FIELDS.map((field) => `places.${field}`).join(",");
-const DETAILS_FIELD_MASK = [...BASE_PLACE_FIELDS, ...DETAIL_PLACE_FIELDS].join(",");
+const DETAILS_FIELD_MASK = DETAILS_PLACE_FIELDS.join(",");
 
 /**
  * Single HTTP client for both Google APIs the adapter needs: Places API (New)
- * for search/details and the Geocoding API for reverse geocoding. They share
- * one provider, key, and billing account but differ in host, auth, and response
- * shape, so the divergence is contained in two private request helpers.
- * Docs: https://developers.google.com/maps/documentation/places/web-service
+ * for search/details and the Geocoding API for reverse geocoding.
  */
 export class GooglePlacesClient {
   private readonly apiKey: string;
-  private readonly placesBaseUrl: string;
-  private readonly geocodingUrl: string;
 
   constructor(config: GooglePlacesAdapterConfig) {
     this.apiKey = config.apiKey;
-    this.placesBaseUrl = config.placesBaseUrl;
-    this.geocodingUrl = config.geocodingUrl;
   }
 
   public async searchText(request: GoogleSearchTextRequest): Promise<GooglePlace[]> {
@@ -131,11 +114,7 @@ export class GooglePlacesClient {
   }
 
   public async reverseGeocode(point: LocationPoint): Promise<GoogleGeocodingResult[]> {
-    const params = new URLSearchParams({
-      latlng: `${point.latitude},${point.longitude}`,
-      key: this.apiKey,
-    });
-    return this.geocodingRequest(params);
+    return this.geocodingRequest(point);
   }
 
   private async placesRequest<TSchema extends z.ZodTypeAny>(
@@ -144,7 +123,7 @@ export class GooglePlacesClient {
     schema: TSchema,
     body?: unknown
   ): Promise<z.infer<TSchema>> {
-    const url = `${this.placesBaseUrl}${path}`;
+    const url = `${GOOGLE_PLACES_BASE_URL}${path}`;
     const headers: Record<string, string> = {
       "User-Agent": GOOGLE_USER_AGENT,
       "X-Goog-Api-Key": this.apiKey,
@@ -173,7 +152,7 @@ export class GooglePlacesClient {
     }
 
     if (!response.ok) {
-      const apiMessage = await readPlacesErrorMessage(response);
+      const apiMessage = await readGoogleErrorMessage(response);
       throw new RequestError(
         `Google Places request failed: HTTP ${response.status}${apiMessage ? ` (${apiMessage})` : ""}`,
         response.status,
@@ -186,12 +165,15 @@ export class GooglePlacesClient {
     return schema.parse(json);
   }
 
-  private async geocodingRequest(params: URLSearchParams): Promise<GoogleGeocodingResult[]> {
-    const url = `${this.geocodingUrl}?${params.toString()}`;
+  private async geocodingRequest(point: LocationPoint): Promise<GoogleGeocodingResult[]> {
+    const url = `${GOOGLE_GEOCODING_BASE_URL}/location/${point.latitude},${point.longitude}`;
     let response: Response;
     try {
       response = await fetch(url, {
-        headers: { "User-Agent": GOOGLE_USER_AGENT },
+        headers: {
+          "User-Agent": GOOGLE_USER_AGENT,
+          "X-Goog-Api-Key": this.apiKey,
+        },
         signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
@@ -205,8 +187,9 @@ export class GooglePlacesClient {
     }
 
     if (!response.ok) {
+      const apiMessage = await readGoogleErrorMessage(response);
       throw new RequestError(
-        `Google Geocoding request failed: HTTP ${response.status}`,
+        `Google Geocoding request failed: HTTP ${response.status}${apiMessage ? ` (${apiMessage})` : ""}`,
         response.status,
         undefined,
         GOOGLE_GEOCODING_SERVICE_NAME
@@ -214,49 +197,6 @@ export class GooglePlacesClient {
     }
 
     const json = await response.json();
-    const parsed = GoogleGeocodingResponseSchema.parse(json);
-    if (GEOCODING_EMPTY_STATUSES.has(parsed.status)) {
-      return [];
-    }
-
-    if (parsed.status !== GEOCODING_OK_STATUS) {
-      throw new RequestError(
-        `Google Geocoding request failed: ${parsed.status}${parsed.error_message ? ` (${parsed.error_message})` : ""}`,
-        response.status,
-        parsed.status,
-        GOOGLE_GEOCODING_SERVICE_NAME
-      );
-    }
-
-    return parsed.results;
+    return GoogleGeocodingResponseSchema.parse(json).results ?? [];
   }
-}
-
-function clampResultCount(limit: number | undefined): number {
-  if (limit === undefined) {
-    return MAX_RESULT_COUNT;
-  }
-
-  return Math.min(Math.max(Math.trunc(limit), 1), MAX_RESULT_COUNT);
-}
-
-function toLatLng(point: LocationPoint): { latitude: number; longitude: number } {
-  return { latitude: point.latitude, longitude: point.longitude };
-}
-
-/** Best-effort extraction of Google's `error.message`/`error.status` from a failed Places response. */
-async function readPlacesErrorMessage(response: Response): Promise<string | undefined> {
-  let json: unknown;
-  try {
-    json = await response.json();
-  } catch {
-    return undefined;
-  }
-
-  const parsed = GooglePlacesErrorSchema.safeParse(json);
-  if (!parsed.success) {
-    return undefined;
-  }
-
-  return parsed.data.error?.message ?? parsed.data.error?.status;
 }

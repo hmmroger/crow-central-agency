@@ -1,4 +1,5 @@
 import {
+  BUSINESS_STATUS,
   WEEKDAY,
   type DayOpeningHours,
   type OpeningHours,
@@ -29,6 +30,14 @@ export function formatPlaceSummary(place: Place): string {
 
   if (place.address !== undefined && place.address.length > 0) {
     lines.push(`    - Address: ${place.address}`);
+  }
+
+  if (place.businessStatus !== undefined && place.businessStatus !== BUSINESS_STATUS.OPERATIONAL) {
+    lines.push(`    - Business status: ${place.businessStatus}`);
+  }
+
+  if (place.mapsUrl !== undefined && place.mapsUrl.length > 0) {
+    lines.push(`    - Map: ${place.mapsUrl}`);
   }
 
   return lines.join("\n");

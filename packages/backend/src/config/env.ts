@@ -2,6 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expandPath } from "../utils/fs-utils.js";
+import { PLACES_SOURCE, type PlacesSource } from "../services/places/places-manager.types.js";
 
 const CONFIG_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.resolve(CONFIG_DIR, "..");
@@ -18,6 +19,10 @@ function getOptionalNumber(key: string, defaultValue?: number): number | undefin
 function getBoolean(key: string): boolean {
   const value = process.env[key]?.trim().toLowerCase();
   return value === "true" || value === "1";
+}
+
+function resolvePlacesSource(key: string): PlacesSource {
+  return process.env[key]?.trim().toUpperCase() === PLACES_SOURCE.GOOGLE ? PLACES_SOURCE.GOOGLE : PLACES_SOURCE.OSM;
 }
 
 function readRequired(key: string): string {
@@ -85,10 +90,8 @@ export const env = {
   GMAIL_CHECK_INTERVAL_IN_MINUTES: getOptionalNumber("GMAIL_CHECK_INTERVAL_IN_MINUTES"),
   PHOTON_API_URL: getOptional("PHOTON_API_URL") ?? "https://photon.komoot.io",
   OVERPASS_INTERPRETER_URL: getOptional("OVERPASS_INTERPRETER_URL") ?? "https://overpass-api.de/api/interpreter",
+  PLACES_DEFAULT_SOURCE: resolvePlacesSource("PLACES_DEFAULT_SOURCE"),
   GOOGLE_PLACES_API_KEY: getOptional("GOOGLE_PLACES_API_KEY"),
-  GOOGLE_PLACES_API_BASE_URL: getOptional("GOOGLE_PLACES_API_BASE_URL") ?? "https://places.googleapis.com/v1",
-  GOOGLE_GEOCODING_API_URL:
-    getOptional("GOOGLE_GEOCODING_API_URL") ?? "https://maps.googleapis.com/maps/api/geocode/json",
 };
 
 /**

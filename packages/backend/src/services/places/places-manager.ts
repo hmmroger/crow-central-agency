@@ -1,6 +1,7 @@
 import { env } from "../../config/env.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
+import { logger } from "../../utils/logger.js";
 import { GooglePlacesAdapter } from "./google/google-places-adapter.js";
 import { OsmPlacesAdapter } from "./osm/osm-places-adapter.js";
 import { parsePlaceId } from "./places-manager-utils.js";
@@ -13,6 +14,8 @@ import type {
   ReverseGeocodeQuery,
   SearchPlacesQuery,
 } from "./places-manager.types.js";
+
+const log = logger.child({ context: "places-manager" });
 
 /**
  * Provider-neutral entrypoint for place lookups. Holds one adapter per
@@ -29,16 +32,17 @@ export class PlacesManager {
       overpassUrl: env.OVERPASS_INTERPRETER_URL,
     });
     this.adapters.set(osmAdapter.source, osmAdapter);
-    this.defaultSource = osmAdapter.source;
 
     if (env.GOOGLE_PLACES_API_KEY) {
-      const googleAdapter = new GooglePlacesAdapter({
-        apiKey: env.GOOGLE_PLACES_API_KEY,
-        placesBaseUrl: env.GOOGLE_PLACES_API_BASE_URL,
-        geocodingUrl: env.GOOGLE_GEOCODING_API_URL,
-      });
+      const googleAdapter = new GooglePlacesAdapter({ apiKey: env.GOOGLE_PLACES_API_KEY });
       this.adapters.set(googleAdapter.source, googleAdapter);
     }
+
+    this.defaultSource = this.resolveDefaultSource(osmAdapter.source);
+  }
+
+  public getDefaultSource(): PlacesSource {
+    return this.defaultSource;
   }
 
   public listSources(): PlacesSource[] {
@@ -74,5 +78,15 @@ export class PlacesManager {
     }
 
     return adapter;
+  }
+
+  private resolveDefaultSource(fallback: PlacesSource): PlacesSource {
+    const configured = env.PLACES_DEFAULT_SOURCE;
+    if (this.adapters.has(configured)) {
+      return configured;
+    }
+
+    log.warn({ configured, fallback }, "Configured default places source is not available; falling back");
+    return fallback;
   }
 }

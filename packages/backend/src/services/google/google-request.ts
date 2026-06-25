@@ -1,4 +1,4 @@
-import type { GoogleErrorResponseBody } from "./google-request.types.js";
+import { GoogleErrorResponseBodySchema, type GoogleErrorResponseBody } from "./google-request.types.js";
 
 export function buildGoogleUrl(baseUrl: string, query: Record<string, string | string[] | undefined> | undefined): URL {
   const url = new URL(baseUrl);
@@ -24,9 +24,13 @@ export function buildGoogleUrl(baseUrl: string, query: Record<string, string | s
 }
 
 export async function safeReadGoogleError(response: Response): Promise<GoogleErrorResponseBody | undefined> {
+  let json: unknown;
   try {
-    return (await response.json()) as GoogleErrorResponseBody;
+    json = await response.json();
   } catch {
     return undefined;
   }
+
+  const parsed = GoogleErrorResponseBodySchema.safeParse(json);
+  return parsed.success ? parsed.data : undefined;
 }
