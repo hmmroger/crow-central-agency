@@ -44,13 +44,7 @@ export function getGeocodePlaceToolConfig(placesManager: PlacesManager) {
   const resultGuidance = selectForSource(RESULT_GUIDANCE_BY_SOURCE, defaultSource, NEUTRAL_RESULT_GUIDANCE);
 
   const inputSchema = {
-    query: z
-      .string()
-      .min(1)
-      .describe(
-        "Natural-language query: a place name, a full address, a landmark, or a descriptive / POI search " +
-          "(e.g. 'rooftop bars in Shibuya')."
-      ),
+    query: z.string().min(1).describe("A place name, a full address, or a landmark (e.g. 'Eiffel Tower')."),
     city: z.string().min(1).optional().describe("City, town, or locality to disambiguate the query."),
     country: z
       .string()
