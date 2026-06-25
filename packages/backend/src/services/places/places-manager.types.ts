@@ -134,6 +134,34 @@ export interface OpeningHours {
   description?: string;
 }
 
+/**
+ * Curated provider-neutral transit vehicle types. Google reports a finer-grained
+ * set (e.g. METRO_RAIL, HEAVY_RAIL, COMMUTER_TRAIN); the adapter collapses those
+ * into these buckets, with `OTHER` as the fallback for anything unrecognized.
+ */
+export const TRANSIT_VEHICLE_TYPE = {
+  BUS: "BUS",
+  SUBWAY: "SUBWAY",
+  TRAM: "TRAM",
+  RAIL: "RAIL",
+  FERRY: "FERRY",
+  CABLE: "CABLE",
+  OTHER: "OTHER",
+} as const;
+
+export type TransitVehicleType = (typeof TRANSIT_VEHICLE_TYPE)[keyof typeof TRANSIT_VEHICLE_TYPE];
+
+export interface TransitLine {
+  name: string;
+  shortName?: string;
+  vehicleType: TransitVehicleType;
+  operator?: string;
+}
+
+export interface TransitStationInfo {
+  lines: TransitLine[];
+}
+
 export const WHEELCHAIR_ACCESS = {
   YES: "YES",
   NO: "NO",
@@ -157,6 +185,8 @@ export interface PlaceDetails extends Place {
   description?: string;
   cuisines?: string[];
   brand?: string;
+  /** Transit lines serving this station; Google-only today. */
+  transit?: TransitStationInfo;
 }
 
 export interface GeocodeQuery {

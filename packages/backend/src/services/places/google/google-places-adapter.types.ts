@@ -54,6 +54,21 @@ const GoogleAccessibilityOptionsSchema = z.object({
   wheelchairAccessibleSeating: z.boolean().optional(),
 });
 
+const GoogleTransitLineSchema = z.object({
+  displayName: GoogleLocalizedTextSchema.optional(),
+  shortDisplayName: GoogleLocalizedTextSchema.optional(),
+  vehicleType: z.string().optional(),
+});
+
+const GoogleTransitAgencySchema = z.object({
+  displayName: GoogleLocalizedTextSchema.optional(),
+  lines: z.array(GoogleTransitLineSchema).optional(),
+});
+
+const GoogleTransitStationSchema = z.object({
+  agencies: z.array(GoogleTransitAgencySchema).optional(),
+});
+
 export const GooglePlaceSchema = z.object({
   id: z.string(),
   displayName: GoogleLocalizedTextSchema.optional(),
@@ -69,6 +84,7 @@ export const GooglePlaceSchema = z.object({
   internationalPhoneNumber: z.string().optional(),
   websiteUri: z.string().optional(),
   accessibilityOptions: GoogleAccessibilityOptionsSchema.optional(),
+  transitStation: GoogleTransitStationSchema.optional(),
 });
 
 export type GooglePlace = z.infer<typeof GooglePlaceSchema>;
