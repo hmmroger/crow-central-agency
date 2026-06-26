@@ -209,7 +209,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     }
 
     const validated = UpdateAgentInputSchema.parse(input);
-    const { agentMd, ...configFields } = validated;
+    const { agentMd, effort, ...configFields } = validated;
     const now = new Date().toISOString();
 
     const updated: AgentConfig = {
@@ -219,6 +219,10 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
       createdAt: existing.createdAt,
       updatedAt: now,
     };
+
+    if (effort !== undefined) {
+      updated.effort = effort ?? undefined;
+    }
 
     // Normalize empty string to undefined for optional path fields
     if (updated.workspace !== undefined && updated.workspace.trim() === "") {

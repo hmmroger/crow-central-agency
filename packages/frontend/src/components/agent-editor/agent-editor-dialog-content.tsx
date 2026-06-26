@@ -189,7 +189,7 @@ export function AgentEditorDialogContent({
           workspace: form.workspace.trim() || "",
           persona: form.persona,
           model: form.model,
-          effort: form.effort,
+          effort: form.effort ?? null,
           permissionMode: form.permissionMode,
           settingSources: form.settingSources,
           settingSourceConfig,
