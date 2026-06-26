@@ -5,11 +5,17 @@ import { TRANSIT_VEHICLE_TYPE, type TransitVehicleType } from "../places-manager
  * Unknown or undefined values fall back to `OTHER`.
  */
 export function transitVehicleTypeFromGoogle(value: string | undefined): TransitVehicleType {
+  if (!value) {
+    return TRANSIT_VEHICLE_TYPE.OTHER;
+  }
+
   switch (value) {
+    case "AIRPLANE":
+      return TRANSIT_VEHICLE_TYPE.AIRPLANE;
+
     case "BUS":
     case "INTERCITY_BUS":
     case "TROLLEYBUS":
-    case "SHARE_TAXI":
     case "COACH":
       return TRANSIT_VEHICLE_TYPE.BUS;
 
@@ -25,18 +31,22 @@ export function transitVehicleTypeFromGoogle(value: string | undefined): Transit
     case "COMMUTER_TRAIN":
     case "HIGH_SPEED_TRAIN":
     case "LONG_DISTANCE_TRAIN":
-    case "MONORAIL":
       return TRANSIT_VEHICLE_TYPE.RAIL;
+
+    case "MONORAIL":
+      return TRANSIT_VEHICLE_TYPE.MONORAIL;
 
     case "FERRY":
       return TRANSIT_VEHICLE_TYPE.FERRY;
 
     case "CABLE_CAR":
-    case "GONDOLA_LIFT":
     case "FUNICULAR":
       return TRANSIT_VEHICLE_TYPE.CABLE;
 
-    case undefined:
+    case "GONDOLA_LIFT":
+      return TRANSIT_VEHICLE_TYPE.GONDOLAS;
+
+    case "SHARE_TAXI":
     default:
       return TRANSIT_VEHICLE_TYPE.OTHER;
   }

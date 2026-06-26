@@ -140,12 +140,15 @@ export interface OpeningHours {
  * into these buckets, with `OTHER` as the fallback for anything unrecognized.
  */
 export const TRANSIT_VEHICLE_TYPE = {
+  AIRPLANE: "AIRPLANE",
   BUS: "BUS",
   SUBWAY: "SUBWAY",
   TRAM: "TRAM",
+  MONORAIL: "MONORAIL",
   RAIL: "RAIL",
   FERRY: "FERRY",
   CABLE: "CABLE",
+  GONDOLAS: "GONDOLAS",
   OTHER: "OTHER",
 } as const;
 

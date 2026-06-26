@@ -66,6 +66,7 @@ const GoogleTransitAgencySchema = z.object({
 });
 
 const GoogleTransitStationSchema = z.object({
+  displayName: GoogleLocalizedTextSchema.optional(),
   agencies: z.array(GoogleTransitAgencySchema).optional(),
 });
 
