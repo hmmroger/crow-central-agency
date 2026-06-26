@@ -380,7 +380,8 @@ export const UpdateAgentInputSchema = z.object({
   workspace: z.string().optional(),
   persona: z.string().optional(),
   model: z.string().optional(),
-  effort: ReasoningEffortSchema.optional(),
+  // null explicitly clears the effort (back to provider default); undefined leaves it unchanged.
+  effort: ReasoningEffortSchema.nullish(),
   permissionMode: PermissionModeSchema.optional(),
   settingSources: z.array(SettingSourceSchema).optional(),
   settingSourceConfig: SettingSourceConfigInputSchema.optional(),
