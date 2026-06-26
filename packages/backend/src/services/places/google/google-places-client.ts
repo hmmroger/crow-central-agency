@@ -39,7 +39,6 @@ const PRO_FIELDS = [
   "accessibilityOptions",
   "googleMapsUri",
   "businessStatus",
-  "subDestinations",
 ] as const;
 const ENTERPRISE_FIELDS = [
   "regularOpeningHours",
