@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { PlacesManager } from "../../services/places/places-manager.js";
+import { PLACES_SOURCE, type PlacesSource } from "../../services/places/places-manager.types.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { formatPlaceSummary } from "./places-format-utils.js";
@@ -9,19 +10,47 @@ const MAX_GEOCODE_LIMIT = 25;
 
 export const GEOCODE_PLACE_TOOL_NAME = "geocode_place";
 
+const NEUTRAL_DESCRIPTION =
+  "Resolve a free-text query - a place name, full address, or landmark - to matching places. " +
+  "Use get_place_details on a returned id for opening hours, contact info, and other attributes.";
+
+const NEUTRAL_RESULT_GUIDANCE =
+  "Refine with a more specific name, address, or the city/country disambiguators if needed.";
+
+const DESCRIPTION_BY_SOURCE: Partial<Record<PlacesSource, string>> = {
+  [PLACES_SOURCE.GOOGLE]:
+    "Resolve a free-text query to matching places. Accepts a place name, a full address, a landmark, or a " +
+    "natural-language / descriptive POI search (e.g. 'rooftop bars in Shibuya'). " +
+    "Use get_place_details on a returned id for opening hours, contact info, and other attributes.",
+  [PLACES_SOURCE.OSM]:
+    "Resolve a free-text query to matching places. Best results come from a precise name or full address; " +
+    "descriptive or category-style queries degrade - for category discovery use search_nearby_places. " +
+    "Use get_place_details on a returned id for opening hours, contact info, and other attributes.",
+};
+
+const RESULT_GUIDANCE_BY_SOURCE: Partial<Record<PlacesSource, string>> = {
+  [PLACES_SOURCE.GOOGLE]:
+    "Phrase queries in natural language (names, full addresses, or descriptive POI searches) for stronger matches.",
+  [PLACES_SOURCE.OSM]: "Use a precise name or full address; descriptive or category queries return weak matches.",
+};
+
+function selectForSource(map: Partial<Record<PlacesSource, string>>, source: PlacesSource, fallback: string): string {
+  return map[source] ?? fallback;
+}
+
 export function getGeocodePlaceToolConfig(placesManager: PlacesManager) {
+  const defaultSource = placesManager.getDefaultSource();
+  const description = selectForSource(DESCRIPTION_BY_SOURCE, defaultSource, NEUTRAL_DESCRIPTION);
+  const resultGuidance = selectForSource(RESULT_GUIDANCE_BY_SOURCE, defaultSource, NEUTRAL_RESULT_GUIDANCE);
+
   const inputSchema = {
-    name: z.string().min(1).optional().describe("Proper-noun name of a specific place or business."),
-    street: z.string().min(1).optional().describe("Street address, including house number when known."),
-    city: z.string().min(1).optional().describe("City, town, or locality. Example: 'London', 'Paris'."),
-    postcode: z.string().min(1).optional().describe("Postal / ZIP code."),
+    query: z.string().min(1).describe("A place name, a full address, or a landmark (e.g. 'Eiffel Tower')."),
+    city: z.string().min(1).optional().describe("City, town, or locality to disambiguate the query."),
     country: z
       .string()
       .min(1)
       .optional()
-      .describe(
-        "Country name or ISO 3166-1 alpha-2 code (e.g. 'France' or 'FR'). Use to disambiguate same-named places across countries."
-      ),
+      .describe("Country name or ISO 3166-1 alpha-2 code (e.g. 'France' or 'FR') to disambiguate same-named places."),
     nearLatitude: z
       .number()
       .min(-90)
@@ -39,15 +68,15 @@ export function getGeocodePlaceToolConfig(placesManager: PlacesManager) {
   };
 
   const handler: ToolHandler<typeof inputSchema> = async (args) => {
-    const queryParts = [args.name, args.street, args.city, args.postcode, args.country]
+    if ((args.nearLatitude === undefined) !== (args.nearLongitude === undefined)) {
+      return textToolResult(["nearLatitude and nearLongitude must both be provided or both omitted."], true);
+    }
+
+    const queryParts = [args.query, args.city, args.country]
       .map((part) => part?.trim())
       .filter((part): part is string => part !== undefined && part.length > 0);
     if (queryParts.length === 0) {
-      return textToolResult(["At least one of name, street, city, postcode, or country must be provided."], true);
-    }
-
-    if ((args.nearLatitude === undefined) !== (args.nearLongitude === undefined)) {
-      return textToolResult(["nearLatitude and nearLongitude must both be provided or both omitted."], true);
+      return textToolResult(["query must contain non-whitespace text."], true);
     }
 
     const queryText = queryParts.join(", ");
@@ -63,12 +92,12 @@ export function getGeocodePlaceToolConfig(placesManager: PlacesManager) {
       });
 
       if (places.length === 0) {
-        return textToolResult([`No places found matching "${queryText}".`]);
+        return textToolResult([`No places found matching "${queryText}".`, resultGuidance]);
       }
 
       const header = `[Geocode results: ${places.length} for "${queryText}"]`;
       const body = places.map(formatPlaceSummary).join("\n");
-      return textToolResult([header, body]);
+      return textToolResult([header, body, resultGuidance]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to geocode place.");
     }
@@ -76,12 +105,7 @@ export function getGeocodePlaceToolConfig(placesManager: PlacesManager) {
 
   const config: McpToolConfig<typeof inputSchema> = {
     name: GEOCODE_PLACE_TOOL_NAME,
-    description: [
-      "Resolve a known place to coordinates: a named landmark, business, or specific street address. ",
-      "Provide whichever structured fields you have - the more you fill, the more precise the match. ",
-      "Not a discovery tool: for 'cafes near me', 'good restaurants', or any category / subjective query, use search_nearby_places instead. ",
-      "Use get_place_details on a returned id for opening hours, contact info, and other attributes.",
-    ].join(""),
+    description,
     inputSchema,
     handler,
   };

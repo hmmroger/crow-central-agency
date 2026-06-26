@@ -1,10 +1,12 @@
 import {
+  BUSINESS_STATUS,
   WEEKDAY,
   type DayOpeningHours,
   type OpeningHours,
   type OpeningHoursRange,
   type Place,
   type PlaceDetails,
+  type TransitLine,
   type Weekday,
 } from "../../services/places/places-manager.types.js";
 
@@ -29,6 +31,14 @@ export function formatPlaceSummary(place: Place): string {
 
   if (place.address !== undefined && place.address.length > 0) {
     lines.push(`    - Address: ${place.address}`);
+  }
+
+  if (place.businessStatus !== undefined && place.businessStatus !== BUSINESS_STATUS.OPERATIONAL) {
+    lines.push(`    - Business status: ${place.businessStatus}`);
+  }
+
+  if (place.mapsUrl !== undefined && place.mapsUrl.length > 0) {
+    lines.push(`    - Map: ${place.mapsUrl}`);
   }
 
   return lines.join("\n");
@@ -69,6 +79,13 @@ export function formatPlaceDetails(details: PlaceDetails): string {
     lines.push(`    - Wheelchair access: ${details.wheelchairAccess}`);
   }
 
+  if (details.transit !== undefined && details.transit.lines.length > 0) {
+    lines.push("    - Transit lines:");
+    for (const line of details.transit.lines) {
+      lines.push(`        ${formatTransitLine(line)}`);
+    }
+  }
+
   if (details.description !== undefined && details.description.length > 0) {
     lines.push("    - Description:");
     for (const descriptionLine of details.description.split(/\r?\n/)) {
@@ -77,6 +94,19 @@ export function formatPlaceDetails(details: PlaceDetails): string {
   }
 
   return lines.join("\n");
+}
+
+function formatTransitLine(line: TransitLine): string {
+  let formatted = `${line.vehicleType}  ${line.shortName ?? line.name}`;
+  if (line.shortName !== undefined && line.shortName !== line.name) {
+    formatted += ` (${line.name})`;
+  }
+
+  if (line.operator !== undefined) {
+    formatted += ` — ${line.operator}`;
+  }
+
+  return formatted;
 }
 
 function formatOpeningHoursLines(hours: OpeningHours): string[] {

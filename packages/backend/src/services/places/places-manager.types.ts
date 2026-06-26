@@ -59,6 +59,19 @@ export type LocationArea =
   | { type: "boundingBox"; boundingBox: LocationBoundingBox };
 
 /**
+ * Operational state of a place when the provider reports it. Mirrors Google's
+ * `businessStatus`; providers without the concept (e.g. OSM) leave it unset.
+ */
+export const BUSINESS_STATUS = {
+  OPERATIONAL: "OPERATIONAL",
+  CLOSED_TEMPORARILY: "CLOSED_TEMPORARILY",
+  CLOSED_PERMANENTLY: "CLOSED_PERMANENTLY",
+  FUTURE_OPENING: "FUTURE_OPENING",
+} as const;
+
+export type BusinessStatus = (typeof BUSINESS_STATUS)[keyof typeof BUSINESS_STATUS];
+
+/**
  * A resolved place. `id` is prefixed with its source so the manager can dispatch
  * id-based lookups across providers: `${source}:${nativeId}` (e.g. `OSM:node/12345`).
  */
@@ -76,6 +89,10 @@ export interface Place {
   state?: string;
   /** ISO 3166-1 alpha-2 when available (e.g. "FR"). Adapter best-effort. */
   country?: string;
+  /** Provider map page for the place, when available (e.g. Google Maps URL). */
+  mapsUrl?: string;
+  /** Operational state when the provider reports it. */
+  businessStatus?: BusinessStatus;
 }
 
 export const WEEKDAY = {
@@ -117,6 +134,37 @@ export interface OpeningHours {
   description?: string;
 }
 
+/**
+ * Curated provider-neutral transit vehicle types. Google reports a finer-grained
+ * set (e.g. METRO_RAIL, HEAVY_RAIL, COMMUTER_TRAIN); the adapter collapses those
+ * into these buckets, with `OTHER` as the fallback for anything unrecognized.
+ */
+export const TRANSIT_VEHICLE_TYPE = {
+  AIRPLANE: "AIRPLANE",
+  BUS: "BUS",
+  SUBWAY: "SUBWAY",
+  TRAM: "TRAM",
+  MONORAIL: "MONORAIL",
+  RAIL: "RAIL",
+  FERRY: "FERRY",
+  CABLE: "CABLE",
+  GONDOLAS: "GONDOLAS",
+  OTHER: "OTHER",
+} as const;
+
+export type TransitVehicleType = (typeof TRANSIT_VEHICLE_TYPE)[keyof typeof TRANSIT_VEHICLE_TYPE];
+
+export interface TransitLine {
+  name: string;
+  shortName?: string;
+  vehicleType: TransitVehicleType;
+  operator?: string;
+}
+
+export interface TransitStationInfo {
+  lines: TransitLine[];
+}
+
 export const WHEELCHAIR_ACCESS = {
   YES: "YES",
   NO: "NO",
@@ -140,6 +188,8 @@ export interface PlaceDetails extends Place {
   description?: string;
   cuisines?: string[];
   brand?: string;
+  /** Transit lines serving this station; Google-only today. */
+  transit?: TransitStationInfo;
 }
 
 export interface GeocodeQuery {
