@@ -107,6 +107,9 @@ See `.env.example` for the full list, including:
 - `FEED_TEXT_GENERATION_*` — optional OpenAI-compatible endpoint used by the feed manager to summarize feed items into a consistent length for better agent consumption.
 - `FEED_MAX_SUMMARIZATION_ITEMS` — cap on items summarized per refresh (default: `50`). Items left unsummarized become retry candidates on the next refresh; when the retry backlog exceeds the cap, retries are skipped so a feed isn't permanently blocked by hundreds or thousands of stuck unsummarized items.
 - `AUDIO_GENERATION_*` — optional Gemini TTS configuration that powers the play-message button on the agent console. See [Audio generation](#audio-generation) below.
+- `PLACES_DEFAULT_SOURCE` — default provider for the Places tools when a lookup doesn't request one explicitly: `OSM` (default, no key needed) or `GOOGLE`. `GOOGLE` requires `GOOGLE_PLACES_API_KEY`; without it, lookups fall back to OSM. See [Places](#places) below.
+- `GOOGLE_PLACES_API_KEY` — Google API key that registers the Google Places adapter alongside the default OSM source. See [Places](#places) below.
+- `PHOTON_API_URL` / `OVERPASS_INTERPRETER_URL` — override the geocoding / nearby-search endpoints the OSM places source calls (default to the public Photon and Overpass instances).
 - `GOOGLE_CONNECTOR_CLIENT_ID` / `GOOGLE_CONNECTOR_CLIENT_SECRET` / `CONNECTOR_CALLBACK_URL` — OAuth credentials for the Google connector. Required if you want agents to access Gmail / Calendar / Contacts. See [Connectors](#connectors) below.
 - `OAUTH_PENDING_STATE_TTL_MS` — how long an unfinished OAuth flow stays valid before being swept (default: `600_000`, i.e. 10 minutes).
 - `OTEL_*` — optional OpenTelemetry export.
@@ -138,6 +141,73 @@ The `AUDIO_GENERATION_API_KEY` must be a Google API key with access to the
 
 You can use the same key as `TEXT_GENERATION_API_KEY` if that is also a
 Gemini-backed configuration, but the two are read independently.
+
+## Places
+
+The **Places** MCP server gives agents location tools — `geocode_place`,
+`search_nearby_places`, and `get_place_details`. It is enabled per-agent from
+the **MCP Servers** section of the agent editor.
+
+Two providers back these tools:
+
+- **OSM** (default) — uses the public OpenStreetMap-based services (Photon for
+  geocoding, Overpass for nearby search). No API key required, so the Places
+  tools work out of the box.
+- **GOOGLE** — uses the Google Places API (New) and Geocoding API for richer
+  results. Opt in by setting `GOOGLE_PLACES_API_KEY`.
+
+`PLACES_DEFAULT_SOURCE` selects which provider serves lookups that don't name a
+source explicitly (`OSM` or `GOOGLE`, defaulting to `OSM`). When
+`GOOGLE_PLACES_API_KEY` is set, the Google adapter is registered alongside OSM;
+if `PLACES_DEFAULT_SOURCE=GOOGLE` is set without a key, lookups fall back to OSM.
+
+### Configuration
+
+```bash
+PLACES_DEFAULT_SOURCE=GOOGLE
+GOOGLE_PLACES_API_KEY=<your Google API key>
+```
+
+### Getting a Google Places API key
+
+The key is a plain Google API key (not an OAuth client — unrelated to the
+Google connector setup below).
+
+**1. Sign in to Google Cloud Console.**
+
+Go to [console.cloud.google.com](https://console.cloud.google.com/) and select
+(or create) a project. Unlike the OAuth connector, the Places and Geocoding
+APIs are **paid** and require a billing account on the project. Google provides
+a recurring monthly free allotment, but you must still enable billing to use
+the key.
+
+**2. Enable the required APIs.**
+
+Open **APIs & Services → Library** and enable both:
+
+- **Places API (New)** — powers `search_nearby_places` and `get_place_details`.
+- **Geocoding API** — powers reverse geocoding for `geocode_place`.
+
+Click each result, then click **Enable**.
+
+**3. Create the API key.**
+
+Open **APIs & Services → Credentials → Create Credentials → API key**. Copy the
+generated key.
+
+> [!NOTE]
+> Restrict the key to just the **Places API (New)** and **Geocoding API** under
+> the key's **API restrictions** so a leaked key can't be used against other
+> Google services.
+
+**4. Add the key to your `.env` and restart Crow.**
+
+```bash
+GOOGLE_PLACES_API_KEY=<paste the API key>
+PLACES_DEFAULT_SOURCE=GOOGLE
+```
+
+Restart the server so it picks up the new env vars.
 
 ## Connectors
 
