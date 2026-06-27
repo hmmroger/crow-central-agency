@@ -95,7 +95,7 @@ export const formatPaginationHeader = (
   }
 
   if (effectiveOffset > 0) {
-    metaParts.push(`Skipped: ${effectiveOffset}`);
+    metaParts.push(`Offset: ${effectiveOffset}`);
   }
 
   const lines = [`--- ${description.toUpperCase()} ---`, `[${metaParts.join(" | ")}]`];
