@@ -5,8 +5,8 @@ import type { CrowMcpTransport, RegisteredMcpTool } from "./crow-mcp-manager.typ
 
 /**
  * Wrap a server's registered tools into an in-process Claude SDK MCP server. The raw shape is passed through
- * unchanged: the SDK only advertises per-parameter descriptions when given a raw shape, and wrapping it in a
- * strict object would drop them. Unknown-key rejection is enforced provider-side instead.
+ * as-is; buildStrictToolSchema cannot be used here because a strict object would turn parameters into nested fields
+ * causing Claude SDK to ignore descriptions.
  */
 export function toClaudeServer(name: string, tools: RegisteredMcpTool[]): McpSdkServerConfigWithInstance {
   return createSdkMcpServer({
