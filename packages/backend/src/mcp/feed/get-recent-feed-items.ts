@@ -27,10 +27,10 @@ export function getRecentFeedItemsToolConfig(
       .optional()
       .describe(`Number of minutes to look back from now for recent items (default: ${DEFAULT_RECENCY_IN_MINUTES}).`),
     limit: z.number().optional().describe(`Number of items to return per page.`),
-    skip: z.number().optional().describe("Number of items to skip for pagination."),
+    offset: z.number().optional().describe("Number of items to skip before the page starts (0-based offset)."),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ recencyInMinutes, limit, skip }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ recencyInMinutes, limit, offset }) => {
     try {
       const timezone = await sensorManager.getUserTimezone();
       const visibleFeedIdSet = await resolveVisibleFeedIds(agentId, registry, systemSettingsManager);
@@ -45,7 +45,7 @@ export function getRecentFeedItemsToolConfig(
         return textToolResult([`No items found in the last ${effectiveRecency} minutes. Try increase the minutes.`]);
       }
 
-      const pagination = applyPagination(allItems, limit || DEFAULT_FEED_ITEMS_LIMIT, skip);
+      const pagination = applyPagination(allItems, limit || DEFAULT_FEED_ITEMS_LIMIT, offset);
       const formattedItems = pagination.items.map((item) =>
         formatFeedItemSummary(item, feedsMap.get(item.feedId), timezone)
       );

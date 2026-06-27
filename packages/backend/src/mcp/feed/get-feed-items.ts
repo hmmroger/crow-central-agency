@@ -22,10 +22,10 @@ export function getFeedItemsToolConfig(
   const inputSchema = {
     feedId: z.string().describe("The news/RSS feed ID from which to get items."),
     limit: z.number().optional().describe(`Number of items to return per page.`),
-    skip: z.number().optional().describe("Number of items to skip for pagination."),
+    offset: z.number().optional().describe("Number of items to skip before the page starts (0-based offset)."),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ feedId, limit, skip }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ feedId, limit, offset }) => {
     try {
       const visibleFeedIds = await resolveVisibleFeedIds(agentId, registry, systemSettingsManager);
       if (!visibleFeedIds.has(feedId)) {
@@ -39,7 +39,7 @@ export function getFeedItemsToolConfig(
 
       const timezone = await sensorManager.getUserTimezone();
       const allItems = await feedManager.getItemsFromFeed(feedId);
-      const pagination = applyPagination(allItems, limit || DEFAULT_FEED_ITEMS_LIMIT, skip);
+      const pagination = applyPagination(allItems, limit || DEFAULT_FEED_ITEMS_LIMIT, offset);
       const formattedItems = pagination.items.map((item) => formatFeedItemSummary(item, feed.title, timezone));
       const header = formatPaginationHeader(
         `Items from feed [${feed.title}]`,

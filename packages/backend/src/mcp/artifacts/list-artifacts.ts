@@ -30,10 +30,10 @@ export function getListArtifactsToolConfig(
       .optional()
       .describe("Filter by tags. Only artifacts that have every specified tag are returned."),
     limit: z.number().optional().describe("Number of artifacts to return per page."),
-    skip: z.number().optional().describe("Number of artifacts to skip for pagination."),
+    offset: z.number().optional().describe("Number of artifacts to skip before the page starts (0-based offset)."),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ agent_id, type, tags, limit, skip }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ agent_id, type, tags, limit, offset }) => {
     const targetId = agent_id ?? agentId;
     if (agent_id) {
       try {
@@ -66,7 +66,7 @@ export function getListArtifactsToolConfig(
         return textToolResult([`No artifacts found for agent ${targetId}${suffix}.`]);
       }
 
-      const pagination = applyPagination(artifacts, limit || DEFAULT_ARTIFACTS_LIMIT, skip);
+      const pagination = applyPagination(artifacts, limit || DEFAULT_ARTIFACTS_LIMIT, offset);
       const lines = pagination.items.map(
         (artifact) =>
           `- ${artifact.filename} (owner: ${artifact.entityId}, type: ${artifact.type}, modified: ${formatLocalDateTime(new Date(artifact.updatedTimestamp), userTimezone)})`

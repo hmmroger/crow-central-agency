@@ -41,10 +41,10 @@ export function getSearchWorkspaceToolConfig(
       .number()
       .optional()
       .describe(`Maximum number of hits to return per page. Default ${DEFAULT_SEARCH_LIMIT}.`),
-    skip: z.number().optional().describe("Number of hits to skip for pagination."),
+    offset: z.number().optional().describe("Number of hits to skip before the page starts (0-based offset)."),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ query, sources, limit, skip }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ query, sources, limit, offset }) => {
     try {
       const filter = buildAccessFilter(agentId, taskManager, circleManager, sources);
       const hits = documentSearchService.search(query, { filter, limit: MAX_SEARCH_LIMIT });
@@ -52,7 +52,7 @@ export function getSearchWorkspaceToolConfig(
         return textToolResult([`No matches found for query "${query}".`]);
       }
 
-      const pagination = applyPagination(hits, limit || DEFAULT_SEARCH_LIMIT, skip);
+      const pagination = applyPagination(hits, limit || DEFAULT_SEARCH_LIMIT, offset);
       const header = formatPaginationHeader(`Workspace search for query "${query}"`, pagination);
       return textToolResult(header.concat("", renderHits(pagination.items)));
     } catch (error) {

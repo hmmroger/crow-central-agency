@@ -4,6 +4,7 @@ import type { CallToolResult } from "@modelcontextprotocol/client";
 import { z } from "zod";
 import { MCP_CONFIG_TYPE } from "@crow-central-agency/shared";
 import type { CrowMcpTransport, InternalMcpServerConfig, RegisteredMcpTool } from "./crow-mcp-manager.types.js";
+import { buildStrictToolSchema, getValidationErrorToolResult } from "./tool-utils.js";
 
 /** Content blocks `convertMcpCallToolResult` understands; audio/resource-links are dropped. */
 type CopilotSupportedContent = Extract<CallToolResult["content"][number], { type: "text" | "image" | "resource" }>;
@@ -17,11 +18,19 @@ function toCopilotTool(
   registeredTool: RegisteredMcpTool,
   server: InternalMcpServerConfig
 ): Tool<Record<string, unknown>> {
+  const inputSchema = buildStrictToolSchema(registeredTool.inputSchema);
   return {
     name: `${server.mcpToolPrefix}${registeredTool.name}`,
     description: registeredTool.description,
-    parameters: z.toJSONSchema(z.object(registeredTool.inputSchema)),
-    handler: async (args, invocation) => toCopilotToolResult(await registeredTool.handler(args, invocation)),
+    parameters: z.toJSONSchema(inputSchema),
+    handler: async (args, invocation) => {
+      const parsed = inputSchema.safeParse(args);
+      if (!parsed.success) {
+        return toCopilotToolResult(getValidationErrorToolResult(registeredTool.name, parsed.error));
+      }
+
+      return toCopilotToolResult(await registeredTool.handler(parsed.data, invocation));
+    },
     skipPermission: server.isAutoApproved,
   };
 }

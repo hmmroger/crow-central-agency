@@ -23,10 +23,10 @@ export function getSearchFeedItemsToolConfig(
     query: z.string().describe("Natural-language phrase or topic to match against feed items."),
     feedId: z.string().optional().describe("Optional feed ID to filter search results to a specific feed."),
     limit: z.number().optional().describe(`Number of items to return per page.`),
-    skip: z.number().optional().describe("Number of items to skip for pagination."),
+    offset: z.number().optional().describe("Number of items to skip before the page starts (0-based offset)."),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ query, feedId, limit, skip }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ query, feedId, limit, offset }) => {
     try {
       const timezone = await sensorManager.getUserTimezone();
       const visibleFeedIdSet = await resolveVisibleFeedIds(agentId, registry, systemSettingsManager);
@@ -43,7 +43,7 @@ export function getSearchFeedItemsToolConfig(
         return textToolResult([`No items found matching "${query}".`]);
       }
 
-      const pagination = applyPagination(allItems, limit || DEFAULT_FEED_ITEMS_LIMIT, skip);
+      const pagination = applyPagination(allItems, limit || DEFAULT_FEED_ITEMS_LIMIT, offset);
       const formattedItems = pagination.items.map((item) =>
         formatFeedItemSummary(item, feedsMap.get(item.feedId), timezone)
       );
