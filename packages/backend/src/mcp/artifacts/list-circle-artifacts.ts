@@ -26,10 +26,10 @@ export function getListCircleArtifactsToolConfig(
       .optional()
       .describe("Filter by tags. Only artifacts that have every specified tag are returned."),
     limit: z.number().optional().describe("Number of artifacts to return per page."),
-    skip: z.number().optional().describe("Number of artifacts to skip for pagination."),
+    offset: z.number().optional().describe("Number of artifacts to skip before the page starts (0-based offset)."),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ circle_id, type, tags, limit, skip }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ circle_id, type, tags, limit, offset }) => {
     if (!artifactManager.isDirectCircleMember(circle_id, agentId)) {
       return textToolResult(["You are not a direct member of this circle."], true);
     }
@@ -53,7 +53,7 @@ export function getListCircleArtifactsToolConfig(
         return textToolResult([`No artifacts found for circle ${circle_id}${suffix}.`]);
       }
 
-      const pagination = applyPagination(artifacts, limit || DEFAULT_CIRCLE_ARTIFACTS_LIMIT, skip);
+      const pagination = applyPagination(artifacts, limit || DEFAULT_CIRCLE_ARTIFACTS_LIMIT, offset);
       const lines = pagination.items.map(
         (artifact) =>
           `- ${artifact.filename} (type: ${artifact.type}, modified: ${formatLocalDateTime(new Date(artifact.updatedTimestamp), userTimezone)})`

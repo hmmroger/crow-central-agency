@@ -12,10 +12,10 @@ export const LIST_REMINDERS_TOOL_NAME = "list_reminders";
 export function getListRemindersToolConfig(agentId: string, scheduler: CrowScheduler, sensorManager: SensorManager) {
   const inputSchema = {
     limit: z.number().optional().describe("Number of reminders to return per page."),
-    skip: z.number().optional().describe("Number of reminders to skip for pagination."),
+    offset: z.number().optional().describe("Number of reminders to skip before the page starts (0-based offset)."),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ limit, skip }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ limit, offset }) => {
     try {
       const userTimezone = await sensorManager.getUserTimezone();
       const reminders = scheduler.listAgentReminders(agentId);
@@ -23,7 +23,7 @@ export function getListRemindersToolConfig(agentId: string, scheduler: CrowSched
         return textToolResult(["You have no upcoming reminders."]);
       }
 
-      const pagination = applyPagination(reminders, limit || DEFAULT_REMINDERS_LIMIT, skip);
+      const pagination = applyPagination(reminders, limit || DEFAULT_REMINDERS_LIMIT, offset);
       const formatted = pagination.items.map((reminder) => formatReminder(reminder, userTimezone)).join("\n---\n");
       const header = formatPaginationHeader("Your reminders", pagination);
       return textToolResult(header.concat("", formatted));

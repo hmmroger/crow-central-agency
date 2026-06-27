@@ -21,16 +21,16 @@ export function getListFeedsToolConfig(
 ) {
   const inputSchema = {
     limit: z.number().optional().describe(`Number of feeds to return per page.`),
-    skip: z.number().optional().describe("Number of feeds to skip for pagination."),
+    offset: z.number().optional().describe("Number of feeds to skip before the page starts (0-based offset)."),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ limit, skip }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ limit, offset }) => {
     try {
       const timezone = await sensorManager.getUserTimezone();
       const visibleFeedIdSet = await resolveVisibleFeedIds(agentId, registry, systemSettingsManager);
       const feeds = await feedManager.getFeeds(Array.from(visibleFeedIdSet));
 
-      const pagination = applyPagination(feeds, limit || DEFAULT_FEEDS_LIMIT, skip);
+      const pagination = applyPagination(feeds, limit || DEFAULT_FEEDS_LIMIT, offset);
       const formattedFeeds = pagination.items.map((feed) => formatFeed(feed, timezone));
       const header = formatPaginationHeader("Available feeds", pagination);
       return textToolResult(header.concat("", formattedFeeds));

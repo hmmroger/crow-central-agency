@@ -15,7 +15,7 @@ export interface ProcessedTextContent {
 export interface PaginationResult<T> {
   items: T[];
   totalCount: number;
-  effectiveSkip: number;
+  effectiveOffset: number;
   hasMore: boolean;
 }
 
@@ -70,14 +70,14 @@ export const getValidationErrorToolResult = (toolName: string, error: ZodError) 
   return textToolResult([`Invalid arguments for ${toolName}:`, ...issues], true);
 };
 
-export const applyPagination = <T>(allItems: T[], limit: number, skip?: number): PaginationResult<T> => {
-  const effectiveSkip = skip || 0;
-  const items = allItems.slice(effectiveSkip, effectiveSkip + limit);
+export const applyPagination = <T>(allItems: T[], limit: number, offset?: number): PaginationResult<T> => {
+  const effectiveOffset = offset || 0;
+  const items = allItems.slice(effectiveOffset, effectiveOffset + limit);
   return {
     items,
     totalCount: allItems.length,
-    effectiveSkip,
-    hasMore: effectiveSkip + items.length < allItems.length,
+    effectiveOffset,
+    hasMore: effectiveOffset + items.length < allItems.length,
   };
 };
 
@@ -86,16 +86,16 @@ export const formatPaginationHeader = (
   pagination: PaginationResult<unknown>,
   note?: string
 ): string[] => {
-  const { items, totalCount, effectiveSkip, hasMore } = pagination;
-  const isPaginated = effectiveSkip > 0 || hasMore;
+  const { items, totalCount, effectiveOffset, hasMore } = pagination;
+  const isPaginated = effectiveOffset > 0 || hasMore;
 
   const metaParts = [`Total: ${totalCount}`];
   if (isPaginated) {
     metaParts.push(`Showing: ${items.length}`);
   }
 
-  if (effectiveSkip > 0) {
-    metaParts.push(`Skipped: ${effectiveSkip}`);
+  if (effectiveOffset > 0) {
+    metaParts.push(`Skipped: ${effectiveOffset}`);
   }
 
   const lines = [`--- ${description.toUpperCase()} ---`, `[${metaParts.join(" | ")}]`];
@@ -104,7 +104,7 @@ export const formatPaginationHeader = (
   }
 
   if (hasMore) {
-    lines.push(`[More available: use skip=${effectiveSkip + items.length} for next page]`);
+    lines.push(`[More available: use offset=${effectiveOffset + items.length} for next page]`);
   }
 
   return lines;
