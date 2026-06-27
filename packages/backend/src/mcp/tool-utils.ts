@@ -1,3 +1,6 @@
+import { z } from "zod";
+import type { ZodError, ZodRawShape } from "zod";
+
 export interface ReadLineOptions {
   showLineNumber?: boolean;
   startLine?: number;
@@ -47,6 +50,24 @@ export const getErrorToolResult = (error: unknown, fallbackMessage: string) => {
   const exceptionError = (error as Error).message;
   const errorMessage = exceptionError ? exceptionError : fallbackMessage;
   return textToolResult([errorMessage], true);
+};
+
+/**
+ * Build an object schema from a tool input shape. Schemas with parameters are strict so unknown parameters are
+ * rejected rather than silently dropped; no-arg tools stay lenient since there is no parameter to confuse.
+ */
+export const buildStrictToolSchema = (inputSchema: ZodRawShape) => {
+  const schema = z.object(inputSchema);
+  return Object.keys(inputSchema).length > 0 ? schema.strict() : schema;
+};
+
+/** Format a Zod validation failure as an agent-facing error result that names the offending parameters. */
+export const getValidationErrorToolResult = (toolName: string, error: ZodError) => {
+  const issues = error.issues.map((issue) => {
+    const path = issue.path.join(".");
+    return path ? `${path}: ${issue.message}` : issue.message;
+  });
+  return textToolResult([`Invalid arguments for ${toolName}:`, ...issues], true);
 };
 
 export const applyPagination = <T>(allItems: T[], limit: number, skip?: number): PaginationResult<T> => {
