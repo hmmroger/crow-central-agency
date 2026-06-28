@@ -41,7 +41,38 @@ export function formatPlaceSummary(place: Place): string {
     lines.push(`    - Map: ${place.mapsUrl}`);
   }
 
+  if (place.routing !== undefined) {
+    const { durationSeconds, distanceMeters, travelMode, directionsUrl } = place.routing;
+    lines.push(
+      `    - Travel: ${humanizeDuration(durationSeconds)} · ${humanizeDistance(distanceMeters)} (${travelMode})`
+    );
+    if (directionsUrl !== undefined && directionsUrl.length > 0) {
+      lines.push(`    - Directions: ${directionsUrl}`);
+    }
+  }
+
   return lines.join("\n");
+}
+
+/** "8 min" under an hour, "1 h 12 min" (or "2 h" on the hour) above. */
+function humanizeDuration(totalSeconds: number): string {
+  const totalMinutes = Math.round(totalSeconds / 60);
+  if (totalMinutes < 60) {
+    return `${totalMinutes} min`;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes === 0 ? `${hours} h` : `${hours} h ${minutes} min`;
+}
+
+/** "850 m" under a kilometre, "3.2 km" (one decimal) above. */
+function humanizeDistance(meters: number): string {
+  if (meters < 1000) {
+    return `${Math.round(meters)} m`;
+  }
+
+  return `${(meters / 1000).toFixed(1)} km`;
 }
 
 /** Full-detail block returned by `places_get_details`. Layers attributes on top of the summary. */

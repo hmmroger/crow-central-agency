@@ -4,6 +4,7 @@ import { PLACES_SOURCE, type PlacesSource } from "../../services/places/places-m
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { formatPlaceSummary } from "./places-format-utils.js";
+import { resolveRoutingOrigin, routingDescriptionLine, routingOriginInputSchema } from "./places-routing-input.js";
 
 const DEFAULT_GEOCODE_LIMIT = 10;
 const MAX_GEOCODE_LIMIT = 25;
@@ -40,7 +41,9 @@ function selectForSource(map: Partial<Record<PlacesSource, string>>, source: Pla
 
 export function getGeocodePlaceToolConfig(placesManager: PlacesManager) {
   const defaultSource = placesManager.getDefaultSource();
-  const description = selectForSource(DESCRIPTION_BY_SOURCE, defaultSource, NEUTRAL_DESCRIPTION);
+  const baseDescription = selectForSource(DESCRIPTION_BY_SOURCE, defaultSource, NEUTRAL_DESCRIPTION);
+  const routingLine = routingDescriptionLine(defaultSource);
+  const description = routingLine ? `${baseDescription} ${routingLine}` : baseDescription;
   const resultGuidance = selectForSource(RESULT_GUIDANCE_BY_SOURCE, defaultSource, NEUTRAL_RESULT_GUIDANCE);
 
   const inputSchema = {
@@ -58,6 +61,7 @@ export function getGeocodePlaceToolConfig(placesManager: PlacesManager) {
       .optional()
       .describe("Optional latitude for ranking bias - prefers candidates near this point."),
     nearLongitude: z.number().min(-180).max(180).optional().describe("Optional longitude paired with nearLatitude."),
+    ...routingOriginInputSchema,
     limit: z
       .number()
       .int()
@@ -70,6 +74,11 @@ export function getGeocodePlaceToolConfig(placesManager: PlacesManager) {
   const handler: ToolHandler<typeof inputSchema> = async (args) => {
     if ((args.nearLatitude === undefined) !== (args.nearLongitude === undefined)) {
       return textToolResult(["nearLatitude and nearLongitude must both be provided or both omitted."], true);
+    }
+
+    const routing = resolveRoutingOrigin(args);
+    if ("error" in routing) {
+      return textToolResult([routing.error], true);
     }
 
     const queryParts = [args.query, args.city, args.country]
@@ -88,6 +97,7 @@ export function getGeocodePlaceToolConfig(placesManager: PlacesManager) {
       const places = await placesManager.geocode({
         text: queryText,
         near,
+        routingOrigin: routing.routingOrigin,
         limit: args.limit ?? DEFAULT_GEOCODE_LIMIT,
       });
 
