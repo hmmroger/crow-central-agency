@@ -88,7 +88,7 @@ export function StatusTab({ agentId }: StatusTabProps) {
       <div className="shrink-0 space-y-1.5">
         <GaugeLabel>Controls</GaugeLabel>
         <div className="flex gap-1.5">
-          <ControlButton icon={Plus} label="New" onClick={newConversation} />
+          <ControlButton icon={Plus} label="New" onClick={newConversation} disabled={status !== AGENT_STATUS.IDLE} />
           <ControlButton
             icon={FoldVertical}
             label="Compact"
