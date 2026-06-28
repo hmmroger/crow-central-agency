@@ -6,7 +6,9 @@ import {
   type LocationBoundingBox,
   type Place,
   type PlaceDetails,
+  type RoutingSummary,
   type TransitLine,
+  type TravelMode,
   type WheelchairAccess,
 } from "../places-manager.types.js";
 import {
@@ -18,7 +20,7 @@ import {
 import { categoryFromGoogleTypes } from "./google-place-type-mapping.js";
 import { parseGoogleOpeningHours } from "./google-opening-hours-parser.js";
 import { transitVehicleTypeFromGoogle } from "./google-transit-mapping.js";
-import type { GoogleGeocodingResult, GooglePlace } from "./google-places-adapter.types.js";
+import type { GoogleGeocodingResult, GooglePlace, GoogleRoutingSummary } from "./google-places-adapter.types.js";
 
 /** Map a Places API (New) place into the lean domain `Place`; undefined when it has no location. */
 export function googlePlaceToPlace(place: GooglePlace): Place | undefined {
@@ -123,6 +125,46 @@ export function geocodingResultToPlace(result: GoogleGeocodingResult): Place {
   }
 
   return place;
+}
+
+/**
+ * Map a Google routingSummary (legs summed) into the neutral `RoutingSummary`.
+ * Returns undefined when there are no legs or a leg duration can't be parsed —
+ * skipping rather than mis-reporting a partial distance/duration.
+ */
+export function googleRoutingSummaryToRouting(
+  summary: GoogleRoutingSummary,
+  travelMode: TravelMode
+): RoutingSummary | undefined {
+  const legs = summary.legs ?? [];
+  if (legs.length === 0) {
+    return undefined;
+  }
+
+  let distanceMeters = 0;
+  let durationSeconds = 0;
+  for (const leg of legs) {
+    const seconds = parseProtoDurationSeconds(leg.duration);
+    if (seconds === undefined) {
+      return undefined;
+    }
+
+    distanceMeters += leg.distanceMeters;
+    durationSeconds += seconds;
+  }
+
+  const routing: RoutingSummary = { travelMode, distanceMeters, durationSeconds };
+  if (summary.directionsUri) {
+    routing.directionsUrl = summary.directionsUri;
+  }
+
+  return routing;
+}
+
+/** Parse a protobuf Duration string (e.g. "597s") into seconds; undefined when not a number. */
+function parseProtoDurationSeconds(duration: string): number | undefined {
+  const seconds = Number.parseInt(duration.endsWith("s") ? duration.slice(0, -1) : duration, 10);
+  return Number.isNaN(seconds) ? undefined : seconds;
 }
 
 /** Flatten Google's agencies[].lines[] into neutral TransitLine[], dropping lines with no name. */

@@ -1,19 +1,32 @@
 import {
   PLACES_SOURCE,
   REVERSE_GEOCODE_PRIORITY,
+  TRAVEL_MODE,
   type GeocodeQuery,
   type Place,
   type PlaceDetails,
   type PlacesSourceAdapter,
   type ReverseGeocodeQuery,
+  type RoutingOrigin,
   type SearchPlacesQuery,
+  type TravelMode,
 } from "../places-manager.types.js";
 import { ADDRESS_COMPONENT_TYPE } from "./google-address-utils.js";
 import { getGoogleIncludedTypes } from "./google-place-type-mapping.js";
-import { geocodingResultToPlace, googlePlaceToPlace, googlePlaceToPlaceDetails } from "./google-place-mapper.js";
+import {
+  geocodingResultToPlace,
+  googlePlaceToPlace,
+  googlePlaceToPlaceDetails,
+  googleRoutingSummaryToRouting,
+} from "./google-place-mapper.js";
 import { areaToCircle } from "./google-search-area.js";
 import { GooglePlacesClient } from "./google-places-client.js";
-import type { GooglePlace, GooglePlacesAdapterConfig } from "./google-places-adapter.types.js";
+import type {
+  GooglePlace,
+  GooglePlacesAdapterConfig,
+  GoogleRoutingOrigin,
+  GoogleRoutingSummary,
+} from "./google-places-adapter.types.js";
 
 /** Cached raw place. `hasDetails` marks an entry filled by a Place Details (Enterprise) fetch. */
 interface CachedGooglePlace {
@@ -43,12 +56,14 @@ export class GooglePlacesAdapter implements PlacesSourceAdapter {
   }
 
   public async geocode(query: GeocodeQuery): Promise<Place[]> {
-    const places = await this.client.searchText({
+    const travelMode = resolveTravelMode(query.routingOrigin);
+    const result = await this.client.searchText({
       textQuery: query.text,
       near: query.near,
+      routingOrigin: toGoogleRoutingOrigin(query.routingOrigin, travelMode),
       limit: query.limit,
     });
-    return this.mapAndCacheBasePlaces(places);
+    return this.mapAndCacheBasePlaces(result.places, result.routingSummaries, travelMode);
   }
 
   public async reverseGeocode(query: ReverseGeocodeQuery): Promise<Place | undefined> {
@@ -70,14 +85,16 @@ export class GooglePlacesAdapter implements PlacesSourceAdapter {
       return [];
     }
 
+    const travelMode = resolveTravelMode(query.routingOrigin);
     const circle = areaToCircle(query.area);
-    const places = await this.client.searchNearby({
+    const result = await this.client.searchNearby({
       center: circle.center,
       radiusMeters: circle.radiusMeters,
       includedTypes: [...includedTypes],
+      routingOrigin: toGoogleRoutingOrigin(query.routingOrigin, travelMode),
       limit: query.limit,
     });
-    return this.mapAndCacheBasePlaces(places);
+    return this.mapAndCacheBasePlaces(result.places, result.routingSummaries, travelMode);
   }
 
   public getPlaceById(nativeId: string): Promise<PlaceDetails | undefined> {
@@ -108,10 +125,19 @@ export class GooglePlacesAdapter implements PlacesSourceAdapter {
     return googlePlaceToPlaceDetails(place);
   }
 
-  /** Map search/geocode results and cache each as a base entry, never downgrading a full one. */
-  private mapAndCacheBasePlaces(places: GooglePlace[]): Place[] {
+  /**
+   * Map search/geocode results and cache each as a base entry, never downgrading
+   * a full one. Routing summaries are zipped by index onto each Place but NOT
+   * cached — they are origin-dependent, so only the raw place is cached.
+   */
+  private mapAndCacheBasePlaces(
+    places: GooglePlace[],
+    routingSummaries: GoogleRoutingSummary[],
+    travelMode: TravelMode
+  ): Place[] {
     const result: Place[] = [];
-    for (const place of places) {
+    for (let index = 0; index < places.length; index += 1) {
+      const place = places[index];
       const mapped = googlePlaceToPlace(place);
       if (!mapped) {
         continue;
@@ -120,6 +146,14 @@ export class GooglePlacesAdapter implements PlacesSourceAdapter {
       const existing = this.placeCache.get(place.id);
       if (!existing?.hasDetails) {
         this.storeCache(place.id, { place, hasDetails: false });
+      }
+
+      const summary = routingSummaries[index];
+      if (summary) {
+        const routing = googleRoutingSummaryToRouting(summary, travelMode);
+        if (routing) {
+          mapped.routing = routing;
+        }
       }
 
       result.push(mapped);
@@ -138,4 +172,17 @@ export class GooglePlacesAdapter implements PlacesSourceAdapter {
 
     this.placeCache.set(placeId, entry);
   }
+}
+
+/** Resolve the concrete travel mode the client needs (default DRIVE) from an optional origin. */
+function resolveTravelMode(routingOrigin: RoutingOrigin | undefined): TravelMode {
+  return routingOrigin?.travelMode ?? TRAVEL_MODE.DRIVE;
+}
+
+/** Build the client-internal routing origin (with concrete travelMode), or undefined when no origin. */
+function toGoogleRoutingOrigin(
+  routingOrigin: RoutingOrigin | undefined,
+  travelMode: TravelMode
+): GoogleRoutingOrigin | undefined {
+  return routingOrigin ? { point: routingOrigin.point, travelMode } : undefined;
 }
