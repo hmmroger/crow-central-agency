@@ -187,6 +187,10 @@ export async function registerAgentRoutes(
     const agentId = validateAgentIdParam(request.params.id);
     const state = runtimeManager.getState(agentId);
 
+    if (state && state.status !== AGENT_STATUS.IDLE) {
+      throw new AppError("Agent must be idle to start a new session", APP_ERROR_CODES.CONFLICT);
+    }
+
     if (state?.sessionId) {
       const agent = registry.getAgent(agentId);
       sessionManager.invalidateCache(agent.type, state.sessionId);
