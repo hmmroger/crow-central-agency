@@ -1,5 +1,5 @@
 import z from "zod";
-import type { LocationPoint } from "../places-manager.types.js";
+import type { LocationPoint, TravelMode } from "../places-manager.types.js";
 
 export interface GooglePlacesAdapterConfig {
   apiKey: string;
@@ -92,8 +92,23 @@ export type GooglePlace = z.infer<typeof GooglePlaceSchema>;
 export type GoogleAddressComponent = z.infer<typeof GoogleAddressComponentSchema>;
 export type GoogleRegularOpeningHours = z.infer<typeof GoogleRegularOpeningHoursSchema>;
 
+/** A single routing leg. `duration` is a protobuf Duration string, e.g. "597s". */
+const GoogleRoutingLegSchema = z.object({
+  duration: z.string(),
+  distanceMeters: z.number(),
+});
+
+/** Sibling of `places[i]` in search responses: per-place travel summary from the routing origin. */
+const GoogleRoutingSummarySchema = z.object({
+  legs: z.array(GoogleRoutingLegSchema).optional(),
+  directionsUri: z.string().optional(),
+});
+
+export type GoogleRoutingSummary = z.infer<typeof GoogleRoutingSummarySchema>;
+
 export const GooglePlacesSearchResponseSchema = z.object({
   places: z.array(GooglePlaceSchema).optional(),
+  routingSummaries: z.array(GoogleRoutingSummarySchema).optional(),
 });
 
 /**
@@ -118,10 +133,26 @@ export const GoogleGeocodingResponseSchema = z.object({
   results: z.array(GoogleGeocodingResultSchema).optional(),
 });
 
+/**
+ * Client-internal routing origin. `travelMode` is REQUIRED here — the adapter
+ * resolves the default (DRIVE) before calling the client, keeping the client thin.
+ */
+export interface GoogleRoutingOrigin {
+  point: LocationPoint;
+  travelMode: TravelMode;
+}
+
+/** What the client returns from search/geocode: places zipped with parallel routing summaries. */
+export interface GoogleSearchResult {
+  places: GooglePlace[];
+  routingSummaries: GoogleRoutingSummary[];
+}
+
 export interface GoogleSearchTextRequest {
   textQuery: string;
   /** Soft ranking bias toward this point (locationBias circle). */
   near?: LocationPoint;
+  routingOrigin?: GoogleRoutingOrigin;
   limit?: number;
 }
 
@@ -129,5 +160,6 @@ export interface GoogleSearchNearbyRequest {
   center: LocationPoint;
   radiusMeters: number;
   includedTypes: string[];
+  routingOrigin?: GoogleRoutingOrigin;
   limit?: number;
 }

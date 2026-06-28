@@ -4,6 +4,7 @@ import { PLACE_CATEGORY, type PlaceCategory } from "../../services/places/places
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { formatPlaceSummary } from "./places-format-utils.js";
+import { resolveRoutingOrigin, routingDescriptionLine, routingOriginInputSchema } from "./places-routing-input.js";
 
 const DEFAULT_SEARCH_NEARBY_LIMIT = 20;
 const MAX_SEARCH_NEARBY_LIMIT = 50;
@@ -13,7 +14,14 @@ const CATEGORY_VALUES = Object.values(PLACE_CATEGORY) as [PlaceCategory, ...Plac
 
 export const SEARCH_NEARBY_PLACES_TOOL_NAME = "search_nearby_places";
 
+const BASE_DESCRIPTION =
+  "Find places of a given category within a radius around a point. Use get_place_details with a returned id " +
+  "for opening hours, contact info, and other attributes.";
+
 export function getSearchNearbyPlacesToolConfig(placesManager: PlacesManager) {
+  const routingLine = routingDescriptionLine(placesManager.getDefaultSource());
+  const description = routingLine ? `${BASE_DESCRIPTION} ${routingLine}` : BASE_DESCRIPTION;
+
   const inputSchema = {
     latitude: z.number().min(-90).max(90).describe("Latitude of the search center."),
     longitude: z.number().min(-180).max(180).describe("Longitude of the search center."),
@@ -26,6 +34,7 @@ export function getSearchNearbyPlacesToolConfig(placesManager: PlacesManager) {
     category: z
       .enum(CATEGORY_VALUES)
       .describe("Curated place category to filter by. Use OTHER only as a last resort - prefer a more specific value."),
+    ...routingOriginInputSchema,
     limit: z
       .number()
       .int()
@@ -36,6 +45,11 @@ export function getSearchNearbyPlacesToolConfig(placesManager: PlacesManager) {
   };
 
   const handler: ToolHandler<typeof inputSchema> = async (args) => {
+    const routing = resolveRoutingOrigin(args);
+    if ("error" in routing) {
+      return textToolResult([routing.error], true);
+    }
+
     try {
       const places = await placesManager.searchPlaces({
         area: {
@@ -44,6 +58,7 @@ export function getSearchNearbyPlacesToolConfig(placesManager: PlacesManager) {
           radiusMeters: args.radiusMeters,
         },
         category: args.category,
+        routingOrigin: routing.routingOrigin,
         limit: args.limit ?? DEFAULT_SEARCH_NEARBY_LIMIT,
       });
 
@@ -62,8 +77,7 @@ export function getSearchNearbyPlacesToolConfig(placesManager: PlacesManager) {
 
   const config: McpToolConfig<typeof inputSchema> = {
     name: SEARCH_NEARBY_PLACES_TOOL_NAME,
-    description:
-      "Find places of a given category within a radius around a point. Use get_place_details with a returned id for opening hours, contact info, and other attributes.",
+    description,
     inputSchema,
     handler,
   };

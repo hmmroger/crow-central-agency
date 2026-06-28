@@ -8,7 +8,9 @@ import {
   type GooglePlace,
   type GooglePlacesAdapterConfig,
   type GoogleGeocodingResult,
+  type GoogleRoutingOrigin,
   type GoogleSearchNearbyRequest,
+  type GoogleSearchResult,
   type GoogleSearchTextRequest,
 } from "./google-places-adapter.types.js";
 import { clampResultCount, readGoogleErrorMessage, toLatLng } from "./google-request-utils.js";
@@ -61,6 +63,28 @@ const SEARCH_FIELD_MASK = BASE_PLACE_FIELDS.map((field) => `places.${field}`).jo
 const DETAILS_FIELD_MASK = DETAILS_PLACE_FIELDS.join(",");
 
 /**
+ * Routing summary fields, a SIBLING array to `places[]` (no `places.` prefix).
+ *
+ * BILLING: requesting any `routingSummaries.*` field escalates that single call
+ * from Pro to Enterprise + Atmosphere. This is strictly opt-in and per-call:
+ * with no `routingOrigin`, the mask stays Pro and billing is unchanged. The
+ * caller's decision to pass an origin IS the opt-in — there is no env flag.
+ */
+const ROUTING_SUMMARY_FIELDS = [
+  "routingSummaries.legs.duration",
+  "routingSummaries.legs.distanceMeters",
+  "routingSummaries.directionsUri",
+] as const;
+
+function searchFieldMask(routingOrigin: GoogleRoutingOrigin | undefined): string {
+  return routingOrigin ? `${SEARCH_FIELD_MASK},${ROUTING_SUMMARY_FIELDS.join(",")}` : SEARCH_FIELD_MASK;
+}
+
+function routingParametersBody(routingOrigin: GoogleRoutingOrigin): Record<string, unknown> {
+  return { origin: toLatLng(routingOrigin.point), travelMode: routingOrigin.travelMode };
+}
+
+/**
  * Single HTTP client for both Google APIs the adapter needs: Places API (New)
  * for search/details and the Geocoding API for reverse geocoding.
  */
@@ -71,7 +95,7 @@ export class GooglePlacesClient {
     this.apiKey = config.apiKey;
   }
 
-  public async searchText(request: GoogleSearchTextRequest): Promise<GooglePlace[]> {
+  public async searchText(request: GoogleSearchTextRequest): Promise<GoogleSearchResult> {
     const body: Record<string, unknown> = {
       textQuery: request.textQuery,
       maxResultCount: clampResultCount(request.limit),
@@ -80,29 +104,36 @@ export class GooglePlacesClient {
       body.locationBias = { circle: { center: toLatLng(request.near), radius: GEOCODE_BIAS_RADIUS_METERS } };
     }
 
+    if (request.routingOrigin) {
+      body.routingParameters = routingParametersBody(request.routingOrigin);
+    }
+
     const response = await this.placesRequest(
       "/places:searchText",
-      SEARCH_FIELD_MASK,
+      searchFieldMask(request.routingOrigin),
       GooglePlacesSearchResponseSchema,
       body
     );
-    return response.places ?? [];
+    return { places: response.places ?? [], routingSummaries: response.routingSummaries ?? [] };
   }
 
-  public async searchNearby(request: GoogleSearchNearbyRequest): Promise<GooglePlace[]> {
-    const body = {
+  public async searchNearby(request: GoogleSearchNearbyRequest): Promise<GoogleSearchResult> {
+    const body: Record<string, unknown> = {
       includedTypes: request.includedTypes,
       maxResultCount: clampResultCount(request.limit),
       locationRestriction: { circle: { center: toLatLng(request.center), radius: request.radiusMeters } },
     };
+    if (request.routingOrigin) {
+      body.routingParameters = routingParametersBody(request.routingOrigin);
+    }
 
     const response = await this.placesRequest(
       "/places:searchNearby",
-      SEARCH_FIELD_MASK,
+      searchFieldMask(request.routingOrigin),
       GooglePlacesSearchResponseSchema,
       body
     );
-    return response.places ?? [];
+    return { places: response.places ?? [], routingSummaries: response.routingSummaries ?? [] };
   }
 
   /** Returns undefined when Google reports the place id as not found (HTTP 404). */

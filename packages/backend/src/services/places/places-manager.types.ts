@@ -59,6 +59,38 @@ export type LocationArea =
   | { type: "boundingBox"; boundingBox: LocationBoundingBox };
 
 /**
+ * Travel mode for an optional routing origin. Mirrors Google Routes travelMode,
+ * minus TRANSIT (out of scope for place-search routing).
+ */
+export const TRAVEL_MODE = {
+  DRIVE: "DRIVE",
+  WALK: "WALK",
+  BICYCLE: "BICYCLE",
+  TWO_WHEELER: "TWO_WHEELER",
+} as const;
+
+export type TravelMode = (typeof TRAVEL_MODE)[keyof typeof TRAVEL_MODE];
+
+/**
+ * Opt-in origin for attaching travel distance/duration to each result. Adapters
+ * that cannot route (e.g. OSM) ignore it and return places without `routing`.
+ */
+export interface RoutingOrigin {
+  point: LocationPoint;
+  /** Adapter default: DRIVE. */
+  travelMode?: TravelMode;
+}
+
+/** Per-place travel summary from a `RoutingOrigin`, when the provider supplies one. */
+export interface RoutingSummary {
+  travelMode: TravelMode;
+  distanceMeters: number;
+  durationSeconds: number;
+  /** Provider-supplied "open in Maps" link, when available (Google directionsUri). */
+  directionsUrl?: string;
+}
+
+/**
  * Operational state of a place when the provider reports it. Mirrors Google's
  * `businessStatus`; providers without the concept (e.g. OSM) leave it unset.
  */
@@ -93,6 +125,8 @@ export interface Place {
   mapsUrl?: string;
   /** Operational state when the provider reports it. */
   businessStatus?: BusinessStatus;
+  /** Travel summary from a query's `routingOrigin`; unset when no origin was given or the adapter can't route. */
+  routing?: RoutingSummary;
 }
 
 export const WEEKDAY = {
@@ -196,6 +230,8 @@ export interface GeocodeQuery {
   text: string;
   /** Bias result ranking toward this point when the provider supports it. */
   near?: LocationPoint;
+  /** Opt-in: attach travel distance/duration from this origin to each result. */
+  routingOrigin?: RoutingOrigin;
   limit?: number;
 }
 
@@ -207,6 +243,8 @@ export interface ReverseGeocodeQuery {
 export interface SearchPlacesQuery {
   area: LocationArea;
   category: PlaceCategory;
+  /** Opt-in: attach travel distance/duration from this origin to each result. */
+  routingOrigin?: RoutingOrigin;
   limit?: number;
 }
 
