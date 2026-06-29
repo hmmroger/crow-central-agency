@@ -665,13 +665,12 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   }
 
   /**
-   * Append a submitted user input to the agent's recall history.
-   * Skips consecutive duplicates and caps the list to MAX_INPUT_HISTORY (oldest first).
-   * Mutates state in place; the caller persists via persistAgentState.
+   * Skips consecutive duplicates; caps to MAX_INPUT_HISTORY (oldest first).
+   * Mutates state in place; caller persists via persistAgentState.
    */
   private recordInputHistory(state: AgentRuntimeState, message: string): void {
     const history = state.inputHistory ?? [];
-    if (head(history.slice(-1)) === message) {
+    if (history.at(-1) === message) {
       return;
     }
 
