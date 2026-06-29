@@ -6,6 +6,7 @@ import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-mana
 import type { ConnectorManager } from "../connectors/connector-manager.js";
 import type { SensorManager } from "../sensors/sensor-manager.js";
 import { GoogleClient } from "../services/google/google-client.js";
+import { GMAIL_SYSTEM_LABEL } from "../services/google/gmail-label-utils.js";
 import { GMAIL_MCP_SERVER_NAME } from "../mcp/gmail/gmail-mcp-server.js";
 import { formatLocalIsoDateTime } from "../utils/date-utils.js";
 import { logger } from "../utils/logger.js";
@@ -65,7 +66,11 @@ class GmailNotificationRoutine {
     const userTimezone = await this.sensorManager.getUserTimezone();
     const afterDateTime = formatLocalIsoDateTime(lastCheckTimestamp, userTimezone);
     const client = new GoogleClient(this.connectorManager, this.sensorManager, agent.id);
-    const result = await client.listGmailMessages({ afterDateTime, limit: MAX_NEW_MAILS_IN_PROMPT + 1 });
+    const result = await client.listGmailMessages({
+      afterDateTime,
+      labelIds: [GMAIL_SYSTEM_LABEL.INBOX],
+      limit: MAX_NEW_MAILS_IN_PROMPT + 1,
+    });
 
     if (result.messages.length > 0) {
       log.info({ agentId: agent.id, count: result.messages.length }, "New Gmail messages found for agent");
