@@ -78,6 +78,7 @@ export {
   AgentActivitySchema,
   AGENT_ACTIVITY_TYPE,
   AGENT_STATUS,
+  MAX_INPUT_HISTORY,
   type AgentStatus,
   type SessionUsage,
   type PendingPermissionInfo,

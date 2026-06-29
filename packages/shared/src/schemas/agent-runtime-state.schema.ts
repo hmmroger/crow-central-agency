@@ -83,6 +83,9 @@ export const PendingInstructionReminderSchema = z.object({
   agentMd: z.boolean().optional(),
 });
 
+/** Maximum number of recent user inputs retained per agent for compose-box recall. */
+export const MAX_INPUT_HISTORY = 100;
+
 /**
  * Agent runtime state - maintained by the runtime manager per agent.
  */
@@ -100,6 +103,8 @@ export const AgentRuntimeStateSchema = z.object({
   lastError: z.string().optional(),
   pendingPermissions: z.array(PendingPermissionInfoSchema).optional(),
   pendingInstructionReminder: PendingInstructionReminderSchema.optional(),
+  /** Recent user message inputs (oldest first) for compose-box Up/Down recall; survives new sessions. */
+  inputHistory: z.array(z.string()).optional(),
 });
 
 export type SessionUsage = z.infer<typeof SessionUsageSchema>;
