@@ -163,7 +163,7 @@ export function MessageInput({
         {action}
       </div>
       <p className="max-w-3xl mx-auto text-2xs text-text-muted/60 mt-1.5 text-center font-mono">
-        Enter to send &middot; Shift+Enter for new line
+        Enter to send &middot; Shift+Enter for new line &middot; Up/Down to recall
       </p>
     </div>
   );

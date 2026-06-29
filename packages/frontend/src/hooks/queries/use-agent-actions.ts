@@ -47,11 +47,8 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
   const queryClient = useQueryClient();
   const { resetStreamState } = options;
 
-  /**
-   * Optimistically append a sent input to the agent's recall history in the state cache.
-   * Mirrors the backend's recordInputHistory (dedupe consecutive, cap) so Up/Down recall
-   * reflects the just-sent message before the next /state refetch reconciles it.
-   */
+  // Optimistic update (mirrors the backend dedupe + cap) so the just-sent message is
+  // recallable until the next mount refetch reconciles inputHistory from /state.
   const appendInputHistory = useCallback(
     (text: string) => {
       queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
