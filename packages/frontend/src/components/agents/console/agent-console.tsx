@@ -62,7 +62,13 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
           />
         </div>
 
-        <MessageInput onSend={sendMessage} onInject={injectMessage} onAbort={abort} isStreaming={isStreaming} />
+        <MessageInput
+          onSend={sendMessage}
+          onInject={injectMessage}
+          onAbort={abort}
+          isStreaming={isStreaming}
+          history={agentState?.inputHistory}
+        />
       </div>
     </div>
   );

@@ -73,6 +73,7 @@ export function AgentCard({ agent }: AgentCardProps) {
           onInject={injectMessage}
           onAbort={abort}
           isStreaming={isStreaming}
+          history={agentState?.inputHistory}
           variant="compact"
         />
       </div>
