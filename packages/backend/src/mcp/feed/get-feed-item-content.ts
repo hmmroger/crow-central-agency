@@ -10,6 +10,9 @@ import { resolveVisibleFeedIds } from "./feed-tool-utils.js";
 
 export const GET_FEED_ITEM_CONTENT_TOOL_NAME = "get_feed_item_content";
 
+/** Default cap on lines returned for a feed item to avoid flooding the context with long article bodies. */
+export const DEFAULT_FEED_ITEM_CONTENT_LINE_LIMIT = 100;
+
 export function getFeedItemContentToolConfig(
   agentId: string,
   registry: AgentRegistry,
@@ -30,7 +33,9 @@ export function getFeedItemContentToolConfig(
       .number()
       .min(1)
       .optional()
-      .describe("Optional. Maximum number of lines to return starting from startLine."),
+      .describe(
+        `Optional. Maximum number of lines to return starting from startLine (default: ${DEFAULT_FEED_ITEM_CONTENT_LINE_LIMIT}).`
+      ),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async ({ feedId, id, showLineNumber, startLine, limit }) => {
@@ -58,7 +63,11 @@ export function getFeedItemContentToolConfig(
       }
 
       const contentText = feedItem.content || feedItem.description;
-      const processedContent = processTextContent(contentText, { showLineNumber, startLine, limit });
+      const processedContent = processTextContent(contentText, {
+        showLineNumber,
+        startLine,
+        limit: limit ?? DEFAULT_FEED_ITEM_CONTENT_LINE_LIMIT,
+      });
 
       return textToolResult(header.concat(processedContent.headerParts).concat(["", processedContent.text]));
     } catch (error) {
