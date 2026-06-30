@@ -9,6 +9,9 @@ import type { ArtifactContentFindResult } from "../../services/artifact/artifact
 export const ARTIFACT_TYPE_VALUES = Object.values(ARTIFACT_TYPE);
 export const ARTIFACT_CONTENT_TYPE_VALUES = Object.values(ARTIFACT_CONTENT_TYPE);
 
+/** Default cap on lines returned by read artifact tools to avoid flooding the context with large text artifacts. */
+export const DEFAULT_READ_ARTIFACT_LINE_LIMIT = 100;
+
 export const EDIT_ARTIFACT_MODE = {
   INSERT: "insert",
   REPLACE: "replace",
