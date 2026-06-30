@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { MessageSourceSchema } from "./message-source.schema.js";
 
+/** Maximum number of recent user inputs retained per agent for compose-box recall. */
+export const MAX_INPUT_HISTORY = 30;
+
 export const AGENT_STATUS = {
   IDLE: "idle",
   ACTIVATING: "activating",
@@ -100,6 +103,8 @@ export const AgentRuntimeStateSchema = z.object({
   lastError: z.string().optional(),
   pendingPermissions: z.array(PendingPermissionInfoSchema).optional(),
   pendingInstructionReminder: PendingInstructionReminderSchema.optional(),
+  /** Recent user message inputs (oldest first) for compose-box Up/Down recall; survives new sessions. */
+  inputHistory: z.array(z.string()).optional(),
 });
 
 export type SessionUsage = z.infer<typeof SessionUsageSchema>;

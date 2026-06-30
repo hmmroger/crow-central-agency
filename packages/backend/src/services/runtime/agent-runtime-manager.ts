@@ -4,6 +4,7 @@ import {
   AGENT_TASK_STATE,
   AgentActivitySchema,
   AgentRuntimeStateSchema,
+  MAX_INPUT_HISTORY,
   SERVER_MESSAGE_TYPE,
   AGENT_MESSAGE_TYPE,
   type AgentConfig,
@@ -332,6 +333,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
                 message
               );
               this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: userMessage });
+              this.recordInputHistory(state, message);
               userMessageAdded = true;
               // Consume the one-shot reminder only once the turn is delivered, so an error
               // before this point leaves it pending for the retry.
@@ -660,6 +662,19 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     this.sendMessage(agentId, next.message, next.source).catch((error) => {
       log.error({ agentId, queueEntryId: next.id, error }, "Failed to process drained message");
     });
+  }
+
+  /**
+   * Skips consecutive duplicates; caps to MAX_INPUT_HISTORY (oldest first).
+   * Mutates state in place; caller persists via persistAgentState.
+   */
+  private recordInputHistory(state: AgentRuntimeState, message: string): void {
+    const history = state.inputHistory ?? [];
+    if (history.at(-1) === message) {
+      return;
+    }
+
+    state.inputHistory = [...history, message].slice(-MAX_INPUT_HISTORY);
   }
 
   /** Persist a single agent's runtime state to the store */

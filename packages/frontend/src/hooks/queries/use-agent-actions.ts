@@ -1,6 +1,11 @@
 import { useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CLIENT_MESSAGE_TYPE, PERMISSION_DECISION, type AgentRuntimeState } from "@crow-central-agency/shared";
+import {
+  CLIENT_MESSAGE_TYPE,
+  MAX_INPUT_HISTORY,
+  PERMISSION_DECISION,
+  type AgentRuntimeState,
+} from "@crow-central-agency/shared";
 import { useWs } from "../use-ws.js";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { agentKeys } from "../../services/query-keys.js";
@@ -42,12 +47,33 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
   const queryClient = useQueryClient();
   const { resetStreamState } = options;
 
+  // Optimistic update (mirrors the backend dedupe + cap) so the just-sent message is
+  // recallable until the next mount refetch reconciles inputHistory from /state.
+  const appendInputHistory = useCallback(
+    (text: string) => {
+      queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
+        if (!prev) {
+          return prev;
+        }
+
+        const history = prev.inputHistory ?? [];
+        if (history[history.length - 1] === text) {
+          return prev;
+        }
+
+        return { ...prev, inputHistory: [...history, text].slice(-MAX_INPUT_HISTORY) };
+      });
+    },
+    [queryClient, agentId]
+  );
+
   /** Send a user message - backend creates the AgentMessage and broadcasts agent_message WS */
   const sendMessage = useCallback(
     (text: string) => {
       send({ type: CLIENT_MESSAGE_TYPE.SEND_MESSAGE, agentId, message: text });
+      appendInputHistory(text);
     },
-    [send, agentId]
+    [send, agentId, appendInputHistory]
   );
 
   /** Inject a btw message while streaming */

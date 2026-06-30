@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { Send, Square } from "lucide-react";
+import { useInputHistoryNavigation } from "./use-input-history-navigation.js";
 
 interface MessageInputProps {
   /** Called with trimmed text when user submits while not streaming */
@@ -12,6 +13,8 @@ interface MessageInputProps {
   isStreaming: boolean;
   /** Disable the input */
   disabled?: boolean;
+  /** Previously submitted inputs (oldest first) for Up/Down recall */
+  history?: string[];
   /**
    * Layout variant:
    * - "full": multi-line textarea with backdrop blur, centered max-width, hint text (console)
@@ -30,10 +33,16 @@ export function MessageInput({
   onAbort,
   isStreaming,
   disabled,
+  history = [],
   variant = "full",
 }: MessageInputProps) {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { handleArrowKey, reset: resetHistoryNavigation } = useInputHistoryNavigation({
+    history,
+    setText,
+    multiline: variant === "full",
+  });
 
   const autoResize = useCallback(() => {
     const textarea = textareaRef.current;
@@ -45,12 +54,18 @@ export function MessageInput({
     textarea.style.height = `${textarea.scrollHeight}px`;
   }, []);
 
+  // Resize on every text change, including programmatic ones (Up/Down recall, submit clear).
+  // No-op for the compact variant, whose input never attaches textareaRef.
+  useLayoutEffect(() => {
+    autoResize();
+  }, [text, autoResize]);
+
   const handleChange = useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    (event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
       setText(event.target.value);
-      autoResize();
+      resetHistoryNavigation();
     },
-    [autoResize]
+    [resetHistoryNavigation]
   );
 
   const handleSubmit = useCallback(() => {
@@ -67,20 +82,22 @@ export function MessageInput({
     }
 
     setText("");
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = "auto";
-    }
-  }, [text, isStreaming, onSend, onInject]);
+    resetHistoryNavigation();
+  }, [text, isStreaming, onSend, onInject, resetHistoryNavigation]);
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent) => {
+    (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
         handleSubmit();
+        return;
+      }
+
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        handleArrowKey(event);
       }
     },
-    [handleSubmit]
+    [handleSubmit, handleArrowKey]
   );
 
   const placeholder = isStreaming ? "Inject a message..." : "Send a message...";
@@ -112,7 +129,7 @@ export function MessageInput({
         <input
           type="text"
           value={text}
-          onChange={(event) => setText(event.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
@@ -139,7 +156,7 @@ export function MessageInput({
         {action}
       </div>
       <p className="max-w-3xl mx-auto text-2xs text-text-muted/60 mt-1.5 text-center font-mono">
-        Enter to send &middot; Shift+Enter for new line
+        Enter to send &middot; Shift+Enter for new line &middot; Up/Down to recall
       </p>
     </div>
   );
