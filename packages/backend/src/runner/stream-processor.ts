@@ -140,11 +140,14 @@ function handleSystemMessage(
     case "memory_recall":
     case "mirror_error":
     case "model_refusal_fallback":
+    case "model_refusal_no_fallback":
     case "notification":
+    case "informational":
     case "permission_denied":
     case "plugin_install":
     case "session_state_changed":
     case "thinking_tokens":
+    case "worker_shutting_down":
       break;
   }
 

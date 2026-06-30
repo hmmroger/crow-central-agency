@@ -179,7 +179,13 @@ export interface AgentStreamRateLimitInfoEvent extends AgentStreamEventCommon {
   type: (typeof AGENT_STREAM_EVENT_TYPE)["RATE_LIMIT_INFO"];
   rateLimitStatus: "allowed" | "allowed_warning" | "rejected";
   resetsAt?: number;
-  rateLimitType?: "five_hour" | "seven_day" | "seven_day_opus" | "seven_day_sonnet" | "overage";
+  rateLimitType?:
+    | "five_hour"
+    | "seven_day"
+    | "seven_day_opus"
+    | "seven_day_sonnet"
+    | "overage"
+    | "seven_day_overage_included";
   utilization?: number;
 }
 
