@@ -333,7 +333,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
                 message
               );
               this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: userMessage });
-              this.recordInputHistory(state, message);
+              if (source.sourceType === MESSAGE_SOURCE_TYPE.USER) {
+                this.recordInputHistory(state, message);
+              }
+
               userMessageAdded = true;
               // Consume the one-shot reminder only once the turn is delivered, so an error
               // before this point leaves it pending for the retry.
