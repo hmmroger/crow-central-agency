@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { Send, Square } from "lucide-react";
 import { useInputHistoryNavigation } from "./use-input-history-navigation.js";
 
@@ -54,17 +54,14 @@ export function MessageInput({
     textarea.style.height = `${textarea.scrollHeight}px`;
   }, []);
 
-  const handleChange = useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setText(event.target.value);
-      resetHistoryNavigation();
-      autoResize();
-    },
-    [autoResize, resetHistoryNavigation]
-  );
+  // Resize on every text change, including programmatic ones (Up/Down recall, submit clear).
+  // No-op for the compact variant, whose input never attaches textareaRef.
+  useLayoutEffect(() => {
+    autoResize();
+  }, [text, autoResize]);
 
-  const handleCompactChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
       setText(event.target.value);
       resetHistoryNavigation();
     },
@@ -86,10 +83,6 @@ export function MessageInput({
 
     setText("");
     resetHistoryNavigation();
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = "auto";
-    }
   }, [text, isStreaming, onSend, onInject, resetHistoryNavigation]);
 
   const handleKeyDown = useCallback(
@@ -136,7 +129,7 @@ export function MessageInput({
         <input
           type="text"
           value={text}
-          onChange={handleCompactChange}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
