@@ -5,7 +5,7 @@ import type { AgentCircleManager } from "../../services/agent-circle-manager.js"
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
-import { buildReadArtifactResult } from "./artifacts-mcp-server-utils.js";
+import { buildReadArtifactResult, DEFAULT_READ_ARTIFACT_LINE_LIMIT } from "./artifacts-mcp-server-utils.js";
 
 export const READ_ARTIFACT_TOOL_NAME = "read_artifact";
 
@@ -29,7 +29,9 @@ export function getReadArtifactToolConfig(
       .number()
       .min(1)
       .optional()
-      .describe("Optional. Maximum number of lines to return starting from startLine."),
+      .describe(
+        `Optional. Maximum number of lines to return starting from startLine (default: ${DEFAULT_READ_ARTIFACT_LINE_LIMIT}).`
+      ),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async ({ agent_id, filename, showLineNumber, startLine, limit }) => {
@@ -49,7 +51,11 @@ export function getReadArtifactToolConfig(
         sensorManager.getUserTimezone(),
       ]);
 
-      return buildReadArtifactResult(content, metadata, userTimezone, { showLineNumber, startLine, limit });
+      return buildReadArtifactResult(content, metadata, userTimezone, {
+        showLineNumber,
+        startLine,
+        limit: limit ?? DEFAULT_READ_ARTIFACT_LINE_LIMIT,
+      });
     } catch (error) {
       return getErrorToolResult(error, "Failed to read artifact.");
     }

@@ -137,6 +137,10 @@ export function processTextContent(text: string, options?: ReadLineOptions): Pro
   }
 
   const hasRange = options.startLine !== undefined || options.limit !== undefined;
+  if (clampedEnd < totalLines) {
+    headerParts.push(`[More available: use startLine=${clampedEnd + 1} to continue]`);
+  }
+
   headerParts.push(`--- CONTENT${hasRange ? ` (lines ${start + 1} - ${clampedEnd})` : ""} ---`);
 
   const processedText = options.showLineNumber

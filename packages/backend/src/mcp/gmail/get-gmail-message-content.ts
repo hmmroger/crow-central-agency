@@ -5,6 +5,9 @@ import { getErrorToolResult, processTextContent, textToolResult } from "../tool-
 
 export const GET_GMAIL_MESSAGE_CONTENT_TOOL_NAME = "get_gmail_message_content";
 
+/** Default cap on lines returned for a Gmail message body to avoid flooding the context with long emails. */
+export const DEFAULT_GMAIL_MESSAGE_CONTENT_LINE_LIMIT = 100;
+
 export function getGetGmailMessageContentToolConfig(googleClient: GoogleClient) {
   const inputSchema = {
     messageId: z.string().describe("Gmail message ID (from list_gmail_messages or get_gmail_thread results)."),
@@ -18,14 +21,20 @@ export function getGetGmailMessageContentToolConfig(googleClient: GoogleClient) 
       .number()
       .min(1)
       .optional()
-      .describe("Optional. Maximum number of lines to return starting from startLine."),
+      .describe(
+        `Optional. Maximum number of lines to return starting from startLine (default: ${DEFAULT_GMAIL_MESSAGE_CONTENT_LINE_LIMIT}).`
+      ),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async ({ messageId, showLineNumber, startLine, limit }) => {
     try {
       const message = await googleClient.getGmailMessage(messageId);
       const rawContent = message.content ?? message.snippet ?? "(no body)";
-      const processed = processTextContent(rawContent, { showLineNumber, startLine, limit });
+      const processed = processTextContent(rawContent, {
+        showLineNumber,
+        startLine,
+        limit: limit ?? DEFAULT_GMAIL_MESSAGE_CONTENT_LINE_LIMIT,
+      });
       return textToolResult([...processed.headerParts, "", processed.text]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to get Gmail message content.");

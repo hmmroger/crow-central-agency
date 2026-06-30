@@ -3,7 +3,7 @@ import type { ArtifactManager } from "../../services/artifact/artifact-manager.j
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
-import { buildReadArtifactResult } from "./artifacts-mcp-server-utils.js";
+import { buildReadArtifactResult, DEFAULT_READ_ARTIFACT_LINE_LIMIT } from "./artifacts-mcp-server-utils.js";
 
 export const READ_CIRCLE_ARTIFACT_TOOL_NAME = "read_circle_artifact";
 
@@ -25,7 +25,9 @@ export function getReadCircleArtifactToolConfig(
       .number()
       .min(1)
       .optional()
-      .describe("Optional. Maximum number of lines to return starting from startLine."),
+      .describe(
+        `Optional. Maximum number of lines to return starting from startLine (default: ${DEFAULT_READ_ARTIFACT_LINE_LIMIT}).`
+      ),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async ({
@@ -45,7 +47,11 @@ export function getReadCircleArtifactToolConfig(
         sensorManager.getUserTimezone(),
       ]);
 
-      return buildReadArtifactResult(content, metadata, userTimezone, { showLineNumber, startLine, limit });
+      return buildReadArtifactResult(content, metadata, userTimezone, {
+        showLineNumber,
+        startLine,
+        limit: limit ?? DEFAULT_READ_ARTIFACT_LINE_LIMIT,
+      });
     } catch (error) {
       return getErrorToolResult(error, "Failed to read circle artifact.");
     }
