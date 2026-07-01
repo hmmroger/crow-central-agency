@@ -230,7 +230,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
 
     const session =
       sessionId && agentConfig.persistSession !== false
-        ? await client.resumeSession(sessionId, sessionConfig)
+        ? await this.resumeOrCreateSession(client, sessionId, sessionConfig)
         : await client.createSession(sessionConfig);
     this.session = session;
 
@@ -666,5 +666,33 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     const client = new CopilotClient({ workingDirectory: cwd });
     await client.start();
     return client;
+  }
+
+  /**
+   * Resume a persisted session, falling back to a fresh one when the stored session no longer
+   * exists. The SDK reports a missing session and a dropped connection as the same generic error,
+   * so we disambiguate by outcome: if the resume fails but createSession then succeeds, the
+   * connection is alive and the session is simply gone. If createSession also fails, the connection
+   * is genuinely down and we surface the original resume error instead of masking it.
+   */
+  private async resumeOrCreateSession(
+    client: CopilotClient,
+    sessionId: string,
+    sessionConfig: SessionConfig
+  ): Promise<CopilotSession> {
+    try {
+      return await client.resumeSession(sessionId, sessionConfig);
+    } catch (resumeError) {
+      try {
+        const session = await client.createSession(sessionConfig);
+        log.warn(
+          { agentId: this.agentId, sessionId, error: resumeError },
+          "Copilot resume failed; started a new session"
+        );
+        return session;
+      } catch {
+        throw resumeError;
+      }
+    }
   }
 }
