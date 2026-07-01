@@ -119,65 +119,90 @@ export type ToolMode = (typeof TOOL_MODE)[keyof typeof TOOL_MODE];
 export const SUBAGENT_TOOL_NAME = "Agent" as const;
 
 /**
+ * Builtin tool names for Claude Code agents.
+ */
+export const CLAUDE_CODE_TOOL = {
+  ASK_USER_QUESTION: "AskUserQuestion",
+  BASH: "Bash",
+  CRON_CREATE: "CronCreate",
+  CRON_DELETE: "CronDelete",
+  CRON_LIST: "CronList",
+  EDIT: "Edit",
+  ENTER_PLAN_MODE: "EnterPlanMode",
+  ENTER_WORKTREE: "EnterWorktree",
+  EXIT_PLAN_MODE: "ExitPlanMode",
+  EXIT_WORKTREE: "ExitWorktree",
+  GLOB: "Glob",
+  GREP: "Grep",
+  LSP: "LSP",
+  MONITOR: "Monitor",
+  NOTEBOOK_EDIT: "NotebookEdit",
+  POWER_SHELL: "PowerShell",
+  PUSH_NOTIFICATION: "PushNotification",
+  READ: "Read",
+  REMOTE_TRIGGER: "RemoteTrigger",
+  SCHEDULE_WAKEUP: "ScheduleWakeup",
+  SKILL: "Skill",
+  TASK: "Task",
+  TASK_CREATE: "TaskCreate",
+  TASK_GET: "TaskGet",
+  TASK_LIST: "TaskList",
+  TASK_OUTPUT: "TaskOutput",
+  TASK_STOP: "TaskStop",
+  TASK_UPDATE: "TaskUpdate",
+  TOOL_SEARCH: "ToolSearch",
+  WEB_FETCH: "WebFetch",
+  WEB_SEARCH: "WebSearch",
+  WORKFLOW: "Workflow",
+  WRITE: "Write",
+} as const;
+
+/**
+ * Builtin tool names for GitHub Copilot agents. Superset across platforms, models, and config:
+ * the runtime swaps the shell family (bash on Linux/macOS, powershell on Windows) and the file-edit
+ * tools (str_replace_editor vs create/edit/view vs apply_patch) per model, and surfaces web_search
+ * only when config discovery is enabled. Agents may run on any of these, so all known names are listed.
+ */
+export const GITHUB_COPILOT_TOOL = {
+  BASH: "bash",
+  WRITE_BASH: "write_bash",
+  READ_BASH: "read_bash",
+  STOP_BASH: "stop_bash",
+  LIST_BASH: "list_bash",
+  POWER_SHELL: "powershell",
+  WRITE_POWER_SHELL: "write_powershell",
+  READ_POWER_SHELL: "read_powershell",
+  STOP_POWER_SHELL: "stop_powershell",
+  LIST_POWER_SHELL: "list_powershell",
+  STR_REPLACE_EDITOR: "str_replace_editor",
+  APPLY_PATCH: "apply_patch",
+  VIEW: "view",
+  CREATE: "create",
+  EDIT: "edit",
+  GREP: "grep",
+  RG: "rg",
+  GLOB: "glob",
+  WEB_FETCH: "web_fetch",
+  WEB_SEARCH: "web_search",
+  READ_AGENT: "read_agent",
+  LIST_AGENTS: "list_agents",
+  SKILL: "skill",
+  TASK: "task",
+  SQL: "sql",
+  REPORT_INTENT: "report_intent",
+  ASK_USER: "ask_user",
+  FETCH_COPILOT_CLI_DOCUMENTATION: "fetch_copilot_cli_documentation",
+} as const;
+
+/**
  * Default builtin tool catalog for Claude Code agents.
  */
-export const DEFAULT_CLAUDE_CODE_AVAILABLE_TOOLS = [
-  "AskUserQuestion",
-  "Bash",
-  "CronCreate",
-  "CronDelete",
-  "CronList",
-  "Edit",
-  "EnterPlanMode",
-  "EnterWorktree",
-  "ExitPlanMode",
-  "ExitWorktree",
-  "Glob",
-  "Grep",
-  "LSP",
-  "Monitor",
-  "NotebookEdit",
-  "PowerShell",
-  "PushNotification",
-  "Read",
-  "RemoteTrigger",
-  "ScheduleWakeup",
-  "Skill",
-  "Task",
-  "TaskCreate",
-  "TaskGet",
-  "TaskList",
-  "TaskOutput",
-  "TaskStop",
-  "TaskUpdate",
-  "ToolSearch",
-  "WebFetch",
-  "WebSearch",
-  "Workflow",
-  "Write",
-] as const;
+export const DEFAULT_CLAUDE_CODE_AVAILABLE_TOOLS = Object.values(CLAUDE_CODE_TOOL);
 
 /**
  * Default builtin tool catalog for GitHub Copilot agents.
  */
-export const DEFAULT_GITHUB_COPILOT_AVAILABLE_TOOLS = [
-  "bash",
-  "write_bash",
-  "read_bash",
-  "stop_bash",
-  "list_bash",
-  "view",
-  "create",
-  "edit",
-  "web_fetch",
-  "report_intent",
-  "fetch_copilot_cli_documentation",
-  "skill",
-  "ask_user",
-  "grep",
-  "glob",
-  "task",
-] as const;
+export const DEFAULT_GITHUB_COPILOT_AVAILABLE_TOOLS = Object.values(GITHUB_COPILOT_TOOL);
 
 /**
  * Setting sources matching SDK SettingSource type.

@@ -1,11 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import {
-  AGENT_TYPE,
-  DEFAULT_AVAILABLE_TOOLS_BY_TYPE,
-  TOOL_MODE,
-  type AgentType,
-  type ToolMode,
-} from "@crow-central-agency/shared";
+import { DEFAULT_AVAILABLE_TOOLS_BY_TYPE, TOOL_MODE, type AgentType, type ToolMode } from "@crow-central-agency/shared";
 import { Toggle } from "../common/toggle.js";
 import { FieldGroup } from "./field-group.js";
 import { ToggleButton } from "./toggle-button.js";
@@ -13,11 +7,11 @@ import { ChipButton } from "./chip-button.js";
 import { BUILTIN_TOOL_SET_BY_TYPE } from "./tool-constants.js";
 
 /**
- * Whether a provider supports restricting the builtin tool set (Claude's "restricted" mode).
- * Copilot only supports unrestricted tools plus a disallow list for now.
+ * Whether a provider supports restricting the builtin tool set. Both Claude Code and Copilot
+ * honor the "restricted" mode: each runner gates its own builtin catalog to the selected tools.
  */
-function supportsToolRestriction(type: AgentType): boolean {
-  return type === AGENT_TYPE.CLAUDE_CODE;
+function supportsToolRestriction(_type: AgentType): boolean {
+  return true;
 }
 
 interface ToolConfigSectionProps {
