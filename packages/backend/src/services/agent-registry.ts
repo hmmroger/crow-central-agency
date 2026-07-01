@@ -405,6 +405,8 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
       workspace: agent.workspace,
       persona: agent.persona,
       model: agent.model,
+      effort: agent.effort,
+      thinkingConfig: agent.thinkingConfig,
       permissionMode: agent.permissionMode,
       settingSources: agent.settingSources,
       availableTools: agent.availableTools,
