@@ -52,6 +52,7 @@ export type {
   AgentVoiceConfig,
   ModelOption,
   ReasoningEffort,
+  ThinkingMode,
   AgentThinkingConfig,
 } from "./schemas/agent.schema.js";
 

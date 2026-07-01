@@ -8,6 +8,7 @@ import {
   TOOL_MODE,
   TIME_MODE,
   type AgentConfigTemplate,
+  type AgentThinkingConfig,
   type AgentType,
   type ConfiguredFeed,
   type DayOfWeek,
@@ -30,6 +31,7 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   persona: "",
   model: CLAUDE_DEFAULT_MODEL,
   effort: undefined,
+  thinkingConfig: undefined,
   permissionMode: PERMISSION_MODE.DEFAULT,
   settingSources: [...DEFAULT_SETTING_SOURCES],
   disableFileHooks: false,
@@ -83,6 +85,7 @@ function formStateFromTemplate(template: AgentConfigTemplate): AgentEditorFormSt
     persona: template.persona ?? "",
     model: template.model,
     effort: template.effort,
+    thinkingConfig: template.thinkingConfig,
     permissionMode: template.permissionMode,
     settingSources: template.settingSources,
     toolMode: template.toolConfig.mode,
@@ -112,6 +115,7 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     persona: agent.persona,
     model: agent.model,
     effort: agent.effort,
+    thinkingConfig: agent.thinkingConfig,
     permissionMode: agent.permissionMode,
     settingSources: agent.settingSources,
     disableFileHooks: agent.settingSourceConfig?.disableFileHooks ?? false,
@@ -157,6 +161,8 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     formA.persona === formB.persona &&
     formA.model === formB.model &&
     formA.effort === formB.effort &&
+    formA.thinkingConfig?.mode === formB.thinkingConfig?.mode &&
+    formA.thinkingConfig?.budget === formB.thinkingConfig?.budget &&
     formA.permissionMode === formB.permissionMode &&
     formA.toolMode === formB.toolMode &&
     formA.loopEnabled === formB.loopEnabled &&
@@ -254,6 +260,10 @@ export function useAgentEditorForm(
   const setModel = useCallback((value: string) => setForm((prev) => ({ ...prev, model: value })), []);
   const setEffort = useCallback(
     (value: ReasoningEffort | undefined) => setForm((prev) => ({ ...prev, effort: value })),
+    []
+  );
+  const setThinkingConfig = useCallback(
+    (value: AgentThinkingConfig | undefined) => setForm((prev) => ({ ...prev, thinkingConfig: value })),
     []
   );
   const setAgentMd = useCallback((value: string) => setForm((prev) => ({ ...prev, agentMd: value })), []);
@@ -530,6 +540,7 @@ export function useAgentEditorForm(
     setPersona,
     setModel,
     setEffort,
+    setThinkingConfig,
     setAgentMd,
     setPermissionMode,
     setSettingSources,
