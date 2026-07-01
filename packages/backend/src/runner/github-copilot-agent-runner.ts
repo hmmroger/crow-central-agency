@@ -693,7 +693,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         );
         return session;
       } catch (createError) {
-        log.debug(
+        log.warn(
           { agentId: this.agentId, sessionId, error: createError },
           "Copilot fallback createSession also failed; connection likely down"
         );
