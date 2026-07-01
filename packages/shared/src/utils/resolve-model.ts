@@ -1,4 +1,9 @@
-import { CLAUDE_MODELS, type ClaudeModel, type GitHubCopilotModel } from "../schemas/agent.schema.js";
+import {
+  CLAUDE_CODE_MODEL_OPTIONS,
+  CLAUDE_MODELS,
+  type ClaudeModel,
+  type GitHubCopilotModel,
+} from "../schemas/agent.schema.js";
 
 /**
  * Maps retired model IDs to their successor.
@@ -14,4 +19,10 @@ export const COPILOT_MODEL_ALIASES: Record<string, GitHubCopilotModel> = {};
 /** Resolve a potentially retired model ID to its current successor. */
 export function resolveModel(model: string): string {
   return MODEL_ALIASES[model] ?? COPILOT_MODEL_ALIASES[model] ?? model;
+}
+
+/** Whether a Claude model supports adaptive thinking, resolving retired IDs to their successor. */
+export function modelSupportsAdaptiveThinking(model: string): boolean {
+  const resolved = resolveModel(model);
+  return CLAUDE_CODE_MODEL_OPTIONS.find((option) => option.value === resolved)?.supportsAdaptiveThinking ?? false;
 }

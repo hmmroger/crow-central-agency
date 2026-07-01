@@ -297,7 +297,7 @@ export {
 } from "./schemas/agent-builder.schema.js";
 
 export { applyAgentOrder } from "./utils/apply-agent-order.js";
-export { MODEL_ALIASES, resolveModel } from "./utils/resolve-model.js";
+export { MODEL_ALIASES, resolveModel, modelSupportsAdaptiveThinking } from "./utils/resolve-model.js";
 
 export { BASE_CIRCLE_ID, BASE_CIRCLE_NAME } from "./constants/system-circle.js";
 

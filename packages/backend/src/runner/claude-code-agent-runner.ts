@@ -12,6 +12,7 @@ import type {
 import {
   AGENT_COMMAND,
   MESSAGE_SOURCE_TYPE,
+  modelSupportsAdaptiveThinking,
   resolveModel,
   THINKING_MODE,
   type AgentCommand,
@@ -53,14 +54,23 @@ function buildClaudeCommandPrompt(command: AgentCommand, steering: string): stri
 }
 
 /**
- * Maps the agent's thinking config to the SDK `thinking` option. An unset config defaults to
- * enabled+summarized; budget applies only to enabled mode; adaptive is summarized; disabled stays bare.
+ * Maps the agent's thinking config to the SDK `thinking` option. An unset config defaults to the
+ * model's natural mode — adaptive for adaptive-capable models, otherwise enabled — both summarized;
+ * budget applies only to enabled mode; disabled stays bare.
  */
-function buildThinkingOption(config?: AgentThinkingConfig): ThinkingConfig {
-  if (!config || config.mode === THINKING_MODE.ENABLED) {
-    const budget = config?.budget;
-    return budget
-      ? { type: "enabled", budgetTokens: budget, display: "summarized" }
+function buildThinkingOption(
+  config: AgentThinkingConfig | undefined,
+  supportsAdaptiveThinking: boolean
+): ThinkingConfig {
+  if (!config) {
+    return supportsAdaptiveThinking
+      ? { type: "adaptive", display: "summarized" }
+      : { type: "enabled", display: "summarized" };
+  }
+
+  if (config.mode === THINKING_MODE.ENABLED) {
+    return config.budget
+      ? { type: "enabled", budgetTokens: config.budget, display: "summarized" }
       : { type: "enabled", display: "summarized" };
   }
 
@@ -122,7 +132,10 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         ? agentConfig.toolConfig.tools
         : { type: "preset" as const, preset: "claude_code" as const };
     const persistSession = agentConfig.persistSession === false ? false : true;
-    const thinkingOption = buildThinkingOption(agentConfig.thinkingConfig);
+    const thinkingOption = buildThinkingOption(
+      agentConfig.thinkingConfig,
+      modelSupportsAdaptiveThinking(agentConfig.model)
+    );
 
     const queryInstance = sdkQuery({
       prompt:
