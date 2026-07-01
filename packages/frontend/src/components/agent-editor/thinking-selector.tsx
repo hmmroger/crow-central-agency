@@ -41,8 +41,7 @@ export function ThinkingSelector({ value, supportsAdaptiveThinking, onChange, me
       },
     ];
 
-    // Adaptive-capable models drive their own budget, so they offer "Adaptive" instead of the
-    // budget-carrying "Enabled" mode; the two are mutually exclusive per model.
+    // Adaptive-capable models offer Adaptive (not Enabled); the two are mutually exclusive per model.
     if (supportsAdaptiveThinking) {
       items.push({
         type: ContextMenuTypes.action,

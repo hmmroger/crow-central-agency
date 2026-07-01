@@ -117,8 +117,9 @@ export function AgentEditorDialogContent({
 
   /**
    * Change the model, dropping the effort when the new model doesn't support the current level and
-   * clearing adaptive thinking when the new model doesn't support it. Capabilities live here (not in
-   * the pure form hook), so the resets are resolved at the call site.
+   * clearing a thinking mode the new model no longer offers (Adaptive and Enabled are mutually
+   * exclusive per model). Capabilities live here (not in the pure form hook), so the resets are
+   * resolved at the call site.
    */
   const handleModelChange = useCallback(
     (model: string) => {
