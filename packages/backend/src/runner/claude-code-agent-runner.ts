@@ -52,17 +52,23 @@ function buildClaudeCommandPrompt(command: AgentCommand, steering: string): stri
   return trimmed ? `${slash} ${trimmed}` : slash;
 }
 
-/** Maps the agent's thinking config to the SDK `thinking` option; budget applies only to enabled mode. */
-function buildThinkingOption(config?: AgentThinkingConfig): ThinkingConfig | undefined {
-  if (!config) {
-    return undefined;
+/**
+ * Maps the agent's thinking config to the SDK `thinking` option. An unset config defaults to
+ * enabled+summarized; budget applies only to enabled mode; adaptive is summarized; disabled stays bare.
+ */
+function buildThinkingOption(config?: AgentThinkingConfig): ThinkingConfig {
+  if (!config || config.mode === THINKING_MODE.ENABLED) {
+    const budget = config?.budget;
+    return budget
+      ? { type: "enabled", budgetTokens: budget, display: "summarized" }
+      : { type: "enabled", display: "summarized" };
   }
 
-  if (config.mode === THINKING_MODE.ENABLED) {
-    return config.budget ? { type: "enabled", budgetTokens: config.budget } : { type: "enabled" };
+  if (config.mode === THINKING_MODE.ADAPTIVE) {
+    return { type: "adaptive", display: "summarized" };
   }
 
-  return { type: config.mode };
+  return { type: "disabled" };
 }
 
 /**
