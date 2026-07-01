@@ -25,17 +25,11 @@ const THINKING_LABELS: Record<ThinkingMode, string> = {
 /**
  * Extended-thinking selector using the context menu system as a dropdown
  * replacement for native <select>. Always offers a "Default" entry that clears
- * the mode; when unset, the button shows the model's natural default (Adaptive
- * for adaptive-capable models, otherwise Enabled).
+ * the mode; the "Adaptive" entry appears only when the selected model supports it.
  */
 export function ThinkingSelector({ value, supportsAdaptiveThinking, onChange, menuId }: ThinkingSelectorProps) {
   const { toggleMenu, isMenuOpen } = useContextMenu();
   const isOpen = isMenuOpen(menuId);
-
-  // An unset mode resolves to the model's natural default, matching the Claude runner's behavior.
-  const resolvedDefaultLabel = supportsAdaptiveThinking
-    ? THINKING_LABELS[THINKING_MODE.ADAPTIVE]
-    : THINKING_LABELS[THINKING_MODE.ENABLED];
 
   const menuItems = useMemo<ContextMenuItem[]>(() => {
     const items: ContextMenuItem[] = [
@@ -100,7 +94,7 @@ export function ThinkingSelector({ value, supportsAdaptiveThinking, onChange, me
       aria-haspopup="menu"
       aria-expanded={isOpen}
     >
-      <span className="flex-1 truncate text-text-base">{value ? THINKING_LABELS[value] : resolvedDefaultLabel}</span>
+      <span className="flex-1 truncate text-text-base">{value ? THINKING_LABELS[value] : DEFAULT_THINKING_LABEL}</span>
       <ChevronDown
         className={cn("h-3.5 w-3.5 shrink-0 text-text-muted transition-transform", isOpen && "rotate-180")}
       />
