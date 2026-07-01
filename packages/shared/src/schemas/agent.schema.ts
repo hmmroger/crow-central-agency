@@ -88,6 +88,7 @@ export const CLAUDE_CODE_MODEL_OPTIONS: readonly ModelOption[] = [
     value: CLAUDE_MODELS.SONNET_4_6,
     label: "Claude Sonnet 4.6",
     supportedEfforts: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH, REASONING_EFFORT.MAX],
+    supportsAdaptiveThinking: true,
   },
   {
     value: CLAUDE_MODELS.OPUS,

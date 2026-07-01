@@ -39,20 +39,23 @@ export function ThinkingSelector({ value, supportsAdaptiveThinking, onChange, me
         onClick: () => onChange(undefined),
         selected: value === undefined,
       },
-      {
-        type: ContextMenuTypes.action,
-        label: THINKING_LABELS[THINKING_MODE.ENABLED],
-        onClick: () => onChange(THINKING_MODE.ENABLED),
-        selected: value === THINKING_MODE.ENABLED,
-      },
     ];
 
+    // Adaptive-capable models drive their own budget, so they offer "Adaptive" instead of the
+    // budget-carrying "Enabled" mode; the two are mutually exclusive per model.
     if (supportsAdaptiveThinking) {
       items.push({
         type: ContextMenuTypes.action,
         label: THINKING_LABELS[THINKING_MODE.ADAPTIVE],
         onClick: () => onChange(THINKING_MODE.ADAPTIVE),
         selected: value === THINKING_MODE.ADAPTIVE,
+      });
+    } else {
+      items.push({
+        type: ContextMenuTypes.action,
+        label: THINKING_LABELS[THINKING_MODE.ENABLED],
+        onClick: () => onChange(THINKING_MODE.ENABLED),
+        selected: value === THINKING_MODE.ENABLED,
       });
     }
 

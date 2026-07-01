@@ -134,7 +134,13 @@ export function AgentEditorDialogContent({
         setEffort(undefined);
       }
 
-      if (form.thinkingConfig?.mode === THINKING_MODE.ADAPTIVE && !modelOption?.supportsAdaptiveThinking) {
+      // Adaptive and enabled are mutually exclusive per model; clear the mode the new model no longer offers.
+      const thinkingMode = form.thinkingConfig?.mode;
+      const supportsAdaptiveThinking = modelOption?.supportsAdaptiveThinking ?? false;
+      if (
+        (thinkingMode === THINKING_MODE.ADAPTIVE && !supportsAdaptiveThinking) ||
+        (thinkingMode === THINKING_MODE.ENABLED && supportsAdaptiveThinking)
+      ) {
         setThinkingConfig(undefined);
       }
     },
