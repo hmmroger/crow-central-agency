@@ -4,11 +4,11 @@ import {
   CLAUDE_MODELS,
   type AgentConfig,
   CROW_WORLD_BUILDER_AGENT_ID,
-  AGENT_TYPE,
   AGENT_NAME_MAX_LENGTH,
 } from "@crow-central-agency/shared";
 import path from "node:path";
 import { env } from "../config/env.js";
+import { SYSTEM_AGENT_TYPE, resolveSystemAgentModel } from "./system-agent-provider.js";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
 import { SYSTEM_AGENTS_PROJECT_DIR_NAME } from "../config/constants.js";
@@ -85,12 +85,12 @@ export function getWorldBuilderAgent(): AgentConfig {
   const persona = createMessageContentFromTemplate(CROW_WORLD_BUILDER_AGENT_PERSONA, getDefaultPromptContext());
   return {
     id: CROW_WORLD_BUILDER_AGENT_ID,
-    type: AGENT_TYPE.CLAUDE_CODE,
+    type: SYSTEM_AGENT_TYPE,
     name: CROW_WORLD_BUILDER_AGENT_NAME,
     description: "Internal fleet architect. Designs a set of agents from a requirement as directional briefs.",
     workspace: path.join(env.CROW_SYSTEM_PATH, SYSTEM_AGENTS_PROJECT_DIR_NAME),
     persona,
-    model: CLAUDE_MODELS.SONNET,
+    model: resolveSystemAgentModel(CLAUDE_MODELS.SONNET),
     permissionMode: PERMISSION_MODE.DEFAULT,
     settingSources: [],
     availableTools: [],

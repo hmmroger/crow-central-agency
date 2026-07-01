@@ -97,6 +97,8 @@ See `.env.example` for the full list, including:
 - `LOG_LEVEL` — log verbosity (defaults to `debug` in development, `info` otherwise).
 - `CROW_SYSTEM_PATH` — directory for Crow's file-based storage. Defaults to `~/.crow`.
 - `CROW_SYSTEM_AGENT_NAME` — display name for the built-in Crow system agent (default: `Crow`).
+- `CROW_SYSTEM_AGENT_PROVIDER` — provider backing the built-in system agents: `CLAUDE_CODE` or `GITHUB_COPILOT` (default: `CLAUDE_CODE`). Forced to `CLAUDE_CODE` when `DISABLE_GITHUB_COPILOT` is set.
+- `CROW_SYSTEM_AGENT_COPILOT_MODEL` — model for system agents when `CROW_SYSTEM_AGENT_PROVIDER=GITHUB_COPILOT` (default: `auto`).
 - `STATIC_PATH` — override the directory served as frontend assets (auto-detected from the published bundle).
 - `CLAUDE_CLI_PATH` — explicit path to the Claude Code CLI binary when it is not on `PATH`.
 - `DISABLE_GITHUB_COPILOT` — set to `true` (or `1`) to skip starting the Copilot SDK client at boot, so GitHub Copilot is reported unavailable everywhere. Defaults to `false`.

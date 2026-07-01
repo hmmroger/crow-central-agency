@@ -5,9 +5,9 @@ import {
   type AgentConfig,
   CROW_TASK_DISPATCHER_AGENT_ID,
   CROW_SYSTEM_AGENT_ID,
-  AGENT_TYPE,
 } from "@crow-central-agency/shared";
 import { env } from "../config/env.js";
+import { SYSTEM_AGENT_TYPE, resolveSystemAgentModel } from "./system-agent-provider.js";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
 import path from "node:path";
@@ -54,12 +54,12 @@ export function getTaskDispatcherAgent(): AgentConfig {
   );
   return {
     id: CROW_TASK_DISPATCHER_AGENT_ID,
-    type: AGENT_TYPE.CLAUDE_CODE,
+    type: SYSTEM_AGENT_TYPE,
     name: CROW_TASK_DISPATCHER_AGENT_NAME,
     description: "Routes unassigned tasks to the most appropriate agent or user. Does not execute tasks.",
     workspace: path.join(env.CROW_SYSTEM_PATH, SYSTEM_AGENTS_PROJECT_DIR_NAME),
     persona,
-    model: CLAUDE_MODELS.HAIKU,
+    model: resolveSystemAgentModel(CLAUDE_MODELS.HAIKU),
     permissionMode: PERMISSION_MODE.DEFAULT,
     settingSources: [],
     availableTools: [],

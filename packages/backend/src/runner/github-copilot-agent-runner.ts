@@ -6,13 +6,14 @@ import {
   PERMISSION_MODE,
   REASONING_EFFORT,
   SETTING_SOURCE,
+  TOOL_MODE,
   resolveModel,
   type AgentCommand,
   type AgentConfig,
   type PermissionMode,
   type ReasoningEffort,
 } from "@crow-central-agency/shared";
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, ToolSet } from "@github/copilot-sdk";
 import type {
   CopilotSession,
   MCPServerConfig,
@@ -167,6 +168,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
 
     const client = await this.getClient(cwd);
     const inProcessTools = this.buildInProcessTools(serverConfigs);
+    const availableTools = this.buildAvailableTools(agentConfig.toolConfig);
     const autoApproved = new Set(agentConfig.toolConfig.autoApprovedTools ?? []);
     const { agentMode, policy } = resolvePermissionMode(agentConfig.permissionMode);
     // replace mode drops the SDK's foundation prompt (and guardrails); append layers onto it.
@@ -185,7 +187,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       reasoningEffort: toCopilotReasoningEffort(agentConfig.effort),
       reasoningSummary: "detailed",
       systemMessage,
-      // Supports unrestricted tools plus a disallow list for now
+      // Restricted mode gates builtins via availableTools; disallowedTools always wins via excludedTools.
+      availableTools,
       excludedTools: agentConfig.toolConfig.disallowedTools,
       tools: inProcessTools,
       enableConfigDiscovery,
@@ -225,9 +228,10 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       onPermissionRequest: undefined,
     };
 
-    const session = sessionId
-      ? await client.resumeSession(sessionId, sessionConfig)
-      : await client.createSession(sessionConfig);
+    const session =
+      sessionId && agentConfig.persistSession !== false
+        ? await client.resumeSession(sessionId, sessionConfig)
+        : await client.createSession(sessionConfig);
     this.session = session;
 
     // toolCallId -> tool name/input, populated from the event stream so permission requests
@@ -291,7 +295,13 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       }
     } finally {
       this.session = undefined;
+      const finishedSessionId = session.sessionId;
       await this.disconnectSession(session);
+      // Non-persistent agents start fresh every turn, so the just-run session is never resumed;
+      // delete it from disk to avoid accumulating orphaned Copilot sessions.
+      if (agentConfig.persistSession === false) {
+        await this.deleteSession(client, finishedSessionId);
+      }
     }
   }
 
@@ -389,6 +399,13 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     });
   }
 
+  /** Permanently delete a Copilot session's on-disk data, swallowing failures with a warning. */
+  private async deleteSession(client: CopilotClient, sessionId: string): Promise<void> {
+    await client.deleteSession(sessionId).catch((error) => {
+      log.warn({ agentId: this.agentId, sessionId, error }, "Failed to delete Copilot session");
+    });
+  }
+
   /**
    * Disable the instruction sources the agent has opted out of, intersected with this run's live
    * source set. Skips the RPC entirely when nothing resolves to disable.
@@ -412,6 +429,22 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     return serverConfigs
       .filter((server): server is Extract<CrowMcpServerConfig, { kind: "internal" }> => server.kind === "internal")
       .flatMap((server) => toCopilotTools(server));
+  }
+
+  /**
+   * Restricted mode: allow only the selected builtins, keeping our in-process (custom) and MCP tools,
+   * since Copilot's availableTools allowlist filters every source. Unrestricted mode leaves it unset so
+   * all builtins remain available.
+   */
+  private buildAvailableTools(toolConfig: AgentConfig["toolConfig"]): ToolSet | undefined {
+    if (toolConfig.mode !== TOOL_MODE.RESTRICTED) {
+      return undefined;
+    }
+
+    return new ToolSet()
+      .addBuiltIn(toolConfig.tools ?? [])
+      .addCustom("*")
+      .addMcp("*");
   }
 
   /** User-configured (external) MCP servers are passed through as Copilot MCP server configs. */

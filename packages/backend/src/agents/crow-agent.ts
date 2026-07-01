@@ -2,11 +2,14 @@ import {
   PERMISSION_MODE,
   TOOL_MODE,
   CLAUDE_MODELS,
+  CLAUDE_CODE_TOOL,
+  GITHUB_COPILOT_TOOL,
+  AGENT_TYPE,
   type AgentConfig,
   CROW_SYSTEM_AGENT_ID,
-  AGENT_TYPE,
 } from "@crow-central-agency/shared";
 import { env } from "../config/env.js";
+import { SYSTEM_AGENT_TYPE, resolveSystemAgentModel } from "./system-agent-provider.js";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
 import path from "node:path";
@@ -46,27 +49,41 @@ const CROW_SYSTEM_AGENT_PERSONA: MessageTemplate = {
 };
 
 const SUPER_CROW_BIRTHDAY = "1970-01-01T00:00:00Z";
-const SUPER_CROW_TOOLS = ["Glob", "Grep", "Read", "WebFetch", "WebSearch"];
+const SUPER_CROW_TOOLS = [
+  CLAUDE_CODE_TOOL.GLOB,
+  CLAUDE_CODE_TOOL.GREP,
+  CLAUDE_CODE_TOOL.READ,
+  CLAUDE_CODE_TOOL.WEB_FETCH,
+  CLAUDE_CODE_TOOL.WEB_SEARCH,
+];
+const SUPER_CROW_TOOLS_COPILOT = [
+  GITHUB_COPILOT_TOOL.GLOB,
+  GITHUB_COPILOT_TOOL.GREP,
+  GITHUB_COPILOT_TOOL.VIEW,
+  GITHUB_COPILOT_TOOL.WEB_FETCH,
+  GITHUB_COPILOT_TOOL.WEB_SEARCH,
+];
 
 /** Build the Crow system agent config - built-in, immutable, not persisted */
 export function getCrowAgent(): AgentConfig {
   const persona = createMessageContentFromTemplate(CROW_SYSTEM_AGENT_PERSONA, getDefaultPromptContext());
+  const tools = SYSTEM_AGENT_TYPE === AGENT_TYPE.GITHUB_COPILOT ? SUPER_CROW_TOOLS_COPILOT : SUPER_CROW_TOOLS;
   return {
     id: CROW_SYSTEM_AGENT_ID,
-    type: AGENT_TYPE.CLAUDE_CODE,
+    type: SYSTEM_AGENT_TYPE,
     name: CROW_SYSTEM_AGENT_NAME,
     description:
       "Chief of staff agent acts as the ultimate coordinator for all agents and primary interfacing with the user.",
     workspace: path.join(env.CROW_SYSTEM_PATH, SYSTEM_AGENTS_PROJECT_DIR_NAME),
     persona,
-    model: CLAUDE_MODELS.SONNET,
+    model: resolveSystemAgentModel(CLAUDE_MODELS.SONNET),
     permissionMode: PERMISSION_MODE.DEFAULT,
     settingSources: [],
     availableTools: [],
     toolConfig: {
       mode: TOOL_MODE.RESTRICTED,
-      tools: SUPER_CROW_TOOLS,
-      autoApprovedTools: SUPER_CROW_TOOLS,
+      tools,
+      autoApprovedTools: tools,
     },
     mcpServerIds: [],
     sensorIds: [GEOLOCATION_SENSOR_ID, WEATHER_SENSOR_ID],
