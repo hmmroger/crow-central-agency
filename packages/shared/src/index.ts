@@ -5,6 +5,7 @@ export {
   ModelOptionSchema,
   REASONING_EFFORT,
   ReasoningEffortSchema,
+  THINKING_MODE,
   CLAUDE_DEFAULT_MODEL,
   COPILOT_DEFAULT_MODEL,
   AgentIdSchema,
@@ -51,6 +52,7 @@ export type {
   AgentVoiceConfig,
   ModelOption,
   ReasoningEffort,
+  AgentThinkingConfig,
 } from "./schemas/agent.schema.js";
 
 export {

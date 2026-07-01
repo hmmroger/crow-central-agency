@@ -7,8 +7,16 @@ import type {
   HookInput,
   Query,
   McpServerConfig,
+  ThinkingConfig,
 } from "@anthropic-ai/claude-agent-sdk";
-import { AGENT_COMMAND, MESSAGE_SOURCE_TYPE, resolveModel, type AgentCommand } from "@crow-central-agency/shared";
+import {
+  AGENT_COMMAND,
+  MESSAGE_SOURCE_TYPE,
+  resolveModel,
+  THINKING_MODE,
+  type AgentCommand,
+  type AgentThinkingConfig,
+} from "@crow-central-agency/shared";
 import { AgentRunner } from "./agent-runner.js";
 import { processStream } from "./stream-processor.js";
 import { parseToolActivity } from "./tool-activity-parser.js";
@@ -42,6 +50,19 @@ function buildClaudeCommandPrompt(command: AgentCommand, steering: string): stri
   const slash = CLAUDE_COMMAND_PROMPT[command];
   const trimmed = steering.trim();
   return trimmed ? `${slash} ${trimmed}` : slash;
+}
+
+/** Maps the agent's thinking config to the SDK `thinking` option; budget applies only to enabled mode. */
+function buildThinkingOption(config?: AgentThinkingConfig): ThinkingConfig | undefined {
+  if (!config) {
+    return undefined;
+  }
+
+  if (config.mode === THINKING_MODE.ENABLED) {
+    return config.budget ? { type: "enabled", budgetTokens: config.budget } : { type: "enabled" };
+  }
+
+  return { type: config.mode };
 }
 
 /**
@@ -95,6 +116,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         ? agentConfig.toolConfig.tools
         : { type: "preset" as const, preset: "claude_code" as const };
     const persistSession = agentConfig.persistSession === false ? false : true;
+    const thinkingOption = buildThinkingOption(agentConfig.thinkingConfig);
 
     const queryInstance = sdkQuery({
       prompt:
@@ -105,6 +127,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         cwd,
         model: resolveModel(agentConfig.model),
         effort: agentConfig.effort,
+        thinking: thinkingOption,
         resume: persistSession ? sessionId : undefined,
         systemPrompt: systemPromptOption,
         abortController,
