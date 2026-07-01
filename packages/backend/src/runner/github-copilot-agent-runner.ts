@@ -348,6 +348,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     }
 
     const client = await this.getClient(cwd);
+    // No resume fallback here: compaction operates on existing history, so a fresh session would be
+    // meaningless. A missing session should fail rather than silently repoint the agent at an empty one.
     const session = await client.resumeSession(sessionId, {
       workingDirectory: cwd,
       model: resolveModel(agentConfig.model),
@@ -690,7 +692,11 @@ export class GithubCopilotAgentRunner extends AgentRunner {
           "Copilot resume failed; started a new session"
         );
         return session;
-      } catch {
+      } catch (createError) {
+        log.debug(
+          { agentId: this.agentId, sessionId, error: createError },
+          "Copilot fallback createSession also failed; connection likely down"
+        );
         throw resumeError;
       }
     }
