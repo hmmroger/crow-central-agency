@@ -297,8 +297,6 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       this.session = undefined;
       const finishedSessionId = session.sessionId;
       await this.disconnectSession(session);
-      // Non-persistent agents start fresh every turn, so the just-run session is never resumed;
-      // delete it from disk to avoid accumulating orphaned Copilot sessions.
       if (agentConfig.persistSession === false) {
         await this.deleteSession(client, finishedSessionId);
       }
