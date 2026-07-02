@@ -209,7 +209,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     }
 
     const validated = UpdateAgentInputSchema.parse(input);
-    const { agentMd, effort, thinkingConfig, ...configFields } = validated;
+    const { agentMd, effort, thinkingConfig, contextAutoCompactionConfig, ...configFields } = validated;
     const now = new Date().toISOString();
 
     const updated: AgentConfig = {
@@ -226,6 +226,10 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
     if (thinkingConfig !== undefined) {
       updated.thinkingConfig = thinkingConfig ?? undefined;
+    }
+
+    if (contextAutoCompactionConfig !== undefined) {
+      updated.contextAutoCompactionConfig = contextAutoCompactionConfig ?? undefined;
     }
 
     // Normalize empty string to undefined for optional path fields
@@ -407,6 +411,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
       model: agent.model,
       effort: agent.effort,
       thinkingConfig: agent.thinkingConfig,
+      contextAutoCompactionConfig: agent.contextAutoCompactionConfig,
       permissionMode: agent.permissionMode,
       settingSources: agent.settingSources,
       availableTools: agent.availableTools,

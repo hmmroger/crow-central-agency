@@ -54,6 +54,7 @@ export type {
   ReasoningEffort,
   ThinkingMode,
   AgentThinkingConfig,
+  ContextAutoCompactionConfig,
 } from "./schemas/agent.schema.js";
 
 export {

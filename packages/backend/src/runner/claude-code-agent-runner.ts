@@ -131,6 +131,13 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
       agentConfig.thinkingConfig,
       modelSupportsAdaptiveThinking(agentConfig.model)
     );
+    // A configured token threshold turns on auto-compaction with that context window; unset leaves
+    // the SDK's own default behavior untouched.
+    const autoCompactTokensThreshold = agentConfig.contextAutoCompactionConfig?.tokensThreshold;
+    const compactionSettings =
+      autoCompactTokensThreshold !== undefined
+        ? { autoCompactEnabled: true, autoCompactWindow: autoCompactTokensThreshold }
+        : undefined;
 
     const queryInstance = sdkQuery({
       prompt:
@@ -143,6 +150,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         effort: agentConfig.effort,
         thinking: thinkingOption,
         resume: persistSession ? sessionId : undefined,
+        settings: compactionSettings,
         systemPrompt: systemPromptOption,
         abortController,
         includePartialMessages: true,
