@@ -7,8 +7,17 @@ import type {
   HookInput,
   Query,
   McpServerConfig,
+  ThinkingConfig,
 } from "@anthropic-ai/claude-agent-sdk";
-import { AGENT_COMMAND, MESSAGE_SOURCE_TYPE, resolveModel, type AgentCommand } from "@crow-central-agency/shared";
+import {
+  AGENT_COMMAND,
+  MESSAGE_SOURCE_TYPE,
+  modelSupportsAdaptiveThinking,
+  resolveModel,
+  THINKING_MODE,
+  type AgentCommand,
+  type AgentThinkingConfig,
+} from "@crow-central-agency/shared";
 import { AgentRunner } from "./agent-runner.js";
 import { processStream } from "./stream-processor.js";
 import { parseToolActivity } from "./tool-activity-parser.js";
@@ -42,6 +51,29 @@ function buildClaudeCommandPrompt(command: AgentCommand, steering: string): stri
   const slash = CLAUDE_COMMAND_PROMPT[command];
   const trimmed = steering.trim();
   return trimmed ? `${slash} ${trimmed}` : slash;
+}
+
+/**
+ * Maps the agent's thinking config to the SDK `thinking` option. An unset config defaults to the
+ * model's natural mode — adaptive for adaptive-capable models, otherwise enabled — both summarized;
+ * budget applies only to enabled mode; disabled stays bare.
+ */
+function buildThinkingOption(
+  config: AgentThinkingConfig | undefined,
+  supportsAdaptiveThinking: boolean
+): ThinkingConfig {
+  const mode = config ? config.mode : supportsAdaptiveThinking ? THINKING_MODE.ADAPTIVE : THINKING_MODE.ENABLED;
+  if (mode === THINKING_MODE.ENABLED) {
+    return config?.budget
+      ? { type: "enabled", budgetTokens: config.budget, display: "summarized" }
+      : { type: "enabled", display: "summarized" };
+  }
+
+  if (mode === THINKING_MODE.ADAPTIVE) {
+    return { type: "adaptive", display: "summarized" };
+  }
+
+  return { type: "disabled" };
 }
 
 /**
@@ -95,6 +127,10 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         ? agentConfig.toolConfig.tools
         : { type: "preset" as const, preset: "claude_code" as const };
     const persistSession = agentConfig.persistSession === false ? false : true;
+    const thinkingOption = buildThinkingOption(
+      agentConfig.thinkingConfig,
+      modelSupportsAdaptiveThinking(agentConfig.model)
+    );
 
     const queryInstance = sdkQuery({
       prompt:
@@ -105,6 +141,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         cwd,
         model: resolveModel(agentConfig.model),
         effort: agentConfig.effort,
+        thinking: thinkingOption,
         resume: persistSession ? sessionId : undefined,
         systemPrompt: systemPromptOption,
         abortController,

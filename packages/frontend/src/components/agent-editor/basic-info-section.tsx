@@ -1,10 +1,19 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Sparkles } from "lucide-react";
-import { AGENT_TYPE, resolveModel, type AgentType, type ReasoningEffort } from "@crow-central-agency/shared";
+import {
+  AGENT_TYPE,
+  THINKING_MODE,
+  resolveModel,
+  type AgentThinkingConfig,
+  type AgentType,
+  type ReasoningEffort,
+  type ThinkingMode,
+} from "@crow-central-agency/shared";
 import { useSystemCapabilitiesQuery } from "../../hooks/queries/use-system-capabilities-query.js";
 import { FieldGroup } from "./field-group.js";
 import { ModelSelector } from "./model-selector.js";
 import { EffortSelector } from "./effort-selector.js";
+import { ThinkingSelector } from "./thinking-selector.js";
 
 interface BasicInfoSectionProps {
   name: string;
@@ -12,6 +21,7 @@ interface BasicInfoSectionProps {
   workspace: string;
   model: string;
   effort?: ReasoningEffort;
+  thinkingConfig?: AgentThinkingConfig;
   agentType: AgentType;
   persona?: string;
   onNameChange: (value: string) => void;
@@ -19,6 +29,7 @@ interface BasicInfoSectionProps {
   onWorkspaceChange: (value: string) => void;
   onModelChange: (value: string) => void;
   onEffortChange: (value: ReasoningEffort | undefined) => void;
+  onThinkingConfigChange: (value: AgentThinkingConfig | undefined) => void;
   onPersonaChange: (value: string) => void;
   onGeneratePersona: () => void;
   canGenerate: boolean;
@@ -31,6 +42,7 @@ export function BasicInfoSection({
   workspace,
   model,
   effort,
+  thinkingConfig,
   agentType,
   persona,
   onNameChange,
@@ -38,6 +50,7 @@ export function BasicInfoSection({
   onWorkspaceChange,
   onModelChange,
   onEffortChange,
+  onThinkingConfigChange,
   onPersonaChange,
   onGeneratePersona,
   canGenerate,
@@ -51,7 +64,30 @@ export function BasicInfoSection({
         : (capabilities?.claudeSupportedModels ?? []),
     [agentType, capabilities]
   );
-  const supportedEfforts = modelOptions.find((option) => option.value === resolvedModel)?.supportedEfforts ?? [];
+  const selectedModelOption = modelOptions.find((option) => option.value === resolvedModel);
+  const supportedEfforts = selectedModelOption?.supportedEfforts ?? [];
+  const supportsAdaptiveThinking = selectedModelOption?.supportsAdaptiveThinking ?? false;
+
+  const handleThinkingModeChange = useCallback(
+    (mode: ThinkingMode | undefined) => {
+      if (mode === undefined) {
+        onThinkingConfigChange(undefined);
+      } else if (mode === THINKING_MODE.ENABLED) {
+        onThinkingConfigChange({ mode: THINKING_MODE.ENABLED, budget: thinkingConfig?.budget });
+      } else {
+        onThinkingConfigChange({ mode });
+      }
+    },
+    [onThinkingConfigChange, thinkingConfig?.budget]
+  );
+
+  const handleThinkingBudgetChange = useCallback(
+    (raw: string) => {
+      const parsed = Number.parseInt(raw, 10);
+      onThinkingConfigChange({ mode: THINKING_MODE.ENABLED, budget: parsed > 0 ? parsed : undefined });
+    },
+    [onThinkingConfigChange]
+  );
 
   return (
     <>
@@ -98,6 +134,30 @@ export function BasicInfoSection({
             supportedEfforts={supportedEfforts}
             onChange={onEffortChange}
             menuId="agent-editor-effort"
+          />
+        </FieldGroup>
+      )}
+
+      {agentType === AGENT_TYPE.CLAUDE_CODE && (
+        <FieldGroup label="Thinking">
+          <ThinkingSelector
+            value={thinkingConfig?.mode}
+            supportsAdaptiveThinking={supportsAdaptiveThinking}
+            onChange={handleThinkingModeChange}
+            menuId="agent-editor-thinking"
+          />
+        </FieldGroup>
+      )}
+
+      {agentType === AGENT_TYPE.CLAUDE_CODE && thinkingConfig?.mode === THINKING_MODE.ENABLED && (
+        <FieldGroup label="Thinking Budget (tokens)">
+          <input
+            type="number"
+            min={1}
+            value={thinkingConfig.budget ?? ""}
+            onChange={(event) => handleThinkingBudgetChange(event.target.value)}
+            placeholder="Optional token budget"
+            className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-base text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus"
           />
         </FieldGroup>
       )}

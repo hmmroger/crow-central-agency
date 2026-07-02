@@ -48,12 +48,31 @@ export const ReasoningEffortSchema = z.enum([
   REASONING_EFFORT.MAX,
 ]);
 
+export const THINKING_MODE = {
+  ENABLED: "enabled",
+  DISABLED: "disabled",
+  ADAPTIVE: "adaptive",
+} as const;
+
+export const ThinkingModeSchema = z.enum([THINKING_MODE.ENABLED, THINKING_MODE.DISABLED, THINKING_MODE.ADAPTIVE]);
+
+export type ThinkingMode = (typeof THINKING_MODE)[keyof typeof THINKING_MODE];
+
+/** Extended-thinking control for Claude Code agents; budget applies only to `enabled` mode. */
+export const AgentThinkingConfigSchema = z.object({
+  mode: ThinkingModeSchema,
+  budget: z.number().int().positive().optional(),
+});
+
+export type AgentThinkingConfig = z.infer<typeof AgentThinkingConfigSchema>;
+
 /** A selectable agent model, surfaced to the editor's model picker. */
 export const ModelOptionSchema = z.object({
   value: z.string(),
   label: z.string(),
   /** Reasoning effort levels the model supports; omitted when the model has no effort control. */
   supportedEfforts: z.array(ReasoningEffortSchema).optional(),
+  supportsAdaptiveThinking: z.boolean().optional(),
 });
 
 export type ModelOption = z.infer<typeof ModelOptionSchema>;
@@ -63,11 +82,13 @@ export const CLAUDE_CODE_MODEL_OPTIONS: readonly ModelOption[] = [
     value: CLAUDE_MODELS.SONNET,
     label: "Claude Sonnet 5",
     supportedEfforts: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH, REASONING_EFFORT.MAX],
+    supportsAdaptiveThinking: true,
   },
   {
     value: CLAUDE_MODELS.SONNET_4_6,
     label: "Claude Sonnet 4.6",
     supportedEfforts: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH, REASONING_EFFORT.MAX],
+    supportsAdaptiveThinking: true,
   },
   {
     value: CLAUDE_MODELS.OPUS,
@@ -79,6 +100,7 @@ export const CLAUDE_CODE_MODEL_OPTIONS: readonly ModelOption[] = [
       REASONING_EFFORT.XHIGH,
       REASONING_EFFORT.MAX,
     ],
+    supportsAdaptiveThinking: true,
   },
   {
     value: CLAUDE_MODELS.OPUS_4_7,
@@ -90,6 +112,7 @@ export const CLAUDE_CODE_MODEL_OPTIONS: readonly ModelOption[] = [
       REASONING_EFFORT.XHIGH,
       REASONING_EFFORT.MAX,
     ],
+    supportsAdaptiveThinking: true,
   },
   { value: CLAUDE_MODELS.HAIKU, label: "Claude Haiku 4.5" },
   {
@@ -102,6 +125,7 @@ export const CLAUDE_CODE_MODEL_OPTIONS: readonly ModelOption[] = [
       REASONING_EFFORT.XHIGH,
       REASONING_EFFORT.MAX,
     ],
+    supportsAdaptiveThinking: true,
   },
 ];
 
@@ -348,6 +372,7 @@ export const AgentConfigSchema = z.object({
   persona: z.string().optional(),
   model: z.string().default(CLAUDE_DEFAULT_MODEL),
   effort: ReasoningEffortSchema.optional(),
+  thinkingConfig: AgentThinkingConfigSchema.optional(),
   permissionMode: PermissionModeSchema.default(PERMISSION_MODE.DEFAULT),
   settingSources: z.array(SettingSourceSchema).default([...DEFAULT_SETTING_SOURCES]),
   settingSourceConfig: SettingSourceConfigSchema.optional(),
@@ -385,6 +410,7 @@ export const CreateAgentInputSchema = z.object({
   persona: z.string().optional(),
   model: z.string().optional(),
   effort: ReasoningEffortSchema.optional(),
+  thinkingConfig: AgentThinkingConfigSchema.optional(),
   permissionMode: PermissionModeSchema.optional(),
   settingSources: z.array(SettingSourceSchema).optional(),
   settingSourceConfig: SettingSourceConfigInputSchema.optional(),
@@ -411,8 +437,8 @@ export const UpdateAgentInputSchema = z.object({
   workspace: z.string().optional(),
   persona: z.string().optional(),
   model: z.string().optional(),
-  // null explicitly clears the effort (back to provider default); undefined leaves it unchanged.
   effort: ReasoningEffortSchema.nullish(),
+  thinkingConfig: AgentThinkingConfigSchema.nullish(),
   permissionMode: PermissionModeSchema.optional(),
   settingSources: z.array(SettingSourceSchema).optional(),
   settingSourceConfig: SettingSourceConfigInputSchema.optional(),
@@ -438,6 +464,7 @@ export const AgentConfigTemplateSchema = AgentConfigSchema.pick({
   persona: true,
   model: true,
   effort: true,
+  thinkingConfig: true,
   permissionMode: true,
   settingSources: true,
   availableTools: true,

@@ -3,6 +3,7 @@ import type { Ref } from "react";
 import { BookmarkPlus, Sparkles, Trash2 } from "lucide-react";
 import {
   AGENT_TYPE,
+  THINKING_MODE,
   TOOL_MODE,
   resolveModel,
   type AgentConfigTemplate,
@@ -99,7 +100,7 @@ export function AgentEditorDialogContent({
 
   // Form state with dirty tracking
   const editorForm = useAgentEditorForm(effectiveAgentType, agentQuery.data, templatePreset);
-  const { form, isDirty, setModel, setEffort } = editorForm;
+  const { form, isDirty, setModel, setEffort, setThinkingConfig } = editorForm;
 
   const [generateModalType, setGenerateModalType] = useState<"persona" | "agentmd" | undefined>(undefined);
 
@@ -115,27 +116,36 @@ export function AgentEditorDialogContent({
   );
 
   /**
-   * Change the model and drop the effort when the new model doesn't support the current level.
-   * Capabilities live here (not in the pure form hook), so the reset is resolved at the call site.
+   * Change the model, dropping the effort when the new model doesn't support the current level and
+   * clearing a thinking mode the new model no longer offers (Adaptive and Enabled are mutually
+   * exclusive per model). Capabilities live here (not in the pure form hook), so the resets are
+   * resolved at the call site.
    */
   const handleModelChange = useCallback(
     (model: string) => {
       setModel(model);
-      if (!form.effort) {
-        return;
-      }
 
       const modelOptions =
         effectiveAgentType === AGENT_TYPE.GITHUB_COPILOT
           ? (capabilities?.copilotSupportedModels ?? [])
           : (capabilities?.claudeSupportedModels ?? []);
-      const supportedEfforts =
-        modelOptions.find((option) => option.value === resolveModel(model))?.supportedEfforts ?? [];
-      if (!supportedEfforts.includes(form.effort)) {
+      const modelOption = modelOptions.find((option) => option.value === resolveModel(model));
+
+      if (form.effort && !(modelOption?.supportedEfforts ?? []).includes(form.effort)) {
         setEffort(undefined);
       }
+
+      // Adaptive and enabled are mutually exclusive per model; clear the mode the new model no longer offers.
+      const thinkingMode = form.thinkingConfig?.mode;
+      const supportsAdaptiveThinking = modelOption?.supportsAdaptiveThinking ?? false;
+      if (
+        (thinkingMode === THINKING_MODE.ADAPTIVE && !supportsAdaptiveThinking) ||
+        (thinkingMode === THINKING_MODE.ENABLED && supportsAdaptiveThinking)
+      ) {
+        setThinkingConfig(undefined);
+      }
     },
-    [setModel, setEffort, form.effort, effectiveAgentType, capabilities]
+    [setModel, setEffort, setThinkingConfig, form.effort, form.thinkingConfig, effectiveAgentType, capabilities]
   );
 
   /** Save - create or update */
@@ -190,6 +200,7 @@ export function AgentEditorDialogContent({
           persona: form.persona,
           model: form.model,
           effort: form.effort ?? null,
+          thinkingConfig: form.thinkingConfig ?? null,
           permissionMode: form.permissionMode,
           settingSources: form.settingSources,
           settingSourceConfig,
@@ -220,6 +231,7 @@ export function AgentEditorDialogContent({
           persona: form.persona || undefined,
           model: form.model,
           effort: form.effort,
+          thinkingConfig: form.thinkingConfig,
           permissionMode: form.permissionMode,
           settingSources: form.settingSources,
           settingSourceConfig,
@@ -359,6 +371,7 @@ export function AgentEditorDialogContent({
               workspace={form.workspace}
               model={form.model}
               effort={form.effort}
+              thinkingConfig={form.thinkingConfig}
               agentType={effectiveAgentType}
               persona={form.persona}
               onNameChange={editorForm.setName}
@@ -366,6 +379,7 @@ export function AgentEditorDialogContent({
               onWorkspaceChange={editorForm.setWorkspace}
               onModelChange={handleModelChange}
               onEffortChange={setEffort}
+              onThinkingConfigChange={setThinkingConfig}
               onPersonaChange={editorForm.setPersona}
               onGeneratePersona={() => setGenerateModalType("persona")}
               canGenerate={canGenerate}

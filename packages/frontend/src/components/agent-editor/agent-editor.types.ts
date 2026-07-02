@@ -1,4 +1,5 @@
 import type {
+  AgentThinkingConfig,
   ConfiguredFeed,
   DayOfWeek,
   DiscoveredSkill,
@@ -20,6 +21,7 @@ export interface AgentEditorFormState {
   persona?: string;
   model: string;
   effort?: ReasoningEffort;
+  thinkingConfig?: AgentThinkingConfig;
   permissionMode: PermissionMode;
   settingSources: SettingSource[];
   disableFileHooks: boolean;
