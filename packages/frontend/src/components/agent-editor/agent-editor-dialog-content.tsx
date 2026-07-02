@@ -28,6 +28,7 @@ import type { ModalDialogHandle } from "../../providers/modal-dialog-provider.ty
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { useAgentEditorForm } from "./use-agent-editor-form.js";
 import { BasicInfoSection } from "./basic-info-section.js";
+import { ContextCompactionSection } from "./context-compaction-section.js";
 import { VoiceConfigSection } from "./voice-config-section.js";
 import { SystemPromptSection } from "./system-prompt-section.js";
 import { PermissionModeSection } from "./permission-mode-section.js";
@@ -178,6 +179,15 @@ export function AgentEditorDialogContent({
           }
         : undefined;
 
+    // Manual compaction threshold maps to the field the target provider reads: Claude takes a token
+    // count, Copilot a 0-1 utilization fraction. Disabled or blank leaves the provider default.
+    const contextAutoCompactionConfig =
+      form.contextAutoCompactionEnabled && form.contextAutoCompactionThreshold !== undefined
+        ? effectiveAgentType === AGENT_TYPE.GITHUB_COPILOT
+          ? { utilizationThreshold: form.contextAutoCompactionThreshold }
+          : { tokensThreshold: Math.trunc(form.contextAutoCompactionThreshold) }
+        : undefined;
+
     const trimmedVoiceName = form.voiceName.trim();
     const trimmedVoiceStylePrompt = form.voiceStylePrompt.trim();
     const existingVoiceConfig = agentQuery.data?.agentVoiceConfig;
@@ -201,6 +211,7 @@ export function AgentEditorDialogContent({
           model: form.model,
           effort: form.effort ?? null,
           thinkingConfig: form.thinkingConfig ?? null,
+          contextAutoCompactionConfig: contextAutoCompactionConfig ?? null,
           permissionMode: form.permissionMode,
           settingSources: form.settingSources,
           settingSourceConfig,
@@ -232,6 +243,7 @@ export function AgentEditorDialogContent({
           model: form.model,
           effort: form.effort,
           thinkingConfig: form.thinkingConfig,
+          contextAutoCompactionConfig,
           permissionMode: form.permissionMode,
           settingSources: form.settingSources,
           settingSourceConfig,
@@ -383,6 +395,14 @@ export function AgentEditorDialogContent({
               onPersonaChange={editorForm.setPersona}
               onGeneratePersona={() => setGenerateModalType("persona")}
               canGenerate={canGenerate}
+            />
+
+            <ContextCompactionSection
+              agentType={effectiveAgentType}
+              enabled={form.contextAutoCompactionEnabled}
+              threshold={form.contextAutoCompactionThreshold}
+              onEnabledChange={editorForm.setContextAutoCompactionEnabled}
+              onThresholdChange={editorForm.setContextAutoCompactionThreshold}
             />
 
             <VoiceConfigSection

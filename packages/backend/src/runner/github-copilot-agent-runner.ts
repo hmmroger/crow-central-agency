@@ -178,6 +178,11 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         : { mode: "append", content: systemPrompt }
       : undefined;
     const enableConfigDiscovery = agentConfig.settingSources.includes(SETTING_SOURCE.PROJECT);
+    // A configured utilization threshold sets when infinite-session background compaction kicks in;
+    // unset leaves the SDK's default threshold in place.
+    const backgroundCompactionThreshold = agentConfig.contextAutoCompactionConfig?.utilizationThreshold;
+    const infiniteSessions: SessionConfig["infiniteSessions"] =
+      backgroundCompactionThreshold !== undefined ? { enabled: true, backgroundCompactionThreshold } : undefined;
     // No onPermissionRequest handler: per the SDK, omitting it surfaces permission requests as
     // events that we resolve from the drain loop via the pending-permission RPC.
     const sessionConfig: SessionConfig = {
@@ -192,6 +197,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       excludedTools: agentConfig.toolConfig.disallowedTools,
       tools: inProcessTools,
       enableConfigDiscovery,
+      contextTier: "long_context",
+      infiniteSessions,
       enableSkills: true,
       skillDirectories:
         !enableConfigDiscovery && agentConfig.settingSources.includes(SETTING_SOURCE.USER)

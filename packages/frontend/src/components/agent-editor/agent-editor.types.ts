@@ -22,6 +22,8 @@ export interface AgentEditorFormState {
   model: string;
   effort?: ReasoningEffort;
   thinkingConfig?: AgentThinkingConfig;
+  contextAutoCompactionEnabled: boolean;
+  contextAutoCompactionThreshold?: number;
   permissionMode: PermissionMode;
   settingSources: SettingSource[];
   disableFileHooks: boolean;

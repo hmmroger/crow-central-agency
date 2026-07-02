@@ -10,6 +10,7 @@ import {
   type AgentConfigTemplate,
   type AgentThinkingConfig,
   type AgentType,
+  type ContextAutoCompactionConfig,
   type ConfiguredFeed,
   type DayOfWeek,
   type ReasoningEffort,
@@ -32,6 +33,8 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   model: CLAUDE_DEFAULT_MODEL,
   effort: undefined,
   thinkingConfig: undefined,
+  contextAutoCompactionEnabled: false,
+  contextAutoCompactionThreshold: undefined,
   permissionMode: PERMISSION_MODE.DEFAULT,
   settingSources: [...DEFAULT_SETTING_SOURCES],
   disableFileHooks: false,
@@ -73,6 +76,14 @@ function defaultModelForType(agentType: AgentType): string {
 }
 
 /**
+ * Flatten the provider-agnostic compaction config into the editor's single enabled + threshold pair.
+ * Only one provider field is ever set for a given agent, so the first defined value wins.
+ */
+function compactionThresholdFromConfig(config: ContextAutoCompactionConfig | undefined): number | undefined {
+  return config?.tokensThreshold ?? config?.utilizationThreshold;
+}
+
+/**
  * Build form state from a saved template. Leaves fields that templates
  * do not capture (name, discord config) at their defaults so the user
  * fills them in during create.
@@ -86,6 +97,8 @@ function formStateFromTemplate(template: AgentConfigTemplate): AgentEditorFormSt
     model: template.model,
     effort: template.effort,
     thinkingConfig: template.thinkingConfig,
+    contextAutoCompactionEnabled: compactionThresholdFromConfig(template.contextAutoCompactionConfig) !== undefined,
+    contextAutoCompactionThreshold: compactionThresholdFromConfig(template.contextAutoCompactionConfig),
     permissionMode: template.permissionMode,
     settingSources: template.settingSources,
     toolMode: template.toolConfig.mode,
@@ -116,6 +129,8 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     model: agent.model,
     effort: agent.effort,
     thinkingConfig: agent.thinkingConfig,
+    contextAutoCompactionEnabled: compactionThresholdFromConfig(agent.contextAutoCompactionConfig) !== undefined,
+    contextAutoCompactionThreshold: compactionThresholdFromConfig(agent.contextAutoCompactionConfig),
     permissionMode: agent.permissionMode,
     settingSources: agent.settingSources,
     disableFileHooks: agent.settingSourceConfig?.disableFileHooks ?? false,
@@ -163,6 +178,8 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     formA.effort === formB.effort &&
     formA.thinkingConfig?.mode === formB.thinkingConfig?.mode &&
     formA.thinkingConfig?.budget === formB.thinkingConfig?.budget &&
+    formA.contextAutoCompactionEnabled === formB.contextAutoCompactionEnabled &&
+    formA.contextAutoCompactionThreshold === formB.contextAutoCompactionThreshold &&
     formA.permissionMode === formB.permissionMode &&
     formA.toolMode === formB.toolMode &&
     formA.loopEnabled === formB.loopEnabled &&
@@ -264,6 +281,19 @@ export function useAgentEditorForm(
   );
   const setThinkingConfig = useCallback(
     (value: AgentThinkingConfig | undefined) => setForm((prev) => ({ ...prev, thinkingConfig: value })),
+    []
+  );
+  const setContextAutoCompactionEnabled = useCallback(
+    (enabled: boolean) =>
+      setForm((prev) => ({
+        ...prev,
+        contextAutoCompactionEnabled: enabled,
+        contextAutoCompactionThreshold: enabled ? prev.contextAutoCompactionThreshold : undefined,
+      })),
+    []
+  );
+  const setContextAutoCompactionThreshold = useCallback(
+    (value: number | undefined) => setForm((prev) => ({ ...prev, contextAutoCompactionThreshold: value })),
     []
   );
   const setAgentMd = useCallback((value: string) => setForm((prev) => ({ ...prev, agentMd: value })), []);
@@ -541,6 +571,8 @@ export function useAgentEditorForm(
     setModel,
     setEffort,
     setThinkingConfig,
+    setContextAutoCompactionEnabled,
+    setContextAutoCompactionThreshold,
     setAgentMd,
     setPermissionMode,
     setSettingSources,

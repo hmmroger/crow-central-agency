@@ -8,6 +8,9 @@ export {
   THINKING_MODE,
   CLAUDE_DEFAULT_MODEL,
   COPILOT_DEFAULT_MODEL,
+  CLAUDE_AUTO_COMPACT_TOKENS_MIN,
+  CLAUDE_AUTO_COMPACT_TOKENS_MAX,
+  COPILOT_AUTO_COMPACT_UTILIZATION_MAX,
   AgentIdSchema,
   AgentConfigSchema,
   AgentConfigTemplateSchema,
@@ -54,6 +57,7 @@ export type {
   ReasoningEffort,
   ThinkingMode,
   AgentThinkingConfig,
+  ContextAutoCompactionConfig,
 } from "./schemas/agent.schema.js";
 
 export {

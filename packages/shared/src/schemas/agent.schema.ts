@@ -361,6 +361,28 @@ export const AgentVoiceConfigSchema = z.object({
 export type AgentVoiceConfig = z.infer<typeof AgentVoiceConfigSchema>;
 
 /**
+ * Bounds the Claude Code SDK enforces on its auto-compact window (`int().min(1e5).max(1e6)`);
+ * out-of-range values are silently dropped by the SDK, so we validate against the same range.
+ */
+export const CLAUDE_AUTO_COMPACT_TOKENS_MIN = 100000;
+export const CLAUDE_AUTO_COMPACT_TOKENS_MAX = 1000000;
+
+/** GitHub Copilot's background-compaction threshold is a fraction (0-1) of the context window. */
+export const COPILOT_AUTO_COMPACT_UTILIZATION_MAX = 1;
+
+/**
+ * Manual auto-compaction thresholds. `tokensThreshold` drives Claude Code (context token count),
+ * `utilizationThreshold` drives GitHub Copilot (0-1 fraction of the context window). Each provider
+ * reads only its own field; an unset config leaves the provider's default behavior in place.
+ */
+export const ContextAutoCompactionConfigSchema = z.object({
+  tokensThreshold: z.number().int().min(CLAUDE_AUTO_COMPACT_TOKENS_MIN).max(CLAUDE_AUTO_COMPACT_TOKENS_MAX).optional(),
+  utilizationThreshold: z.number().positive().max(COPILOT_AUTO_COMPACT_UTILIZATION_MAX).optional(),
+});
+
+export type ContextAutoCompactionConfig = z.infer<typeof ContextAutoCompactionConfigSchema>;
+
+/**
  * Full agent configuration - persisted to disk in agents.json
  */
 export const AgentConfigSchema = z.object({
@@ -373,6 +395,7 @@ export const AgentConfigSchema = z.object({
   model: z.string().default(CLAUDE_DEFAULT_MODEL),
   effort: ReasoningEffortSchema.optional(),
   thinkingConfig: AgentThinkingConfigSchema.optional(),
+  contextAutoCompactionConfig: ContextAutoCompactionConfigSchema.optional(),
   permissionMode: PermissionModeSchema.default(PERMISSION_MODE.DEFAULT),
   settingSources: z.array(SettingSourceSchema).default([...DEFAULT_SETTING_SOURCES]),
   settingSourceConfig: SettingSourceConfigSchema.optional(),
@@ -411,6 +434,7 @@ export const CreateAgentInputSchema = z.object({
   model: z.string().optional(),
   effort: ReasoningEffortSchema.optional(),
   thinkingConfig: AgentThinkingConfigSchema.optional(),
+  contextAutoCompactionConfig: ContextAutoCompactionConfigSchema.optional(),
   permissionMode: PermissionModeSchema.optional(),
   settingSources: z.array(SettingSourceSchema).optional(),
   settingSourceConfig: SettingSourceConfigInputSchema.optional(),
@@ -439,6 +463,7 @@ export const UpdateAgentInputSchema = z.object({
   model: z.string().optional(),
   effort: ReasoningEffortSchema.nullish(),
   thinkingConfig: AgentThinkingConfigSchema.nullish(),
+  contextAutoCompactionConfig: ContextAutoCompactionConfigSchema.nullish(),
   permissionMode: PermissionModeSchema.optional(),
   settingSources: z.array(SettingSourceSchema).optional(),
   settingSourceConfig: SettingSourceConfigInputSchema.optional(),
@@ -465,6 +490,7 @@ export const AgentConfigTemplateSchema = AgentConfigSchema.pick({
   model: true,
   effort: true,
   thinkingConfig: true,
+  contextAutoCompactionConfig: true,
   permissionMode: true,
   settingSources: true,
   availableTools: true,
