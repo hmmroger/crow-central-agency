@@ -72,6 +72,7 @@
   --width-editor-dialog: 80vw;
   --max-height-editor-dialog: 85vh;
   --max-height-agentmd-editor: 32rem;
+  --min-height-artifact-editor: 60vh;
 
   --header-height: 3rem;
 

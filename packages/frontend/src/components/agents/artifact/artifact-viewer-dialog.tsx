@@ -105,21 +105,19 @@ export function ArtifactViewerDialog({ artifact, onClose, ref }: ArtifactViewerD
       )}
 
       {/* Content area with inset background */}
-      <div className="flex-1 min-h-0 m-3">
-        {isEditing ? (
-          <textarea
-            value={editedContent}
-            onChange={handleContentChange}
-            spellCheck={false}
-            aria-label={`Edit content of ${filename}`}
-            className="w-full h-full resize-none p-3 rounded-md bg-surface-inset border border-border-subtle text-xs font-mono text-text-neutral focus:outline-none focus:ring-1 focus:ring-border-focus"
-          />
-        ) : (
-          <div className="h-full overflow-y-auto p-3 rounded-md bg-surface-inset border border-border-subtle">
-            <ArtifactContentRenderer entityType={entityType} entityId={entityId} filename={filename} />
-          </div>
-        )}
-      </div>
+      {isEditing ? (
+        <textarea
+          value={editedContent}
+          onChange={handleContentChange}
+          spellCheck={false}
+          aria-label={`Edit content of ${filename}`}
+          className="flex-1 min-h-(--min-height-artifact-editor) resize-none overflow-y-auto m-3 p-3 rounded-md bg-surface-inset border border-border-subtle text-xs font-mono text-text-neutral focus:outline-none focus:ring-1 focus:ring-border-focus"
+        />
+      ) : (
+        <div className="flex-1 overflow-y-auto m-3 p-3 rounded-md bg-surface-inset border border-border-subtle">
+          <ArtifactContentRenderer entityType={entityType} entityId={entityId} filename={filename} />
+        </div>
+      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between gap-3 px-3 py-2 bg-surface-elevated">
