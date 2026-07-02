@@ -1,7 +1,7 @@
 import type { ArtifactMetadata, ArtifactTagsUpdate } from "@crow-central-agency/shared";
 import { useAppStore } from "../stores/app-store.js";
 import { getCachedLocation } from "./geolocation.js";
-import type { ApiError, ApiResponse } from "./api-client.types.js";
+import type { ApiError, ApiResponse, ArtifactContentUpdate } from "./api-client.types.js";
 
 const BASE_URL = "/api";
 
@@ -197,5 +197,15 @@ export async function updateAgentArtifactTags(agentId: string, filename: string,
 
 /** Update tags on a circle artifact */
 export async function updateCircleArtifactTags(circleId: string, filename: string, update: ArtifactTagsUpdate) {
+  return apiClient.patch<ArtifactMetadata>(`/circles/${circleId}/artifacts/${encodeURIComponent(filename)}`, update);
+}
+
+/** Replace the raw text content of an agent artifact, guarded by the expected updated timestamp */
+export async function updateAgentArtifactContent(agentId: string, filename: string, update: ArtifactContentUpdate) {
+  return apiClient.patch<ArtifactMetadata>(`/agents/${agentId}/artifacts/${encodeURIComponent(filename)}`, update);
+}
+
+/** Replace the raw text content of a circle artifact, guarded by the expected updated timestamp */
+export async function updateCircleArtifactContent(circleId: string, filename: string, update: ArtifactContentUpdate) {
   return apiClient.patch<ArtifactMetadata>(`/circles/${circleId}/artifacts/${encodeURIComponent(filename)}`, update);
 }

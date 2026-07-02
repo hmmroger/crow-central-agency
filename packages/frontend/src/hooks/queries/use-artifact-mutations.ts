@@ -1,13 +1,32 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { QueryKey } from "@tanstack/react-query";
 import { ENTITY_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
-import { updateAgentArtifactTags, updateCircleArtifactTags, unwrapResponse } from "../../services/api-client.js";
+import {
+  updateAgentArtifactContent,
+  updateAgentArtifactTags,
+  updateCircleArtifactContent,
+  updateCircleArtifactTags,
+  unwrapResponse,
+} from "../../services/api-client.js";
+import { agentKeys } from "../../services/query-keys.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
 interface UpdateArtifactTagsVars {
   artifact: ArtifactMetadata;
   addTags?: string[];
   removeTags?: string[];
+}
+
+interface UpdateArtifactContentVars {
+  artifact: ArtifactMetadata;
+  content: string;
+}
+
+/** Match any artifact list query (agent-owned or circle) regardless of which agent it is keyed under */
+function isArtifactListQuery(queryKey: QueryKey): boolean {
+  const lastSegment = queryKey[queryKey.length - 1];
+  return lastSegment === "artifacts" || lastSegment === "circle-artifacts";
 }
 
 /**
@@ -25,6 +44,33 @@ export function useUpdateArtifactTags() {
           : await updateAgentArtifactTags(artifact.entityId, artifact.filename, update);
 
       return unwrapResponse(response);
+    },
+  });
+}
+
+/**
+ * Replace the raw text content of an owned artifact, dispatching to the agent or circle endpoint by
+ * entity type and guarding the write with the artifact's current updatedTimestamp. On success the
+ * cached content and artifact lists are invalidated so the refreshed size/updatedTimestamp surface.
+ */
+export function useUpdateArtifactContent() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ArtifactMetadata, ApiError, UpdateArtifactContentVars>({
+    mutationFn: async ({ artifact, content }) => {
+      const update = { content, expectedUpdatedTimestamp: artifact.updatedTimestamp };
+      const response =
+        artifact.entityType === ENTITY_TYPE.AGENT_CIRCLE
+          ? await updateCircleArtifactContent(artifact.entityId, artifact.filename, update)
+          : await updateAgentArtifactContent(artifact.entityId, artifact.filename, update);
+
+      return unwrapResponse(response);
+    },
+    onSuccess: (_metadata, { artifact }) => {
+      void queryClient.invalidateQueries({
+        queryKey: agentKeys.artifactContent(artifact.entityType, artifact.entityId, artifact.filename),
+      });
+      void queryClient.invalidateQueries({ predicate: (query) => isArtifactListQuery(query.queryKey) });
     },
   });
 }
