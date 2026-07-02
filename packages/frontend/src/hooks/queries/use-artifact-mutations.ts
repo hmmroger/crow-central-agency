@@ -25,6 +25,10 @@ interface UpdateArtifactContentVars {
 
 /** Match any artifact list query (agent-owned or circle) regardless of which agent it is keyed under */
 function isArtifactListQuery(queryKey: QueryKey): boolean {
+  if (queryKey[0] !== agentKeys.all[0]) {
+    return false;
+  }
+
   const lastSegment = queryKey[queryKey.length - 1];
   return lastSegment === "artifacts" || lastSegment === "circle-artifacts";
 }

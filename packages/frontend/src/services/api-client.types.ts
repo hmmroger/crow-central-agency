@@ -7,8 +7,7 @@ export interface ApiError {
 }
 
 /** Payload for a content-only artifact PATCH: required new content plus the optimistic-lock timestamp */
-export type ArtifactContentUpdate = Required<Pick<ArtifactUpdate, "content">> &
-  Pick<ArtifactUpdate, "expectedUpdatedTimestamp">;
+export type ArtifactContentUpdate = Required<Pick<ArtifactUpdate, "content" | "expectedUpdatedTimestamp">>;
 
 /** Standard API response wrapper */
 export interface ApiSuccessResponse<T> {

@@ -111,6 +111,7 @@ export function ArtifactViewerDialog({ artifact, onClose, ref }: ArtifactViewerD
             value={editedContent}
             onChange={handleContentChange}
             spellCheck={false}
+            aria-label={`Edit content of ${filename}`}
             className="w-full h-full resize-none p-3 rounded-md bg-surface-inset border border-border-subtle text-xs font-mono text-text-neutral focus:outline-none focus:ring-1 focus:ring-border-focus"
           />
         ) : (
