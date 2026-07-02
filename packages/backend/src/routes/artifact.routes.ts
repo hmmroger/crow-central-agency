@@ -7,9 +7,9 @@ import {
   ARTIFACT_CONTENT_TYPE,
   ARTIFACT_TYPE,
   ArtifactContentTypeSchema,
-  ArtifactTagsUpdateSchema,
+  ArtifactUpdateSchema,
 } from "@crow-central-agency/shared";
-import type { ArtifactContentType, ArtifactTagsUpdate } from "@crow-central-agency/shared";
+import type { ArtifactContentType, ArtifactUpdate } from "@crow-central-agency/shared";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import type { Multipart } from "@fastify/multipart";
@@ -54,16 +54,16 @@ function getTagsValue(field: Multipart | Multipart[] | undefined): string[] | un
   return undefined;
 }
 
-/** Validate a tags-update body, requiring at least one tag to add or remove */
-function parseTagsUpdate(body: unknown): ArtifactTagsUpdate {
-  const result = ArtifactTagsUpdateSchema.safeParse(body);
+/** Validate an artifact update body, requiring at least one tag change or a content replacement */
+function parseArtifactUpdate(body: unknown): ArtifactUpdate {
+  const result = ArtifactUpdateSchema.safeParse(body);
   if (!result.success) {
-    throw new AppError("Invalid tag update payload", APP_ERROR_CODES.VALIDATION);
+    throw new AppError("Invalid artifact update payload", APP_ERROR_CODES.VALIDATION);
   }
 
-  const { addTags, removeTags } = result.data;
-  if ((addTags?.length ?? 0) === 0 && (removeTags?.length ?? 0) === 0) {
-    throw new AppError("At least one tag to add or remove is required", APP_ERROR_CODES.VALIDATION);
+  const { addTags, removeTags, content } = result.data;
+  if ((addTags?.length ?? 0) === 0 && (removeTags?.length ?? 0) === 0 && content === undefined) {
+    throw new AppError("At least one tag change or content update is required", APP_ERROR_CODES.VALIDATION);
   }
 
   return result.data;
@@ -125,11 +125,16 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
     }
   );
 
-  /** Update tags on a specific agent artifact (remove-then-add delta) */
+  /** Update a specific agent artifact — tag delta and/or raw content replacement */
   server.patch<{ Params: { id: string; filename: string } }>("/api/agents/:id/artifacts/:filename", async (request) => {
     const agentId = validateAgentIdParam(request.params.id);
-    const { addTags, removeTags } = parseTagsUpdate(request.body);
-    const metadata = await artifactManager.updateArtifact(agentId, request.params.filename, { addTags, removeTags });
+    const { addTags, removeTags, content, expectedUpdatedTimestamp } = parseArtifactUpdate(request.body);
+    const metadata = await artifactManager.updateArtifact(agentId, request.params.filename, {
+      addTags,
+      removeTags,
+      content,
+      expectedUpdatedTimestamp,
+    });
 
     return { success: true, data: metadata };
   });
@@ -184,15 +189,17 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
     }
   );
 
-  /** Update tags on a specific circle artifact (remove-then-add delta) */
+  /** Update a specific circle artifact — tag delta and/or raw content replacement */
   server.patch<{ Params: { id: string; filename: string } }>(
     "/api/circles/:id/artifacts/:filename",
     async (request) => {
       const circleId = validateCircleIdParam(request.params.id);
-      const { addTags, removeTags } = parseTagsUpdate(request.body);
+      const { addTags, removeTags, content, expectedUpdatedTimestamp } = parseArtifactUpdate(request.body);
       const metadata = await artifactManager.updateCircleArtifact(circleId, request.params.filename, {
         addTags,
         removeTags,
+        content,
+        expectedUpdatedTimestamp,
       });
 
       return { success: true, data: metadata };

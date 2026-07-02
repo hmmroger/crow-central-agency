@@ -68,3 +68,16 @@ export const ArtifactTagsUpdateSchema = z.object({
 });
 
 export type ArtifactTagsUpdate = z.infer<typeof ArtifactTagsUpdateSchema>;
+
+/**
+ * Request body for a PATCH artifact update. Superset of the tags delta that additionally allows
+ * replacing the raw text content. `expectedUpdatedTimestamp` guards against clobbering a concurrent
+ * edit — the update is rejected with a conflict when it no longer matches the stored timestamp.
+ * At least one of addTags/removeTags/content must be present.
+ */
+export const ArtifactUpdateSchema = ArtifactTagsUpdateSchema.extend({
+  content: z.string().optional(),
+  expectedUpdatedTimestamp: z.number().optional(),
+});
+
+export type ArtifactUpdate = z.infer<typeof ArtifactUpdateSchema>;
