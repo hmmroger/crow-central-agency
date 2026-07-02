@@ -78,6 +78,14 @@ export type ArtifactTagsUpdate = z.infer<typeof ArtifactTagsUpdateSchema>;
 export const ArtifactUpdateSchema = ArtifactTagsUpdateSchema.extend({
   content: z.string().optional(),
   expectedUpdatedTimestamp: z.number().optional(),
+}).superRefine((update, ctx) => {
+  if (update.content !== undefined && update.expectedUpdatedTimestamp === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      message: "expectedUpdatedTimestamp is required when content is provided",
+      path: ["expectedUpdatedTimestamp"],
+    });
+  }
 });
 
 export type ArtifactUpdate = z.infer<typeof ArtifactUpdateSchema>;

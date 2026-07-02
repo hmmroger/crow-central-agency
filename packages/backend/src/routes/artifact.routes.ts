@@ -15,6 +15,9 @@ import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import type { Multipart } from "@fastify/multipart";
 import { getMimeTypeByFilename } from "../utils/mime-type.js";
 
+/** Max artifact payload size, shared by the multipart upload cap and the JSON PATCH body limit */
+const MAX_ARTIFACT_BYTES = 50 * 1024 * 1024;
+
 /** Resolve MIME type from filename and artifact content type */
 function getMimeType(filename: string, contentType?: ArtifactContentType): string {
   if (contentType === ARTIFACT_CONTENT_TYPE.TEXT) {
@@ -74,7 +77,7 @@ function parseArtifactUpdate(body: unknown): ArtifactUpdate {
  */
 export async function registerArtifactRoutes(server: FastifyInstance, artifactManager: ArtifactManager) {
   await server.register(multipart, {
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
+    limits: { fileSize: MAX_ARTIFACT_BYTES },
   });
 
   /** List artifacts for an agent */
@@ -126,18 +129,22 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
   );
 
   /** Update a specific agent artifact — tag delta and/or raw content replacement */
-  server.patch<{ Params: { id: string; filename: string } }>("/api/agents/:id/artifacts/:filename", async (request) => {
-    const agentId = validateAgentIdParam(request.params.id);
-    const { addTags, removeTags, content, expectedUpdatedTimestamp } = parseArtifactUpdate(request.body);
-    const metadata = await artifactManager.updateArtifact(agentId, request.params.filename, {
-      addTags,
-      removeTags,
-      content,
-      expectedUpdatedTimestamp,
-    });
+  server.patch<{ Params: { id: string; filename: string } }>(
+    "/api/agents/:id/artifacts/:filename",
+    { bodyLimit: MAX_ARTIFACT_BYTES },
+    async (request) => {
+      const agentId = validateAgentIdParam(request.params.id);
+      const { addTags, removeTags, content, expectedUpdatedTimestamp } = parseArtifactUpdate(request.body);
+      const metadata = await artifactManager.updateArtifact(agentId, request.params.filename, {
+        addTags,
+        removeTags,
+        content,
+        expectedUpdatedTimestamp,
+      });
 
-    return { success: true, data: metadata };
-  });
+      return { success: true, data: metadata };
+    }
+  );
 
   /** Read a specific artifact — returns raw binary with Content-Type header for non-text, JSON for text */
   server.get<{ Params: { id: string; filename: string } }>(
@@ -192,6 +199,7 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
   /** Update a specific circle artifact — tag delta and/or raw content replacement */
   server.patch<{ Params: { id: string; filename: string } }>(
     "/api/circles/:id/artifacts/:filename",
+    { bodyLimit: MAX_ARTIFACT_BYTES },
     async (request) => {
       const circleId = validateCircleIdParam(request.params.id);
       const { addTags, removeTags, content, expectedUpdatedTimestamp } = parseArtifactUpdate(request.body);
