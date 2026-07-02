@@ -62,19 +62,14 @@ function buildThinkingOption(
   config: AgentThinkingConfig | undefined,
   supportsAdaptiveThinking: boolean
 ): ThinkingConfig {
-  if (!config) {
-    return supportsAdaptiveThinking
-      ? { type: "adaptive", display: "summarized" }
-      : { type: "enabled", display: "summarized" };
-  }
-
-  if (config.mode === THINKING_MODE.ENABLED) {
-    return config.budget
+  const mode = config ? config.mode : supportsAdaptiveThinking ? THINKING_MODE.ADAPTIVE : THINKING_MODE.ENABLED;
+  if (mode === THINKING_MODE.ENABLED) {
+    return config?.budget
       ? { type: "enabled", budgetTokens: config.budget, display: "summarized" }
       : { type: "enabled", display: "summarized" };
   }
 
-  if (config.mode === THINKING_MODE.ADAPTIVE) {
+  if (mode === THINKING_MODE.ADAPTIVE) {
     return { type: "adaptive", display: "summarized" };
   }
 
