@@ -1,5 +1,11 @@
 import { useCallback } from "react";
-import { AGENT_TYPE, type AgentType } from "@crow-central-agency/shared";
+import {
+  AGENT_TYPE,
+  CLAUDE_AUTO_COMPACT_TOKENS_MAX,
+  CLAUDE_AUTO_COMPACT_TOKENS_MIN,
+  COPILOT_AUTO_COMPACT_UTILIZATION_MAX,
+  type AgentType,
+} from "@crow-central-agency/shared";
 import { Toggle } from "../common/toggle.js";
 import { FieldGroup } from "./field-group.js";
 
@@ -13,10 +19,8 @@ interface ContextCompactionSectionProps {
 
 /** Copilot's background compaction threshold is a 0-1 fraction of the context window. */
 const UTILIZATION_STEP = 0.05;
-const UTILIZATION_MAX = 1;
-/** Claude's auto-compact window is a raw context token count. */
+/** Claude's auto-compact window steps in whole thousands of tokens. */
 const TOKEN_STEP = 1000;
-const TOKEN_MIN = 1;
 
 /**
  * Manual auto-compaction threshold, hidden behind a toggle. Claude Code takes a context token count;
@@ -58,12 +62,12 @@ export function ContextCompactionSection({
           <p className="text-xs text-text-muted">
             {isCopilot
               ? "Fraction of the context window (0-1) at which background compaction starts."
-              : "Context token count at which the session is automatically compacted."}
+              : `Context token count at which the session is automatically compacted (${CLAUDE_AUTO_COMPACT_TOKENS_MIN.toLocaleString()}-${CLAUDE_AUTO_COMPACT_TOKENS_MAX.toLocaleString()}).`}
           </p>
           <input
             type="number"
-            min={isCopilot ? UTILIZATION_STEP : TOKEN_MIN}
-            max={isCopilot ? UTILIZATION_MAX : undefined}
+            min={isCopilot ? UTILIZATION_STEP : CLAUDE_AUTO_COMPACT_TOKENS_MIN}
+            max={isCopilot ? COPILOT_AUTO_COMPACT_UTILIZATION_MAX : CLAUDE_AUTO_COMPACT_TOKENS_MAX}
             step={isCopilot ? UTILIZATION_STEP : TOKEN_STEP}
             value={threshold ?? ""}
             onChange={(event) => handleThresholdChange(event.target.value)}

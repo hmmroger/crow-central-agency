@@ -113,6 +113,29 @@ export function BasicInfoSection({
         />
       </FieldGroup>
 
+      <FieldGroup
+        label="Persona"
+        action={
+          <button
+            type="button"
+            className="text-text-muted hover:text-secondary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-text-muted transition-colors"
+            onClick={onGeneratePersona}
+            disabled={!canGenerate}
+            title={canGenerate ? "Generate with AI" : "Text generation is not configured"}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+          </button>
+        }
+      >
+        <textarea
+          value={persona}
+          onChange={(event) => onPersonaChange(event.target.value)}
+          placeholder="System-level instructions that shape agent behavior..."
+          rows={4}
+          className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-base text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus resize-y"
+        />
+      </FieldGroup>
+
       <FieldGroup label="Project Path">
         <input
           type="text"
@@ -161,29 +184,6 @@ export function BasicInfoSection({
           />
         </FieldGroup>
       )}
-
-      <FieldGroup
-        label="Persona"
-        action={
-          <button
-            type="button"
-            className="text-text-muted hover:text-secondary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-text-muted transition-colors"
-            onClick={onGeneratePersona}
-            disabled={!canGenerate}
-            title={canGenerate ? "Generate with AI" : "Text generation is not configured"}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-          </button>
-        }
-      >
-        <textarea
-          value={persona}
-          onChange={(event) => onPersonaChange(event.target.value)}
-          placeholder="System-level instructions that shape agent behavior..."
-          rows={4}
-          className="w-full px-3 py-2 rounded-md bg-surface-inset border border-border-subtle text-text-base text-sm placeholder:text-text-muted focus:outline-none focus:border-border-focus resize-y"
-        />
-      </FieldGroup>
     </>
   );
 }
