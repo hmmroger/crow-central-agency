@@ -1,7 +1,7 @@
-import type { ArtifactMetadata, ArtifactTagsUpdate } from "@crow-central-agency/shared";
+import type { ArtifactMetadata, ArtifactUpdate } from "@crow-central-agency/shared";
 import { useAppStore } from "../stores/app-store.js";
 import { getCachedLocation } from "./geolocation.js";
-import type { ApiError, ApiResponse, ArtifactContentUpdate } from "./api-client.types.js";
+import type { ApiError, ApiResponse } from "./api-client.types.js";
 
 const BASE_URL = "/api";
 
@@ -190,22 +190,12 @@ export async function deleteCircleArtifact(circleId: string, filename: string) {
   return apiClient.del(`/circles/${circleId}/artifacts/${encodeURIComponent(filename)}`);
 }
 
-/** Update tags on an agent artifact */
-export async function updateAgentArtifactTags(agentId: string, filename: string, update: ArtifactTagsUpdate) {
+/** Apply a tag delta and/or content replacement to an agent artifact */
+export async function updateAgentArtifact(agentId: string, filename: string, update: ArtifactUpdate) {
   return apiClient.patch<ArtifactMetadata>(`/agents/${agentId}/artifacts/${encodeURIComponent(filename)}`, update);
 }
 
-/** Update tags on a circle artifact */
-export async function updateCircleArtifactTags(circleId: string, filename: string, update: ArtifactTagsUpdate) {
-  return apiClient.patch<ArtifactMetadata>(`/circles/${circleId}/artifacts/${encodeURIComponent(filename)}`, update);
-}
-
-/** Replace the raw text content of an agent artifact, guarded by the expected updated timestamp */
-export async function updateAgentArtifactContent(agentId: string, filename: string, update: ArtifactContentUpdate) {
-  return apiClient.patch<ArtifactMetadata>(`/agents/${agentId}/artifacts/${encodeURIComponent(filename)}`, update);
-}
-
-/** Replace the raw text content of a circle artifact, guarded by the expected updated timestamp */
-export async function updateCircleArtifactContent(circleId: string, filename: string, update: ArtifactContentUpdate) {
+/** Apply a tag delta and/or content replacement to a circle artifact */
+export async function updateCircleArtifact(circleId: string, filename: string, update: ArtifactUpdate) {
   return apiClient.patch<ArtifactMetadata>(`/circles/${circleId}/artifacts/${encodeURIComponent(filename)}`, update);
 }

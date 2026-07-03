@@ -2,13 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
 import { ENTITY_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
-import {
-  updateAgentArtifactContent,
-  updateAgentArtifactTags,
-  updateCircleArtifactContent,
-  updateCircleArtifactTags,
-  unwrapResponse,
-} from "../../services/api-client.js";
+import { updateAgentArtifact, updateCircleArtifact, unwrapResponse } from "../../services/api-client.js";
 import { agentKeys } from "../../services/query-keys.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
@@ -44,8 +38,8 @@ export function useUpdateArtifactTags() {
       const update = { addTags, removeTags };
       const response =
         artifact.entityType === ENTITY_TYPE.AGENT_CIRCLE
-          ? await updateCircleArtifactTags(artifact.entityId, artifact.filename, update)
-          : await updateAgentArtifactTags(artifact.entityId, artifact.filename, update);
+          ? await updateCircleArtifact(artifact.entityId, artifact.filename, update)
+          : await updateAgentArtifact(artifact.entityId, artifact.filename, update);
 
       return unwrapResponse(response);
     },
@@ -65,8 +59,8 @@ export function useUpdateArtifactContent() {
       const update = { content, expectedUpdatedTimestamp: artifact.updatedTimestamp };
       const response =
         artifact.entityType === ENTITY_TYPE.AGENT_CIRCLE
-          ? await updateCircleArtifactContent(artifact.entityId, artifact.filename, update)
-          : await updateAgentArtifactContent(artifact.entityId, artifact.filename, update);
+          ? await updateCircleArtifact(artifact.entityId, artifact.filename, update)
+          : await updateAgentArtifact(artifact.entityId, artifact.filename, update);
 
       return unwrapResponse(response);
     },

@@ -57,16 +57,11 @@ function getTagsValue(field: Multipart | Multipart[] | undefined): string[] | un
   return undefined;
 }
 
-/** Validate an artifact update body, requiring at least one tag change or a content replacement */
+/** Validate an artifact update body against the single update contract */
 function parseArtifactUpdate(body: unknown): ArtifactUpdate {
   const result = ArtifactUpdateSchema.safeParse(body);
   if (!result.success) {
     throw new AppError("Invalid artifact update payload", APP_ERROR_CODES.VALIDATION);
-  }
-
-  const { addTags, removeTags, content } = result.data;
-  if ((addTags?.length ?? 0) === 0 && (removeTags?.length ?? 0) === 0 && content === undefined) {
-    throw new AppError("At least one tag change or content update is required", APP_ERROR_CODES.VALIDATION);
   }
 
   return result.data;
