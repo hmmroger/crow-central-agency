@@ -1,6 +1,7 @@
 import { useCallback, useImperativeHandle, useState } from "react";
 import type { ChangeEvent, Ref } from "react";
 import { Pencil } from "lucide-react";
+import { ARTIFACT_CONTENT_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { ArtifactContentRenderer } from "./artifact-content-renderer.js";
 import { ArtifactTagList } from "./artifact-tag-list.js";
@@ -35,7 +36,10 @@ export function ArtifactViewerDialog({ artifact, onClose, ref }: ArtifactViewerD
   const { entityType, entityId, filename, tags } = artifact;
   const { data, refetch } = useArtifactContentQuery(entityType, entityId, filename);
   const textContent = data?.type === "text" ? data.content : undefined;
-  const canEdit = canUserModifyArtifact(artifact) && data?.type === "text";
+  // Gate on the declared contentType, not the fetched type: adapter-backed binaries (e.g. .docx) are
+  // converted to text for display but are not raw-text editable.
+  const canEdit =
+    canUserModifyArtifact(artifact) && artifact.contentType === ARTIFACT_CONTENT_TYPE.TEXT && textContent !== undefined;
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState("");
