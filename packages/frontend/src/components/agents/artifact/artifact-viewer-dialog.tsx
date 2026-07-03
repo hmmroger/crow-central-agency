@@ -36,6 +36,9 @@ export function ArtifactViewerDialog({ artifact, onClose, ref }: ArtifactViewerD
   const { entityType, entityId, filename, tags } = artifact;
   const { data, refetch } = useArtifactContentQuery(entityType, entityId, filename);
   const textContent = data?.type === "text" ? data.content : undefined;
+  // Server metadata as last read — the optimistic-lock timestamp comes from here, not the open-time
+  // prop, so it stays fresh across consecutive saves and after a Reload.
+  const liveMetadata = data?.type === "text" ? data.metadata : undefined;
   // Gate on the declared contentType, not the fetched type: adapter-backed binaries (e.g. .docx) are
   // converted to text for display but are not raw-text editable.
   const canEdit =
@@ -82,12 +85,12 @@ export function ArtifactViewerDialog({ artifact, onClose, ref }: ArtifactViewerD
 
   const handleSave = useCallback(async () => {
     try {
-      await updateContentAsync({ artifact, content: editedContent });
+      await updateContentAsync({ artifact: liveMetadata ?? artifact, content: editedContent });
       exitEdit();
     } catch {
       // Surfaced via the mutation error state below
     }
-  }, [updateContentAsync, artifact, editedContent, exitEdit]);
+  }, [updateContentAsync, liveMetadata, artifact, editedContent, exitEdit]);
 
   const handleReload = useCallback(() => {
     void refetch();

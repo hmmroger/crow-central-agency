@@ -153,7 +153,7 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
         return reply.type(mimeType).send(content);
       }
 
-      return { success: true, data: { filename, content } };
+      return { success: true, data: { metadata, content } };
     }
   );
 
@@ -221,7 +221,7 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
         return reply.type(mimeType).send(content);
       }
 
-      return { success: true, data: { filename, content } };
+      return { success: true, data: { metadata, content } };
     }
   );
 }
