@@ -4,6 +4,7 @@ import { ENTITY_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { updateAgentArtifact, updateCircleArtifact, unwrapResponse } from "../../services/api-client.js";
 import { agentKeys } from "../../services/query-keys.js";
+import type { ArtifactContent } from "./use-artifact-content-query.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
 interface UpdateArtifactTagsVars {
@@ -49,7 +50,9 @@ export function useUpdateArtifactTags() {
 /**
  * Replace the raw text content of an owned artifact, dispatching to the agent or circle endpoint by
  * entity type and guarding the write with the artifact's current updatedTimestamp. On success the
- * cached content and artifact lists are invalidated so the refreshed size/updatedTimestamp surface.
+ * cached content is written directly from the authoritative PATCH response (fresh metadata + the
+ * bytes we just sent) so the viewer reflects the edit without a refetch, and the artifact lists are
+ * invalidated so their size/updatedTimestamp refresh.
  */
 export function useUpdateArtifactContent() {
   const queryClient = useQueryClient();
@@ -64,10 +67,11 @@ export function useUpdateArtifactContent() {
 
       return unwrapResponse(response);
     },
-    onSuccess: (_metadata, { artifact }) => {
-      void queryClient.invalidateQueries({
-        queryKey: agentKeys.artifactContent(artifact.entityType, artifact.entityId, artifact.filename),
-      });
+    onSuccess: (metadata, { artifact, content }) => {
+      queryClient.setQueryData<ArtifactContent>(
+        agentKeys.artifactContent(artifact.entityType, artifact.entityId, artifact.filename),
+        { type: "text", metadata, content }
+      );
       void queryClient.invalidateQueries({ predicate: (query) => isArtifactListQuery(query.queryKey) });
     },
   });
