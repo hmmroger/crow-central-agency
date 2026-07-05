@@ -193,11 +193,11 @@ export {
   ArtifactTypeSchema,
   ArtifactContentTypeSchema,
   ArtifactMetadataSchema,
-  ArtifactTagsUpdateSchema,
+  ArtifactUpdateSchema,
   type ArtifactType,
   type ArtifactContentType,
   type ArtifactMetadata,
-  type ArtifactTagsUpdate,
+  type ArtifactUpdate,
 } from "./schemas/artifact.schema.js";
 
 export {

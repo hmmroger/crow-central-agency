@@ -16,10 +16,7 @@ export function useOpenArtifactViewer() {
         id: `${ARTIFACT_VIEWER_DIALOG_ID}-${artifact.entityId}-${artifact.filename}`,
         component: ArtifactViewerDialog,
         componentProps: {
-          entityType: artifact.entityType,
-          entityId: artifact.entityId,
-          filename: artifact.filename,
-          tags: artifact.tags,
+          artifact,
         },
         title: artifact.filename,
         className: "w-(--width-editor-dialog) max-w-5xl max-h-(--max-height-editor-dialog) flex flex-col",

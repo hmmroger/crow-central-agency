@@ -59,12 +59,34 @@ export const ArtifactMetadataSchema = z.object({
 export type ArtifactMetadata = z.infer<typeof ArtifactMetadataSchema>;
 
 /**
- * Request body for updating an artifact's tags. Applies a remove-then-add delta to the
- * current tag set; at least one of addTags/removeTags must be non-empty.
+ * Request body for a PATCH artifact update. Tag changes apply a remove-then-add delta to the current
+ * set; `content` replaces the raw text. `expectedUpdatedTimestamp` guards against clobbering a
+ * concurrent edit — the update is rejected with a conflict when it no longer matches the stored
+ * timestamp. At least one of addTags/removeTags/content must be present, and a content replacement
+ * must carry the expected timestamp.
  */
-export const ArtifactTagsUpdateSchema = z.object({
-  addTags: z.array(z.string()).optional(),
-  removeTags: z.array(z.string()).optional(),
-});
+export const ArtifactUpdateSchema = z
+  .object({
+    addTags: z.array(z.string()).optional(),
+    removeTags: z.array(z.string()).optional(),
+    content: z.string().optional(),
+    expectedUpdatedTimestamp: z.number().optional(),
+  })
+  .superRefine((update, ctx) => {
+    if ((update.addTags?.length ?? 0) === 0 && (update.removeTags?.length ?? 0) === 0 && update.content === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: "At least one of addTags, removeTags, or content is required",
+      });
+    }
 
-export type ArtifactTagsUpdate = z.infer<typeof ArtifactTagsUpdateSchema>;
+    if (update.content !== undefined && update.expectedUpdatedTimestamp === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: "expectedUpdatedTimestamp is required when content is provided",
+        path: ["expectedUpdatedTimestamp"],
+      });
+    }
+  });
+
+export type ArtifactUpdate = z.infer<typeof ArtifactUpdateSchema>;

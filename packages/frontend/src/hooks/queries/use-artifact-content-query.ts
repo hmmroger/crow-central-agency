@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { ENTITY_TYPE, type EntityType } from "@crow-central-agency/shared";
+import { ENTITY_TYPE, type ArtifactMetadata, type EntityType } from "@crow-central-agency/shared";
 import { fetchRaw } from "../../services/api-client.js";
 import { agentKeys } from "../../services/query-keys.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
 interface TextArtifactContent {
   type: "text";
-  filename: string;
+  metadata: ArtifactMetadata;
   content: string;
 }
 
@@ -40,8 +40,11 @@ export function useArtifactContentQuery(entityType: EntityType, entityId: string
 
       const contentType = response.headers.get("content-type") ?? "";
       if (contentType.includes("application/json")) {
-        const json = (await response.json()) as { success: boolean; data: { filename: string; content: string } };
-        return { type: "text", filename: json.data.filename, content: json.data.content };
+        const json = (await response.json()) as {
+          success: boolean;
+          data: { metadata: ArtifactMetadata; content: string };
+        };
+        return { type: "text", metadata: json.data.metadata, content: json.data.content };
       }
 
       const blob = await response.blob();

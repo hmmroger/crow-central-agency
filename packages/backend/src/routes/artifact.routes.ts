@@ -7,13 +7,16 @@ import {
   ARTIFACT_CONTENT_TYPE,
   ARTIFACT_TYPE,
   ArtifactContentTypeSchema,
-  ArtifactTagsUpdateSchema,
+  ArtifactUpdateSchema,
 } from "@crow-central-agency/shared";
-import type { ArtifactContentType, ArtifactTagsUpdate } from "@crow-central-agency/shared";
+import type { ArtifactContentType, ArtifactUpdate } from "@crow-central-agency/shared";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import type { Multipart } from "@fastify/multipart";
 import { getMimeTypeByFilename } from "../utils/mime-type.js";
+
+/** Max artifact payload size, shared by the multipart upload cap and the JSON PATCH body limit */
+const MAX_ARTIFACT_BYTES = 50 * 1024 * 1024;
 
 /** Resolve MIME type from filename and artifact content type */
 function getMimeType(filename: string, contentType?: ArtifactContentType): string {
@@ -54,16 +57,11 @@ function getTagsValue(field: Multipart | Multipart[] | undefined): string[] | un
   return undefined;
 }
 
-/** Validate a tags-update body, requiring at least one tag to add or remove */
-function parseTagsUpdate(body: unknown): ArtifactTagsUpdate {
-  const result = ArtifactTagsUpdateSchema.safeParse(body);
+/** Validate an artifact update body against the single update contract */
+function parseArtifactUpdate(body: unknown): ArtifactUpdate {
+  const result = ArtifactUpdateSchema.safeParse(body);
   if (!result.success) {
-    throw new AppError("Invalid tag update payload", APP_ERROR_CODES.VALIDATION);
-  }
-
-  const { addTags, removeTags } = result.data;
-  if ((addTags?.length ?? 0) === 0 && (removeTags?.length ?? 0) === 0) {
-    throw new AppError("At least one tag to add or remove is required", APP_ERROR_CODES.VALIDATION);
+    throw new AppError("Invalid artifact update payload", APP_ERROR_CODES.VALIDATION);
   }
 
   return result.data;
@@ -74,7 +72,7 @@ function parseTagsUpdate(body: unknown): ArtifactTagsUpdate {
  */
 export async function registerArtifactRoutes(server: FastifyInstance, artifactManager: ArtifactManager) {
   await server.register(multipart, {
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
+    limits: { fileSize: MAX_ARTIFACT_BYTES },
   });
 
   /** List artifacts for an agent */
@@ -125,14 +123,23 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
     }
   );
 
-  /** Update tags on a specific agent artifact (remove-then-add delta) */
-  server.patch<{ Params: { id: string; filename: string } }>("/api/agents/:id/artifacts/:filename", async (request) => {
-    const agentId = validateAgentIdParam(request.params.id);
-    const { addTags, removeTags } = parseTagsUpdate(request.body);
-    const metadata = await artifactManager.updateArtifact(agentId, request.params.filename, { addTags, removeTags });
+  /** Update a specific agent artifact — tag delta and/or raw content replacement */
+  server.patch<{ Params: { id: string; filename: string } }>(
+    "/api/agents/:id/artifacts/:filename",
+    { bodyLimit: MAX_ARTIFACT_BYTES },
+    async (request) => {
+      const agentId = validateAgentIdParam(request.params.id);
+      const { addTags, removeTags, content, expectedUpdatedTimestamp } = parseArtifactUpdate(request.body);
+      const metadata = await artifactManager.updateArtifact(agentId, request.params.filename, {
+        addTags,
+        removeTags,
+        content,
+        expectedUpdatedTimestamp,
+      });
 
-    return { success: true, data: metadata };
-  });
+      return { success: true, data: metadata };
+    }
+  );
 
   /** Read a specific artifact — returns raw binary with Content-Type header for non-text, JSON for text */
   server.get<{ Params: { id: string; filename: string } }>(
@@ -146,7 +153,7 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
         return reply.type(mimeType).send(content);
       }
 
-      return { success: true, data: { filename, content } };
+      return { success: true, data: { metadata, content } };
     }
   );
 
@@ -184,15 +191,18 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
     }
   );
 
-  /** Update tags on a specific circle artifact (remove-then-add delta) */
+  /** Update a specific circle artifact — tag delta and/or raw content replacement */
   server.patch<{ Params: { id: string; filename: string } }>(
     "/api/circles/:id/artifacts/:filename",
+    { bodyLimit: MAX_ARTIFACT_BYTES },
     async (request) => {
       const circleId = validateCircleIdParam(request.params.id);
-      const { addTags, removeTags } = parseTagsUpdate(request.body);
+      const { addTags, removeTags, content, expectedUpdatedTimestamp } = parseArtifactUpdate(request.body);
       const metadata = await artifactManager.updateCircleArtifact(circleId, request.params.filename, {
         addTags,
         removeTags,
+        content,
+        expectedUpdatedTimestamp,
       });
 
       return { success: true, data: metadata };
@@ -211,7 +221,7 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
         return reply.type(mimeType).send(content);
       }
 
-      return { success: true, data: { filename, content } };
+      return { success: true, data: { metadata, content } };
     }
   );
 }

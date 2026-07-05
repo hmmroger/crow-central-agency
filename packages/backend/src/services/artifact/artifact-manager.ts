@@ -424,6 +424,10 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
 
     let newSize = existing.value.size;
     if (options.content !== undefined) {
+      if (existing.value.contentType !== ARTIFACT_CONTENT_TYPE.TEXT) {
+        throw new AppError("Content updates are only supported for TEXT artifacts", APP_ERROR_CODES.VALIDATION);
+      }
+
       const buf = Buffer.isBuffer(options.content) ? options.content : Buffer.from(options.content, "utf-8");
       const filePath = this.getEntityArtifactPath(entityType, entityId, existing.value.id);
       await writeBinaryFile(filePath, buf);
