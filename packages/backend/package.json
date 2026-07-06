@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "tsc --watch --project ./tsconfig.json",
-    "build": "tsc --project ./tsconfig.json",
+    "build": "tsc --project ./tsconfig.build.json",
     "postbuild": "node ../../scripts/copy-to-root-dist.mjs",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --project ./tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "start": "node --import ./dist/telemetry/setup.js dist/cli.js server"
   },
   "dependencies": {
