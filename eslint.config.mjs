@@ -82,7 +82,7 @@ export default defineConfig(
     },
   },
   {
-    files: ["**/vite.config.ts"],
+    files: ["**/vite.config.ts", "**/vitest.config.ts", "**/vitest.shared.ts"],
     extends: [tseslint.configs.disableTypeChecked],
   }
 );

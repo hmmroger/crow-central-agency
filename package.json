@@ -48,6 +48,8 @@
     "build:backend": "npm run build -w packages/backend",
     "build:frontend": "npm run build -w packages/frontend",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:backend": "npm run test -w packages/backend",
     "lint": "npm run lint --workspaces --if-present",
     "lint:shared": "npm run lint -w packages/shared",
     "lint:backend": "npm run lint -w packages/backend",
@@ -105,7 +107,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.8.4",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.62.1"
+    "typescript-eslint": "^8.62.1",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "mermaid": {
