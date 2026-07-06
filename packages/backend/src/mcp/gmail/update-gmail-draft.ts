@@ -20,7 +20,9 @@ export function getUpdateGmailDraftToolConfig(googleClient: GoogleClient) {
     bodyFormat: z
       .enum([EMAIL_BODY_FORMAT.MARKDOWN, EMAIL_BODY_FORMAT.HTML])
       .optional()
-      .describe('Body format for `body`. Defaults to "markdown"; set to "html" to supply raw HTML.'),
+      .describe(
+        'Body format for `body`; only meaningful when body is also provided. Defaults to "markdown"; set to "html" to supply raw HTML.'
+      ),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async (args) => {
