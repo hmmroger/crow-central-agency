@@ -27,6 +27,9 @@ const FEEDS_CACHE_MAX_AGE_IN_MINUTES = 5;
 const DEFAULT_FEED_REFRESH_IN_MINUTES = 15;
 const DEFAULT_FEED_MAX_SUMMARIZATION_ITEMS = 50;
 const REFRESH_FEEDS_WORK_ID = "refresh-feeds";
+// Cap query-time LLM topic expansion so a slow provider can't stall search;
+// expansion is best-effort and search degrades to lexical-only on timeout.
+const QUERY_EXPANSION_TIMEOUT_MS = 2000;
 
 const SummaryResultSchema = z.object({
   summary: z.string().describe("A concise summary of the content"),
@@ -361,9 +364,9 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
       return [];
     }
 
-    // Expansion is best-effort: if the LLM is unavailable or drops a term,
-    // lexical search on the raw query still carries the result.
-    const expansion = this.hasTextGen ? await this.determineTopics(query) : undefined;
+    // Expansion is best-effort: if the LLM is unavailable, slow, or drops a
+    // term, lexical search on the raw query still carries the result.
+    const expansion = this.hasTextGen ? await this.determineTopicsWithinTimeout(query) : undefined;
     const ranked = this.searchIndex.search(query, expansion?.topics ?? [], feedIds);
     if (ranked.length === 0) {
       return [];
@@ -623,6 +626,22 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
     }
 
     return undefined;
+  }
+
+  private async determineTopicsWithinTimeout(text: string): Promise<TopicsResult | undefined> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<undefined>((resolve) => {
+      timer = setTimeout(() => resolve(undefined), QUERY_EXPANSION_TIMEOUT_MS);
+      timer.unref?.();
+    });
+
+    try {
+      return await Promise.race([this.determineTopics(text), timeout]);
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }
   }
 
   private async determineTopics(text: string): Promise<TopicsResult | undefined> {
