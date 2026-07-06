@@ -70,15 +70,11 @@ export class FeedSearchIndex {
 
   constructor(private readonly indexStore: ObjectStoreProvider) {
     this.miniSearch = new MiniSearch<FeedSearchDocument>(createMiniSearchOptions());
-    // Fingerprint only the options that shape the serialized index, so a loaded
-    // index is discarded and rebuilt when they change. Query-time options
-    // (boost/prefix/fuzzy) do not affect the serialization, so tuning them must
-    // not force a rebuild.
-    this.fingerprint = JSON.stringify({
-      idField: INDEX_ID_FIELD,
-      fields: INDEX_FIELDS,
-      storeFields: INDEX_STORE_FIELDS,
-    });
+    // Derive the fingerprint from the very options used to build the index, so
+    // the two can never drift: any change to createMiniSearchOptions forces a
+    // discard-and-rebuild of a loaded index. Query-time options (boost/prefix/
+    // fuzzy) live outside createMiniSearchOptions and so — correctly — do not.
+    this.fingerprint = JSON.stringify(createMiniSearchOptions());
   }
 
   /**
