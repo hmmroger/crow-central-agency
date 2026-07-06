@@ -120,8 +120,10 @@ describe("AgentRegistry.initialize", () => {
     expect(loaded.model).toBe(CLAUDE_DEFAULT_MODEL);
   });
 
-  it("does not let a persisted entry override a built-in system agent", async () => {
+  it("keeps the built-in when a persisted record is keyed with a system agent id", async () => {
     const harness = createHarness();
+    // System agent ids are non-uuid sentinels, so a persisted record under one
+    // fails AgentConfigSchema validation and is skipped — the built-in wins.
     await harness.store.set(AGENT_STORE_TABLE, CROW_SYSTEM_AGENT_ID, {
       id: CROW_SYSTEM_AGENT_ID,
       name: "Tampered",
