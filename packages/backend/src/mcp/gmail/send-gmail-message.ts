@@ -15,12 +15,7 @@ export function getSendGmailMessageToolConfig(googleClient: GoogleClient) {
     cc: z.array(z.string()).optional().describe("Optional Cc recipients (same address format as 'to')."),
     bcc: z.array(z.string()).optional().describe("Optional Bcc recipients (same address format as 'to')."),
     subject: z.string().min(1).describe("Email subject line."),
-    body: z
-      .string()
-      .min(1)
-      .describe(
-        'Email body. Defaults to markdown (rendered to HTML for recipients); pass raw HTML when bodyFormat is "html". Sent as multipart/alternative (text/plain + text/html).'
-      ),
+    body: z.string().min(1).describe('Email body. Defaults to markdown; pass raw HTML when bodyFormat is "html".'),
     bodyFormat: z
       .enum([EMAIL_BODY_FORMAT.MARKDOWN, EMAIL_BODY_FORMAT.HTML])
       .optional()
@@ -46,7 +41,7 @@ export function getSendGmailMessageToolConfig(googleClient: GoogleClient) {
   const config: McpToolConfig<typeof inputSchema> = {
     name: SEND_GMAIL_MESSAGE_TOOL_NAME,
     description:
-      'Send a new email via the connected Google account. Body defaults to markdown; set bodyFormat to "html" to supply raw HTML. Delivered as multipart/alternative (text/plain + text/html). For replies, use reply_to_gmail_message instead so threading headers are set correctly.',
+      'Send a new email via the connected Google account. Body defaults to markdown; set bodyFormat to "html" to supply raw HTML. For replies, use reply_to_gmail_message instead so threading headers are set correctly.',
     inputSchema,
     handler,
   };

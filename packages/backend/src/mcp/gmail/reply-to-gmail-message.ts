@@ -13,12 +13,7 @@ export function getReplyToGmailMessageToolConfig(googleClient: GoogleClient) {
       .describe(
         "ID of the message being replied to (from list_gmail_messages or get_gmail_thread). Recipients, subject, and threading headers are derived from this parent."
       ),
-    body: z
-      .string()
-      .min(1)
-      .describe(
-        'Reply body. Defaults to markdown (rendered to HTML for recipients); pass raw HTML when bodyFormat is "html". Sent as multipart/alternative (text/plain + text/html).'
-      ),
+    body: z.string().min(1).describe('Reply body. Defaults to markdown; pass raw HTML when bodyFormat is "html".'),
     bodyFormat: z
       .enum([EMAIL_BODY_FORMAT.MARKDOWN, EMAIL_BODY_FORMAT.HTML])
       .optional()
@@ -48,7 +43,7 @@ export function getReplyToGmailMessageToolConfig(googleClient: GoogleClient) {
   const config: McpToolConfig<typeof inputSchema> = {
     name: REPLY_TO_GMAIL_MESSAGE_TOOL_NAME,
     description:
-      'Reply to a Gmail message by ID. Recipients (To/Cc), subject (Re: prefix), and threading headers (In-Reply-To, References, threadId) are all derived from the parent - you only supply the body and an optional replyAll flag. Body defaults to markdown; set bodyFormat to "html" to supply raw HTML. Sent as multipart/alternative.',
+      'Reply to a Gmail message by ID. Recipients (To/Cc), subject (Re: prefix), and threading headers (In-Reply-To, References, threadId) are all derived from the parent - you only supply the body and an optional replyAll flag. Body defaults to markdown; set bodyFormat to "html" to supply raw HTML.',
     inputSchema,
     handler,
   };

@@ -1,5 +1,4 @@
 import { markdownToHtml } from "../../utils/markdown-to-html.js";
-import { sanitizeHtml } from "../../utils/html-sanitizer.js";
 import { htmlToMarkdown } from "./html-to-markdown.js";
 import { EMAIL_BODY_FORMAT, type EmailBodyFormat } from "./google-client.types.js";
 
@@ -10,7 +9,7 @@ import { EMAIL_BODY_FORMAT, type EmailBodyFormat } from "./google-client.types.j
  */
 export function resolveEmailBodyParts(body: string, format: EmailBodyFormat): { plainText: string; html: string } {
   if (format === EMAIL_BODY_FORMAT.HTML) {
-    return { plainText: htmlToMarkdown(body, true), html: sanitizeHtml(body) };
+    return { plainText: htmlToMarkdown(body, true), html: body };
   }
 
   return { plainText: body, html: markdownToHtml(body) };
