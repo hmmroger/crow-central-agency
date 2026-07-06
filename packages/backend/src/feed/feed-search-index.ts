@@ -11,8 +11,8 @@ import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "feed-search-index" });
 
-const SEARCH_INDEX_STORE_TABLE = "feeds/searchIndex";
-const SEARCH_INDEX_KEY = "global";
+export const SEARCH_INDEX_STORE_TABLE = "feeds/searchIndex";
+export const SEARCH_INDEX_KEY = "global";
 
 const INDEX_ID_FIELD = "id";
 const INDEX_FIELDS = ["title", "subtitle", "description", "summary", "topics", "categories", "author"];
@@ -70,10 +70,6 @@ export class FeedSearchIndex {
 
   constructor(private readonly indexStore: ObjectStoreProvider) {
     this.miniSearch = new MiniSearch<FeedSearchDocument>(createMiniSearchOptions());
-    // Derive the fingerprint from the very options used to build the index, so
-    // the two can never drift: any change to createMiniSearchOptions forces a
-    // discard-and-rebuild of a loaded index. Query-time options (boost/prefix/
-    // fuzzy) live outside createMiniSearchOptions and so — correctly — do not.
     this.fingerprint = JSON.stringify(createMiniSearchOptions());
   }
 
