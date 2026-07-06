@@ -13,6 +13,13 @@ export const GMAIL_HEADER = {
   IN_REPLY_TO: "In-Reply-To",
 } as const;
 
+export const EMAIL_BODY_FORMAT = {
+  MARKDOWN: "markdown",
+  HTML: "html",
+} as const;
+
+export type EmailBodyFormat = (typeof EMAIL_BODY_FORMAT)[keyof typeof EMAIL_BODY_FORMAT];
+
 export const GMAIL_LIST_METADATA_HEADERS = [
   GMAIL_HEADER.FROM,
   GMAIL_HEADER.TO,
@@ -90,8 +97,10 @@ export interface SendGmailMessageOptions {
   cc?: string[];
   bcc?: string[];
   subject: string;
-  /** Markdown body */
+  /** Body content (markdown by default; HTML when bodyFormat is "html"). */
   body: string;
+  /** Body format; defaults to markdown. Use "html" to supply raw HTML. */
+  bodyFormat?: EmailBodyFormat;
 }
 
 export interface SendGmailMessageResult {
@@ -102,8 +111,10 @@ export interface SendGmailMessageResult {
 export interface ReplyToGmailMessageOptions {
   /** ID of the message being replied to. */
   parentMessageId: string;
-  /** Markdown body */
+  /** Body content (markdown by default; HTML when bodyFormat is "html"). */
   body: string;
+  /** Body format; defaults to markdown. Use "html" to supply raw HTML. */
+  bodyFormat?: EmailBodyFormat;
   replyAll?: boolean;
 }
 
@@ -127,14 +138,19 @@ export interface CreateGmailDraftOptions {
   cc?: string[];
   bcc?: string[];
   subject: string;
+  /** Body content (markdown by default; HTML when bodyFormat is "html"). */
   body: string;
+  /** Body format; defaults to markdown. Use "html" to supply raw HTML. */
+  bodyFormat?: EmailBodyFormat;
 }
 
 export interface CreateGmailReplyDraftOptions {
   /** ID of the message the draft is a reply to. Recipients, subject, and threading headers are derived from this parent. */
   parentMessageId: string;
-  /** Markdown body. */
+  /** Body content (markdown by default; HTML when bodyFormat is "html"). */
   body: string;
+  /** Body format; defaults to markdown. Use "html" to supply raw HTML. */
+  bodyFormat?: EmailBodyFormat;
   /** When true, the draft is addressed to every other recipient on the parent (To + Cc, excluding the connected account). */
   replyAll?: boolean;
 }
@@ -146,7 +162,10 @@ export interface UpdateGmailDraftOptions {
   cc?: string[];
   bcc?: string[];
   subject?: string;
+  /** Body content (markdown by default; HTML when bodyFormat is "html"). Replaces body; preserved if omitted. */
   body?: string;
+  /** Body format for `body`; defaults to markdown. Use "html" to supply raw HTML. */
+  bodyFormat?: EmailBodyFormat;
 }
 
 export interface SendGmailDraftOptions {

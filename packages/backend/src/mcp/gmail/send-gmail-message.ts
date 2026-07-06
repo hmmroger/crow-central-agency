@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { GoogleClient } from "../../services/google/google-client.js";
+import { EMAIL_BODY_FORMAT } from "../../services/google/google-client.types.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
 
@@ -18,8 +19,12 @@ export function getSendGmailMessageToolConfig(googleClient: GoogleClient) {
       .string()
       .min(1)
       .describe(
-        "Email body in markdown. Recipients will receive both a plain-text version (the markdown source) and an HTML version (rendered)."
+        'Email body. Defaults to markdown (rendered to HTML for recipients); pass raw HTML when bodyFormat is "html". Sent as multipart/alternative (text/plain + text/html).'
       ),
+    bodyFormat: z
+      .enum([EMAIL_BODY_FORMAT.MARKDOWN, EMAIL_BODY_FORMAT.HTML])
+      .optional()
+      .describe('Body format. Defaults to "markdown"; set to "html" to supply raw HTML.'),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async (args) => {
@@ -30,6 +35,7 @@ export function getSendGmailMessageToolConfig(googleClient: GoogleClient) {
         bcc: args.bcc,
         subject: args.subject,
         body: args.body,
+        bodyFormat: args.bodyFormat,
       });
       return textToolResult(["Message sent.", `Message ID: ${result.id}`, `Thread ID: ${result.threadId}`]);
     } catch (error) {
@@ -40,7 +46,7 @@ export function getSendGmailMessageToolConfig(googleClient: GoogleClient) {
   const config: McpToolConfig<typeof inputSchema> = {
     name: SEND_GMAIL_MESSAGE_TOOL_NAME,
     description:
-      "Send a new email via the connected Google account. Body is provided as markdown and delivered as multipart/alternative (text/plain + text/html). For replies, use reply_to_gmail_message instead so threading headers are set correctly.",
+      'Send a new email via the connected Google account. Body defaults to markdown; set bodyFormat to "html" to supply raw HTML. Delivered as multipart/alternative (text/plain + text/html). For replies, use reply_to_gmail_message instead so threading headers are set correctly.',
     inputSchema,
     handler,
   };

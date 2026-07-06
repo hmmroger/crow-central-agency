@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { RequestError } from "../../core/error/request-error.js";
 import type { GoogleClient } from "../../services/google/google-client.js";
-import { GOOGLE_SERVICE_NAME } from "../../services/google/google-client.types.js";
+import { EMAIL_BODY_FORMAT, GOOGLE_SERVICE_NAME } from "../../services/google/google-client.types.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
 
@@ -28,7 +28,11 @@ export function getCreateGmailDraftToolConfig(googleClient: GoogleClient) {
     cc: z.array(z.string()).optional().describe("New-draft mode: optional Cc recipients."),
     bcc: z.array(z.string()).optional().describe("New-draft mode: optional Bcc recipients."),
     subject: z.string().optional().describe("New-draft mode: subject line. Required without parentMessageId."),
-    body: z.string().min(1).describe("Draft body in markdown."),
+    body: z.string().min(1).describe('Draft body. Defaults to markdown; pass raw HTML when bodyFormat is "html".'),
+    bodyFormat: z
+      .enum([EMAIL_BODY_FORMAT.MARKDOWN, EMAIL_BODY_FORMAT.HTML])
+      .optional()
+      .describe('Body format. Defaults to "markdown"; set to "html" to supply raw HTML.'),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async (args) => {
@@ -37,6 +41,7 @@ export function getCreateGmailDraftToolConfig(googleClient: GoogleClient) {
         const result = await googleClient.createGmailReplyDraft({
           parentMessageId: args.parentMessageId,
           body: args.body,
+          bodyFormat: args.bodyFormat,
           replyAll: args.replyAll,
         });
         return textToolResult([
@@ -62,6 +67,7 @@ export function getCreateGmailDraftToolConfig(googleClient: GoogleClient) {
         bcc: args.bcc,
         subject: args.subject,
         body: args.body,
+        bodyFormat: args.bodyFormat,
       });
       return textToolResult([
         "Draft created.",
@@ -77,7 +83,7 @@ export function getCreateGmailDraftToolConfig(googleClient: GoogleClient) {
   const config: McpToolConfig<typeof inputSchema> = {
     name: CREATE_GMAIL_DRAFT_TOOL_NAME,
     description:
-      "Create a draft email in the Drafts folder. Two modes: new draft or reply draft (parentMessageId required, recipients/subject/threading derived from parent, replyAll optional). Body is markdown.",
+      'Create a draft email in the Drafts folder. Two modes: new draft or reply draft (parentMessageId required, recipients/subject/threading derived from parent, replyAll optional). Body defaults to markdown; set bodyFormat to "html" to supply raw HTML.',
     inputSchema,
     handler,
   };

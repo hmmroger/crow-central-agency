@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { GoogleClient } from "../../services/google/google-client.js";
+import { EMAIL_BODY_FORMAT } from "../../services/google/google-client.types.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
 
@@ -12,7 +13,14 @@ export function getUpdateGmailDraftToolConfig(googleClient: GoogleClient) {
     cc: z.array(z.string()).optional().describe("Replaces Cc; preserved if omitted."),
     bcc: z.array(z.string()).optional().describe("Replaces Bcc; preserved if omitted."),
     subject: z.string().optional().describe("Replaces subject; preserved if omitted."),
-    body: z.string().optional().describe("Markdown. Replaces body; preserved if omitted."),
+    body: z
+      .string()
+      .optional()
+      .describe('Replaces body; preserved if omitted. Defaults to markdown; pass raw HTML when bodyFormat is "html".'),
+    bodyFormat: z
+      .enum([EMAIL_BODY_FORMAT.MARKDOWN, EMAIL_BODY_FORMAT.HTML])
+      .optional()
+      .describe('Body format for `body`. Defaults to "markdown"; set to "html" to supply raw HTML.'),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async (args) => {
@@ -24,6 +32,7 @@ export function getUpdateGmailDraftToolConfig(googleClient: GoogleClient) {
         bcc: args.bcc,
         subject: args.subject,
         body: args.body,
+        bodyFormat: args.bodyFormat,
       });
       return textToolResult([
         "Draft updated.",
