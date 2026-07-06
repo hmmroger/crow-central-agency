@@ -13,6 +13,13 @@ export const GMAIL_HEADER = {
   IN_REPLY_TO: "In-Reply-To",
 } as const;
 
+export const EMAIL_BODY_FORMAT = {
+  MARKDOWN: "markdown",
+  HTML: "html",
+} as const;
+
+export type EmailBodyFormat = (typeof EMAIL_BODY_FORMAT)[keyof typeof EMAIL_BODY_FORMAT];
+
 export const GMAIL_LIST_METADATA_HEADERS = [
   GMAIL_HEADER.FROM,
   GMAIL_HEADER.TO,
@@ -90,8 +97,8 @@ export interface SendGmailMessageOptions {
   cc?: string[];
   bcc?: string[];
   subject: string;
-  /** Markdown body */
   body: string;
+  bodyFormat?: EmailBodyFormat;
 }
 
 export interface SendGmailMessageResult {
@@ -102,8 +109,8 @@ export interface SendGmailMessageResult {
 export interface ReplyToGmailMessageOptions {
   /** ID of the message being replied to. */
   parentMessageId: string;
-  /** Markdown body */
   body: string;
+  bodyFormat?: EmailBodyFormat;
   replyAll?: boolean;
 }
 
@@ -128,13 +135,14 @@ export interface CreateGmailDraftOptions {
   bcc?: string[];
   subject: string;
   body: string;
+  bodyFormat?: EmailBodyFormat;
 }
 
 export interface CreateGmailReplyDraftOptions {
   /** ID of the message the draft is a reply to. Recipients, subject, and threading headers are derived from this parent. */
   parentMessageId: string;
-  /** Markdown body. */
   body: string;
+  bodyFormat?: EmailBodyFormat;
   /** When true, the draft is addressed to every other recipient on the parent (To + Cc, excluding the connected account). */
   replyAll?: boolean;
 }
@@ -147,6 +155,7 @@ export interface UpdateGmailDraftOptions {
   bcc?: string[];
   subject?: string;
   body?: string;
+  bodyFormat?: EmailBodyFormat;
 }
 
 export interface SendGmailDraftOptions {

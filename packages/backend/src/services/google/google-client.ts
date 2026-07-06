@@ -30,6 +30,7 @@ import type {
 } from "./gmail-message-parser.types.js";
 import { buildMimeMessage, encodeRawForGmail, formatFromHeader } from "./gmail-mime-builder.js";
 import { buildGmailListQuery } from "./gmail-query-builder.js";
+import { resolveEmailBodyParts } from "./resolve-email-body-parts.js";
 import {
   buildReferencesChain,
   deriveReplySubject,
@@ -46,6 +47,8 @@ import {
   GOOGLE_CALENDAR_ACCESS_ROLE,
   GOOGLE_SERVICE_NAME,
   GOOGLE_CONFERENCE_SOLUTION_TYPE,
+  EMAIL_BODY_FORMAT,
+  type EmailBodyFormat,
   type CreateGmailDraftOptions,
   type CreateGmailReplyDraftOptions,
   type CreateGmailUserLabelOptions,
@@ -253,6 +256,7 @@ export class GoogleClient {
       bcc: options.bcc,
       subject: options.subject,
       body: options.body,
+      format: options.bodyFormat ?? EMAIL_BODY_FORMAT.MARKDOWN,
     });
     return this.sendRawMessage(raw);
   }
@@ -593,6 +597,7 @@ export class GoogleClient {
     const { raw, threadId } = await this.buildOutboundRawForReply(
       options.parentMessageId,
       options.body,
+      options.bodyFormat ?? EMAIL_BODY_FORMAT.MARKDOWN,
       options.replyAll
     );
     return this.sendRawMessage(raw, threadId);
@@ -605,6 +610,7 @@ export class GoogleClient {
       bcc: options.bcc,
       subject: options.subject,
       body: options.body,
+      format: options.bodyFormat ?? EMAIL_BODY_FORMAT.MARKDOWN,
     });
     return this.persistDraft(raw);
   }
@@ -613,6 +619,7 @@ export class GoogleClient {
     const { raw, threadId } = await this.buildOutboundRawForReply(
       options.parentMessageId,
       options.body,
+      options.bodyFormat ?? EMAIL_BODY_FORMAT.MARKDOWN,
       options.replyAll
     );
     return this.persistDraft(raw, threadId);
@@ -660,8 +667,12 @@ export class GoogleClient {
     const ccList = options.cc ?? splitAddressList(existingMessage.cc);
     const bccList = options.bcc ?? splitAddressList(existingMessage.bcc);
     const subject = options.subject ?? existingMessage.subject ?? "";
-    const plainText = options.body ?? extractedBody.bodyText ?? "";
-    const html = options.body !== undefined ? markdownToHtml(options.body) : (extractedBody.bodyHtml ?? "");
+    const bodyParts =
+      options.body !== undefined
+        ? resolveEmailBodyParts(options.body, options.bodyFormat ?? EMAIL_BODY_FORMAT.MARKDOWN)
+        : undefined;
+    const plainText = bodyParts?.plainText ?? extractedBody.bodyText ?? "";
+    const html = bodyParts?.html ?? extractedBody.bodyHtml ?? "";
 
     const profile = await this.connectorManager.getProfile(this.agentId, CONNECTOR_ID.GOOGLE);
     const rfc822 = buildMimeMessage({
@@ -784,16 +795,17 @@ export class GoogleClient {
     bcc?: string[];
     subject: string;
     body: string;
+    format: EmailBodyFormat;
   }): Promise<string> {
     const profile = await this.connectorManager.getProfile(this.agentId, CONNECTOR_ID.GOOGLE);
-    const html = markdownToHtml(options.body);
+    const { plainText, html } = resolveEmailBodyParts(options.body, options.format);
     const rfc822 = buildMimeMessage({
       from: formatFromHeader(profile.username, profile.displayName),
       to: options.to,
       cc: options.cc,
       bcc: options.bcc,
       subject: options.subject,
-      plainText: options.body,
+      plainText,
       html,
     });
     return encodeRawForGmail(rfc822);
@@ -809,6 +821,7 @@ export class GoogleClient {
   private async buildOutboundRawForReply(
     parentMessageId: string,
     body: string,
+    format: EmailBodyFormat,
     replyAll: boolean | undefined
   ): Promise<{ raw: string; threadId: string }> {
     const parent = await this.fetchReplyParentHeaders(parentMessageId);
@@ -850,8 +863,7 @@ export class GoogleClient {
       subject: deriveReplySubject(parent.subject),
       inReplyTo: parent.messageIdHeader,
       references: buildReferencesChain(parent.messageIdHeader, parent.references),
-      plainText: body,
-      html: markdownToHtml(body),
+      ...resolveEmailBodyParts(body, format),
     });
 
     return { raw: encodeRawForGmail(rfc822), threadId: parent.threadId };
