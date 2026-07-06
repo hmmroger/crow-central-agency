@@ -201,13 +201,20 @@ export class FeedSearchIndex {
   }
 
   private async persist(): Promise<void> {
-    // Serialize and clear the dirty flag synchronously so changes that arrive
-    // while the store write is in flight re-mark the index dirty and are not
-    // lost by a concurrent flush or the next persist.
-    const payload: PersistedSearchIndex = {
-      optionsFingerprint: this.fingerprint,
-      serializedIndex: JSON.stringify(this.miniSearch),
-    };
+    let payload: PersistedSearchIndex;
+    try {
+      payload = {
+        optionsFingerprint: this.fingerprint,
+        serializedIndex: JSON.stringify(this.miniSearch),
+      };
+    } catch (error) {
+      log.error({ error }, "Failed to serialize feed search index");
+      return;
+    }
+
+    // Clear the dirty flag synchronously after serialization so changes that
+    // arrive while the store write is in flight re-mark the index dirty and are
+    // not lost by a concurrent flush or the next persist.
     this.dirty = false;
     try {
       await this.indexStore.set<PersistedSearchIndex>(SEARCH_INDEX_STORE_TABLE, SEARCH_INDEX_KEY, payload);
