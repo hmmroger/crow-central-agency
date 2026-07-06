@@ -112,6 +112,13 @@ describe("FeedSearchIndex ranking", () => {
 
     expect(index.search("kubernetel", []).map((result) => result.id)).toContain("fuzzy");
   });
+
+  it("returns no results when the index is empty", () => {
+    const store = new InMemoryObjectStore();
+    const index = new FeedSearchIndex(store);
+
+    expect(index.search("anything", [])).toHaveLength(0);
+  });
 });
 
 describe("FeedSearchIndex expansion terms", () => {
@@ -212,6 +219,18 @@ describe("FeedSearchIndex mutation", () => {
     expect(index.search("shared", []).map((result) => result.id)).toEqual(["keep"]);
   });
 
+  it("re-adds a previously discarded id", () => {
+    const store = new InMemoryObjectStore();
+    const index = new FeedSearchIndex(store);
+
+    index.addOrReplace([makeItem({ id: "recycled", title: "alpha" })]);
+    index.discard(["recycled"]);
+    index.addOrReplace([makeItem({ id: "recycled", title: "beta" })]);
+
+    expect(index.search("alpha", [])).toHaveLength(0);
+    expect(index.search("beta", []).map((result) => result.id)).toEqual(["recycled"]);
+  });
+
   it("ignores discard of absent ids without throwing", () => {
     const store = new InMemoryObjectStore();
     const index = new FeedSearchIndex(store);
@@ -246,6 +265,20 @@ describe("FeedSearchIndex persistence", () => {
     const persisted = await readPersisted(store);
     expect(persisted?.serializedIndex).toBeTruthy();
     expect(persisted?.optionsFingerprint).toBeTruthy();
+  });
+
+  it("persists discards so they survive a reload", async () => {
+    const store = new InMemoryObjectStore();
+    const seed = new FeedSearchIndex(store);
+    seed.addOrReplace([makeItem({ id: "kept", title: "shared" }), makeItem({ id: "removed", title: "shared" })]);
+    await seed.flush();
+    seed.discard(["removed"]);
+    await seed.flush();
+
+    const reloaded = new FeedSearchIndex(store);
+    await reloaded.initialize(async () => []);
+
+    expect(reloaded.search("shared", []).map((result) => result.id)).toEqual(["kept"]);
   });
 
   it("persists after the debounce window elapses", async () => {
