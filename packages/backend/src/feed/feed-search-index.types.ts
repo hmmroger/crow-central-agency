@@ -5,6 +5,7 @@ export interface FeedSearchDocument {
   id: string;
   feedId: string;
   title: string;
+  subtitle: string;
   description: string;
   summary: string;
   topics: string[];

@@ -15,7 +15,7 @@ const SEARCH_INDEX_STORE_TABLE = "feeds/searchIndex";
 const SEARCH_INDEX_KEY = "global";
 
 const INDEX_ID_FIELD = "id";
-const INDEX_FIELDS = ["title", "description", "summary", "topics", "categories", "author"];
+const INDEX_FIELDS = ["title", "subtitle", "description", "summary", "topics", "categories", "author"];
 const INDEX_STORE_FIELDS = ["feedId"];
 
 /**
@@ -27,7 +27,7 @@ const INDEX_STORE_FIELDS = ["feedId"];
 const RAW_SEARCH_OPTIONS: SearchOptions = {
   prefix: true,
   fuzzy: 0.2,
-  boost: { title: 3, author: 2, summary: 1.5, topics: 1.2, description: 1, categories: 1 },
+  boost: { title: 3, author: 2, summary: 1.5, topics: 1.2, description: 1, subtitle: 1, categories: 1 },
 };
 
 /**
@@ -70,12 +70,14 @@ export class FeedSearchIndex {
 
   constructor(private readonly indexStore: ObjectStoreProvider) {
     this.miniSearch = new MiniSearch<FeedSearchDocument>(createMiniSearchOptions());
+    // Fingerprint only the options that shape the serialized index, so a loaded
+    // index is discarded and rebuilt when they change. Query-time options
+    // (boost/prefix/fuzzy) do not affect the serialization, so tuning them must
+    // not force a rebuild.
     this.fingerprint = JSON.stringify({
       idField: INDEX_ID_FIELD,
       fields: INDEX_FIELDS,
       storeFields: INDEX_STORE_FIELDS,
-      rawSearchOptions: RAW_SEARCH_OPTIONS,
-      expansionSearchOptions: EXPANSION_SEARCH_OPTIONS,
     });
   }
 
@@ -239,6 +241,7 @@ export class FeedSearchIndex {
       id: item.id,
       feedId: item.feedId,
       title: item.title,
+      subtitle: item.subtitle,
       description: item.description,
       summary: item.summary ?? "",
       topics: item.topics ?? [],
