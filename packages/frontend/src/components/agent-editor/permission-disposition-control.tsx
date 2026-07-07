@@ -24,7 +24,7 @@ export function PermissionDispositionControl({ disposition, onDispositionChange 
         className={cn(
           "px-2 py-1 rounded text-xs font-medium transition-colors border",
           disposition === TOOL_DISPOSITION.APPROVE
-            ? "bg-primary/20 text-primary border-primary/30"
+            ? "bg-success/15 text-success border-success/30"
             : "bg-surface-inset text-text-muted border-border-subtle hover:text-text-neutral"
         )}
         onClick={handleApprove}
@@ -36,7 +36,7 @@ export function PermissionDispositionControl({ disposition, onDispositionChange 
         className={cn(
           "px-2 py-1 rounded text-xs font-medium transition-colors border",
           disposition === TOOL_DISPOSITION.DENY
-            ? "bg-primary/20 text-primary border-primary/30"
+            ? "bg-error/15 text-error border-error/30"
             : "bg-surface-inset text-text-muted border-border-subtle hover:text-text-neutral"
         )}
         onClick={handleDeny}

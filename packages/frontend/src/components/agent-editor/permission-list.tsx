@@ -1,6 +1,7 @@
-import { useCallback, useMemo } from "react";
-import { PermissionRow } from "./permission-row.js";
-import { TOOL_DISPOSITION, dispositionForRule, type ToolDisposition } from "./tool-permission.js";
+import { useCallback, useMemo, useState, type ChangeEvent } from "react";
+import { PermissionGroup } from "./permission-group.js";
+import { buildPermissionGroups } from "./permission-grouping.js";
+import { TOOL_DISPOSITION, type ToolDisposition } from "./tool-permission.js";
 
 interface PermissionListProps {
   effectiveTools: string[];
@@ -9,14 +10,9 @@ interface PermissionListProps {
   onSetToolPermission: (rule: string, disposition: ToolDisposition) => void;
 }
 
-interface PermissionRowEntry {
-  rule: string;
-  removable: boolean;
-}
-
 /**
- * Unified permission rows: catalog tools first (not removable), then user-configured custom rules
- * that fall outside the catalog (removable). Each row derives its disposition from the backing arrays.
+ * Unified permission rows grouped by prefix: catalog tools first (not removable), then custom rules
+ * bucketed by their leading segment (removable). A filter narrows visible rows across all groups.
  */
 export function PermissionList({
   effectiveTools,
@@ -24,34 +20,79 @@ export function PermissionList({
   disallowedTools,
   onSetToolPermission,
 }: PermissionListProps) {
-  const rows = useMemo<PermissionRowEntry[]>(() => {
+  const [filter, setFilter] = useState("");
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const groups = useMemo(() => {
     const customRules = [...new Set([...autoApprovedTools, ...disallowedTools])].filter(
       (rule) => !effectiveTools.includes(rule)
     );
 
-    return [
-      ...effectiveTools.map((rule) => ({ rule, removable: false })),
-      ...customRules.map((rule) => ({ rule, removable: true })),
-    ];
+    return buildPermissionGroups(effectiveTools, customRules);
   }, [effectiveTools, autoApprovedTools, disallowedTools]);
+
+  const handleFilterChange = useCallback((event: ChangeEvent<HTMLInputElement>) => setFilter(event.target.value), []);
+
+  const handleToggleCollapsed = useCallback((groupKey: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+
+      return next;
+    });
+  }, []);
 
   const handleRemove = useCallback(
     (rule: string) => onSetToolPermission(rule, TOOL_DISPOSITION.ASK),
     [onSetToolPermission]
   );
 
+  if (groups.length === 0) {
+    return undefined;
+  }
+
+  const normalizedFilter = filter.trim().toLowerCase();
+  const hasFilter = normalizedFilter.length > 0;
+
   return (
-    <div className="space-y-1.5">
-      {rows.map(({ rule, removable }) => (
-        <PermissionRow
-          key={rule}
-          rule={rule}
-          disposition={dispositionForRule(rule, autoApprovedTools, disallowedTools)}
-          removable={removable}
-          onDispositionChange={onSetToolPermission}
-          onRemove={handleRemove}
-        />
-      ))}
+    <div className="space-y-3">
+      <input
+        type="text"
+        value={filter}
+        onChange={handleFilterChange}
+        placeholder="Filter rules"
+        className="w-full px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+      />
+
+      {groups.map((group) => {
+        const visibleRules = hasFilter
+          ? group.rules.filter((rule) => rule.toLowerCase().includes(normalizedFilter))
+          : group.rules;
+
+        if (visibleRules.length === 0) {
+          return undefined;
+        }
+
+        return (
+          <PermissionGroup
+            key={group.key}
+            groupKey={group.key}
+            label={group.label}
+            rules={visibleRules}
+            removable={group.removable}
+            collapsed={collapsedGroups.has(group.key) && !hasFilter}
+            autoApprovedTools={autoApprovedTools}
+            disallowedTools={disallowedTools}
+            onToggleCollapsed={handleToggleCollapsed}
+            onSetToolPermission={onSetToolPermission}
+            onRemove={handleRemove}
+          />
+        );
+      })}
     </div>
   );
 }
