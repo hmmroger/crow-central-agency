@@ -56,6 +56,7 @@ describe("isReadOnlyCommand", () => {
     expect(isReadOnlyCommand("git status")).toBe(true);
     expect(isReadOnlyCommand("git log --oneline")).toBe(true);
     expect(isReadOnlyCommand("git diff")).toBe(true);
+    expect(isReadOnlyCommand("git show HEAD")).toBe(true);
     expect(isReadOnlyCommand("git push")).toBe(false);
     expect(isReadOnlyCommand("git")).toBe(false);
   });

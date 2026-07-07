@@ -23,6 +23,10 @@ describe("parseRule", () => {
     expect(parseRule("  Bash(ls *)  ")).toEqual({ tool: "Bash", specifier: "ls *" });
   });
 
+  it("trims whitespace inside the specifier", () => {
+    expect(parseRule("Bash(  git commit *  )")).toEqual({ tool: "Bash", specifier: "git commit *" });
+  });
+
   it("fails closed on unbalanced or empty input", () => {
     expect(parseRule("")).toBeUndefined();
     expect(parseRule("   ")).toBeUndefined();

@@ -31,7 +31,7 @@ export function parseRule(rule: string): ParsedRule | undefined {
   }
 
   const tool = match[1];
-  const specifier = match[2];
+  const specifier = match[2]?.trim();
   if (tool.length === 0) {
     return undefined;
   }
