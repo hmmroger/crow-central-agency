@@ -21,7 +21,6 @@ import {
   type ToolMode,
 } from "@crow-central-agency/shared";
 import type { AgentDetailData, AgentEditorFormState } from "./agent-editor.types.js";
-import { addCustomPermission, applyPermission, type ToolDisposition } from "./tool-permission.js";
 import { BUILTIN_TOOL_SET_BY_TYPE } from "./tool-constants.js";
 import { arraysEqual } from "../../utils/array-utils.js";
 
@@ -353,32 +352,6 @@ export function useAgentEditorForm(
     []
   );
 
-  const setToolPermission = useCallback(
-    (rule: string, disposition: ToolDisposition) =>
-      setForm((prev) => {
-        const next = applyPermission(prev.autoApprovedTools, prev.disallowedTools, rule, disposition);
-        if (next.autoApprovedTools === prev.autoApprovedTools && next.disallowedTools === prev.disallowedTools) {
-          return prev;
-        }
-
-        return { ...prev, autoApprovedTools: next.autoApprovedTools, disallowedTools: next.disallowedTools };
-      }),
-    []
-  );
-
-  const addCustomRule = useCallback(
-    (rule: string) =>
-      setForm((prev) => {
-        const next = addCustomPermission(prev.autoApprovedTools, prev.disallowedTools, rule);
-        if (next.autoApprovedTools === prev.autoApprovedTools && next.disallowedTools === prev.disallowedTools) {
-          return prev;
-        }
-
-        return { ...prev, autoApprovedTools: next.autoApprovedTools, disallowedTools: next.disallowedTools };
-      }),
-    []
-  );
-
   /** Replace both permission arrays at once — used to commit the permissions dialog's result. */
   const setPermissions = useCallback(
     (autoApprovedTools: string[], disallowedTools: string[]) =>
@@ -555,8 +528,6 @@ export function useAgentEditorForm(
     setDisabledSkills,
     setToolMode,
     toggleTool,
-    setToolPermission,
-    addCustomRule,
     setPermissions,
     toggleMcpServer,
     toggleSensor,

@@ -1,0 +1,29 @@
+import { useCallback } from "react";
+import { useModalDialog } from "../../providers/modal-dialog-provider.js";
+import { PermissionsDialog } from "../../components/agent-editor/permissions-dialog.js";
+
+const PERMISSIONS_DIALOG_ID = "permissions-editor";
+
+interface OpenPermissionsDialogArgs {
+  effectiveTools: string[];
+  autoApprovedTools: string[];
+  disallowedTools: string[];
+  onSave: (autoApprovedTools: string[], disallowedTools: string[]) => void;
+}
+
+export function useOpenPermissionsDialog() {
+  const { showDialog } = useModalDialog();
+
+  return useCallback(
+    ({ effectiveTools, autoApprovedTools, disallowedTools, onSave }: OpenPermissionsDialogArgs) => {
+      showDialog({
+        id: PERMISSIONS_DIALOG_ID,
+        component: PermissionsDialog,
+        componentProps: { effectiveTools, autoApprovedTools, disallowedTools, onSave },
+        title: "Permissions",
+        className: "w-[95vw] md:w-lg",
+      });
+    },
+    [showDialog]
+  );
+}

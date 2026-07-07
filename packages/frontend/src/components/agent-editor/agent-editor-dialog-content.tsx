@@ -455,8 +455,7 @@ export function AgentEditorDialogContent({
               availableTools={form.availableTools}
               onToolModeChange={editorForm.setToolMode}
               onToggleTool={editorForm.toggleTool}
-              onSetToolPermission={editorForm.setToolPermission}
-              onAddCustomRule={editorForm.addCustomRule}
+              onSetPermissions={editorForm.setPermissions}
             />
           </div>
 
