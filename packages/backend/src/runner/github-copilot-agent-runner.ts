@@ -582,7 +582,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
 
     const decision = await this.permissionRequestHandler(this.agentId, toolName, toolArgsRecord, generateId());
     if (decision.behavior === "allow_always") {
-      this.rememberAutoApproval(toolName, autoApproved);
+      this.rememberAutoApproval(toolName, toolArgsRecord, autoApproved);
     }
 
     return decision.behavior === "deny"
@@ -590,14 +590,27 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       : { permissionDecision: "allow" };
   }
 
-  /** Remember an "allow always" decision for this query and emit the event so the runtime persists it. */
-  private rememberAutoApproval(toolName: string, autoApproved: Set<string>): void {
-    autoApproved.add(toolName);
+  /**
+   * Remember an "allow always" decision for this query and emit the event so the runtime persists it.
+   * Only the rule(s) derived from this approval's input are added/emitted — never the whole
+   * `autoApproved` Set, which also holds the agent's configured rules. A read-only/unparseable command
+   * derives none, so nothing is remembered.
+   */
+  private rememberAutoApproval(toolName: string, input: Record<string, unknown>, autoApproved: Set<string>): void {
+    const rules = getRuleStrategy(toolName).deriveRules(toolName, input);
+    if (rules.length === 0) {
+      return;
+    }
+
+    for (const rule of rules) {
+      autoApproved.add(rule);
+    }
+
     this.oobEventCallback({
       type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
       agentId: this.agentId,
       sessionId: this.session?.sessionId ?? "",
-      toolName,
+      rules,
     });
   }
 
@@ -640,7 +653,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         toolCallId ?? generateId()
       );
       if (decision.behavior === "allow_always") {
-        this.rememberAutoApproval(toolName, autoApproved);
+        this.rememberAutoApproval(toolName, toolCall?.input ?? {}, autoApproved);
       }
 
       result =

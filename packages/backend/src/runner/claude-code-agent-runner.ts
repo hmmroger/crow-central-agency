@@ -214,13 +214,21 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
       );
 
       if (result.behavior === "allow_always") {
-        autoApproved.add(toolName);
-        this.oobEventCallback({
-          type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
-          agentId: this.agentId,
-          sessionId,
-          toolName,
-        });
+        // Derive granular rule(s) from the input; a read-only/unparseable command yields none, and
+        // the call is still allowed once via the allow path below.
+        const rules = getRuleStrategy(toolName).deriveRules(toolName, input);
+        if (rules.length > 0) {
+          for (const rule of rules) {
+            autoApproved.add(rule);
+          }
+
+          this.oobEventCallback({
+            type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
+            agentId: this.agentId,
+            sessionId,
+            rules,
+          });
+        }
       }
 
       if (result.behavior === "allow" || result.behavior === "allow_always") {

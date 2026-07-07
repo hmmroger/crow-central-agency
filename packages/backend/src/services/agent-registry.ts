@@ -337,10 +337,15 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   }
 
   /**
-   * Add a tool to the agent's auto-approved list from an "allow always" permission decision.
-   * Runtime-only write path — not part of user-driven updates.
+   * Add auto-approve rule(s) to the agent's list from an "allow always" permission decision.
+   * Runtime-only write path — not part of user-driven updates. New rules are appended and deduped
+   * against the existing list and each other; all other config is preserved.
    */
-  public async addAutoApprovedTool(agentId: string, toolName: string): Promise<void> {
+  public async addAutoApprovedTools(agentId: string, rules: string[]): Promise<void> {
+    if (rules.length === 0) {
+      return;
+    }
+
     const existing = this.getAgent(agentId);
     try {
       this.assertMutable(existing);
@@ -349,13 +354,20 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     }
 
     const current = existing.toolConfig.autoApprovedTools ?? [];
-    if (current.includes(toolName)) {
+    const additions: string[] = [];
+    for (const rule of rules) {
+      if (!current.includes(rule) && !additions.includes(rule)) {
+        additions.push(rule);
+      }
+    }
+
+    if (additions.length === 0) {
       return;
     }
 
     const updated: AgentConfig = {
       ...existing,
-      toolConfig: { ...existing.toolConfig, autoApprovedTools: [...current, toolName] },
+      toolConfig: { ...existing.toolConfig, autoApprovedTools: [...current, ...additions] },
       updatedAt: new Date().toISOString(),
     };
 
