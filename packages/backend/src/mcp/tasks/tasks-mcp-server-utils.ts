@@ -28,35 +28,43 @@ export function hasVisibilityToTask(
   return true;
 }
 
-/**
- * Format a task item into a human-readable text block.
- */
-export function formatTaskItem(task: AgentTaskItem, timezone?: string): string {
-  const lines = [
-    `Task ID: ${task.id}`,
-    `State: ${task.state}`,
-    `Content: ${task.task}`,
-    `Created: ${formatLocalDateTime(new Date(task.createdTimestamp), timezone)}`,
-    `Updated: ${formatLocalDateTime(new Date(task.updatedTimestamp), timezone)}`,
-  ];
+const METADATA_SECTION_HEADER = "--- METADATA ---";
+const CONTENT_SECTION_HEADER = "--- CONTENT ---";
+const TASK_RESULT_SECTION_HEADER = "--- TASK RESULT ---";
+
+function formatTaskMetadata(task: AgentTaskItem, timezone?: string): string[] {
+  const provenance: string[] = [];
 
   if (task.ownerSource) {
-    if (task.ownerSource.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT) {
-      lines.push(`Owner: agent ${task.ownerSource.agentId}`);
-    } else {
-      lines.push(`Owner: ${task.ownerSource.sourceType.toLowerCase()}`);
-    }
+    provenance.push(
+      task.ownerSource.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT
+        ? `Owner: agent ${task.ownerSource.agentId}`
+        : `Owner: ${task.ownerSource.sourceType.toLowerCase()}`
+    );
   }
 
-  if (task.dispatchSource?.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT) {
-    lines.push(`Dispatched By Agent: ${task.dispatchSource.agentId}`);
+  provenance.push(
+    task.originateSource.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT
+      ? `Originated By: agent ${task.originateSource.agentId}`
+      : `Originated By: ${task.originateSource.sourceType}`
+  );
+
+  return [
+    `Task ID: ${task.id} | State: ${task.state}`,
+    provenance.join(" | "),
+    `Created: ${formatLocalDateTime(new Date(task.createdTimestamp), timezone)}`,
+  ];
+}
+
+export function formatTaskItem(task: AgentTaskItem, timezone?: string): string[] {
+  return [METADATA_SECTION_HEADER, ...formatTaskMetadata(task, timezone), "", CONTENT_SECTION_HEADER, task.task];
+}
+
+export function formatTaskResult(task: AgentTaskItem, timezone?: string): string[] {
+  const lines = [METADATA_SECTION_HEADER, ...formatTaskMetadata(task, timezone), "", TASK_RESULT_SECTION_HEADER];
+  if (task.taskResult) {
+    lines.push(task.taskResult);
   }
 
-  if (task.originateSource.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT) {
-    lines.push(`Originated By Agent: ${task.originateSource.agentId}`);
-  } else {
-    lines.push(`Originated By: ${task.originateSource.sourceType}`);
-  }
-
-  return lines.join("\n");
+  return lines;
 }
