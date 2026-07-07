@@ -139,7 +139,9 @@ export function ToolConfigSection({
 
       {/* Auto-Approved Tools */}
       <FieldGroup label="Auto-Approved Tools">
-        <p className="text-xs text-text-muted mb-2">These tools skip the permission dialog.</p>
+        <p className="text-xs text-text-muted mb-2">
+          These tools skip the permission dialog. Command-scoped rules are supported, e.g. Bash(git commit *).
+        </p>
 
         {effectiveTools.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-3">
@@ -175,7 +177,7 @@ export function ToolConfigSection({
                 handleAddCustom();
               }
             }}
-            placeholder="Add custom tool (e.g. mcp__server__tool)"
+            placeholder="e.g. mcp__server__tool or Bash(git commit *)"
             className="flex-1 px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
           />
           <button
