@@ -19,7 +19,7 @@ export function getTasksMcpServerDefinition(
     disallowedAgentIds: [CROW_NARRATIVE_ARCHITECT_AGENT_ID, CROW_WORLD_BUILDER_AGENT_ID],
     getTools: (agentId) => [
       defineMcpTool(getTaskToolConfig(agentId, taskManager, circleManager, sensorManager)),
-      defineMcpTool(getTaskResultToolConfig(agentId, taskManager, circleManager)),
+      defineMcpTool(getTaskResultToolConfig(agentId, taskManager, circleManager, sensorManager)),
     ],
   };
 }

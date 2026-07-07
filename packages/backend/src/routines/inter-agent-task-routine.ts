@@ -13,6 +13,7 @@ import { MessageRoles } from "../services/content-generation/content-generation.
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { GET_TASK_RESULT_TOOL_NAME } from "../mcp/tasks/get-task-result.js";
+import { GET_TASK_TOOL_NAME } from "../mcp/tasks/get-task.js";
 import type { ArtifactRecord } from "../services/runtime/agent-runtime-manager.types.js";
 
 const ROUTINE_ID = "inter-agent-task";
@@ -51,12 +52,10 @@ const INTER_AGENT_INVOKE_RESUME_PROMPT: MessageTemplate = {
   content: [
     {
       content: [
-        `[Resume: message from "{agentName}" ({agentId}), all sub-tasks are now resolved]`,
-        "",
-        "Original message:",
-        "{task}",
+        `[Resume: message from "{agentName}" ({agentId}), all sub-tasks are now resolved (Task ID: {taskId})]`,
         "",
         "All sub-tasks you delegated have completed. Review their results above and finalize your response.",
+        `If you need to re-read the original message, use the ${GET_TASK_TOOL_NAME} tool with this task ID.`,
         `Your response will be sent back to "{agentName}" as the result.`,
       ],
     },
@@ -69,7 +68,7 @@ const INTER_AGENT_INVOKE_RESUME_PROMPT: MessageTemplate = {
       keys: ["hasHiddenSubTaskOwners"],
     },
   ],
-  keys: ["agentName", "agentId", "task", "hasHiddenSubTaskOwners"],
+  keys: ["agentName", "agentId", "taskId", "hasHiddenSubTaskOwners"],
 };
 
 const USER_TASK_PROMPT: MessageTemplate = {
@@ -93,17 +92,15 @@ const USER_TASK_RESUME_PROMPT: MessageTemplate = {
   content: [
     {
       content: [
-        `[Resume: task from user, all sub-tasks are now resolved]`,
-        "",
-        "Original task:",
-        "{task}",
+        `[Resume: task from user, all sub-tasks are now resolved (Task ID: {taskId})]`,
         "",
         "All sub-tasks you delegated have completed. Review their results above and finalize this task.",
+        `If you need to re-read the original task, use the ${GET_TASK_TOOL_NAME} tool with this task ID.`,
         "Your final response will be captured as the task result.",
       ],
     },
   ],
-  keys: ["task"],
+  keys: ["taskId"],
 };
 
 const TASK_CONTENT_UPDATED_PROMPT: MessageTemplate = {
@@ -514,7 +511,7 @@ class InterAgentTaskRoutine {
         getDefaultPromptContext({
           agentId: sourceAgentId,
           agentName: sourceAgentName,
-          task: parentTask.task,
+          taskId: parentTask.id,
           hasHiddenSubTaskOwners,
         })
       );

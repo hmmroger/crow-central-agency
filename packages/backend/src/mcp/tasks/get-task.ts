@@ -30,7 +30,7 @@ export function getTaskToolConfig(
       }
 
       const userTimezone = await sensorManager.getUserTimezone();
-      return textToolResult([formatTaskItem(task, userTimezone)]);
+      return textToolResult(formatTaskItem(task, userTimezone));
     } catch (error) {
       return getErrorToolResult(error, "Failed to get task.");
     }

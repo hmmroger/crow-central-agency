@@ -1,16 +1,18 @@
 import { z } from "zod";
 import type { AgentTaskManager } from "../../services/agent-task-manager.js";
 import type { AgentCircleManager } from "../../services/agent-circle-manager.js";
+import type { SensorManager } from "../../sensors/sensor-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
-import { hasVisibilityToTask } from "./tasks-mcp-server-utils.js";
+import { formatTaskResult, hasVisibilityToTask } from "./tasks-mcp-server-utils.js";
 
 export const GET_TASK_RESULT_TOOL_NAME = "get_task_result";
 
 export function getTaskResultToolConfig(
   agentId: string,
   taskManager: AgentTaskManager,
-  circleManager: AgentCircleManager
+  circleManager: AgentCircleManager,
+  sensorManager: SensorManager
 ) {
   const inputSchema = {
     task_id: z.string().describe("The ID of the task to get the result for"),
@@ -31,7 +33,8 @@ export function getTaskResultToolConfig(
         return textToolResult([`Task ${task_id} has no result (state: ${task.state})`]);
       }
 
-      return textToolResult([task.taskResult]);
+      const userTimezone = await sensorManager.getUserTimezone();
+      return textToolResult(formatTaskResult(task, userTimezone));
     } catch (error) {
       return getErrorToolResult(error, "Failed to get task result.");
     }
