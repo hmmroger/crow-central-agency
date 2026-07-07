@@ -21,7 +21,7 @@ import {
   type ToolMode,
 } from "@crow-central-agency/shared";
 import type { AgentDetailData, AgentEditorFormState } from "./agent-editor.types.js";
-import { TOOL_DISPOSITION, type ToolDisposition } from "./tool-permission.js";
+import { addCustomPermission, applyPermission, type ToolDisposition } from "./tool-permission.js";
 import { BUILTIN_TOOL_SET_BY_TYPE } from "./tool-constants.js";
 import { arraysEqual } from "../../utils/array-utils.js";
 
@@ -353,44 +353,36 @@ export function useAgentEditorForm(
     []
   );
 
-  /**
-   * Set a rule's permission disposition, enforcing mutual exclusivity between the auto-approved and
-   * disallowed arrays. Approve/Deny land the rule in exactly one array; Ask removes it from both.
-   */
   const setToolPermission = useCallback(
     (rule: string, disposition: ToolDisposition) =>
       setForm((prev) => {
-        if (!rule) {
+        const next = applyPermission(prev.autoApprovedTools, prev.disallowedTools, rule, disposition);
+        if (next.autoApprovedTools === prev.autoApprovedTools && next.disallowedTools === prev.disallowedTools) {
           return prev;
         }
 
-        const autoApprovedTools = prev.autoApprovedTools.filter((tool) => tool !== rule);
-        const disallowedTools = prev.disallowedTools.filter((tool) => tool !== rule);
-
-        if (disposition === TOOL_DISPOSITION.APPROVE) {
-          autoApprovedTools.push(rule);
-        } else if (disposition === TOOL_DISPOSITION.DENY) {
-          disallowedTools.push(rule);
-        }
-
-        return { ...prev, autoApprovedTools, disallowedTools };
+        return { ...prev, autoApprovedTools: next.autoApprovedTools, disallowedTools: next.disallowedTools };
       }),
     []
   );
 
-  /**
-   * Add a custom rule string, defaulting to Approve. A rule already present under either
-   * disposition is left untouched so typing it into the input never silently re-dispositions it.
-   */
   const addCustomRule = useCallback(
     (rule: string) =>
       setForm((prev) => {
-        if (!rule || prev.autoApprovedTools.includes(rule) || prev.disallowedTools.includes(rule)) {
+        const next = addCustomPermission(prev.autoApprovedTools, prev.disallowedTools, rule);
+        if (next.autoApprovedTools === prev.autoApprovedTools && next.disallowedTools === prev.disallowedTools) {
           return prev;
         }
 
-        return { ...prev, autoApprovedTools: [...prev.autoApprovedTools, rule] };
+        return { ...prev, autoApprovedTools: next.autoApprovedTools, disallowedTools: next.disallowedTools };
       }),
+    []
+  );
+
+  /** Replace both permission arrays at once — used to commit the permissions dialog's result. */
+  const setPermissions = useCallback(
+    (autoApprovedTools: string[], disallowedTools: string[]) =>
+      setForm((prev) => ({ ...prev, autoApprovedTools, disallowedTools })),
     []
   );
 
@@ -565,6 +557,7 @@ export function useAgentEditorForm(
     toggleTool,
     setToolPermission,
     addCustomRule,
+    setPermissions,
     toggleMcpServer,
     toggleSensor,
     toggleFeed,
