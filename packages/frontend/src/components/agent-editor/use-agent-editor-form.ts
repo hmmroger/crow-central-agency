@@ -21,6 +21,7 @@ import {
   type ToolMode,
 } from "@crow-central-agency/shared";
 import type { AgentDetailData, AgentEditorFormState } from "./agent-editor.types.js";
+import { TOOL_DISPOSITION, type ToolDisposition } from "./tool-permission.js";
 import { BUILTIN_TOOL_SET_BY_TYPE } from "./tool-constants.js";
 import { arraysEqual } from "../../utils/array-utils.js";
 
@@ -46,7 +47,6 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   selectedTools: [],
   autoApprovedTools: [],
   disallowedTools: [],
-  disallowedToolsEnabled: false,
   availableTools: [],
   mcpServerIds: [],
   sensorIds: [],
@@ -105,7 +105,6 @@ function formStateFromTemplate(template: AgentConfigTemplate): AgentEditorFormSt
     selectedTools: template.toolConfig.tools ?? [],
     autoApprovedTools: template.toolConfig.autoApprovedTools ?? [],
     disallowedTools: template.toolConfig.disallowedTools ?? [],
-    disallowedToolsEnabled: (template.toolConfig.disallowedTools ?? []).length > 0,
     availableTools: template.availableTools ?? [],
     mcpServerIds: template.mcpServerIds ?? [],
     sensorIds: template.sensorIds ?? [],
@@ -142,7 +141,6 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     selectedTools: agent.toolConfig.tools ?? [],
     autoApprovedTools: agent.toolConfig.autoApprovedTools ?? [],
     disallowedTools: agent.toolConfig.disallowedTools ?? [],
-    disallowedToolsEnabled: (agent.toolConfig.disallowedTools ?? []).length > 0,
     availableTools: agent.availableTools ?? [],
     mcpServerIds: agent.mcpServerIds ?? [],
     sensorIds: agent.sensorIds ?? [],
@@ -355,59 +353,41 @@ export function useAgentEditorForm(
     []
   );
 
-  const toggleAutoApproved = useCallback(
-    (tool: string) =>
-      setForm((prev) => ({
-        ...prev,
-        autoApprovedTools: prev.autoApprovedTools.includes(tool)
-          ? prev.autoApprovedTools.filter((approvedTool) => approvedTool !== tool)
-          : [...prev.autoApprovedTools, tool],
-      })),
-    []
-  );
-
-  const addCustomAutoApproved = useCallback(
-    (toolName: string) =>
+  /**
+   * Set a rule's permission disposition, enforcing mutual exclusivity between the auto-approved and
+   * disallowed arrays. Approve/Deny land the rule in exactly one array; Ask removes it from both.
+   */
+  const setToolPermission = useCallback(
+    (rule: string, disposition: ToolDisposition) =>
       setForm((prev) => {
-        if (!toolName || prev.autoApprovedTools.includes(toolName)) {
+        if (!rule) {
           return prev;
         }
 
-        return { ...prev, autoApprovedTools: [...prev.autoApprovedTools, toolName] };
+        const autoApprovedTools = prev.autoApprovedTools.filter((tool) => tool !== rule);
+        const disallowedTools = prev.disallowedTools.filter((tool) => tool !== rule);
+
+        if (disposition === TOOL_DISPOSITION.APPROVE) {
+          autoApprovedTools.push(rule);
+        } else if (disposition === TOOL_DISPOSITION.DENY) {
+          disallowedTools.push(rule);
+        }
+
+        return { ...prev, autoApprovedTools, disallowedTools };
       }),
     []
   );
 
-  // Disallowed tools
-  const setDisallowedToolsEnabled = useCallback(
-    (enabled: boolean) =>
-      setForm((prev) => ({
-        ...prev,
-        disallowedToolsEnabled: enabled,
-        disallowedTools: enabled ? prev.disallowedTools : [],
-      })),
-    []
-  );
-
-  const toggleDisallowedTool = useCallback(
-    (tool: string) =>
-      setForm((prev) => ({
-        ...prev,
-        disallowedTools: prev.disallowedTools.includes(tool)
-          ? prev.disallowedTools.filter((disallowed) => disallowed !== tool)
-          : [...prev.disallowedTools, tool],
-      })),
-    []
-  );
-
-  const addCustomDisallowedTool = useCallback(
-    (toolName: string) =>
+  /** Add a custom rule string, defaulting to Approve and deduping against existing entries. */
+  const addCustomRule = useCallback(
+    (rule: string) =>
       setForm((prev) => {
-        if (!toolName || prev.disallowedTools.includes(toolName)) {
+        if (!rule || prev.autoApprovedTools.includes(rule)) {
           return prev;
         }
 
-        return { ...prev, disallowedTools: [...prev.disallowedTools, toolName] };
+        const disallowedTools = prev.disallowedTools.filter((tool) => tool !== rule);
+        return { ...prev, autoApprovedTools: [...prev.autoApprovedTools, rule], disallowedTools };
       }),
     []
   );
@@ -581,11 +561,8 @@ export function useAgentEditorForm(
     setDisabledSkills,
     setToolMode,
     toggleTool,
-    toggleAutoApproved,
-    addCustomAutoApproved,
-    setDisallowedToolsEnabled,
-    toggleDisallowedTool,
-    addCustomDisallowedTool,
+    setToolPermission,
+    addCustomRule,
     toggleMcpServer,
     toggleSensor,
     toggleFeed,

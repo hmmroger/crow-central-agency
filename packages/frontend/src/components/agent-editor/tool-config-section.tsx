@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import { DEFAULT_AVAILABLE_TOOLS_BY_TYPE, TOOL_MODE, type AgentType, type ToolMode } from "@crow-central-agency/shared";
-import { Toggle } from "../common/toggle.js";
 import { FieldGroup } from "./field-group.js";
 import { ToggleButton } from "./toggle-button.js";
 import { ChipButton } from "./chip-button.js";
 import { BUILTIN_TOOL_SET_BY_TYPE } from "./tool-constants.js";
+import { TOOL_DISPOSITION, dispositionForRule, type ToolDisposition } from "./tool-permission.js";
 
 /**
  * Whether a provider supports restricting the builtin tool set. Both Claude Code and Copilot
@@ -20,20 +20,16 @@ interface ToolConfigSectionProps {
   selectedTools: string[];
   autoApprovedTools: string[];
   disallowedTools: string[];
-  disallowedToolsEnabled: boolean;
   availableTools: string[];
   onToolModeChange: (mode: ToolMode) => void;
   onToggleTool: (tool: string) => void;
-  onToggleAutoApproved: (tool: string) => void;
-  onAddCustomAutoApproved: (toolName: string) => void;
-  onDisallowedToolsEnabledChange: (enabled: boolean) => void;
-  onToggleDisallowedTool: (tool: string) => void;
-  onAddCustomDisallowedTool: (toolName: string) => void;
+  onSetToolPermission: (rule: string, disposition: ToolDisposition) => void;
+  onAddCustomRule: (rule: string) => void;
 }
 
 /**
  * Tool configuration section - tool mode toggle, tool selection,
- * auto-approved tools, and custom tool input.
+ * and per-rule permission dispositions (approve / deny / ask).
  */
 export function ToolConfigSection({
   agentType,
@@ -41,28 +37,22 @@ export function ToolConfigSection({
   selectedTools,
   autoApprovedTools,
   disallowedTools,
-  disallowedToolsEnabled,
   availableTools,
   onToolModeChange,
   onToggleTool,
-  onToggleAutoApproved,
-  onAddCustomAutoApproved,
-  onDisallowedToolsEnabledChange,
-  onToggleDisallowedTool,
-  onAddCustomDisallowedTool,
+  onSetToolPermission,
+  onAddCustomRule,
 }: ToolConfigSectionProps) {
   const [customToolInput, setCustomToolInput] = useState("");
   const customToolInputRef = useRef<HTMLInputElement>(null);
-  const [customDisallowedInput, setCustomDisallowedInput] = useState("");
-  const customDisallowedInputRef = useRef<HTMLInputElement>(null);
 
   const builtinTools = DEFAULT_AVAILABLE_TOOLS_BY_TYPE[agentType];
   const builtinToolSet = BUILTIN_TOOL_SET_BY_TYPE[agentType];
   const canRestrictTools = supportsToolRestriction(agentType);
 
   /**
-   * Effective tool set for auto-approved and disallowed selection. Reflects
-   * the user's current intent, not just the last SDK snapshot:
+   * Effective tool set for permission selection. Reflects the user's current intent,
+   * not just the last SDK snapshot:
    * - Builtins come from selectedTools (restricted) or the provider catalog (unrestricted).
    * - External tools (MCP, etc.) come from availableTools.
    */
@@ -73,35 +63,28 @@ export function ToolConfigSection({
     return [...builtinSource, ...externalTools];
   }, [canRestrictTools, toolMode, selectedTools, availableTools, builtinTools, builtinToolSet]);
 
-  /** Custom tools added by user that aren't in the standard source list */
-  const customOnlyTools = autoApprovedTools.filter((tool) => !effectiveTools.includes(tool));
+  /** All rule rows: catalog tools first, then user-configured custom rules not in the catalog. */
+  const permissionRules = useMemo(() => {
+    const customRules = [...autoApprovedTools, ...disallowedTools].filter((rule) => !effectiveTools.includes(rule));
+    return [...effectiveTools, ...new Set(customRules)];
+  }, [autoApprovedTools, disallowedTools, effectiveTools]);
 
   const handleAddCustom = () => {
-    const toolName = customToolInput.trim();
+    const rule = customToolInput.trim();
 
-    if (!toolName) {
+    if (!rule) {
       return;
     }
 
-    onAddCustomAutoApproved(toolName);
+    onAddCustomRule(rule);
     setCustomToolInput("");
     customToolInputRef.current?.focus();
   };
 
-  const handleAddCustomDisallowed = () => {
-    const toolName = customDisallowedInput.trim();
-
-    if (!toolName) {
-      return;
-    }
-
-    onAddCustomDisallowedTool(toolName);
-    setCustomDisallowedInput("");
-    customDisallowedInputRef.current?.focus();
+  const toggleDisposition = (rule: string, target: ToolDisposition) => {
+    const current = dispositionForRule(rule, autoApprovedTools, disallowedTools);
+    onSetToolPermission(rule, current === target ? TOOL_DISPOSITION.ASK : target);
   };
-
-  /** Custom disallowed tools added by user that aren't in the effective tools list */
-  const customDisallowedOnly = disallowedTools.filter((tool) => !effectiveTools.includes(tool));
 
   return (
     <>
@@ -137,35 +120,38 @@ export function ToolConfigSection({
         </FieldGroup>
       )}
 
-      {/* Auto-Approved Tools */}
-      <FieldGroup label="Auto-Approved Tools">
+      {/* Permissions — one row per rule with mutually-exclusive Approve / Deny (neither = Ask) */}
+      <FieldGroup label="Permissions">
         <p className="text-xs text-text-muted mb-2">
-          These tools skip the permission dialog. Command-scoped rules are supported, e.g. Bash(git commit *).
+          Approve a rule to skip the permission dialog, or Deny to block it. No selection means Ask each time.
+          Command-scoped rules are supported, e.g. Bash(git commit *).
         </p>
 
-        {effectiveTools.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {effectiveTools.map((tool) => (
-              <ChipButton
-                key={tool}
-                label={tool}
-                active={autoApprovedTools.includes(tool)}
-                onClick={() => onToggleAutoApproved(tool)}
-              />
-            ))}
-          </div>
-        )}
+        <div className="space-y-1.5">
+          {permissionRules.map((rule) => {
+            const disposition = dispositionForRule(rule, autoApprovedTools, disallowedTools);
+            return (
+              <div key={rule} className="flex items-center justify-between gap-2">
+                <code className="font-mono text-xs text-text-neutral truncate">{rule}</code>
+                <div className="flex gap-1.5 shrink-0">
+                  <ChipButton
+                    label="Approve"
+                    active={disposition === TOOL_DISPOSITION.APPROVE}
+                    onClick={() => toggleDisposition(rule, TOOL_DISPOSITION.APPROVE)}
+                  />
+                  <ChipButton
+                    label="Deny"
+                    active={disposition === TOOL_DISPOSITION.DENY}
+                    onClick={() => toggleDisposition(rule, TOOL_DISPOSITION.DENY)}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-        {customOnlyTools.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {customOnlyTools.map((tool) => (
-              <ChipButton key={tool} label={tool} active onClick={() => onToggleAutoApproved(tool)} />
-            ))}
-          </div>
-        )}
-
-        {/* Add custom tool input */}
-        <div className="flex gap-2">
+        {/* Add custom rule input */}
+        <div className="flex gap-2 mt-3">
           <input
             ref={customToolInputRef}
             type="text"
@@ -189,70 +175,6 @@ export function ToolConfigSection({
             Add
           </button>
         </div>
-      </FieldGroup>
-
-      {/* Disallowed Tools */}
-      <FieldGroup label="Disallowed Tools">
-        <Toggle
-          checked={disallowedToolsEnabled}
-          onChange={onDisallowedToolsEnabledChange}
-          label="Enable disallowed tools"
-          className="mb-2"
-        />
-
-        {disallowedToolsEnabled && (
-          <>
-            <p className="text-xs text-text-muted mb-2">
-              These tools are blocked from use, even if they would otherwise be allowed.
-            </p>
-
-            {effectiveTools.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {effectiveTools.map((tool) => (
-                  <ChipButton
-                    key={tool}
-                    label={tool}
-                    active={disallowedTools.includes(tool)}
-                    onClick={() => onToggleDisallowedTool(tool)}
-                  />
-                ))}
-              </div>
-            )}
-
-            {customDisallowedOnly.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {customDisallowedOnly.map((tool) => (
-                  <ChipButton key={tool} label={tool} active onClick={() => onToggleDisallowedTool(tool)} />
-                ))}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <input
-                ref={customDisallowedInputRef}
-                type="text"
-                value={customDisallowedInput}
-                onChange={(event) => setCustomDisallowedInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    handleAddCustomDisallowed();
-                  }
-                }}
-                placeholder="Add custom tool (e.g. mcp__server__tool)"
-                className="flex-1 px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
-              />
-              <button
-                type="button"
-                className="px-3 py-1.5 rounded-md bg-surface-elevated text-text-neutral text-xs font-medium hover:text-text-base transition-colors disabled:opacity-50"
-                onClick={handleAddCustomDisallowed}
-                disabled={!customDisallowedInput.trim()}
-              >
-                Add
-              </button>
-            </div>
-          </>
-        )}
       </FieldGroup>
     </>
   );
