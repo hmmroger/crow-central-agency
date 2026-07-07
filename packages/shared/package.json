@@ -6,14 +6,19 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "dev": "tsc --watch --project ./tsconfig.json",
-    "build": "tsc --project ./tsconfig.json",
+    "dev": "tsc --watch --project ./tsconfig.build.json",
+    "build": "tsc --project ./tsconfig.build.json",
     "postbuild": "node ../../scripts/copy-to-root-dist.mjs _shared",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --project ./tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint \"src/**/*.ts\""
   },
   "dependencies": {
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
   }
 }

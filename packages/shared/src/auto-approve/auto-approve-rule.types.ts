@@ -1,0 +1,22 @@
+/**
+ * A single auto-approve rule in the Claude SDK's canonical form: `Tool` or `Tool(specifier)`.
+ * The `specifier` is absent for whole-tool rules (`Write`, `*`, `mcp__crow-artifacts__*`) and
+ * present for scoped rules (`Bash(git commit *)`).
+ */
+export interface ParsedRule {
+  tool: string;
+  specifier?: string;
+}
+
+/**
+ * Pluggable per-tool auto-approve behavior. The registry dispatches on tool name and falls back
+ * to the default (whole-tool) strategy for any unregistered tool.
+ */
+export interface AutoApproveRuleStrategy {
+  /** Whether this strategy handles the given tool. */
+  appliesTo(toolName: string): boolean;
+  /** Capture side: derive the rule string(s) to persist when the user picks "always allow". */
+  deriveRules(toolName: string, input: Record<string, unknown>): string[];
+  /** Match side: whether the pending invocation is auto-approved by the configured rules. */
+  matches(toolName: string, input: Record<string, unknown>, rules: ParsedRule[]): boolean;
+}
