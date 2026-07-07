@@ -11,8 +11,10 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_COMMAND,
+  getRuleStrategy,
   MESSAGE_SOURCE_TYPE,
   modelSupportsAdaptiveThinking,
+  parseRules,
   resolveModel,
   THINKING_MODE,
   type AgentCommand,
@@ -195,7 +197,11 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
 
   private buildCanUseTool(autoApproved: Set<string>, sessionId: string): CanUseTool {
     return async (toolName, input, options) => {
-      if (autoApproved.has(toolName)) {
+      // The SDK matches configured rules natively via `allowedTools`; this in-session set holds only
+      // allow_always approvals from this run, routed through the registry so command tools match on
+      // their command while other tools keep the whole-name behavior.
+      const inSessionRules = parseRules([...autoApproved]);
+      if (getRuleStrategy(toolName).matches(toolName, input, inSessionRules)) {
         return { behavior: "allow" as const, updatedInput: input, toolUseID: options.toolUseID };
       }
 

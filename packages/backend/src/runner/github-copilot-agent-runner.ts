@@ -7,6 +7,8 @@ import {
   REASONING_EFFORT,
   SETTING_SOURCE,
   TOOL_MODE,
+  getRuleStrategy,
+  parseRules,
   resolveModel,
   type AgentCommand,
   type AgentConfig,
@@ -109,21 +111,6 @@ function resolvePermissionMode(permissionMode: PermissionMode): {
 function userSkillDirectory(): string {
   const copilotHome = expandPath(process.env[COPILOT_HOME_ENV] ?? `~/${COPILOT_DEFAULT_HOME_DIR_NAME}`);
   return path.join(copilotHome, COPILOT_SKILLS_DIR_NAME);
-}
-
-/** Match a tool name against the auto-approve patterns, where a trailing `*` matches by prefix (`*` matches all). */
-function isToolAutoApproved(patterns: Set<string>, toolName: string): boolean {
-  if (patterns.has(toolName)) {
-    return true;
-  }
-
-  for (const pattern of patterns) {
-    if (pattern.endsWith("*") && toolName.startsWith(pattern.slice(0, -1))) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 /**
@@ -560,6 +547,16 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     return this.drainInjectedMessages();
   }
 
+  /**
+   * Whether a tool call is auto-approved by the configured or in-session rules. Routes through the
+   * shared strategy registry: command tools (Bash/PowerShell) match on their decomposed command,
+   * every other tool keeps the whole-name / trailing-`*` / MCP-prefix behavior.
+   */
+  private isAutoApproved(toolName: string, input: Record<string, unknown>, autoApproved: Set<string>): boolean {
+    const rules = parseRules([...autoApproved]);
+    return getRuleStrategy(toolName).matches(toolName, input, rules);
+  }
+
   private async resolveExternalMcpToolPermission(
     toolName: string,
     toolArgs: unknown,
@@ -574,7 +571,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       return undefined;
     }
 
-    if (policy === "allow" || isToolAutoApproved(autoApproved, toolName)) {
+    const toolArgsRecord = toToolArgsRecord(toolArgs);
+    if (policy === "allow" || this.isAutoApproved(toolName, toolArgsRecord, autoApproved)) {
       return { permissionDecision: "allow" };
     }
 
@@ -582,12 +580,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       return { permissionDecision: "deny", permissionDecisionReason: PERMISSION_USER_UNAVAILABLE_MESSAGE };
     }
 
-    const decision = await this.permissionRequestHandler(
-      this.agentId,
-      toolName,
-      toToolArgsRecord(toolArgs),
-      generateId()
-    );
+    const decision = await this.permissionRequestHandler(this.agentId, toolName, toolArgsRecord, generateId());
     if (decision.behavior === "allow_always") {
       this.rememberAutoApproval(toolName, autoApproved);
     }
@@ -635,7 +628,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         : permissionRequest.kind);
 
     let result: Exclude<PermissionRequestResult, { kind: "no-result" }>;
-    if (policy === "allow" || isToolAutoApproved(autoApproved, toolName)) {
+    if (policy === "allow" || this.isAutoApproved(toolName, toolCall?.input ?? {}, autoApproved)) {
       result = { kind: "approve-once" };
     } else if (policy === "deny") {
       result = { kind: "reject", feedback: PERMISSION_USER_UNAVAILABLE_MESSAGE };
