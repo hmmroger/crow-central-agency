@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { DEFAULT_AVAILABLE_TOOLS_BY_TYPE, TOOL_MODE, type AgentType, type ToolMode } from "@crow-central-agency/shared";
 import { FieldGroup } from "./field-group.js";
 import { ToggleButton } from "./toggle-button.js";
@@ -69,7 +69,7 @@ export function ToolConfigSection({
     return [...effectiveTools, ...new Set(customRules)];
   }, [autoApprovedTools, disallowedTools, effectiveTools]);
 
-  const handleAddCustom = () => {
+  const handleAddCustom = useCallback(() => {
     const rule = customToolInput.trim();
 
     if (!rule) {
@@ -79,12 +79,30 @@ export function ToolConfigSection({
     onAddCustomRule(rule);
     setCustomToolInput("");
     customToolInputRef.current?.focus();
-  };
+  }, [customToolInput, onAddCustomRule]);
 
-  const toggleDisposition = (rule: string, target: ToolDisposition) => {
-    const current = dispositionForRule(rule, autoApprovedTools, disallowedTools);
-    onSetToolPermission(rule, current === target ? TOOL_DISPOSITION.ASK : target);
-  };
+  const handleCustomInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => setCustomToolInput(event.target.value),
+    []
+  );
+
+  const handleCustomInputKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleAddCustom();
+      }
+    },
+    [handleAddCustom]
+  );
+
+  const toggleDisposition = useCallback(
+    (rule: string, target: ToolDisposition) => {
+      const current = dispositionForRule(rule, autoApprovedTools, disallowedTools);
+      onSetToolPermission(rule, current === target ? TOOL_DISPOSITION.ASK : target);
+    },
+    [autoApprovedTools, disallowedTools, onSetToolPermission]
+  );
 
   return (
     <>
@@ -156,13 +174,8 @@ export function ToolConfigSection({
             ref={customToolInputRef}
             type="text"
             value={customToolInput}
-            onChange={(event) => setCustomToolInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                handleAddCustom();
-              }
-            }}
+            onChange={handleCustomInputChange}
+            onKeyDown={handleCustomInputKeyDown}
             placeholder="e.g. mcp__server__tool or Bash(git commit *)"
             className="flex-1 px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
           />

@@ -378,16 +378,18 @@ export function useAgentEditorForm(
     []
   );
 
-  /** Add a custom rule string, defaulting to Approve and deduping against existing entries. */
+  /**
+   * Add a custom rule string, defaulting to Approve. A rule already present under either
+   * disposition is left untouched so typing it into the input never silently re-dispositions it.
+   */
   const addCustomRule = useCallback(
     (rule: string) =>
       setForm((prev) => {
-        if (!rule || prev.autoApprovedTools.includes(rule)) {
+        if (!rule || prev.autoApprovedTools.includes(rule) || prev.disallowedTools.includes(rule)) {
           return prev;
         }
 
-        const disallowedTools = prev.disallowedTools.filter((tool) => tool !== rule);
-        return { ...prev, autoApprovedTools: [...prev.autoApprovedTools, rule], disallowedTools };
+        return { ...prev, autoApprovedTools: [...prev.autoApprovedTools, rule] };
       }),
     []
   );
