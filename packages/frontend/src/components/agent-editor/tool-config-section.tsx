@@ -1,10 +1,18 @@
 import { useCallback, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
-import { DEFAULT_AVAILABLE_TOOLS_BY_TYPE, TOOL_MODE, type AgentType, type ToolMode } from "@crow-central-agency/shared";
+import {
+  DEFAULT_AVAILABLE_TOOLS_BY_TYPE,
+  TOOL_MODE,
+  formatRule,
+  parseRule,
+  type AgentType,
+  type ToolMode,
+} from "@crow-central-agency/shared";
 import { FieldGroup } from "./field-group.js";
 import { ToggleButton } from "./toggle-button.js";
 import { ChipButton } from "./chip-button.js";
+import { PermissionList } from "./permission-list.js";
 import { BUILTIN_TOOL_SET_BY_TYPE } from "./tool-constants.js";
-import { TOOL_DISPOSITION, dispositionForRule, type ToolDisposition } from "./tool-permission.js";
+import type { ToolDisposition } from "./tool-permission.js";
 
 /**
  * Whether a provider supports restricting the builtin tool set. Both Claude Code and Copilot
@@ -63,23 +71,28 @@ export function ToolConfigSection({
     return [...builtinSource, ...externalTools];
   }, [canRestrictTools, toolMode, selectedTools, availableTools, builtinTools, builtinToolSet]);
 
-  /** All rule rows: catalog tools first, then user-configured custom rules not in the catalog. */
-  const permissionRules = useMemo(() => {
-    const customRules = [...autoApprovedTools, ...disallowedTools].filter((rule) => !effectiveTools.includes(rule));
-    return [...effectiveTools, ...new Set(customRules)];
-  }, [autoApprovedTools, disallowedTools, effectiveTools]);
+  /** Canonical form of the typed custom rule, or undefined when the input is empty or unparseable. */
+  const canonicalCustomRule = useMemo(() => {
+    const trimmed = customToolInput.trim();
+    if (trimmed.length === 0) {
+      return undefined;
+    }
+
+    const parsed = parseRule(trimmed);
+    return parsed ? formatRule(parsed) : undefined;
+  }, [customToolInput]);
+
+  const showCustomRuleError = customToolInput.trim().length > 0 && canonicalCustomRule === undefined;
 
   const handleAddCustom = useCallback(() => {
-    const rule = customToolInput.trim();
-
-    if (!rule) {
+    if (canonicalCustomRule === undefined) {
       return;
     }
 
-    onAddCustomRule(rule);
+    onAddCustomRule(canonicalCustomRule);
     setCustomToolInput("");
     customToolInputRef.current?.focus();
-  }, [customToolInput, onAddCustomRule]);
+  }, [canonicalCustomRule, onAddCustomRule]);
 
   const handleCustomInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => setCustomToolInput(event.target.value),
@@ -94,14 +107,6 @@ export function ToolConfigSection({
       }
     },
     [handleAddCustom]
-  );
-
-  const toggleDisposition = useCallback(
-    (rule: string, target: ToolDisposition) => {
-      const current = dispositionForRule(rule, autoApprovedTools, disallowedTools);
-      onSetToolPermission(rule, current === target ? TOOL_DISPOSITION.ASK : target);
-    },
-    [autoApprovedTools, disallowedTools, onSetToolPermission]
   );
 
   return (
@@ -145,28 +150,12 @@ export function ToolConfigSection({
           Command-scoped rules are supported, e.g. Bash(git commit *).
         </p>
 
-        <div className="space-y-1.5">
-          {permissionRules.map((rule) => {
-            const disposition = dispositionForRule(rule, autoApprovedTools, disallowedTools);
-            return (
-              <div key={rule} className="flex items-center justify-between gap-2">
-                <code className="font-mono text-xs text-text-neutral truncate">{rule}</code>
-                <div className="flex gap-1.5 shrink-0">
-                  <ChipButton
-                    label="Approve"
-                    active={disposition === TOOL_DISPOSITION.APPROVE}
-                    onClick={() => toggleDisposition(rule, TOOL_DISPOSITION.APPROVE)}
-                  />
-                  <ChipButton
-                    label="Deny"
-                    active={disposition === TOOL_DISPOSITION.DENY}
-                    onClick={() => toggleDisposition(rule, TOOL_DISPOSITION.DENY)}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <PermissionList
+          effectiveTools={effectiveTools}
+          autoApprovedTools={autoApprovedTools}
+          disallowedTools={disallowedTools}
+          onSetToolPermission={onSetToolPermission}
+        />
 
         {/* Add custom rule input */}
         <div className="flex gap-2 mt-3">
@@ -183,11 +172,19 @@ export function ToolConfigSection({
             type="button"
             className="px-3 py-1.5 rounded-md bg-surface-elevated text-text-neutral text-xs font-medium hover:text-text-base transition-colors disabled:opacity-50"
             onClick={handleAddCustom}
-            disabled={!customToolInput.trim()}
+            disabled={canonicalCustomRule === undefined}
           >
             Add
           </button>
         </div>
+
+        {showCustomRuleError && <p className="text-xs text-error mt-1">Enter a valid rule, e.g. Bash(git commit *).</p>}
+
+        {canonicalCustomRule !== undefined && canonicalCustomRule !== customToolInput.trim() && (
+          <p className="text-xs text-text-muted mt-1">
+            Will add: <code className="font-mono text-text-neutral">{canonicalCustomRule}</code>
+          </p>
+        )}
       </FieldGroup>
     </>
   );
