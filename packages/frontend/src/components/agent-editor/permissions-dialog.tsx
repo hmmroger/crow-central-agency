@@ -24,8 +24,11 @@ export function PermissionsDialog({
   onClose,
 }: PermissionsDialogProps) {
   const [permissions, setPermissions] = useState<ToolPermissions>(() => ({ autoApprovedTools, disallowedTools }));
+  const [filter, setFilter] = useState("");
   const [customRuleInput, setCustomRuleInput] = useState("");
   const customRuleInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFilterChange = useCallback((event: ChangeEvent<HTMLInputElement>) => setFilter(event.target.value), []);
 
   const handleSetToolPermission = useCallback(
     (rule: string, disposition: ToolDisposition) =>
@@ -84,11 +87,20 @@ export function PermissionsDialog({
           Command-scoped rules are supported, e.g. Bash(git commit *).
         </p>
 
+        <input
+          type="text"
+          value={filter}
+          onChange={handleFilterChange}
+          placeholder="Filter rules"
+          className="w-full px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+        />
+
         <div className="max-h-96 overflow-y-auto">
           <PermissionList
             effectiveTools={effectiveTools}
             autoApprovedTools={permissions.autoApprovedTools}
             disallowedTools={permissions.disallowedTools}
+            filter={filter}
             onSetToolPermission={handleSetToolPermission}
           />
         </div>

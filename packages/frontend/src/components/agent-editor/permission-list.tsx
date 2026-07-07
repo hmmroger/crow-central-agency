@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ChangeEvent } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { PermissionGroup } from "./permission-group.js";
 import { buildPermissionGroups } from "./permission-grouping.js";
 import { TOOL_DISPOSITION, type ToolDisposition } from "./tool-permission.js";
@@ -7,20 +7,22 @@ interface PermissionListProps {
   effectiveTools: string[];
   autoApprovedTools: string[];
   disallowedTools: string[];
+  filter: string;
   onSetToolPermission: (rule: string, disposition: ToolDisposition) => void;
 }
 
 /**
  * Unified permission rows grouped by prefix: catalog tools first (not removable), then custom rules
- * bucketed by their leading segment (removable). A filter narrows visible rows across all groups.
+ * bucketed by their leading segment (removable). The `filter` narrows visible rows across all groups;
+ * the filter input itself is owned by the parent so it can stay fixed above the scroll region.
  */
 export function PermissionList({
   effectiveTools,
   autoApprovedTools,
   disallowedTools,
+  filter,
   onSetToolPermission,
 }: PermissionListProps) {
-  const [filter, setFilter] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   const groups = useMemo(() => {
@@ -30,8 +32,6 @@ export function PermissionList({
 
     return buildPermissionGroups(effectiveTools, customRules);
   }, [effectiveTools, autoApprovedTools, disallowedTools]);
-
-  const handleFilterChange = useCallback((event: ChangeEvent<HTMLInputElement>) => setFilter(event.target.value), []);
 
   const handleToggleCollapsed = useCallback((groupKey: string) => {
     setCollapsedGroups((prev) => {
@@ -60,14 +60,6 @@ export function PermissionList({
 
   return (
     <div className="space-y-3">
-      <input
-        type="text"
-        value={filter}
-        onChange={handleFilterChange}
-        placeholder="Filter rules"
-        className="w-full px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
-      />
-
       {groups.map((group) => {
         const visibleRules = hasFilter
           ? group.rules.filter((rule) => rule.toLowerCase().includes(normalizedFilter))
