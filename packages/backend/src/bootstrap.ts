@@ -98,6 +98,7 @@ export async function bootstrap(options: BootstrapOptions) {
   const taskManager = new AgentTaskManager(storeProvider, broadcaster, circleManager);
   await taskManager.initialize();
   const feedManager = new SimplyFeedManager(storeProvider, folderFileProvider, crowScheduler);
+  await feedManager.initialize();
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
   const documentSearchService = new DocumentSearchService(artifactManager, taskManager, registry, circleManager);
@@ -230,6 +231,7 @@ export async function bootstrap(options: BootstrapOptions) {
   const shutdown = async () => {
     logger.info("Shutting down...");
     crowScheduler.stop();
+    await feedManager.dispose();
     await discordBotManager.destroy();
     await server.close();
     await copilotClientManager.dispose();

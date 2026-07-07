@@ -17,6 +17,8 @@ import type { CrowScheduler } from "../services/crow-scheduler.js";
 import { TIME_MODE } from "@crow-central-agency/shared";
 import { EventBus } from "../core/event-bus/event-bus.js";
 import type { SimplyFeedManagerEvents } from "./simply-feed-manager.types.js";
+import { FeedSearchIndex } from "./feed-search-index.js";
+import type { ScoredFeedDocument } from "./feed-search-index.types.js";
 
 const FEEDS_NAMESPACE = "feeds";
 const FEEDS_STORE_TABLE = `${FEEDS_NAMESPACE}/feeds`;
@@ -25,17 +27,9 @@ const FEEDS_CACHE_MAX_AGE_IN_MINUTES = 5;
 const DEFAULT_FEED_REFRESH_IN_MINUTES = 15;
 const DEFAULT_FEED_MAX_SUMMARIZATION_ITEMS = 50;
 const REFRESH_FEEDS_WORK_ID = "refresh-feeds";
-
-/**
- * Tier prefixes for queryItems match scoring. Each tier's raw score
- * (matchType) is small (<= topics.size or queries.length, typically < 10),
- * so a gap of 100 guarantees tier ordering in the final sort: topic
- * matches always outrank category matches, which always outrank text
- * matches, regardless of how strongly each matched.
- */
-const MATCH_TIER_TOPIC = 0;
-const MATCH_TIER_CATEGORY = 100;
-const MATCH_TIER_TEXT = 200;
+// Cap query-time LLM topic expansion so a slow provider can't stall search;
+// expansion is best-effort and search degrades to lexical-only on timeout.
+const QUERY_EXPANSION_TIMEOUT_MS = 2000;
 
 const SummaryResultSchema = z.object({
   summary: z.string().describe("A concise summary of the content"),
@@ -66,6 +60,7 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
   private cachedItems: Map<string, FeedItem[]>;
   private cachedFeedsTimestamp: number;
   private readonly hasTextGen: boolean;
+  private readonly searchIndex: FeedSearchIndex;
 
   constructor(
     private readonly indexStore: ObjectStoreProvider,
@@ -76,6 +71,7 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
     this.cachedFeeds = new Map();
     this.cachedItems = new Map();
     this.cachedFeedsTimestamp = 0;
+    this.searchIndex = new FeedSearchIndex(this.indexStore);
     this.hasTextGen = this.probeTextGen();
     if (!this.hasTextGen) {
       log.warn(
@@ -89,6 +85,16 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
       [{ minute: env.FEED_REFRESH_IN_MINUTES ?? DEFAULT_FEED_REFRESH_IN_MINUTES }],
       () => this.refreshAllFeeds()
     );
+  }
+
+  /** Load or rebuild the search index. Wire before serving search queries. */
+  public async initialize(): Promise<void> {
+    await this.searchIndex.initialize(() => this.loadAllItems());
+  }
+
+  /** Flush pending search-index writes on graceful shutdown. */
+  public async dispose(): Promise<void> {
+    await this.searchIndex.flush();
   }
 
   public async addFeed(feedUrl: string): Promise<Feed> {
@@ -164,6 +170,9 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
     if (!feed) {
       return false;
     }
+
+    const indexEntries = await this.indexStore.getAll<FeedIndexItem>(this.getFeedIndexTable(id));
+    this.searchIndex.discard(indexEntries.map((entry) => entry.value.id));
 
     await this.indexStore.delete(FEEDS_STORE_TABLE, id);
     await this.indexStore.dropTable(this.getFeedIndexTable(id));
@@ -355,66 +364,16 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
       return [];
     }
 
-    const feeds = await this.getFeeds(feedIds);
-    for (const feed of feeds) {
-      await this.getItemsFromFeed(feed.id);
+    // Expansion is best-effort: if the LLM is unavailable, slow, or drops a
+    // term, lexical search on the raw query still carries the result.
+    const expansion = this.hasTextGen ? await this.determineTopicsWithinTimeout(query) : undefined;
+    const ranked = this.searchIndex.search(query, expansion?.topics ?? [], feedIds);
+    if (ranked.length === 0) {
+      return [];
     }
 
-    const queryFeedsId = new Set<string>(feeds.map((feed) => feed.id));
-
-    const queries = query
-      .toLowerCase()
-      .split(" ")
-      .map((word) => word.trim())
-      .filter((word) => !!word);
-    const topicsRes = this.hasTextGen ? await this.determineTopics(query) : undefined;
-    const topics = new Set<string>(topicsRes ? topicsRes.topics : queries);
-
-    const matchedItems: { item: FeedItem; matchType: number }[] = [];
-    for (const [feedId, feedItems] of this.cachedItems.entries()) {
-      if (!queryFeedsId.has(feedId)) {
-        continue;
-      }
-
-      feedItems.forEach((item) => {
-        // 1. Topic match — LLM-derived semantic topics.
-        const matchedTopics = item.topics?.filter((topic) => topics.has(topic)).length;
-        if (matchedTopics) {
-          matchedItems.push({ item, matchType: MATCH_TIER_TOPIC + (topics.size - matchedTopics) });
-          return;
-        }
-
-        // 2. Category match — feed-asserted taxonomy from <category> elements.
-        const matchedCategories = item.categories?.filter((category) =>
-          queries.some((word) => category.toLowerCase().includes(word))
-        ).length;
-        if (matchedCategories) {
-          matchedItems.push({ item, matchType: MATCH_TIER_CATEGORY + (queries.length - matchedCategories) });
-          return;
-        }
-
-        // 3. Text fallback — title + description only. `description` is the RSS excerpt;
-        //    item.content is skipped because full article bodies can be large.
-        const haystack = `${item.title} ${item.description}`.toLowerCase();
-        const matchedWords = queries.filter((word) => haystack.includes(word)).length;
-        if (matchedWords) {
-          matchedItems.push({ item, matchType: MATCH_TIER_TEXT + (queries.length - matchedWords) });
-        }
-      });
-    }
-
-    matchedItems.sort((a, b) => {
-      if (a.matchType === b.matchType) {
-        return b.item.publishedTime - a.item.publishedTime;
-      }
-
-      return a.matchType - b.matchType;
-    });
-
-    return matchedItems
-      .map((item) => item.item)
-      .slice(skip || 0)
-      .slice(0, limit || undefined);
+    const rankedItems = await this.hydrateRankedItems(ranked);
+    return rankedItems.slice(skip || 0).slice(0, limit || undefined);
   }
 
   public async refreshFeed(id: string, includeExistingTopics: boolean = false): Promise<FeedItem[]> {
@@ -498,6 +457,8 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
         this.getFeedItemTable(feed.id),
         processingItems.map((item) => [item.id, item])
       );
+      // Index after summary+topics are generated so those fields are searchable.
+      this.searchIndex.addOrReplace(processingItems);
       log.info(`${processingItems.length} new items processed for feed [${feed.title}]`);
     }
 
@@ -520,6 +481,8 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
           );
         }
 
+        this.searchIndex.discard(expiredIds);
+
         const expiredIdSet = new Set(expiredIds);
         this.cachedItems.set(
           feed.id,
@@ -541,6 +504,63 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
     }
 
     return newItems;
+  }
+
+  /**
+   * Resolve ranked search hits to full FeedItems by id — from the in-memory
+   * cache when present, otherwise the item store — then order by blended score
+   * with recency as the tiebreak.
+   */
+  private async hydrateRankedItems(ranked: ScoredFeedDocument[]): Promise<FeedItem[]> {
+    const cachedById = new Map<string, FeedItem>();
+    for (const feedItems of this.cachedItems.values()) {
+      for (const item of feedItems) {
+        cachedById.set(item.id, item);
+      }
+    }
+
+    const resolved = new Map<string, FeedItem>();
+    const missingIdsByFeed = new Map<string, string[]>();
+    for (const scored of ranked) {
+      const cached = cachedById.get(scored.id);
+      if (cached) {
+        resolved.set(scored.id, cached);
+        continue;
+      }
+
+      const feedMissing = missingIdsByFeed.get(scored.feedId) ?? [];
+      feedMissing.push(scored.id);
+      missingIdsByFeed.set(scored.feedId, feedMissing);
+    }
+
+    for (const [feedId, ids] of missingIdsByFeed.entries()) {
+      const entries = await this.feedItemStore.getMany<FeedItem>(this.getFeedItemTable(feedId), ids);
+      for (const entry of entries.values()) {
+        resolved.set(entry.value.id, entry.value);
+      }
+    }
+
+    return ranked
+      .map((scored) => {
+        const item = resolved.get(scored.id);
+        return item ? { item, score: scored.score } : undefined;
+      })
+      .filter((entry): entry is { item: FeedItem; score: number } => entry !== undefined)
+      .sort((first, second) => second.score - first.score || second.item.publishedTime - first.item.publishedTime)
+      .map((entry) => entry.item);
+  }
+
+  private async loadAllItems(): Promise<FeedItem[]> {
+    const feeds = await this.getFeeds();
+    const allItems: FeedItem[] = [];
+    for (const feed of feeds) {
+      const entries = await this.feedItemStore.getAll<FeedItem>(this.getFeedItemTable(feed.id));
+      for (const entry of entries) {
+        allItems.push(entry.value);
+      }
+    }
+
+    return allItems;
   }
 
   /** Attempt to resolve the feed text-gen provider once at startup; false when unconfigured. */
@@ -606,6 +626,22 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
     }
 
     return undefined;
+  }
+
+  private async determineTopicsWithinTimeout(text: string): Promise<TopicsResult | undefined> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<undefined>((resolve) => {
+      timer = setTimeout(() => resolve(undefined), QUERY_EXPANSION_TIMEOUT_MS);
+      timer.unref?.();
+    });
+
+    try {
+      return await Promise.race([this.determineTopics(text), timeout]);
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }
   }
 
   private async determineTopics(text: string): Promise<TopicsResult | undefined> {
