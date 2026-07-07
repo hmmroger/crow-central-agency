@@ -11,10 +11,10 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_COMMAND,
+  AutoApproveRuleSet,
   getRuleStrategy,
   MESSAGE_SOURCE_TYPE,
   modelSupportsAdaptiveThinking,
-  parseRules,
   resolveModel,
   THINKING_MODE,
   type AgentCommand,
@@ -163,7 +163,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         ],
         tools: toolsOption,
         disallowedTools: agentConfig.toolConfig.disallowedTools,
-        canUseTool: this.buildCanUseTool(new Set(), sessionId ?? ""),
+        canUseTool: this.buildCanUseTool(new AutoApproveRuleSet(), sessionId ?? ""),
         settingSources: agentConfig.settingSources,
         mcpServers,
         persistSession,
@@ -195,13 +195,12 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
     this.query?.close();
   }
 
-  private buildCanUseTool(autoApproved: Set<string>, sessionId: string): CanUseTool {
+  private buildCanUseTool(autoApproved: AutoApproveRuleSet, sessionId: string): CanUseTool {
     return async (toolName, input, options) => {
       // The SDK matches configured rules natively via `allowedTools`; this in-session set holds only
-      // allow_always approvals from this run, routed through the registry so command tools match on
-      // their command while other tools keep the whole-name behavior.
-      const inSessionRules = parseRules([...autoApproved]);
-      if (getRuleStrategy(toolName).matches(toolName, input, inSessionRules)) {
+      // allow_always approvals from this run, matched via the registry so command tools match on their
+      // command while other tools keep the whole-name behavior.
+      if (autoApproved.matches(toolName, input)) {
         return { behavior: "allow" as const, updatedInput: input, toolUseID: options.toolUseID };
       }
 
@@ -218,10 +217,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         // the call is still allowed once via the allow path below.
         const rules = getRuleStrategy(toolName).deriveRules(toolName, input);
         if (rules.length > 0) {
-          for (const rule of rules) {
-            autoApproved.add(rule);
-          }
-
+          autoApproved.add(rules);
           this.oobEventCallback({
             type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
             agentId: this.agentId,

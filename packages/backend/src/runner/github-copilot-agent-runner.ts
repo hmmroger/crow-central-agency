@@ -7,8 +7,8 @@ import {
   REASONING_EFFORT,
   SETTING_SOURCE,
   TOOL_MODE,
+  AutoApproveRuleSet,
   getRuleStrategy,
-  parseRules,
   resolveModel,
   type AgentCommand,
   type AgentConfig,
@@ -156,7 +156,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     const client = await this.getClient(cwd);
     const inProcessTools = this.buildInProcessTools(serverConfigs);
     const availableTools = this.buildAvailableTools(agentConfig.toolConfig);
-    const autoApproved = new Set(agentConfig.toolConfig.autoApprovedTools ?? []);
+    const autoApproved = new AutoApproveRuleSet(agentConfig.toolConfig.autoApprovedTools ?? []);
     const { agentMode, policy } = resolvePermissionMode(agentConfig.permissionMode);
     // replace mode drops the SDK's foundation prompt (and guardrails); append layers onto it.
     const systemMessage: SessionConfig["systemMessage"] = systemPrompt
@@ -547,21 +547,11 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     return this.drainInjectedMessages();
   }
 
-  /**
-   * Whether a tool call is auto-approved by the configured or in-session rules. Routes through the
-   * shared strategy registry: command tools (Bash/PowerShell) match on their decomposed command,
-   * every other tool keeps the whole-name / trailing-`*` / MCP-prefix behavior.
-   */
-  private isAutoApproved(toolName: string, input: Record<string, unknown>, autoApproved: Set<string>): boolean {
-    const rules = parseRules([...autoApproved]);
-    return getRuleStrategy(toolName).matches(toolName, input, rules);
-  }
-
   private async resolveExternalMcpToolPermission(
     toolName: string,
     toolArgs: unknown,
     serverConfigs: CrowMcpServerConfig[],
-    autoApproved: Set<string>,
+    autoApproved: AutoApproveRuleSet,
     policy: PermissionPolicy
   ): Promise<{ permissionDecision: "allow" | "deny"; permissionDecisionReason?: string } | undefined> {
     const isExternalMcpTool = serverConfigs.some(
@@ -572,7 +562,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     }
 
     const toolArgsRecord = toToolArgsRecord(toolArgs);
-    if (policy === "allow" || this.isAutoApproved(toolName, toolArgsRecord, autoApproved)) {
+    if (policy === "allow" || autoApproved.matches(toolName, toolArgsRecord)) {
       return { permissionDecision: "allow" };
     }
 
@@ -596,16 +586,17 @@ export class GithubCopilotAgentRunner extends AgentRunner {
    * `autoApproved` Set, which also holds the agent's configured rules. A read-only/unparseable command
    * derives none, so nothing is remembered.
    */
-  private rememberAutoApproval(toolName: string, input: Record<string, unknown>, autoApproved: Set<string>): void {
+  private rememberAutoApproval(
+    toolName: string,
+    input: Record<string, unknown>,
+    autoApproved: AutoApproveRuleSet
+  ): void {
     const rules = getRuleStrategy(toolName).deriveRules(toolName, input);
     if (rules.length === 0) {
       return;
     }
 
-    for (const rule of rules) {
-      autoApproved.add(rule);
-    }
-
+    autoApproved.add(rules);
     this.oobEventCallback({
       type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
       agentId: this.agentId,
@@ -624,7 +615,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     session: CopilotSession,
     event: Extract<SessionEvent, { type: "permission.requested" }>,
     toolCalls: Map<string, CopilotToolCall>,
-    autoApproved: Set<string>,
+    autoApproved: AutoApproveRuleSet,
     policy: PermissionPolicy
   ): Promise<void> {
     const { requestId, permissionRequest, resolvedByHook } = event.data;
@@ -641,7 +632,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         : permissionRequest.kind);
 
     let result: Exclude<PermissionRequestResult, { kind: "no-result" }>;
-    if (policy === "allow" || this.isAutoApproved(toolName, toolCall?.input ?? {}, autoApproved)) {
+    if (policy === "allow" || autoApproved.matches(toolName, toolCall?.input ?? {})) {
       result = { kind: "approve-once" };
     } else if (policy === "deny") {
       result = { kind: "reject", feedback: PERMISSION_USER_UNAVAILABLE_MESSAGE };
