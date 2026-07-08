@@ -37,17 +37,19 @@ export function getInvokeAgentToolConfig(
       return textToolResult(["Error: target agent not found"], true);
     }
 
-    // Only attribute sub-tasks when actively working on a task (TASK),
-    // not when handling a completed task's result notification (TASK_RESULT).
     const sourceAgentState = runtimeManager.getState(agentId);
-    const sourceTaskId =
-      sourceAgentState?.messageSource?.sourceType === MESSAGE_SOURCE_TYPE.TASK
-        ? sourceAgentState.messageSource.taskId
-        : undefined;
-    const sourceTask = sourceTaskId ? taskManager.getTask(sourceTaskId) : undefined;
+    const messageSource = sourceAgentState?.messageSource;
+    let parentTaskId: string | undefined;
+    if (messageSource?.sourceType === MESSAGE_SOURCE_TYPE.TASK) {
+      parentTaskId = messageSource.taskId;
+    } else if (messageSource?.sourceType === MESSAGE_SOURCE_TYPE.TASK_RESULT) {
+      parentTaskId = taskManager.getTask(messageSource.taskId)?.parentTaskId;
+    }
+
+    const parentTask = parentTaskId ? taskManager.getTask(parentTaskId) : undefined;
 
     try {
-      const result = await createTask(taskManager, sourceAgentConfig, targetAgentConfig, task, sourceTask?.id);
+      const result = await createTask(taskManager, sourceAgentConfig, targetAgentConfig, task, parentTask?.id);
       trace.getActiveSpan()?.addEvent("agent_invoke", {
         "source.agent_id": agentId,
         "source.agent_name": sourceAgentConfig.name,
