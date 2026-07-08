@@ -46,7 +46,6 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   selectedTools: [],
   autoApprovedTools: [],
   disallowedTools: [],
-  disallowedToolsEnabled: false,
   availableTools: [],
   mcpServerIds: [],
   sensorIds: [],
@@ -105,7 +104,6 @@ function formStateFromTemplate(template: AgentConfigTemplate): AgentEditorFormSt
     selectedTools: template.toolConfig.tools ?? [],
     autoApprovedTools: template.toolConfig.autoApprovedTools ?? [],
     disallowedTools: template.toolConfig.disallowedTools ?? [],
-    disallowedToolsEnabled: (template.toolConfig.disallowedTools ?? []).length > 0,
     availableTools: template.availableTools ?? [],
     mcpServerIds: template.mcpServerIds ?? [],
     sensorIds: template.sensorIds ?? [],
@@ -142,7 +140,6 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     selectedTools: agent.toolConfig.tools ?? [],
     autoApprovedTools: agent.toolConfig.autoApprovedTools ?? [],
     disallowedTools: agent.toolConfig.disallowedTools ?? [],
-    disallowedToolsEnabled: (agent.toolConfig.disallowedTools ?? []).length > 0,
     availableTools: agent.availableTools ?? [],
     mcpServerIds: agent.mcpServerIds ?? [],
     sensorIds: agent.sensorIds ?? [],
@@ -355,60 +352,10 @@ export function useAgentEditorForm(
     []
   );
 
-  const toggleAutoApproved = useCallback(
-    (tool: string) =>
-      setForm((prev) => ({
-        ...prev,
-        autoApprovedTools: prev.autoApprovedTools.includes(tool)
-          ? prev.autoApprovedTools.filter((approvedTool) => approvedTool !== tool)
-          : [...prev.autoApprovedTools, tool],
-      })),
-    []
-  );
-
-  const addCustomAutoApproved = useCallback(
-    (toolName: string) =>
-      setForm((prev) => {
-        if (!toolName || prev.autoApprovedTools.includes(toolName)) {
-          return prev;
-        }
-
-        return { ...prev, autoApprovedTools: [...prev.autoApprovedTools, toolName] };
-      }),
-    []
-  );
-
-  // Disallowed tools
-  const setDisallowedToolsEnabled = useCallback(
-    (enabled: boolean) =>
-      setForm((prev) => ({
-        ...prev,
-        disallowedToolsEnabled: enabled,
-        disallowedTools: enabled ? prev.disallowedTools : [],
-      })),
-    []
-  );
-
-  const toggleDisallowedTool = useCallback(
-    (tool: string) =>
-      setForm((prev) => ({
-        ...prev,
-        disallowedTools: prev.disallowedTools.includes(tool)
-          ? prev.disallowedTools.filter((disallowed) => disallowed !== tool)
-          : [...prev.disallowedTools, tool],
-      })),
-    []
-  );
-
-  const addCustomDisallowedTool = useCallback(
-    (toolName: string) =>
-      setForm((prev) => {
-        if (!toolName || prev.disallowedTools.includes(toolName)) {
-          return prev;
-        }
-
-        return { ...prev, disallowedTools: [...prev.disallowedTools, toolName] };
-      }),
+  /** Replace both permission arrays at once — used to commit the permissions dialog's result. */
+  const setPermissions = useCallback(
+    (autoApprovedTools: string[], disallowedTools: string[]) =>
+      setForm((prev) => ({ ...prev, autoApprovedTools, disallowedTools })),
     []
   );
 
@@ -581,11 +528,7 @@ export function useAgentEditorForm(
     setDisabledSkills,
     setToolMode,
     toggleTool,
-    toggleAutoApproved,
-    addCustomAutoApproved,
-    setDisallowedToolsEnabled,
-    toggleDisallowedTool,
-    addCustomDisallowedTool,
+    setPermissions,
     toggleMcpServer,
     toggleSensor,
     toggleFeed,

@@ -151,7 +151,7 @@ export interface AgentStreamToolUseProgressEvent extends AgentStreamEventCommon 
 
 export interface AgentStreamToolAutoApprovedEvent extends AgentStreamEventCommon {
   type: (typeof AGENT_STREAM_EVENT_TYPE)["TOOL_AUTO_APPROVED"];
-  toolName: string;
+  rules: string[];
 }
 
 export interface AgentStreamMessageDoneEvent extends AgentStreamEventCommon {

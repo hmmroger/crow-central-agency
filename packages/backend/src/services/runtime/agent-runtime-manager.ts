@@ -539,10 +539,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   }
 
   private handleToolAutoApproved(streamEvent: AgentStreamToolAutoApprovedEvent): void {
-    this.registry.addAutoApprovedTool(streamEvent.agentId, streamEvent.toolName).catch((error) => {
+    this.registry.addAutoApprovedTools(streamEvent.agentId, streamEvent.rules).catch((error) => {
       log.warn(
-        { agentId: streamEvent.agentId, toolName: streamEvent.toolName, error },
-        "Failed to persist auto-approved tool"
+        { agentId: streamEvent.agentId, rules: streamEvent.rules, error },
+        "Failed to persist auto-approved tools"
       );
     });
   }

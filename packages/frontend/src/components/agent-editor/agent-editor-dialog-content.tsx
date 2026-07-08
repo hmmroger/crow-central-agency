@@ -452,15 +452,10 @@ export function AgentEditorDialogContent({
               selectedTools={form.selectedTools}
               autoApprovedTools={form.autoApprovedTools}
               disallowedTools={form.disallowedTools}
-              disallowedToolsEnabled={form.disallowedToolsEnabled}
               availableTools={form.availableTools}
               onToolModeChange={editorForm.setToolMode}
               onToggleTool={editorForm.toggleTool}
-              onToggleAutoApproved={editorForm.toggleAutoApproved}
-              onAddCustomAutoApproved={editorForm.addCustomAutoApproved}
-              onDisallowedToolsEnabledChange={editorForm.setDisallowedToolsEnabled}
-              onToggleDisallowedTool={editorForm.toggleDisallowedTool}
-              onAddCustomDisallowedTool={editorForm.addCustomDisallowedTool}
+              onSetPermissions={editorForm.setPermissions}
             />
           </div>
 

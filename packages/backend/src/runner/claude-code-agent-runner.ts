@@ -11,6 +11,8 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_COMMAND,
+  AutoApproveRuleSet,
+  getRuleStrategy,
   MESSAGE_SOURCE_TYPE,
   modelSupportsAdaptiveThinking,
   resolveModel,
@@ -161,7 +163,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         ],
         tools: toolsOption,
         disallowedTools: agentConfig.toolConfig.disallowedTools,
-        canUseTool: this.buildCanUseTool(new Set(), sessionId ?? ""),
+        canUseTool: this.buildCanUseTool(new AutoApproveRuleSet(), sessionId ?? ""),
         settingSources: agentConfig.settingSources,
         mcpServers,
         persistSession,
@@ -193,9 +195,12 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
     this.query?.close();
   }
 
-  private buildCanUseTool(autoApproved: Set<string>, sessionId: string): CanUseTool {
+  private buildCanUseTool(autoApproved: AutoApproveRuleSet, sessionId: string): CanUseTool {
     return async (toolName, input, options) => {
-      if (autoApproved.has(toolName)) {
+      // The SDK matches configured rules natively via `allowedTools`; this in-session set holds only
+      // allow_always approvals from this run, matched via the registry so command tools match on their
+      // command while other tools keep the whole-name behavior.
+      if (autoApproved.matches(toolName, input)) {
         return { behavior: "allow" as const, updatedInput: input, toolUseID: options.toolUseID };
       }
 
@@ -208,13 +213,18 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
       );
 
       if (result.behavior === "allow_always") {
-        autoApproved.add(toolName);
-        this.oobEventCallback({
-          type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
-          agentId: this.agentId,
-          sessionId,
-          toolName,
-        });
+        // Derive granular rule(s) from the input; a read-only/unparseable command yields none, and
+        // the call is still allowed once via the allow path below.
+        const rules = getRuleStrategy(toolName).deriveRules(toolName, input);
+        if (rules.length > 0) {
+          autoApproved.add(rules);
+          this.oobEventCallback({
+            type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
+            agentId: this.agentId,
+            sessionId,
+            rules,
+          });
+        }
       }
 
       if (result.behavior === "allow" || result.behavior === "allow_always") {

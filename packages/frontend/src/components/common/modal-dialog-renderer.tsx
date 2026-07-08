@@ -17,6 +17,9 @@ import { cn } from "../../utils/cn";
 import type { ModalDialogConfig, ModalDialogHandle } from "../../providers/modal-dialog-provider.types";
 import { ModalDialogListNavContext } from "../../providers/modal-dialog-list-nav-provider";
 
+const MODAL_OVERLAY_ATTR = "data-modal-overlay";
+const MODAL_DEPTH_ATTR = "data-modal-depth";
+
 interface ModalDialogRendererProps {
   config: ModalDialogConfig;
   /** Position in the dialog stack (0-based), used for z-index layering */
@@ -70,10 +73,21 @@ export function ModalDialogRenderer({ config, stackDepth, nodeId, parentNodeId, 
   const dismiss = useDismiss(context, {
     outsidePressEvent: "mousedown",
     outsidePress: (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return true;
+      }
+
       // Ignore clicks inside nested floating elements (context menus, tooltips)
       // but allow clicks on the modal's own overlay backdrop to dismiss.
-      const target = event.target;
-      if (target instanceof Element && target.closest("[role='menu']")) {
+      if (target.closest("[role='menu']")) {
+        return false;
+      }
+
+      // A click on a deeper dialog's overlay must only dismiss that dialog, not
+      // the ones stacked beneath it. Mirrors floating-ui's tree-aware Escape.
+      const overlayDepth = target.closest(`[${MODAL_OVERLAY_ATTR}]`)?.getAttribute(MODAL_DEPTH_ATTR);
+      if (overlayDepth != null && Number(overlayDepth) > stackDepth) {
         return false;
       }
 
@@ -98,6 +112,7 @@ export function ModalDialogRenderer({ config, stackDepth, nodeId, parentNodeId, 
     <FloatingNode id={nodeId}>
       <FloatingOverlay
         lockScroll
+        {...{ [MODAL_OVERLAY_ATTR]: "", [MODAL_DEPTH_ATTR]: stackDepth }}
         style={{ zIndex: `calc(var(--z-modal-base) + ${stackDepth} * var(--z-modal-step))` }}
         className="bg-black/50 flex items-center justify-center backdrop-blur-sm"
       >

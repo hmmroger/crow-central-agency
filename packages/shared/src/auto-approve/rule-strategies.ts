@@ -1,0 +1,87 @@
+import { CLAUDE_CODE_TOOL } from "../schemas/agent.schema.js";
+import type { AutoApproveRuleStrategy, ParsedRule } from "./auto-approve-rule.types.js";
+import { deriveRules as deriveCommandRules, matchesRules as matchesCommandRules } from "./command-decomposition.js";
+import { formatRule, GLOB_STAR } from "./rule-format.js";
+
+/** Input field carrying the shell command for Bash/PowerShell tools. */
+const COMMAND_INPUT_KEY = "command";
+
+/**
+ * Command-scoped tools, compared case-insensitively to cover Claude (`Bash`, `PowerShell`) and
+ * GitHub Copilot (`bash`, `powershell`).
+ */
+const COMMAND_TOOL_BASE_NAMES = new Set([
+  CLAUDE_CODE_TOOL.BASH.toLowerCase(),
+  CLAUDE_CODE_TOOL.POWER_SHELL.toLowerCase(),
+]);
+
+/**
+ * Whole-tool matching, preserving the legacy `isToolAutoApproved` behavior: exact tool-name match,
+ * plus a trailing `*` (including a bare `*` and MCP prefixes like `mcp__crow-artifacts__*`) as a
+ * prefix match.
+ */
+function wholeToolMatches(toolName: string, rules: ParsedRule[]): boolean {
+  for (const rule of rules) {
+    if (rule.specifier !== undefined) {
+      continue;
+    }
+
+    const pattern = rule.tool;
+    if (pattern === toolName) {
+      return true;
+    }
+
+    if (pattern.endsWith(GLOB_STAR) && toolName.startsWith(pattern.slice(0, -GLOB_STAR.length))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function extractCommand(input: Record<string, unknown>): string | undefined {
+  const command = input[COMMAND_INPUT_KEY];
+  return typeof command === "string" ? command : undefined;
+}
+
+/** Default strategy: today's whole-tool behavior, used for any tool without a specialization. */
+export const defaultRuleStrategy: AutoApproveRuleStrategy = {
+  appliesTo: () => true,
+  deriveRules: (toolName) => [toolName],
+  matches: (toolName, _input, rules) => wholeToolMatches(toolName, rules),
+};
+
+/** Command strategy: Bash/PowerShell decomposition on top of the whole-tool behavior. */
+export const commandRuleStrategy: AutoApproveRuleStrategy = {
+  appliesTo: (toolName) => COMMAND_TOOL_BASE_NAMES.has(toolName.toLowerCase()),
+
+  deriveRules: (toolName, input) => {
+    const command = extractCommand(input);
+    if (command === undefined) {
+      return [];
+    }
+
+    return deriveCommandRules(command).map((specifier) => formatRule({ tool: toolName, specifier }));
+  },
+
+  matches: (toolName, input, rules) => {
+    if (wholeToolMatches(toolName, rules)) {
+      return true;
+    }
+
+    const command = extractCommand(input);
+    if (command === undefined) {
+      return false;
+    }
+
+    const targetTool = toolName.toLowerCase();
+    const specifiers: string[] = [];
+    for (const rule of rules) {
+      if (rule.specifier !== undefined && rule.tool.toLowerCase() === targetTool) {
+        specifiers.push(rule.specifier);
+      }
+    }
+
+    return matchesCommandRules(command, specifiers);
+  },
+};

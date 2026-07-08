@@ -7,6 +7,8 @@ import {
   REASONING_EFFORT,
   SETTING_SOURCE,
   TOOL_MODE,
+  AutoApproveRuleSet,
+  getRuleStrategy,
   resolveModel,
   type AgentCommand,
   type AgentConfig,
@@ -111,21 +113,6 @@ function userSkillDirectory(): string {
   return path.join(copilotHome, COPILOT_SKILLS_DIR_NAME);
 }
 
-/** Match a tool name against the auto-approve patterns, where a trailing `*` matches by prefix (`*` matches all). */
-function isToolAutoApproved(patterns: Set<string>, toolName: string): boolean {
-  if (patterns.has(toolName)) {
-    return true;
-  }
-
-  for (const pattern of patterns) {
-    if (pattern.endsWith("*") && toolName.startsWith(pattern.slice(0, -1))) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 /**
  * GitHub Copilot agent runner. Drives a `@github/copilot-sdk` session per turn and bridges its
  * push-based events into the base runner's pull-based AgentStreamEvent generator. Tool permissions
@@ -169,7 +156,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     const client = await this.getClient(cwd);
     const inProcessTools = this.buildInProcessTools(serverConfigs);
     const availableTools = this.buildAvailableTools(agentConfig.toolConfig);
-    const autoApproved = new Set(agentConfig.toolConfig.autoApprovedTools ?? []);
+    const autoApproved = new AutoApproveRuleSet(agentConfig.toolConfig.autoApprovedTools ?? []);
     const { agentMode, policy } = resolvePermissionMode(agentConfig.permissionMode);
     // replace mode drops the SDK's foundation prompt (and guardrails); append layers onto it.
     const systemMessage: SessionConfig["systemMessage"] = systemPrompt
@@ -564,7 +551,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     toolName: string,
     toolArgs: unknown,
     serverConfigs: CrowMcpServerConfig[],
-    autoApproved: Set<string>,
+    autoApproved: AutoApproveRuleSet,
     policy: PermissionPolicy
   ): Promise<{ permissionDecision: "allow" | "deny"; permissionDecisionReason?: string } | undefined> {
     const isExternalMcpTool = serverConfigs.some(
@@ -574,7 +561,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       return undefined;
     }
 
-    if (policy === "allow" || isToolAutoApproved(autoApproved, toolName)) {
+    const toolArgsRecord = toToolArgsRecord(toolArgs);
+    if (policy === "allow" || autoApproved.matches(toolName, toolArgsRecord)) {
       return { permissionDecision: "allow" };
     }
 
@@ -582,14 +570,9 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       return { permissionDecision: "deny", permissionDecisionReason: PERMISSION_USER_UNAVAILABLE_MESSAGE };
     }
 
-    const decision = await this.permissionRequestHandler(
-      this.agentId,
-      toolName,
-      toToolArgsRecord(toolArgs),
-      generateId()
-    );
+    const decision = await this.permissionRequestHandler(this.agentId, toolName, toolArgsRecord, generateId());
     if (decision.behavior === "allow_always") {
-      this.rememberAutoApproval(toolName, autoApproved);
+      this.rememberAutoApproval(toolName, toolArgsRecord, autoApproved);
     }
 
     return decision.behavior === "deny"
@@ -597,14 +580,28 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       : { permissionDecision: "allow" };
   }
 
-  /** Remember an "allow always" decision for this query and emit the event so the runtime persists it. */
-  private rememberAutoApproval(toolName: string, autoApproved: Set<string>): void {
-    autoApproved.add(toolName);
+  /**
+   * Remember an "allow always" decision for this query and emit the event so the runtime persists it.
+   * Only the rule(s) derived from this approval's input are added/emitted — never the whole
+   * `autoApproved` Set, which also holds the agent's configured rules. A read-only/unparseable command
+   * derives none, so nothing is remembered.
+   */
+  private rememberAutoApproval(
+    toolName: string,
+    input: Record<string, unknown>,
+    autoApproved: AutoApproveRuleSet
+  ): void {
+    const rules = getRuleStrategy(toolName).deriveRules(toolName, input);
+    if (rules.length === 0) {
+      return;
+    }
+
+    autoApproved.add(rules);
     this.oobEventCallback({
       type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
       agentId: this.agentId,
       sessionId: this.session?.sessionId ?? "",
-      toolName,
+      rules,
     });
   }
 
@@ -618,7 +615,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     session: CopilotSession,
     event: Extract<SessionEvent, { type: "permission.requested" }>,
     toolCalls: Map<string, CopilotToolCall>,
-    autoApproved: Set<string>,
+    autoApproved: AutoApproveRuleSet,
     policy: PermissionPolicy
   ): Promise<void> {
     const { requestId, permissionRequest, resolvedByHook } = event.data;
@@ -635,7 +632,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         : permissionRequest.kind);
 
     let result: Exclude<PermissionRequestResult, { kind: "no-result" }>;
-    if (policy === "allow" || isToolAutoApproved(autoApproved, toolName)) {
+    if (policy === "allow" || autoApproved.matches(toolName, toolCall?.input ?? {})) {
       result = { kind: "approve-once" };
     } else if (policy === "deny") {
       result = { kind: "reject", feedback: PERMISSION_USER_UNAVAILABLE_MESSAGE };
@@ -647,7 +644,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         toolCallId ?? generateId()
       );
       if (decision.behavior === "allow_always") {
-        this.rememberAutoApproval(toolName, autoApproved);
+        this.rememberAutoApproval(toolName, toolCall?.input ?? {}, autoApproved);
       }
 
       result =

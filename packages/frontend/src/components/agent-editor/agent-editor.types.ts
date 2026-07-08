@@ -35,7 +35,6 @@ export interface AgentEditorFormState {
   selectedTools: string[];
   autoApprovedTools: string[];
   disallowedTools: string[];
-  disallowedToolsEnabled: boolean;
   availableTools: string[];
   mcpServerIds: string[];
   sensorIds: string[];

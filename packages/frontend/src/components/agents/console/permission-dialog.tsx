@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { getRuleStrategy } from "@crow-central-agency/shared";
 import { formatJSONString } from "../../../utils/format-utils";
 
 interface PermissionDialogProps {
@@ -48,6 +49,11 @@ export function PermissionDialog({
   const inputPreview = useMemo(() => {
     return input && Object.keys(input).length > 0 ? formatJSONString(input) : undefined;
   }, [input]);
+
+  // Same shared derivation the backend persists on "Always allow", so the preview matches exactly.
+  const autoApproveRules = useMemo(() => {
+    return getRuleStrategy(toolName).deriveRules(toolName, input ?? {});
+  }, [toolName, input]);
 
   return (
     <div className="border border-warning/30 rounded-lg bg-surface-elevated p-3 space-y-2">
@@ -101,6 +107,20 @@ export function PermissionDialog({
           Respond
         </button>
       </div>
+
+      {/* Rules that "Always allow" will persist */}
+      {autoApproveRules.length > 0 && (
+        <div className="text-xs text-text-muted">
+          <span>Always allow will remember:</span>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {autoApproveRules.map((rule) => (
+              <code key={rule} className="font-mono text-text-neutral bg-surface-inset rounded px-1.5 py-0.5">
+                {rule}
+              </code>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Text response input */}
       {showTextInput && (
