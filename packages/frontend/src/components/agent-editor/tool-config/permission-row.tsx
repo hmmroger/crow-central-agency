@@ -5,6 +5,7 @@ import type { ToolDisposition } from "./tool-permission.js";
 
 interface PermissionRowProps {
   rule: string;
+  displayName: string;
   disposition: ToolDisposition;
   removable: boolean;
   onDispositionChange: (rule: string, disposition: ToolDisposition) => void;
@@ -12,7 +13,14 @@ interface PermissionRowProps {
 }
 
 /** A single permission rule with its Approve / Deny control; custom rows can be removed. */
-export function PermissionRow({ rule, disposition, removable, onDispositionChange, onRemove }: PermissionRowProps) {
+export function PermissionRow({
+  rule,
+  displayName,
+  disposition,
+  removable,
+  onDispositionChange,
+  onRemove,
+}: PermissionRowProps) {
   const handleDispositionChange = useCallback(
     (next: ToolDisposition) => onDispositionChange(rule, next),
     [onDispositionChange, rule]
@@ -22,7 +30,7 @@ export function PermissionRow({ rule, disposition, removable, onDispositionChang
 
   return (
     <div className="flex items-center justify-between gap-2">
-      <code className="font-mono text-xs text-text-neutral truncate">{rule}</code>
+      <code className="font-mono text-xs text-text-neutral truncate">{displayName}</code>
       <div className="flex items-center gap-1.5 shrink-0">
         <PermissionDispositionControl disposition={disposition} onDispositionChange={handleDispositionChange} />
         {removable && (
