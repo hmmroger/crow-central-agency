@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { ChevronRight } from "lucide-react";
-import { cn } from "../../utils/cn.js";
+import { cn } from "../../../utils/cn.js";
 import { PermissionRow } from "./permission-row.js";
 import { dispositionForRule, type ToolDisposition } from "./tool-permission.js";
 

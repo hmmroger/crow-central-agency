@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from "react";
 import { DEFAULT_AVAILABLE_TOOLS_BY_TYPE, TOOL_MODE, type AgentType, type ToolMode } from "@crow-central-agency/shared";
-import { ActionButton } from "../common/action-button.js";
-import { useOpenPermissionsDialog } from "../../hooks/dialogs/use-open-permissions-dialog.js";
-import { FieldGroup } from "./field-group.js";
+import { ActionButton } from "../../common/action-button.js";
+import { useOpenPermissionsDialog } from "../../../hooks/dialogs/use-open-permissions-dialog.js";
+import { FieldGroup } from "../field-group.js";
 import { ToggleButton } from "./toggle-button.js";
 import { ChipButton } from "./chip-button.js";
 import { BUILTIN_TOOL_SET_BY_TYPE } from "./tool-constants.js";

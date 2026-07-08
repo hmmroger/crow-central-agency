@@ -34,7 +34,7 @@ import { SystemPromptSection } from "./system-prompt-section.js";
 import { PermissionModeSection } from "./permission-mode-section.js";
 import { SettingSourcesSection } from "./setting-sources-section.js";
 import { SettingSourceConfigSection } from "./setting-source-config-section.js";
-import { ToolConfigSection } from "./tool-config-section.js";
+import { ToolConfigSection } from "./tool-config/tool-config-section.js";
 import { McpServersSection } from "./mcp-servers-section.js";
 import { GmailNotificationSection } from "./gmail-notification-section.js";
 import { SensorsSection } from "./sensors-section.js";

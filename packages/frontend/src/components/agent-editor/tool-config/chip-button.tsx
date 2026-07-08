@@ -1,4 +1,4 @@
-import { cn } from "../../utils/cn.js";
+import { cn } from "../../../utils/cn.js";
 
 interface ChipButtonProps {
   label: string;

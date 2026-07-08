@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { formatRule, parseRule } from "@crow-central-agency/shared";
-import { ActionButton, ACTION_BUTTON_VARIANT } from "../common/action-button.js";
+import { ActionButton, ACTION_BUTTON_VARIANT } from "../../common/action-button.js";
 import { PermissionList } from "./permission-list.js";
 import { addCustomPermission, applyPermission, type ToolDisposition, type ToolPermissions } from "./tool-permission.js";
 
