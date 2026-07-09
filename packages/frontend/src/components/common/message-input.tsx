@@ -94,6 +94,7 @@ export function MessageInput({
     }
 
     onChange("");
+    clearedStashRef.current = "";
     resetHistoryNavigation();
   }, [value, isStreaming, onSend, onInject, onChange, resetHistoryNavigation]);
 
