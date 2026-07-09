@@ -5,6 +5,7 @@ import { apiClient, unwrapResponse } from "../services/api-client.js";
 import { agentKeys } from "../services/query-keys.js";
 import { useWs } from "../hooks/use-ws.js";
 import { WS_STATE } from "../services/ws-client.types.js";
+import { useComposeDraftStore } from "../stores/compose-draft-store.js";
 import type { ApiError } from "../services/api-client.types.js";
 import type { AgentsContextValue } from "./agents-provider.types.js";
 
@@ -88,11 +89,28 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
 
           return prev.filter((agent) => agent.id !== agentId);
         });
+
+        // Drop the deleted agent's compose draft. getState() keeps this out of the effect deps.
+        useComposeDraftStore.getState().clearDraft(agentId);
       }
     });
 
     return unregister;
   }, [onMessage, queryClient]);
+
+  // Prune orphaned compose drafts once the agents list is first populated,
+  // dropping persisted drafts for agents that no longer exist. Guarded on a
+  // non-empty list so it never runs while agents are still loading.
+  const pruneDrafts = useComposeDraftStore((state) => state.pruneDrafts);
+  const hasPrunedDraftsRef = useRef(false);
+  useEffect(() => {
+    if (hasPrunedDraftsRef.current || agents.length === 0) {
+      return;
+    }
+
+    hasPrunedDraftsRef.current = true;
+    pruneDrafts(agents.map((agent) => agent.id));
+  }, [agents, pruneDrafts]);
 
   // Refetch on WS reconnect to backfill any events missed during the outage.
   const previousStateRef = useRef(connectionState);

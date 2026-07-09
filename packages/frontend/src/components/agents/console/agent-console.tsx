@@ -4,6 +4,7 @@ import { useAgentMessagesQuery } from "../../../hooks/queries/use-agent-messages
 import { useAgentStateQuery } from "../../../hooks/queries/use-agent-state-query.js";
 import { useAgentStreamState } from "../../../hooks/queries/use-agent-stream-state.js";
 import { useAgentActions } from "../../../hooks/queries/use-agent-actions.js";
+import { useComposeDraft } from "../../../stores/compose-draft-store.js";
 import { MessageList } from "./message-list.js";
 import { MessageInput } from "../../common/message-input.js";
 import { PermissionQueue } from "./permission-queue.js";
@@ -32,6 +33,7 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
     }
   );
   const isStreaming = status === AGENT_STATUS.STREAMING;
+  const { draft, setDraft } = useComposeDraft(agentId);
 
   if (isLoading || !agent) {
     return (
@@ -63,6 +65,8 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
         </div>
 
         <MessageInput
+          value={draft}
+          onChange={setDraft}
           onSend={sendMessage}
           onInject={injectMessage}
           onAbort={abort}

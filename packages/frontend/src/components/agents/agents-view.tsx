@@ -100,7 +100,7 @@ export function AgentsView() {
       {/* Console panel - shows selected agent or empty state */}
       <div className="flex-1 min-w-0">
         {selectedAgentId ? (
-          <AgentConsole agentId={selectedAgentId} />
+          <AgentConsole key={selectedAgentId} agentId={selectedAgentId} />
         ) : (
           <div className="h-full flex items-center justify-center text-text-muted text-sm">Select an agent</div>
         )}
