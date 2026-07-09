@@ -54,7 +54,7 @@ export const SERVER_MESSAGE_TYPE = {
 export type ServerMessageType = (typeof SERVER_MESSAGE_TYPE)[keyof typeof SERVER_MESSAGE_TYPE];
 
 export const SendMessageSchema = z.object({
-  type: z.literal("send_message"),
+  type: z.literal(CLIENT_MESSAGE_TYPE.SEND_MESSAGE),
   agentId: z.string(),
   message: z.string(),
 });
@@ -66,7 +66,7 @@ export const InjectMessageSchema = z.object({
 });
 
 export const PermissionResponseWsSchema = z.object({
-  type: z.literal("permission_response"),
+  type: z.literal(CLIENT_MESSAGE_TYPE.PERMISSION_RESPONSE),
   agentId: z.string(),
   toolUseId: z.string(),
   decision: z.enum([PERMISSION_DECISION.ALLOW, PERMISSION_DECISION.DENY, PERMISSION_DECISION.ALLOW_ALWAYS]),
@@ -94,19 +94,19 @@ export type PermissionResponseWs = z.infer<typeof PermissionResponseWsSchema>;
 export type CommandMessage = z.infer<typeof CommandMessageSchema>;
 
 export const AgentTextWsMessageSchema = z.object({
-  type: z.literal("agent_text"),
+  type: z.literal(SERVER_MESSAGE_TYPE.AGENT_TEXT),
   agentId: z.string(),
   text: z.string(),
 });
 
 export const AgentActivityWsMessageSchema = z.object({
-  type: z.literal("agent_activity"),
+  type: z.literal(SERVER_MESSAGE_TYPE.AGENT_ACTIVITY),
   agentId: z.string(),
   agentActivity: AgentActivitySchema,
 });
 
 export const AgentResultWsMessageSchema = z.object({
-  type: z.literal("agent_result"),
+  type: z.literal(SERVER_MESSAGE_TYPE.AGENT_RESULT),
   agentId: z.string(),
   subtype: z.string(),
   totalCostUsd: z.number().optional(),
@@ -114,7 +114,7 @@ export const AgentResultWsMessageSchema = z.object({
 });
 
 export const AgentStatusWsMessageSchema = z.object({
-  type: z.literal("agent_status"),
+  type: z.literal(SERVER_MESSAGE_TYPE.AGENT_STATUS),
   agentId: z.string(),
   status: z.enum([AGENT_STATUS.IDLE, AGENT_STATUS.ACTIVATING, AGENT_STATUS.STREAMING, AGENT_STATUS.COMPACTING]),
   messageSource: MessageSourceSchema.optional(),
@@ -138,7 +138,7 @@ export const AgentDeletedWsMessageSchema = z.object({
 });
 
 export const AgentUsageWsMessageSchema = z.object({
-  type: z.literal("agent_usage"),
+  type: z.literal(SERVER_MESSAGE_TYPE.AGENT_USAGE),
   agentId: z.string(),
   inputTokens: z.number(),
   outputTokens: z.number(),
@@ -148,7 +148,7 @@ export const AgentUsageWsMessageSchema = z.object({
 });
 
 export const PermissionRequestWsMessageSchema = z.object({
-  type: z.literal("permission_request"),
+  type: z.literal(SERVER_MESSAGE_TYPE.PERMISSION_REQUEST),
   agentId: z.string(),
   toolUseId: z.string(),
   toolName: z.string(),
@@ -157,26 +157,26 @@ export const PermissionRequestWsMessageSchema = z.object({
 });
 
 export const PermissionCancelledWsMessageSchema = z.object({
-  type: z.literal("permission_cancelled"),
+  type: z.literal(SERVER_MESSAGE_TYPE.PERMISSION_CANCELLED),
   agentId: z.string(),
   toolUseId: z.string(),
 });
 
 export const ErrorWsMessageSchema = z.object({
-  type: z.literal("error"),
+  type: z.literal(SERVER_MESSAGE_TYPE.ERROR),
   agentId: z.string().optional(),
   code: z.string(),
   message: z.string(),
 });
 
 export const AgentMessageWsMessageSchema = z.object({
-  type: z.literal("agent_message"),
+  type: z.literal(SERVER_MESSAGE_TYPE.AGENT_MESSAGE),
   agentId: z.string(),
   message: AgentMessageSchema,
 });
 
 export const AgentToolProgressWsMessageSchema = z.object({
-  type: z.literal("agent_tool_progress"),
+  type: z.literal(SERVER_MESSAGE_TYPE.AGENT_TOOL_PROGRESS),
   agentId: z.string(),
   toolName: z.string(),
   elapsedTimeSeconds: z.number(),
@@ -298,4 +298,24 @@ export type AgentServerMessage = Extract<ServerMessage, { agentId: string }>;
 
 export function isAgentServerMessage(message: ServerMessage): message is AgentServerMessage {
   return "agentId" in message && typeof message.agentId === "string";
+}
+
+export type AgentLifecycleServerMessage = Extract<
+  AgentServerMessage,
+  {
+    type:
+      | typeof SERVER_MESSAGE_TYPE.AGENT_CREATED
+      | typeof SERVER_MESSAGE_TYPE.AGENT_UPDATED
+      | typeof SERVER_MESSAGE_TYPE.AGENT_DELETED;
+  }
+>;
+
+const AGENT_LIFECYCLE_MESSAGE_TYPES: ReadonlySet<ServerMessageType> = new Set([
+  SERVER_MESSAGE_TYPE.AGENT_CREATED,
+  SERVER_MESSAGE_TYPE.AGENT_UPDATED,
+  SERVER_MESSAGE_TYPE.AGENT_DELETED,
+]);
+
+export function isAgentLifecycleServerMessage(message: ServerMessage): message is AgentLifecycleServerMessage {
+  return AGENT_LIFECYCLE_MESSAGE_TYPES.has(message.type);
 }
