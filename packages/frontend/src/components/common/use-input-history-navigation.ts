@@ -14,6 +14,8 @@ interface InputHistoryNavigation {
   handleArrowKey: (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => void;
   /** Exit recall so the next Up starts from the live draft again. */
   reset: () => void;
+  /** Cancel recall, restoring the live draft. Returns false when not in recall. */
+  exitRecall: () => boolean;
 }
 
 /** Caret sits on the first visual line when no newline precedes it. */
@@ -51,6 +53,16 @@ export function useInputHistoryNavigation({
   const reset = useCallback(() => {
     indexRef.current = undefined;
   }, []);
+
+  const exitRecall = useCallback(() => {
+    if (indexRef.current === undefined) {
+      return false;
+    }
+
+    indexRef.current = undefined;
+    setText(draftRef.current);
+    return true;
+  }, [setText]);
 
   const handleArrowKey = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
@@ -105,5 +117,5 @@ export function useInputHistoryNavigation({
     [history, setText, multiline]
   );
 
-  return { handleArrowKey, reset };
+  return { handleArrowKey, reset, exitRecall };
 }

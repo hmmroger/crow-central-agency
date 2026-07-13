@@ -4,6 +4,7 @@ import { useAgentMessagesQuery } from "../../../hooks/queries/use-agent-messages
 import { useAgentStateQuery } from "../../../hooks/queries/use-agent-state-query.js";
 import { useAgentStreamState } from "../../../hooks/queries/use-agent-stream-state.js";
 import { useAgentActions } from "../../../hooks/queries/use-agent-actions.js";
+import { useComposeDraft } from "../../../stores/compose-draft-store.js";
 import { AgentCardHeader } from "./agent-card-header.js";
 import { AgentCardMessages } from "./agent-card-messages.js";
 import { MessageInput } from "../../common/message-input.js";
@@ -33,6 +34,7 @@ export function AgentCard({ agent }: AgentCardProps) {
     }
   );
   const isStreaming = status === AGENT_STATUS.STREAMING;
+  const { draft, setDraft } = useComposeDraft(agent.id);
 
   return (
     <div
@@ -69,6 +71,8 @@ export function AgentCard({ agent }: AgentCardProps) {
 
       <div className="shrink-0 border-t border-border-subtle px-2.5 py-2">
         <MessageInput
+          value={draft}
+          onChange={setDraft}
           onSend={sendMessage}
           onInject={injectMessage}
           onAbort={abort}

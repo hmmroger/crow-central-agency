@@ -1,14 +1,94 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { SERVER_MESSAGE_TYPE, type AgentConfig } from "@crow-central-agency/shared";
+import { isAgentLifecycleServerMessage, SERVER_MESSAGE_TYPE, type AgentConfig } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../services/api-client.js";
 import { agentKeys } from "../services/query-keys.js";
 import { useWs } from "../hooks/use-ws.js";
 import { WS_STATE } from "../services/ws-client.types.js";
+import { useComposeDraftStore } from "../stores/compose-draft-store.js";
 import type { ApiError } from "../services/api-client.types.js";
 import type { AgentsContextValue } from "./agents-provider.types.js";
 
 const AgentsContext = createContext<AgentsContextValue | undefined>(undefined);
+
+function usePruneDrafts(agents: AgentConfig[]) {
+  const pruneDrafts = useComposeDraftStore((state) => state.pruneDrafts);
+  const hasPrunedDraftsRef = useRef(false);
+  useEffect(() => {
+    if (hasPrunedDraftsRef.current || agents.length === 0) {
+      return;
+    }
+
+    hasPrunedDraftsRef.current = true;
+    pruneDrafts(agents.map((agent) => agent.id));
+  }, [agents, pruneDrafts]);
+}
+
+function useUpdateAgentsQueryData() {
+  const queryClient = useQueryClient();
+  const { onMessage } = useWs();
+
+  // WS listener — apply create/update/delete directly to the cache.
+  // TODO: consider doing away with mutation invalidate and centralize update here.
+  useEffect(() => {
+    const unregister = onMessage((message) => {
+      if (!isAgentLifecycleServerMessage(message)) {
+        return;
+      }
+
+      switch (message.type) {
+        case SERVER_MESSAGE_TYPE.AGENT_UPDATED: {
+          const { agentId, config } = message;
+          queryClient.setQueryData<AgentConfig[]>(agentKeys.list(), (prev) => {
+            if (!prev) {
+              return [config];
+            }
+
+            const index = prev.findIndex((agent) => agent.id === agentId);
+            if (index >= 0) {
+              const next = [...prev];
+              next[index] = config;
+              return next;
+            }
+
+            return [...prev, config];
+          });
+          break;
+        }
+
+        case SERVER_MESSAGE_TYPE.AGENT_CREATED: {
+          const { config } = message;
+          queryClient.setQueryData<AgentConfig[]>(agentKeys.list(), (prev) => {
+            if (!prev) {
+              return [config];
+            }
+
+            if (prev.some((agent) => agent.id === config.id)) {
+              return prev;
+            }
+
+            return [...prev, config];
+          });
+          break;
+        }
+
+        case SERVER_MESSAGE_TYPE.AGENT_DELETED: {
+          const { agentId } = message;
+          queryClient.setQueryData<AgentConfig[]>(agentKeys.list(), (prev) => {
+            if (!prev) {
+              return [];
+            }
+
+            return prev.filter((agent) => agent.id !== agentId);
+          });
+          break;
+        }
+      }
+    });
+
+    return unregister;
+  }, [onMessage, queryClient]);
+}
 
 /**
  * Global agents data provider.
@@ -19,8 +99,7 @@ const AgentsContext = createContext<AgentsContextValue | undefined>(undefined);
  * events missed during the outage.
  */
 export function AgentsProvider({ children }: { children: React.ReactNode }) {
-  const queryClient = useQueryClient();
-  const { onMessage, connectionState } = useWs();
+  const { connectionState } = useWs();
 
   const {
     data: agents = [],
@@ -38,61 +117,8 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
     refetchOnMount: "always",
   });
 
-  // WS listener — apply create/update/delete directly to the cache.
-  // TODO: consider doing away with mutation invalidate and centralize update here.
-  useEffect(() => {
-    const unregister = onMessage((message) => {
-      if (message.type === SERVER_MESSAGE_TYPE.AGENT_UPDATED) {
-        const { agentId, config } = message;
-        queryClient.setQueryData<AgentConfig[]>(agentKeys.list(), (prev) => {
-          if (!prev) {
-            return [config];
-          }
-
-          const index = prev.findIndex((agent) => agent.id === agentId);
-          if (index >= 0) {
-            const next = [...prev];
-            next[index] = config;
-            return next;
-          }
-
-          return [...prev, config];
-        });
-
-        return;
-      }
-
-      if (message.type === SERVER_MESSAGE_TYPE.AGENT_CREATED) {
-        const { config } = message;
-        queryClient.setQueryData<AgentConfig[]>(agentKeys.list(), (prev) => {
-          if (!prev) {
-            return [config];
-          }
-
-          if (prev.some((agent) => agent.id === config.id)) {
-            return prev;
-          }
-
-          return [...prev, config];
-        });
-
-        return;
-      }
-
-      if (message.type === SERVER_MESSAGE_TYPE.AGENT_DELETED) {
-        const { agentId } = message;
-        queryClient.setQueryData<AgentConfig[]>(agentKeys.list(), (prev) => {
-          if (!prev) {
-            return [];
-          }
-
-          return prev.filter((agent) => agent.id !== agentId);
-        });
-      }
-    });
-
-    return unregister;
-  }, [onMessage, queryClient]);
+  useUpdateAgentsQueryData();
+  usePruneDrafts(agents);
 
   // Refetch on WS reconnect to backfill any events missed during the outage.
   const previousStateRef = useRef(connectionState);

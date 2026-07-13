@@ -1,8 +1,12 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { Send, Square } from "lucide-react";
 import { useInputHistoryNavigation } from "./use-input-history-navigation.js";
 
 interface MessageInputProps {
+  /** Current compose text (controlled by the parent, sourced from the draft store) */
+  value: string;
+  /** Called whenever the compose text changes (typing, recall, submit clear, Esc) */
+  onChange: (text: string) => void;
   /** Called with trimmed text when user submits while not streaming */
   onSend: (text: string) => void;
   /** Called with trimmed text when user submits during streaming (inject) */
@@ -28,6 +32,8 @@ interface MessageInputProps {
  * Used by both the full agent console and the dashboard agent card.
  */
 export function MessageInput({
+  value,
+  onChange,
   onSend,
   onInject,
   onAbort,
@@ -36,11 +42,17 @@ export function MessageInput({
   history = [],
   variant = "full",
 }: MessageInputProps) {
-  const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { handleArrowKey, reset: resetHistoryNavigation } = useInputHistoryNavigation({
+  // Holds the text wiped by an Esc-clear so a follow-up Esc can restore it (one-level undo).
+  // Component-local and non-persisted: an immediate in-session affordance only.
+  const clearedStashRef = useRef<string>("");
+  const {
+    handleArrowKey,
+    reset: resetHistoryNavigation,
+    exitRecall,
+  } = useInputHistoryNavigation({
     history,
-    setText,
+    setText: onChange,
     multiline: variant === "full",
   });
 
@@ -58,18 +70,18 @@ export function MessageInput({
   // No-op for the compact variant, whose input never attaches textareaRef.
   useLayoutEffect(() => {
     autoResize();
-  }, [text, autoResize]);
+  }, [value, autoResize]);
 
   const handleChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
-      setText(event.target.value);
+      onChange(event.target.value);
       resetHistoryNavigation();
     },
-    [resetHistoryNavigation]
+    [onChange, resetHistoryNavigation]
   );
 
   const handleSubmit = useCallback(() => {
-    const trimmed = text.trim();
+    const trimmed = value.trim();
 
     if (!trimmed) {
       return;
@@ -81,9 +93,30 @@ export function MessageInput({
       onSend(trimmed);
     }
 
-    setText("");
+    onChange("");
+    clearedStashRef.current = "";
     resetHistoryNavigation();
-  }, [text, isStreaming, onSend, onInject, resetHistoryNavigation]);
+  }, [value, isStreaming, onSend, onInject, onChange, resetHistoryNavigation]);
+
+  const handleEscape = useCallback(() => {
+    // 1. In history recall → cancel recall, restore the live draft.
+    if (exitRecall()) {
+      return;
+    }
+
+    // 2. Non-empty live draft → clear the whole input, stashing the cleared text.
+    if (value) {
+      clearedStashRef.current = value;
+      onChange("");
+      return;
+    }
+
+    // 3. Empty input with a stash → restore it (one-level undo).
+    if (clearedStashRef.current) {
+      onChange(clearedStashRef.current);
+      clearedStashRef.current = "";
+    }
+  }, [exitRecall, value, onChange]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
@@ -93,11 +126,17 @@ export function MessageInput({
         return;
       }
 
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleEscape();
+        return;
+      }
+
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
         handleArrowKey(event);
       }
     },
-    [handleSubmit, handleArrowKey]
+    [handleSubmit, handleEscape, handleArrowKey]
   );
 
   const placeholder = isStreaming ? "Inject a message..." : "Send a message...";
@@ -116,7 +155,7 @@ export function MessageInput({
       type="button"
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/20 text-primary text-xs font-medium hover:bg-primary/30 transition-colors disabled:opacity-30"
       onClick={handleSubmit}
-      disabled={disabled || !text.trim()}
+      disabled={disabled || !value.trim()}
     >
       <Send className="h-3 w-3" />
       Send
@@ -128,7 +167,7 @@ export function MessageInput({
       <div className="flex gap-2">
         <input
           type="text"
-          value={text}
+          value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
@@ -145,7 +184,7 @@ export function MessageInput({
       <div className="max-w-3xl mx-auto flex gap-2 items-center bg-surface/70 backdrop-blur-md border border-border-subtle rounded-lg px-2 py-1.5 focus-within:border-border-focus">
         <textarea
           ref={textareaRef}
-          value={text}
+          value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
@@ -156,7 +195,7 @@ export function MessageInput({
         {action}
       </div>
       <p className="max-w-3xl mx-auto text-2xs text-text-muted/60 mt-1.5 text-center font-mono">
-        Enter to send &middot; Shift+Enter for new line &middot; Up/Down to recall
+        Enter to send &middot; Shift+Enter for new line &middot; Up/Down to recall &middot; Esc to clear
       </p>
     </div>
   );
