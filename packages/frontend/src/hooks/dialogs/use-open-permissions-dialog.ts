@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useModalDialog } from "../../providers/modal-dialog-provider.js";
-import { PermissionsDialog } from "../../components/agent-editor/permissions-dialog.js";
+import { PermissionsDialog } from "../../components/agent-editor/tool-config/permissions-dialog.js";
 
 const PERMISSIONS_DIALOG_ID = "permissions-editor";
 
@@ -21,7 +21,7 @@ export function useOpenPermissionsDialog() {
         component: PermissionsDialog,
         componentProps: { effectiveTools, autoApprovedTools, disallowedTools, onSave },
         title: "Permissions",
-        className: "w-[95vw] md:w-lg",
+        className: "w-[95vw] md:w-xl",
       });
     },
     [showDialog]

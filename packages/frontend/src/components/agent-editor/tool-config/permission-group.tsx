@@ -1,14 +1,14 @@
 import { useCallback } from "react";
 import { ChevronRight } from "lucide-react";
-import { cn } from "../../utils/cn.js";
+import { cn } from "../../../utils/cn.js";
 import { PermissionRow } from "./permission-row.js";
+import type { PermissionRuleEntry } from "./permission-grouping.js";
 import { dispositionForRule, type ToolDisposition } from "./tool-permission.js";
 
 interface PermissionGroupProps {
   groupKey: string;
   label: string;
-  rules: string[];
-  removable: boolean;
+  entries: PermissionRuleEntry[];
   collapsed: boolean;
   autoApprovedTools: string[];
   disallowedTools: string[];
@@ -21,8 +21,7 @@ interface PermissionGroupProps {
 export function PermissionGroup({
   groupKey,
   label,
-  rules,
-  removable,
+  entries,
   collapsed,
   autoApprovedTools,
   disallowedTools,
@@ -46,17 +45,18 @@ export function PermissionGroup({
         <span className="text-3xs font-medium uppercase tracking-widest text-text-muted group-hover:text-text-neutral transition-colors">
           {label}
         </span>
-        <span className="text-3xs text-text-muted/60">{rules.length}</span>
+        <span className="text-3xs text-text-muted/60">{entries.length}</span>
       </button>
 
       {!collapsed && (
         <div className="space-y-1.5 pl-4">
-          {rules.map((rule) => (
+          {entries.map((entry) => (
             <PermissionRow
-              key={rule}
-              rule={rule}
-              disposition={dispositionForRule(rule, autoApprovedTools, disallowedTools)}
-              removable={removable}
+              key={entry.rule}
+              rule={entry.rule}
+              displayName={entry.displayName}
+              disposition={dispositionForRule(entry.rule, autoApprovedTools, disallowedTools)}
+              removable={entry.removable}
               onDispositionChange={onSetToolPermission}
               onRemove={onRemove}
             />

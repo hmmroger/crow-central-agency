@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { cn } from "../../utils/cn.js";
+import { cn } from "../../../utils/cn.js";
 import { TOOL_DISPOSITION, type ToolDisposition } from "./tool-permission.js";
 
 interface PermissionDispositionControlProps {

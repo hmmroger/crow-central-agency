@@ -21,7 +21,7 @@ import {
   type ToolMode,
 } from "@crow-central-agency/shared";
 import type { AgentDetailData, AgentEditorFormState } from "./agent-editor.types.js";
-import { BUILTIN_TOOL_SET_BY_TYPE } from "./tool-constants.js";
+import { BUILTIN_TOOL_SET_BY_TYPE } from "./tool-config/tool-constants.js";
 import { arraysEqual } from "../../utils/array-utils.js";
 
 /** Default form state for a new agent */

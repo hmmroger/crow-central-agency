@@ -61,11 +61,11 @@ export function PermissionList({
   return (
     <div className="space-y-3">
       {groups.map((group) => {
-        const visibleRules = hasFilter
-          ? group.rules.filter((rule) => rule.toLowerCase().includes(normalizedFilter))
-          : group.rules;
+        const visibleEntries = hasFilter
+          ? group.entries.filter((entry) => entry.rule.toLowerCase().includes(normalizedFilter))
+          : group.entries;
 
-        if (visibleRules.length === 0) {
+        if (visibleEntries.length === 0) {
           return undefined;
         }
 
@@ -74,8 +74,7 @@ export function PermissionList({
             key={group.key}
             groupKey={group.key}
             label={group.label}
-            rules={visibleRules}
-            removable={group.removable}
+            entries={visibleEntries}
             collapsed={collapsedGroups.has(group.key) && !hasFilter}
             autoApprovedTools={autoApprovedTools}
             disallowedTools={disallowedTools}
