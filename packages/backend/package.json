@@ -34,7 +34,7 @@
     "dompurify": "^3.4.11",
     "dotenv": "^17.3.1",
     "es-toolkit": "^1.49.0",
-    "fast-xml-parser": "^5.8.0",
+    "fast-xml-parser": "^5.10.0",
     "fastify": "^5.8.5",
     "jsdom": "^29.1.1",
     "mammoth": "^1.12.0",
