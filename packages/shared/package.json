@@ -1,6 +1,6 @@
 {
   "name": "@crow-central-agency/shared",
-  "version": "0.26.14",
+  "version": "0.26.15",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
