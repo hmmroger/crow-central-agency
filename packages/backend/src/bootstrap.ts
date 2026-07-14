@@ -50,6 +50,7 @@ import { SensorManager } from "./sensors/sensor-manager.js";
 import { GeoLocationSensor } from "./sensors/geolocation-sensor.js";
 import { WeatherSensor } from "./sensors/weather-sensor.js";
 import { AgentCircleManager } from "./services/agent-circle-manager.js";
+import { RelationshipManager } from "./services/relationship-manager.js";
 import { registerCircleRoutes } from "./routes/circle.routes.js";
 import { registerGraphRoutes } from "./routes/graph.routes.js";
 import { DiscordBotManager } from "./bot-connectors/discord/discord-bot-manager.js";
@@ -89,7 +90,9 @@ export async function bootstrap(options: BootstrapOptions) {
   const folderFileProvider = new FolderFileStoreProvider(env.CROW_SYSTEM_PATH);
   const storeProvider = new FileObjectStoreProvider(env.CROW_SYSTEM_PATH);
   const systemSettingsManager = new SystemSettingsManager(storeProvider);
-  const circleManager = new AgentCircleManager(storeProvider, broadcaster);
+  const relationshipManager = new RelationshipManager(storeProvider);
+  await relationshipManager.initialize();
+  const circleManager = new AgentCircleManager(storeProvider, relationshipManager, broadcaster);
   await circleManager.initialize();
   const registry = new AgentRegistry(storeProvider, folderFileProvider, broadcaster, circleManager);
   await registry.initialize();
