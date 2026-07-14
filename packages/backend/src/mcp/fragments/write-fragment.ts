@@ -2,8 +2,10 @@ import { z } from "zod";
 import { ENTITY_TYPE, FRAGMENT_MAX_WORDS, FragmentKindSchema } from "@crow-central-agency/shared";
 import type { FragmentManager } from "../../services/fragment/fragment-manager.js";
 import type { FragmentParent } from "../../services/fragment/fragment-manager.types.js";
+import type { AgentRuntimeManager } from "../../services/runtime/agent-runtime-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
+import { signalActiveDomain } from "./active-domain-signal.js";
 
 export const WRITE_FRAGMENT_TOOL_NAME = "write_fragment";
 
@@ -14,7 +16,11 @@ export function toFragmentParent(agentId: string, parent: string): FragmentParen
     : { entityType: ENTITY_TYPE.FRAGMENT, entityId: parent };
 }
 
-export function getWriteFragmentToolConfig(agentId: string, fragmentManager: FragmentManager) {
+export function getWriteFragmentToolConfig(
+  agentId: string,
+  fragmentManager: FragmentManager,
+  runtimeManager: AgentRuntimeManager
+) {
   const inputSchema = {
     kind: FragmentKindSchema.describe(
       "FEEDBACK: a piece of user feedback. LESSON: a lesson from your own work outcomes. DOMAIN: an area you work in that other fragments organize under. KNOWLEDGE: a specific fact, a leaf under a DOMAIN."
@@ -37,6 +43,8 @@ export function getWriteFragmentToolConfig(agentId: string, fragmentManager: Fra
         body,
         parent: toFragmentParent(agentId, parent),
       });
+
+      await signalActiveDomain(agentId, fragment.id, fragmentManager, runtimeManager);
 
       return textToolResult([`Fragment created: ${fragment.id} (${fragment.kind})`]);
     } catch (error) {

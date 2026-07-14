@@ -180,7 +180,7 @@ export async function bootstrap(options: BootstrapOptions) {
   mcpManager.registerMcpServer(
     getArtifactsMcpServerDefinition(artifactManager, registry, circleManager, sensorManager)
   );
-  mcpManager.registerMcpServer(getFragmentsMcpServerDefinition(fragmentManager));
+  mcpManager.registerMcpServer(getFragmentsMcpServerDefinition(fragmentManager, runtimeManager));
   mcpManager.registerMcpServer(
     getAgentsMcpServerDefinition(registry, runtimeManager, taskManager, documentSearchService, circleManager)
   );

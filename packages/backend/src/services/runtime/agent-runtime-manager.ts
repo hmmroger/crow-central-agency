@@ -196,6 +196,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   public async newSession(agentId: string): Promise<void> {
     const state = this.ensureState(agentId);
     state.sessionId = undefined;
+    state.activeDomainFragmentId = undefined;
     state.pendingInstructionReminder = undefined;
     state.sessionUsage = {
       inputTokens: 0,
@@ -235,6 +236,38 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
 
     return undefined;
+  }
+
+  /** Mark the given DOMAIN fragment as the agent's active domain. Signal only — never used as an implicit parent. */
+  public async setActiveDomain(agentId: string, domainFragmentId: string): Promise<void> {
+    const state = this.ensureState(agentId);
+    if (state.activeDomainFragmentId === domainFragmentId) {
+      return;
+    }
+
+    state.activeDomainFragmentId = domainFragmentId;
+
+    try {
+      await this.persistAgentState(agentId);
+    } catch (error) {
+      log.error({ agentId, error }, "Failed to persist state after setActiveDomain");
+    }
+  }
+
+  /** Clear the agent's active domain if it points at the deleted fragment. */
+  public async clearActiveDomain(agentId: string, deletedFragmentId: string): Promise<void> {
+    const state = this.getState(agentId);
+    if (!state || state.activeDomainFragmentId !== deletedFragmentId) {
+      return;
+    }
+
+    state.activeDomainFragmentId = undefined;
+
+    try {
+      await this.persistAgentState(agentId);
+    } catch (error) {
+      log.error({ agentId, error }, "Failed to persist state after clearActiveDomain");
+    }
   }
 
   /** Set the timestamp of the last Gmail check for an agent. */

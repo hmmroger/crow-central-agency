@@ -4,6 +4,7 @@ import {
   CROW_WORLD_BUILDER_AGENT_ID,
 } from "@crow-central-agency/shared";
 import type { FragmentManager } from "../../services/fragment/fragment-manager.js";
+import type { AgentRuntimeManager } from "../../services/runtime/agent-runtime-manager.js";
 import { defineMcpTool } from "../crow-mcp-manager-utils.js";
 import type { McpServerDefinition } from "../crow-mcp-manager.types.js";
 import { getWriteFragmentToolConfig } from "./write-fragment.js";
@@ -13,15 +14,18 @@ import { getDeleteFragmentToolConfig } from "./delete-fragment.js";
 
 export const FRAGMENTS_MCP_SERVER_NAME = "crow-fragments";
 
-export function getFragmentsMcpServerDefinition(fragmentManager: FragmentManager): McpServerDefinition {
+export function getFragmentsMcpServerDefinition(
+  fragmentManager: FragmentManager,
+  runtimeManager: AgentRuntimeManager
+): McpServerDefinition {
   return {
     name: FRAGMENTS_MCP_SERVER_NAME,
     disallowedAgentIds: [CROW_TASK_DISPATCHER_AGENT_ID, CROW_NARRATIVE_ARCHITECT_AGENT_ID, CROW_WORLD_BUILDER_AGENT_ID],
     getTools: (agentId) => [
-      defineMcpTool(getWriteFragmentToolConfig(agentId, fragmentManager)),
-      defineMcpTool(getReadFragmentToolConfig(agentId, fragmentManager)),
-      defineMcpTool(getUpdateFragmentToolConfig(agentId, fragmentManager)),
-      defineMcpTool(getDeleteFragmentToolConfig(agentId, fragmentManager)),
+      defineMcpTool(getWriteFragmentToolConfig(agentId, fragmentManager, runtimeManager)),
+      defineMcpTool(getReadFragmentToolConfig(agentId, fragmentManager, runtimeManager)),
+      defineMcpTool(getUpdateFragmentToolConfig(agentId, fragmentManager, runtimeManager)),
+      defineMcpTool(getDeleteFragmentToolConfig(agentId, fragmentManager, runtimeManager)),
     ],
   };
 }

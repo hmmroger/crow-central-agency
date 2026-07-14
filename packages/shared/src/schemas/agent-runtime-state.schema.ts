@@ -97,6 +97,8 @@ export const AgentRuntimeStateSchema = z.object({
   messageSource: MessageSourceSchema.optional(),
   discordDmChannelId: z.string().optional(),
   sessionId: z.string().optional(),
+  /** Nearest DOMAIN fragment the agent last touched; a signal for context injection, never an implicit parent. */
+  activeDomainFragmentId: z.string().optional(),
   sessionUsage: SessionUsageSchema,
   prevLoopMessageTimestamp: z.number().optional(),
   lastGmailCheckTimestamp: z.number().optional(),

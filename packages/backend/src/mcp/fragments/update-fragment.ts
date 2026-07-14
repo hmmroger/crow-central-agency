@@ -1,13 +1,19 @@
 import { z } from "zod";
 import { FRAGMENT_MAX_WORDS } from "@crow-central-agency/shared";
 import type { FragmentManager } from "../../services/fragment/fragment-manager.js";
+import type { AgentRuntimeManager } from "../../services/runtime/agent-runtime-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
+import { signalActiveDomain } from "./active-domain-signal.js";
 import { toFragmentParent } from "./write-fragment.js";
 
 export const UPDATE_FRAGMENT_TOOL_NAME = "update_fragment";
 
-export function getUpdateFragmentToolConfig(agentId: string, fragmentManager: FragmentManager) {
+export function getUpdateFragmentToolConfig(
+  agentId: string,
+  fragmentManager: FragmentManager,
+  runtimeManager: AgentRuntimeManager
+) {
   const inputSchema = {
     id: z.string().min(1).describe("Fragment id to update."),
     cue: z.string().min(1).optional().describe("New cue."),
@@ -50,6 +56,7 @@ export function getUpdateFragmentToolConfig(agentId: string, fragmentManager: Fr
         changes.push(cue !== undefined ? "cue" : "", body !== undefined ? "body" : "");
       }
 
+      await signalActiveDomain(agentId, id, fragmentManager, runtimeManager);
       const changeNote = changes.filter((change) => change.length > 0).join(", ");
 
       return textToolResult([
