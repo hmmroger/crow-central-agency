@@ -220,13 +220,28 @@ describe("FragmentManager.createLink", () => {
     expect(link.relationshipType).toBe(RELATIONSHIP_TYPE.LINK);
   });
 
-  it("rejects a second parent for a KNOWLEDGE fragment", async () => {
+  it("allows a KNOWLEDGE fragment under two DOMAINs (DAG multi-parent)", async () => {
     const harness = await createHarness();
     const domainA = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
     const domainB = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
     const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domainA.id));
 
-    await expectAppErrorCode(harness.fragmentManager.createLink(domainB.id, knowledge.id), APP_ERROR_CODES.VALIDATION);
+    await harness.fragmentManager.createLink(domainB.id, knowledge.id);
+
+    const parentLinks = harness.relationshipManager.queryRelationships({
+      targetEntityId: knowledge.id,
+      relationshipType: RELATIONSHIP_TYPE.LINK,
+    });
+    expect(parentLinks.map((link) => link.sourceEntityId).sort()).toEqual([domainA.id, domainB.id].sort());
+  });
+
+  it("still rejects a kind mismatch (KNOWLEDGE only hangs under a DOMAIN)", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const feedback = await createFragment(harness, FRAGMENT_KIND.FEEDBACK, agentParent(AGENT_ID_A));
+    const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domain.id));
+
+    await expectAppErrorCode(harness.fragmentManager.createLink(feedback.id, knowledge.id), APP_ERROR_CODES.VALIDATION);
   });
 });
 
@@ -268,6 +283,116 @@ describe("FragmentManager.removeLink", () => {
       harness.fragmentManager.removeLink(domainA.id, domainB.id),
       APP_ERROR_CODES.RELATIONSHIP_NOT_FOUND
     );
+  });
+});
+
+describe("FragmentManager.unlinkFragment cascade-GC", () => {
+  it("keeps a shared fragment when one of its two incoming edges is removed", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    await harness.fragmentManager.createAssociation(AGENT_ID_B, domain.id);
+
+    const collected = await harness.fragmentManager.unlinkFragment(agentParent(AGENT_ID_A), domain.id);
+
+    expect(collected).toEqual([]);
+    await expect(harness.fragmentManager.readFragment(domain.id)).resolves.toBeDefined();
+    expect(harness.fragmentManager.getAgentsReachingFragment(domain.id)).toEqual([AGENT_ID_B]);
+  });
+
+  it("collects a fragment only when its last incoming edge is removed", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    await harness.fragmentManager.createAssociation(AGENT_ID_B, domain.id);
+
+    await harness.fragmentManager.unlinkFragment(agentParent(AGENT_ID_A), domain.id);
+    const collected = await harness.fragmentManager.unlinkFragment(agentParent(AGENT_ID_B), domain.id);
+
+    expect(collected).toEqual([domain.id]);
+    await expectAppErrorCode(harness.fragmentManager.readFragment(domain.id), APP_ERROR_CODES.FRAGMENT_NOT_FOUND);
+    expect(await harness.fragmentManager.getFragmentCue(domain.id)).toBeUndefined();
+  });
+
+  it("keeps a diamond child while one LINK parent remains and collects it when both are gone", async () => {
+    const harness = await createHarness();
+    const domainA = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const domainB = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const child = await createFragment(harness, FRAGMENT_KIND.DOMAIN, fragmentParent(domainA.id));
+    await harness.fragmentManager.createLink(domainB.id, child.id);
+
+    const afterFirst = await harness.fragmentManager.unlinkFragment(fragmentParent(domainA.id), child.id);
+    expect(afterFirst).toEqual([]);
+    await expect(harness.fragmentManager.readFragment(child.id)).resolves.toBeDefined();
+
+    const afterSecond = await harness.fragmentManager.unlinkFragment(fragmentParent(domainB.id), child.id);
+    expect(afterSecond).toEqual([child.id]);
+    await expectAppErrorCode(harness.fragmentManager.readFragment(child.id), APP_ERROR_CODES.FRAGMENT_NOT_FOUND);
+  });
+
+  it("collapses a deep chain when its root edge is removed", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const subDomain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, fragmentParent(domain.id));
+    const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(subDomain.id));
+
+    const collected = await harness.fragmentManager.unlinkFragment(agentParent(AGENT_ID_A), domain.id);
+
+    expect(collected).toEqual([domain.id, subDomain.id, knowledge.id]);
+    expect(harness.relationshipManager.queryRelationships({ relationshipType: RELATIONSHIP_TYPE.LINK })).toHaveLength(
+      0
+    );
+    expect(
+      harness.relationshipManager.queryRelationships({ relationshipType: RELATIONSHIP_TYPE.ASSOCIATION })
+    ).toHaveLength(0);
+    for (const fragmentId of collected) {
+      await expectAppErrorCode(harness.fragmentManager.readFragment(fragmentId), APP_ERROR_CODES.FRAGMENT_NOT_FOUND);
+    }
+  });
+
+  it("spares a descendant still reachable another way while collecting the rest", async () => {
+    const harness = await createHarness();
+    const domainA = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const domainB = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const subDomain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, fragmentParent(domainA.id));
+    const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(subDomain.id));
+    await harness.fragmentManager.createLink(domainB.id, subDomain.id);
+
+    const collected = await harness.fragmentManager.unlinkFragment(agentParent(AGENT_ID_A), domainA.id);
+
+    expect(collected).toEqual([domainA.id]);
+    await expect(harness.fragmentManager.readFragment(subDomain.id)).resolves.toBeDefined();
+    await expect(harness.fragmentManager.readFragment(knowledge.id)).resolves.toBeDefined();
+  });
+
+  it("emits fragmentDeleted for every collected fragment", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const subDomain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, fragmentParent(domain.id));
+    const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(subDomain.id));
+
+    const deletedIds: string[] = [];
+    harness.fragmentManager.on("fragmentDeleted", (event) => {
+      deletedIds.push(event.fragmentId);
+    });
+
+    const collected = await harness.fragmentManager.unlinkFragment(agentParent(AGENT_ID_A), domain.id);
+    // EventBus defers listeners via setImmediate; flush before asserting
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+
+    expect(collected).toEqual([domain.id, subDomain.id, knowledge.id]);
+    expect(deletedIds).toEqual(collected);
+  });
+
+  it("throws RELATIONSHIP_NOT_FOUND when the named edge does not exist", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+
+    await expectAppErrorCode(
+      harness.fragmentManager.unlinkFragment(agentParent(AGENT_ID_B), domain.id),
+      APP_ERROR_CODES.RELATIONSHIP_NOT_FOUND
+    );
+    await expect(harness.fragmentManager.readFragment(domain.id)).resolves.toBeDefined();
   });
 });
 

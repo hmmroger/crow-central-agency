@@ -62,10 +62,12 @@ function countWords(text: string): number {
  * writes skip the index since it holds neither.
  *
  * Also the domain authority over fragment graph edges (ASSOCIATION/LINK via
- * RelationshipManager): the intrinsic invariants (parent rules, word cap,
- * acyclicity, KNOWLEDGE single-parent, delete guards) live inside the pure
- * ops, caller-independent. Accessibility is owned here behind the one opaque
- * isFragmentAccessible API; the fragment tools enforce it per call.
+ * RelationshipManager): the graph is a DAG — multiple parents are legal —
+ * and the intrinsic invariants (parent rules, word cap, acyclicity) live
+ * inside the pure ops, caller-independent. A fragment exists exactly as long
+ * as something still links to it: unlinkFragment cascade-collects whatever
+ * loses its last incoming edge. Accessibility is owned here behind the one
+ * opaque isFragmentAccessible API; the fragment tools enforce it per call.
  */
 export class FragmentManager extends EventBus<FragmentManagerEvents> {
   constructor(
@@ -187,12 +189,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       );
     }
 
-    await this.relationshipManager.removeRelationshipsForEntity(fragmentId);
-    await this.fragmentStore.delete(FRAGMENT_STORE_TABLE, fragmentId);
-    await this.indexStore.delete(FRAGMENT_INDEX_STORE_TABLE, fragmentId);
-
-    log.info({ fragmentId }, "Fragment deleted");
-    this.emit("fragmentDeleted", { fragmentId });
+    await this.purgeFragment(fragmentId);
   }
 
   /**
@@ -263,20 +260,15 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
 
   /**
    * Link an existing fragment under a parent fragment, enforcing the parent
-   * matrix, KNOWLEDGE single-parent, and DAG acyclicity.
+   * matrix and DAG acyclicity. The graph is a DAG, not a tree — any fragment
+   * may carry multiple LINK parents; only cycles and kind mismatches are
+   * rejected.
    */
   public async createLink(parentFragmentId: string, childFragmentId: string): Promise<Relationship> {
     const parentFragment = await this.readFragmentOrThrow(parentFragmentId);
     const childFragment = await this.readFragmentOrThrow(childFragmentId);
 
     this.assertFragmentParentKindAllowed(childFragment.kind, parentFragment.kind);
-
-    if (childFragment.kind === FRAGMENT_KIND.KNOWLEDGE && this.getParentLinks(childFragmentId).length > 0) {
-      throw new AppError(
-        `${FRAGMENT_KIND.KNOWLEDGE} fragment ${childFragmentId} already has a parent`,
-        APP_ERROR_CODES.VALIDATION
-      );
-    }
 
     // Adding parent → child closes a cycle iff the child can already reach the parent
     if (
@@ -300,9 +292,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
   }
 
   /**
-   * Remove a fragment → fragment LINK. A pure named-edge removal — the
-   * KNOWLEDGE single-parent invariant is re-enforced when the next parent
-   * edge is added via createLink.
+   * Remove a fragment → fragment LINK. A pure named-edge removal.
    * @throws AppError with RELATIONSHIP_NOT_FOUND if no such link exists.
    */
   public async removeLink(parentFragmentId: string, childFragmentId: string): Promise<void> {
@@ -323,6 +313,30 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
     for (const link of links) {
       await this.relationshipManager.deleteRelationship(link.id);
     }
+  }
+
+  /**
+   * Remove one named source → fragment edge (an agent ASSOCIATION or a
+   * fragment LINK), then orphan-collect: a fragment with no remaining
+   * incoming edge — no ASSOCIATION from any agent and no incoming LINK — is
+   * unreachable, so it is deleted, cascading into every descendant that
+   * thereby loses its last incoming edge. Descendants still reachable
+   * another way survive; removing one path to a shared node just drops
+   * that edge.
+   * @returns ids of every fragment collected by the cascade, parents first.
+   * @throws AppError with RELATIONSHIP_NOT_FOUND if the named edge does not exist.
+   */
+  public async unlinkFragment(source: FragmentParent, fragmentId: string): Promise<string[]> {
+    if (source.entityType === ENTITY_TYPE.AGENT) {
+      await this.removeAssociation(source.entityId, fragmentId);
+    } else {
+      await this.removeLink(source.entityId, fragmentId);
+    }
+
+    const collected: string[] = [];
+    await this.collectIfOrphaned(fragmentId, collected);
+
+    return collected;
   }
 
   /**
@@ -614,6 +628,53 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
     }
 
     return this.createLink(parent.entityId, fragmentId);
+  }
+
+  /** Delete a fragment unconditionally: strip its remaining edges, clear both tiers, emit */
+  private async purgeFragment(fragmentId: string): Promise<void> {
+    await this.relationshipManager.removeRelationshipsForEntity(fragmentId);
+    await this.fragmentStore.delete(FRAGMENT_STORE_TABLE, fragmentId);
+    await this.indexStore.delete(FRAGMENT_INDEX_STORE_TABLE, fragmentId);
+
+    log.info({ fragmentId }, "Fragment deleted");
+    this.emit("fragmentDeleted", { fragmentId });
+  }
+
+  /** Cascade-GC: purge a fragment with no incoming edge left, then re-check its former children */
+  private async collectIfOrphaned(fragmentId: string, collected: string[]): Promise<void> {
+    if (this.hasIncomingEdge(fragmentId)) {
+      return;
+    }
+
+    // Children must be gathered before the purge severs the outgoing LINKs
+    const childIds = this.relationshipManager
+      .queryRelationships({
+        sourceEntityId: fragmentId,
+        sourceEntityType: ENTITY_TYPE.FRAGMENT,
+        relationshipType: RELATIONSHIP_TYPE.LINK,
+      })
+      .map((link) => link.targetEntityId);
+
+    await this.purgeFragment(fragmentId);
+    collected.push(fragmentId);
+
+    for (const childId of childIds) {
+      await this.collectIfOrphaned(childId, collected);
+    }
+  }
+
+  private hasIncomingEdge(fragmentId: string): boolean {
+    if (this.getParentLinks(fragmentId).length > 0) {
+      return true;
+    }
+
+    const associations = this.relationshipManager.queryRelationships({
+      targetEntityId: fragmentId,
+      targetEntityType: ENTITY_TYPE.FRAGMENT,
+      relationshipType: RELATIONSHIP_TYPE.ASSOCIATION,
+    });
+
+    return associations.length > 0;
   }
 
   private getParentLinks(fragmentId: string): Relationship[] {
