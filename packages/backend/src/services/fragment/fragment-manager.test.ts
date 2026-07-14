@@ -3,6 +3,7 @@ import {
   ENTITY_TYPE,
   FRAGMENT_KIND,
   FRAGMENT_MAX_WORDS,
+  FRAGMENT_REFLECTION_AGENT_ID,
   RELATIONSHIP_TYPE,
   type Fragment,
   type FragmentKind,
@@ -589,6 +590,111 @@ describe("FragmentManager.getChildFragmentCues", () => {
     const childCues = await harness.fragmentManager.getChildFragmentCues(domain.id);
 
     expect(childCues.map((entry) => entry.id).sort()).toEqual([knowledge.id, subDomain.id].sort());
+  });
+});
+
+describe("FragmentManager reflection-curator allowance", () => {
+  it("lets the reflection agent read, update, and re-link fragments outside its own scope", async () => {
+    const harness = await createHarness();
+    const domainA = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const domainB = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domainA.id));
+
+    const readFragment = await harness.fragmentManager.readFragmentForAgent(FRAGMENT_REFLECTION_AGENT_ID, knowledge.id);
+    expect(readFragment.id).toBe(knowledge.id);
+
+    const updated = await harness.fragmentManager.updateFragmentForAgent(FRAGMENT_REFLECTION_AGENT_ID, knowledge.id, {
+      cue: "curated cue",
+    });
+    expect(updated.cue).toBe("curated cue");
+
+    await harness.fragmentManager.relinkFragment(
+      FRAGMENT_REFLECTION_AGENT_ID,
+      knowledge.id,
+      fragmentParent(domainB.id)
+    );
+
+    const parentLinks = harness.relationshipManager.queryRelationships({
+      targetEntityId: knowledge.id,
+      relationshipType: RELATIONSHIP_TYPE.LINK,
+    });
+    expect(parentLinks).toHaveLength(1);
+    expect(parentLinks[0].sourceEntityId).toBe(domainB.id);
+  });
+
+  it("re-linking as the curator leaves the target's association anchor untouched", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const feedback = await createFragment(harness, FRAGMENT_KIND.FEEDBACK, agentParent(AGENT_ID_A));
+
+    await harness.fragmentManager.relinkFragment(FRAGMENT_REFLECTION_AGENT_ID, feedback.id, fragmentParent(domain.id));
+
+    const associations = harness.relationshipManager.queryRelationships({
+      targetEntityId: feedback.id,
+      relationshipType: RELATIONSHIP_TYPE.ASSOCIATION,
+    });
+    expect(associations).toHaveLength(1);
+    expect(associations[0].sourceEntityId).toBe(AGENT_ID_A);
+  });
+
+  it("lets the reflection agent create a node under a target's fragment but not anchor to the target", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+
+    const themeNode = await harness.fragmentManager.createFragmentForAgent(FRAGMENT_REFLECTION_AGENT_ID, {
+      kind: FRAGMENT_KIND.DOMAIN,
+      cue: "theme cue",
+      body: "theme body",
+      parent: fragmentParent(domain.id),
+    });
+    expect(harness.fragmentManager.getScopedFragmentIds(AGENT_ID_A)).toContain(themeNode.id);
+
+    await expectAppErrorCode(
+      harness.fragmentManager.createFragmentForAgent(FRAGMENT_REFLECTION_AGENT_ID, {
+        kind: FRAGMENT_KIND.DOMAIN,
+        cue: "anchor cue",
+        body: "anchor body",
+        parent: agentParent(AGENT_ID_A),
+      }),
+      APP_ERROR_CODES.VALIDATION
+    );
+  });
+
+  it("lets the reflection agent prune a target's sole-reached leaf", async () => {
+    const harness = await createHarness();
+    const lesson = await createFragment(harness, FRAGMENT_KIND.LESSON, agentParent(AGENT_ID_A));
+
+    await harness.fragmentManager.deleteFragmentForAgent(FRAGMENT_REFLECTION_AGENT_ID, lesson.id);
+
+    await expectAppErrorCode(harness.fragmentManager.readFragment(lesson.id), APP_ERROR_CODES.FRAGMENT_NOT_FOUND);
+  });
+
+  it("still rejects curator deletes of shared nodes and fragments with children", async () => {
+    const harness = await createHarness();
+    const sharedLesson = await createFragment(harness, FRAGMENT_KIND.LESSON, agentParent(AGENT_ID_A));
+    await harness.fragmentManager.createAssociation(AGENT_ID_B, sharedLesson.id);
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domain.id));
+
+    await expectAppErrorCode(
+      harness.fragmentManager.deleteFragmentForAgent(FRAGMENT_REFLECTION_AGENT_ID, sharedLesson.id),
+      APP_ERROR_CODES.VALIDATION
+    );
+    await expectAppErrorCode(
+      harness.fragmentManager.deleteFragmentForAgent(FRAGMENT_REFLECTION_AGENT_ID, domain.id),
+      APP_ERROR_CODES.VALIDATION
+    );
+  });
+
+  it("still rejects a curator re-link that would create a cycle", async () => {
+    const harness = await createHarness();
+    const parent = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const child = await createFragment(harness, FRAGMENT_KIND.DOMAIN, fragmentParent(parent.id));
+
+    await expectAppErrorCode(
+      harness.fragmentManager.relinkFragment(FRAGMENT_REFLECTION_AGENT_ID, parent.id, fragmentParent(child.id)),
+      APP_ERROR_CODES.VALIDATION
+    );
   });
 });
 

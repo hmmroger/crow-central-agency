@@ -9,7 +9,11 @@ import type { McpServerDefinition } from "../crow-mcp-manager.types.js";
 import { getListAgentsToolConfig } from "./list-agents.js";
 import { getInvokeAgentToolConfig } from "./invoke-agent.js";
 import { getSearchWorkspaceToolConfig } from "./search-workspace.js";
-import { CROW_NARRATIVE_ARCHITECT_AGENT_ID, CROW_WORLD_BUILDER_AGENT_ID } from "@crow-central-agency/shared";
+import {
+  CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+  CROW_WORLD_BUILDER_AGENT_ID,
+  FRAGMENT_REFLECTION_AGENT_ID,
+} from "@crow-central-agency/shared";
 
 export const CROW_AGENTS_MCP_SERVER_NAME = "crow-agents";
 
@@ -23,7 +27,7 @@ export function getAgentsMcpServerDefinition(
 ): McpServerDefinition {
   return {
     name: CROW_AGENTS_MCP_SERVER_NAME,
-    disallowedAgentIds: [CROW_NARRATIVE_ARCHITECT_AGENT_ID, CROW_WORLD_BUILDER_AGENT_ID],
+    disallowedAgentIds: [CROW_NARRATIVE_ARCHITECT_AGENT_ID, CROW_WORLD_BUILDER_AGENT_ID, FRAGMENT_REFLECTION_AGENT_ID],
     getTools: (agentId) => [
       defineMcpTool(getListAgentsToolConfig(agentId, registry)),
       defineMcpTool(getInvokeAgentToolConfig(agentId, registry, runtimeManager, taskManager)),

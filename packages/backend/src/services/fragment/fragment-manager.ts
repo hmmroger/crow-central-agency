@@ -2,6 +2,7 @@ import {
   ENTITY_TYPE,
   FRAGMENT_KIND,
   FRAGMENT_MAX_WORDS,
+  FRAGMENT_REFLECTION_AGENT_ID,
   FragmentSchema,
   RELATIONSHIP_TYPE,
   type Fragment,
@@ -472,8 +473,14 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       );
     }
 
-    const otherReachers = this.getAgentsReachingFragment(fragmentId).filter((agentId) => agentId !== actingAgentId);
-    if (otherReachers.length > 0) {
+    const reachingAgentIds = this.getAgentsReachingFragment(fragmentId);
+    // The reflection curator prunes on the single reaching agent's behalf, so only
+    // a node shared between multiple agents is protected from it
+    const isSharedNode =
+      actingAgentId === FRAGMENT_REFLECTION_AGENT_ID
+        ? reachingAgentIds.length > 1
+        : reachingAgentIds.some((agentId) => agentId !== actingAgentId);
+    if (isSharedNode) {
       throw new AppError(
         `Fragment ${fragmentId} is still reachable by other agents. Remove your association instead of deleting it`,
         APP_ERROR_CODES.VALIDATION
@@ -612,6 +619,12 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
   }
 
   private assertFragmentInAgentScope(actingAgentId: string, fragmentId: string): void {
+    // Reflection-curator allowance: may reach any fragment, exactly like a user
+    // editing the graph. All other write-time invariants still apply.
+    if (actingAgentId === FRAGMENT_REFLECTION_AGENT_ID) {
+      return;
+    }
+
     if (!this.getScopedFragmentIds(actingAgentId).has(fragmentId)) {
       throw new AppError(`Fragment not found: ${fragmentId}`, APP_ERROR_CODES.FRAGMENT_NOT_FOUND);
     }

@@ -335,11 +335,13 @@ export {
   CROW_TASK_DISPATCHER_AGENT_ID,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
   CROW_WORLD_BUILDER_AGENT_ID,
+  FRAGMENT_REFLECTION_AGENT_ID,
 } from "./constants/system-agent.js";
 
 export {
   CreateFragmentAssociationInputSchema,
   FRAGMENT_KIND,
+  FRAGMENT_FIRST_LEVEL_TARGET,
   FRAGMENT_MAX_WORDS,
   FragmentKindSchema,
   FragmentSchema,

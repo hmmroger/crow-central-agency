@@ -2,6 +2,7 @@ import {
   CROW_TASK_DISPATCHER_AGENT_ID,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
   CROW_WORLD_BUILDER_AGENT_ID,
+  FRAGMENT_REFLECTION_AGENT_ID,
 } from "@crow-central-agency/shared";
 import type { ArtifactManager } from "../../services/artifact/artifact-manager.js";
 import type { AgentRegistry } from "../../services/agent-registry.js";
@@ -33,7 +34,12 @@ export function getArtifactsMcpServerDefinition(
 ): McpServerDefinition {
   return {
     name: ARTIFACTS_MCP_SERVER_NAME,
-    disallowedAgentIds: [CROW_TASK_DISPATCHER_AGENT_ID, CROW_NARRATIVE_ARCHITECT_AGENT_ID, CROW_WORLD_BUILDER_AGENT_ID],
+    disallowedAgentIds: [
+      CROW_TASK_DISPATCHER_AGENT_ID,
+      CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+      CROW_WORLD_BUILDER_AGENT_ID,
+      FRAGMENT_REFLECTION_AGENT_ID,
+    ],
     getTools: (agentId) => [
       defineMcpTool(getWriteArtifactToolConfig(agentId, artifactManager, sensorManager)),
       defineMcpTool(getEditArtifactToolConfig(agentId, artifactManager, sensorManager)),
