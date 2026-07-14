@@ -133,6 +133,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
     }
 
     const existing = await this.readFragmentOrThrow(fragmentId);
+    this.assertNoUpdateConflict(existing, input.expectedUpdatedTimestamp);
 
     const fragment: Fragment = {
       ...existing,
@@ -392,6 +393,146 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
     return this.updateFragment(fragmentId, input);
   }
 
+  /**
+   * Agent-facing create: an agent parent must be the acting agent itself and a
+   * fragment parent must be within the acting agent's scope.
+   */
+  public async createFragmentForAgent(actingAgentId: string, input: CreateFragmentInput): Promise<Fragment> {
+    this.assertParentWithinAgentAuthority(actingAgentId, input.parent);
+
+    return this.createFragment(input);
+  }
+
+  /**
+   * Re-link a fragment under a new parent: replaces its incoming LINKs plus
+   * the acting agent's own ASSOCIATION anchor (if present) with the single new
+   * parent edge; other agents' sharing ASSOCIATIONs are untouched. Structural
+   * move only — updatedTimestamp is not bumped.
+   */
+  public async relinkFragment(
+    actingAgentId: string,
+    fragmentId: string,
+    newParent: FragmentParent,
+    expectedUpdatedTimestamp?: number
+  ): Promise<Relationship> {
+    this.assertFragmentInAgentScope(actingAgentId, fragmentId);
+    const fragment = await this.readFragmentOrThrow(fragmentId);
+    this.assertNoUpdateConflict(fragment, expectedUpdatedTimestamp);
+    this.assertParentWithinAgentAuthority(actingAgentId, newParent);
+    await this.validateParent(fragment.kind, newParent);
+
+    // Cycle check must run before the old parent edges are removed — a failed
+    // re-link must leave the fragment exactly as it was
+    if (
+      newParent.entityType === ENTITY_TYPE.FRAGMENT &&
+      this.relationshipManager.canReach(fragmentId, newParent.entityId, {
+        relationshipType: RELATIONSHIP_TYPE.LINK,
+      })
+    ) {
+      throw new AppError(
+        `Re-linking fragment ${fragmentId} under ${newParent.entityId} would create a cycle`,
+        APP_ERROR_CODES.VALIDATION
+      );
+    }
+
+    const parentEdges = [
+      ...this.getParentLinks(fragmentId),
+      ...this.relationshipManager.queryRelationships({
+        sourceEntityId: actingAgentId,
+        sourceEntityType: ENTITY_TYPE.AGENT,
+        targetEntityId: fragmentId,
+        targetEntityType: ENTITY_TYPE.FRAGMENT,
+        relationshipType: RELATIONSHIP_TYPE.ASSOCIATION,
+      }),
+    ];
+    for (const edge of parentEdges) {
+      await this.relationshipManager.deleteRelationship(edge.id);
+    }
+
+    return this.createParentEdge(fragmentId, newParent);
+  }
+
+  /**
+   * Agent-facing delete. Rejected while the fragment has children (outgoing
+   * LINKs) or any other agent can still reach it — a shared node is unshared
+   * via the sharing route, never destroyed out from under other agents.
+   */
+  public async deleteFragmentForAgent(actingAgentId: string, fragmentId: string): Promise<void> {
+    this.assertFragmentInAgentScope(actingAgentId, fragmentId);
+
+    const childLinks = this.relationshipManager.queryRelationships({
+      sourceEntityId: fragmentId,
+      sourceEntityType: ENTITY_TYPE.FRAGMENT,
+      relationshipType: RELATIONSHIP_TYPE.LINK,
+    });
+    if (childLinks.length > 0) {
+      throw new AppError(
+        `Fragment ${fragmentId} has ${childLinks.length} child fragment(s). Re-parent or delete them first`,
+        APP_ERROR_CODES.VALIDATION
+      );
+    }
+
+    const otherReachers = this.getAgentsReachingFragment(fragmentId).filter((agentId) => agentId !== actingAgentId);
+    if (otherReachers.length > 0) {
+      throw new AppError(
+        `Fragment ${fragmentId} is still reachable by other agents. Remove your association instead of deleting it`,
+        APP_ERROR_CODES.VALIDATION
+      );
+    }
+
+    await this.deleteFragment(fragmentId);
+  }
+
+  /**
+   * Resolve a fragment's domain through the graph: a DOMAIN resolves to
+   * itself, anything else to the nearest DOMAIN in its LINK ancestry, or
+   * undefined when there is none. Deterministic signal for the active-domain
+   * runtime state; reads the hot cue index only.
+   */
+  public async resolveDomain(fragmentId: string): Promise<string | undefined> {
+    const visited = new Set<string>();
+    const queue = [fragmentId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      if (currentId === undefined || visited.has(currentId)) {
+        continue;
+      }
+
+      visited.add(currentId);
+
+      const entry = await this.indexStore.get<FragmentCueIndexEntry>(FRAGMENT_INDEX_STORE_TABLE, currentId);
+      if (entry?.value.kind === FRAGMENT_KIND.DOMAIN) {
+        return currentId;
+      }
+
+      for (const link of this.getParentLinks(currentId)) {
+        queue.push(link.sourceEntityId);
+      }
+    }
+
+    return undefined;
+  }
+
+  /** Cue index entries of a fragment's direct LINK children (hot tier only) */
+  public async getChildFragmentCues(fragmentId: string): Promise<FragmentCueIndexEntry[]> {
+    const childIds = this.relationshipManager
+      .queryRelationships({
+        sourceEntityId: fragmentId,
+        sourceEntityType: ENTITY_TYPE.FRAGMENT,
+        relationshipType: RELATIONSHIP_TYPE.LINK,
+      })
+      .map((link) => link.targetEntityId);
+
+    const entries = await this.indexStore.getMany<FragmentCueIndexEntry>(FRAGMENT_INDEX_STORE_TABLE, childIds);
+
+    return childIds.flatMap((childId) => {
+      const entry = entries.get(childId);
+
+      return entry ? [entry.value] : [];
+    });
+  }
+
   /** Rebuild the derived cue index from the fragment store */
   public async rebuildIndex(): Promise<void> {
     const entries = await this.fragmentStore.getAll<Fragment>(FRAGMENT_STORE_TABLE);
@@ -436,6 +577,27 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
   private assertFragmentInAgentScope(actingAgentId: string, fragmentId: string): void {
     if (!this.getScopedFragmentIds(actingAgentId).has(fragmentId)) {
       throw new AppError(`Fragment not found: ${fragmentId}`, APP_ERROR_CODES.FRAGMENT_NOT_FOUND);
+    }
+  }
+
+  private assertParentWithinAgentAuthority(actingAgentId: string, parent: FragmentParent): void {
+    if (parent.entityType === ENTITY_TYPE.AGENT) {
+      if (parent.entityId !== actingAgentId) {
+        throw new AppError("An agent can only anchor a fragment to itself", APP_ERROR_CODES.VALIDATION);
+      }
+
+      return;
+    }
+
+    this.assertFragmentInAgentScope(actingAgentId, parent.entityId);
+  }
+
+  private assertNoUpdateConflict(existing: Fragment, expectedUpdatedTimestamp?: number): void {
+    if (expectedUpdatedTimestamp !== undefined && existing.updatedTimestamp !== expectedUpdatedTimestamp) {
+      throw new AppError(
+        "Fragment was modified since it was read. Re-read the fragment and retry.",
+        APP_ERROR_CODES.CONFLICT
+      );
     }
   }
 

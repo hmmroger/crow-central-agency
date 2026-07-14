@@ -16,6 +16,7 @@ import { PlacesManager } from "./services/places/places-manager.js";
 import { setupWebSocket } from "./server/setup-websocket.js";
 import { registerArtifactRoutes } from "./routes/artifact.routes.js";
 import { getArtifactsMcpServerDefinition } from "./mcp/artifacts/artifacts-mcp-server.js";
+import { getFragmentsMcpServerDefinition } from "./mcp/fragments/fragments-mcp-server.js";
 import { getAgentsMcpServerDefinition } from "./mcp/agents/agents-mcp-server.js";
 import { getSuperAgentMcpServerDefinition } from "./mcp/agents/super-agent-mcp-server.js";
 import { getBuilderAgentMcpServerDefinition } from "./mcp/agents/builder-agent-mcp-server.js";
@@ -179,6 +180,7 @@ export async function bootstrap(options: BootstrapOptions) {
   mcpManager.registerMcpServer(
     getArtifactsMcpServerDefinition(artifactManager, registry, circleManager, sensorManager)
   );
+  mcpManager.registerMcpServer(getFragmentsMcpServerDefinition(fragmentManager));
   mcpManager.registerMcpServer(
     getAgentsMcpServerDefinition(registry, runtimeManager, taskManager, documentSearchService, circleManager)
   );

@@ -32,4 +32,6 @@ export interface CreateFragmentInput {
 export interface UpdateFragmentInput {
   cue?: string;
   body?: string;
+  /** Optimistic concurrency: reject if the fragment changed since this updatedTimestamp was read */
+  expectedUpdatedTimestamp?: number;
 }
