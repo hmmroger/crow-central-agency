@@ -471,13 +471,16 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
   }
 
   /**
-   * Resolve a fragment's domain through the graph: a DOMAIN resolves to
-   * itself, anything else to the nearest DOMAIN in its LINK ancestry, or
-   * undefined when there is none. Deterministic signal for the active-domain
-   * runtime state; reads the hot cue index only.
+   * Resolve a fragment's domains through the graph: a DOMAIN resolves to
+   * itself; anything else to the nearest DOMAIN on every upward LINK path —
+   * the graph is a DAG, so there may be several. A branch stops at the first
+   * DOMAIN it meets (never ascending past it); the result is deduplicated and
+   * empty when there is no DOMAIN ancestry. Deterministic signal for the
+   * active-domain runtime state; reads the hot cue index only.
    */
-  public async resolveDomain(fragmentId: string): Promise<string | undefined> {
+  public async resolveDomain(fragmentId: string): Promise<string[]> {
     const visited = new Set<string>();
+    const domainIds = new Set<string>();
     const queue = [fragmentId];
 
     while (queue.length > 0) {
@@ -490,7 +493,8 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
 
       const entry = await this.indexStore.get<FragmentCueIndexEntry>(FRAGMENT_INDEX_STORE_TABLE, currentId);
       if (entry?.value.kind === FRAGMENT_KIND.DOMAIN) {
-        return currentId;
+        domainIds.add(currentId);
+        continue;
       }
 
       for (const link of this.getParentLinks(currentId)) {
@@ -498,7 +502,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       }
     }
 
-    return undefined;
+    return Array.from(domainIds);
   }
 
   /** Cue index entry for a single fragment (hot tier only) */

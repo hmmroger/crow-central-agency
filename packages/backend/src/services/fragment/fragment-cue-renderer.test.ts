@@ -43,7 +43,7 @@ describe("renderFragmentCues", () => {
   it("returns undefined for an empty vault", async () => {
     const fragmentManager = await createFragmentManager();
 
-    expect(await renderFragmentCues(AGENT_ID, undefined, fragmentManager)).toBeUndefined();
+    expect(await renderFragmentCues(AGENT_ID, [], fragmentManager)).toBeUndefined();
   });
 
   it("groups first-level association cues by kind and renders only non-empty sections", async () => {
@@ -51,7 +51,7 @@ describe("renderFragmentCues", () => {
     const domain = await createFragment(fragmentManager, FRAGMENT_KIND.DOMAIN, "Project A", agentParent(AGENT_ID));
     const lesson = await createFragment(fragmentManager, FRAGMENT_KIND.LESSON, "Verify billing", agentParent(AGENT_ID));
 
-    const block = await renderFragmentCues(AGENT_ID, undefined, fragmentManager);
+    const block = await renderFragmentCues(AGENT_ID, [], fragmentManager);
 
     expect(block).toBe(
       [
@@ -75,7 +75,7 @@ describe("renderFragmentCues", () => {
       fragmentParent(domain.id)
     );
 
-    const block = await renderFragmentCues(AGENT_ID, undefined, fragmentManager);
+    const block = await renderFragmentCues(AGENT_ID, [], fragmentManager);
 
     expect(block).toContain(`- [${domain.id}] Project A`);
     expect(block).not.toContain(nested.id);
@@ -103,20 +103,58 @@ describe("renderFragmentCues", () => {
       fragmentParent(subDomain.id)
     );
 
-    const block = await renderFragmentCues(AGENT_ID, domain.id, fragmentManager);
+    const block = await renderFragmentCues(AGENT_ID, [domain.id], fragmentManager);
 
-    expect(block).toContain(`Active domain: Project A (${domain.id})`);
+    expect(block).toContain(`Active domains: Project A (${domain.id})`);
     expect(block).toContain(`### Active domain — Project A`);
     expect(block).toContain(`- [${knowledge.id}] (${FRAGMENT_KIND.KNOWLEDGE}) Auth flow`);
     expect(block).toContain(`- [${subDomain.id}] (${FRAGMENT_KIND.DOMAIN}) Auth service`);
     expect(block).not.toContain(grandChild.id);
   });
 
-  it("ignores an active domain that is no longer in the index", async () => {
+  it("renders one child section per active domain", async () => {
+    const fragmentManager = await createFragmentManager();
+    const domainA = await createFragment(fragmentManager, FRAGMENT_KIND.DOMAIN, "Project A", agentParent(AGENT_ID));
+    const domainB = await createFragment(fragmentManager, FRAGMENT_KIND.DOMAIN, "Platform", agentParent(AGENT_ID));
+    const childA = await createFragment(
+      fragmentManager,
+      FRAGMENT_KIND.KNOWLEDGE,
+      "Auth flow",
+      fragmentParent(domainA.id)
+    );
+    const childB = await createFragment(
+      fragmentManager,
+      FRAGMENT_KIND.KNOWLEDGE,
+      "Logging conventions",
+      fragmentParent(domainB.id)
+    );
+
+    const block = await renderFragmentCues(AGENT_ID, [domainA.id, domainB.id], fragmentManager);
+
+    expect(block).toContain(`Active domains: Project A (${domainA.id}), Platform (${domainB.id})`);
+    expect(block).toContain(`### Active domain — Project A`);
+    expect(block).toContain(`- [${childA.id}] (${FRAGMENT_KIND.KNOWLEDGE}) Auth flow`);
+    expect(block).toContain(`### Active domain — Platform`);
+    expect(block).toContain(`- [${childB.id}] (${FRAGMENT_KIND.KNOWLEDGE}) Logging conventions`);
+  });
+
+  it("skips an active domain that is no longer in the index but keeps the rest", async () => {
+    const fragmentManager = await createFragmentManager();
+    await createFragment(fragmentManager, FRAGMENT_KIND.FEEDBACK, "Small commits", agentParent(AGENT_ID));
+    const domain = await createFragment(fragmentManager, FRAGMENT_KIND.DOMAIN, "Project A", agentParent(AGENT_ID));
+
+    const block = await renderFragmentCues(AGENT_ID, [STALE_FRAGMENT_ID, domain.id], fragmentManager);
+
+    expect(block).toContain("### Feedback");
+    expect(block).toContain(`Active domains: Project A (${domain.id})`);
+    expect(block).not.toContain(STALE_FRAGMENT_ID);
+  });
+
+  it("omits the active-domain line when no active id resolves", async () => {
     const fragmentManager = await createFragmentManager();
     await createFragment(fragmentManager, FRAGMENT_KIND.FEEDBACK, "Small commits", agentParent(AGENT_ID));
 
-    const block = await renderFragmentCues(AGENT_ID, STALE_FRAGMENT_ID, fragmentManager);
+    const block = await renderFragmentCues(AGENT_ID, [STALE_FRAGMENT_ID], fragmentManager);
 
     expect(block).toContain("### Feedback");
     expect(block).not.toContain("Active domain");
@@ -127,6 +165,6 @@ describe("renderFragmentCues", () => {
     const otherAgentId = "22222222-2222-4222-8222-222222222222";
     await createFragment(fragmentManager, FRAGMENT_KIND.DOMAIN, "Other vault", agentParent(otherAgentId));
 
-    expect(await renderFragmentCues(AGENT_ID, undefined, fragmentManager)).toBeUndefined();
+    expect(await renderFragmentCues(AGENT_ID, [], fragmentManager)).toBeUndefined();
   });
 });

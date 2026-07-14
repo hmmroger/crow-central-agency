@@ -1,5 +1,6 @@
 import { FRAGMENT_KIND } from "@crow-central-agency/shared";
 import type { FragmentManager } from "./fragment-manager.js";
+import type { FragmentCueIndexEntry } from "./fragment-manager.types.js";
 
 const FIRST_LEVEL_SECTIONS = [
   { kind: FRAGMENT_KIND.DOMAIN, heading: "### Domains" },
@@ -9,26 +10,33 @@ const FIRST_LEVEL_SECTIONS = [
 
 /**
  * Render the hot-tier `{fragmentCues}` system-prompt block: the agent's first-level
- * association cues grouped by kind, plus the active domain's direct-child cues.
+ * association cues grouped by kind, plus one direct-child section per active domain.
  * Cue-index reads only — never fragment bodies, and rendering does not count as a
  * recall. Returns undefined when there is nothing to inject.
  */
 export async function renderFragmentCues(
   agentId: string,
-  activeDomainFragmentId: string | undefined,
+  activeDomainFragmentIds: string[],
   fragmentManager: FragmentManager
 ): Promise<string | undefined> {
   const firstLevelCues = await fragmentManager.getFirstLevelFragmentCues(agentId);
-  const activeDomain = activeDomainFragmentId
-    ? await fragmentManager.getFragmentCue(activeDomainFragmentId)
-    : undefined;
-  if (firstLevelCues.length === 0 && !activeDomain) {
+
+  // Active-domain ids that no longer resolve in the index are skipped
+  const activeDomains: FragmentCueIndexEntry[] = [];
+  for (const domainFragmentId of activeDomainFragmentIds) {
+    const domainCue = await fragmentManager.getFragmentCue(domainFragmentId);
+    if (domainCue) {
+      activeDomains.push(domainCue);
+    }
+  }
+
+  if (firstLevelCues.length === 0 && activeDomains.length === 0) {
     return undefined;
   }
 
   const lines: string[] = ["## Fragment vault"];
-  if (activeDomain) {
-    lines.push(`Active domain: ${activeDomain.cue} (${activeDomain.id})`);
+  if (activeDomains.length > 0) {
+    lines.push(`Active domains: ${activeDomains.map((domain) => `${domain.cue} (${domain.id})`).join(", ")}`);
   }
 
   const sectionLines: string[] = [];
@@ -45,7 +53,7 @@ export async function renderFragmentCues(
     lines.push("", ...sectionLines);
   }
 
-  if (activeDomain) {
+  for (const activeDomain of activeDomains) {
     const childCues = await fragmentManager.getChildFragmentCues(activeDomain.id);
     if (childCues.length > 0) {
       lines.push(

@@ -24,6 +24,7 @@ export const DEFAULT_SESSION_USAGE: SessionUsage = {
 const DEFAULT_STATE: AgentRuntimeState = {
   agentId: "",
   status: AGENT_STATUS.IDLE,
+  activeDomainFragmentIds: [],
   sessionUsage: DEFAULT_SESSION_USAGE,
 };
 

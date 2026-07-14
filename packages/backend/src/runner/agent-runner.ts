@@ -470,8 +470,8 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     let fragmentCues: string | undefined;
     if (!isCrowSystemAgent(this.agentId)) {
       try {
-        const activeDomainFragmentId = this.runtimeManager.getActiveDomain(this.agentId);
-        fragmentCues = await renderFragmentCues(this.agentId, activeDomainFragmentId, this.fragmentManager);
+        const activeDomainFragmentIds = this.runtimeManager.getActiveDomains(this.agentId);
+        fragmentCues = await renderFragmentCues(this.agentId, activeDomainFragmentIds, this.fragmentManager);
       } catch (error) {
         log.warn({ agentId: this.agentId, error }, "Failed to render fragment cues.");
       }

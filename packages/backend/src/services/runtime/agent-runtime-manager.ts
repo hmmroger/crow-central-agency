@@ -198,7 +198,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   public async newSession(agentId: string): Promise<void> {
     const state = this.ensureState(agentId);
     state.sessionId = undefined;
-    state.activeDomainFragmentId = undefined;
+    state.activeDomainFragmentIds = [];
     state.pendingInstructionReminder = undefined;
     state.sessionUsage = {
       inputTokens: 0,
@@ -231,7 +231,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
     log.warn({ agentId, sessionId: state.sessionId }, "Persisted session no longer exists; resetting session state");
     state.sessionId = undefined;
-    state.activeDomainFragmentId = undefined;
+    state.activeDomainFragmentIds = [];
     try {
       await this.persistAgentState(agentId);
     } catch (error) {
@@ -241,35 +241,37 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     return undefined;
   }
 
-  /** The agent's current active-domain fragment id, if any. */
-  public getActiveDomain(agentId: string): string | undefined {
-    return this.getState(agentId)?.activeDomainFragmentId;
+  /** The agent's current active-domain fragment ids (empty when none). */
+  public getActiveDomains(agentId: string): string[] {
+    return this.getState(agentId)?.activeDomainFragmentIds ?? [];
   }
 
-  /** Mark the given DOMAIN fragment as the agent's active domain. Signal only — never used as an implicit parent. */
-  public async setActiveDomain(agentId: string, domainFragmentId: string): Promise<void> {
+  /** Replace the agent's active-domain set with the given DOMAIN fragment ids. Signal only — never used as an implicit parent. */
+  public async setActiveDomains(agentId: string, domainFragmentIds: string[]): Promise<void> {
     const state = this.ensureState(agentId);
-    if (state.activeDomainFragmentId === domainFragmentId) {
+    const currentIds = new Set(state.activeDomainFragmentIds);
+    const nextIds = new Set(domainFragmentIds);
+    if (currentIds.size === nextIds.size && domainFragmentIds.every((domainId) => currentIds.has(domainId))) {
       return;
     }
 
-    state.activeDomainFragmentId = domainFragmentId;
+    state.activeDomainFragmentIds = Array.from(nextIds);
 
     try {
       await this.persistAgentState(agentId);
     } catch (error) {
-      log.error({ agentId, error }, "Failed to persist state after setActiveDomain");
+      log.error({ agentId, error }, "Failed to persist state after setActiveDomains");
     }
   }
 
-  /** Clear the agent's active domain if it points at the deleted fragment. */
+  /** Drop the deleted fragment from the agent's active-domain set, if present. */
   public async clearActiveDomain(agentId: string, deletedFragmentId: string): Promise<void> {
     const state = this.getState(agentId);
-    if (!state || state.activeDomainFragmentId !== deletedFragmentId) {
+    if (!state || !state.activeDomainFragmentIds.includes(deletedFragmentId)) {
       return;
     }
 
-    state.activeDomainFragmentId = undefined;
+    state.activeDomainFragmentIds = state.activeDomainFragmentIds.filter((domainId) => domainId !== deletedFragmentId);
 
     try {
       await this.persistAgentState(agentId);
@@ -669,6 +671,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       state = {
         agentId,
         status: AGENT_STATUS.IDLE,
+        activeDomainFragmentIds: [],
         sessionUsage: {
           inputTokens: 0,
           outputTokens: 0,

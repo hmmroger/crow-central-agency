@@ -551,17 +551,39 @@ describe("FragmentManager.resolveDomain", () => {
     const feedback = await createFragment(harness, FRAGMENT_KIND.FEEDBACK, fragmentParent(domain.id));
     const nestedFeedback = await createFragment(harness, FRAGMENT_KIND.FEEDBACK, fragmentParent(feedback.id));
 
-    expect(await harness.fragmentManager.resolveDomain(domain.id)).toBe(domain.id);
-    expect(await harness.fragmentManager.resolveDomain(knowledge.id)).toBe(domain.id);
-    expect(await harness.fragmentManager.resolveDomain(feedback.id)).toBe(domain.id);
-    expect(await harness.fragmentManager.resolveDomain(nestedFeedback.id)).toBe(domain.id);
+    expect(await harness.fragmentManager.resolveDomain(domain.id)).toEqual([domain.id]);
+    expect(await harness.fragmentManager.resolveDomain(knowledge.id)).toEqual([domain.id]);
+    expect(await harness.fragmentManager.resolveDomain(feedback.id)).toEqual([domain.id]);
+    expect(await harness.fragmentManager.resolveDomain(nestedFeedback.id)).toEqual([domain.id]);
   });
 
-  it("returns undefined for a fragment with no DOMAIN ancestry", async () => {
+  it("resolves a KNOWLEDGE fragment under two DOMAINs to both", async () => {
+    const harness = await createHarness();
+    const domainA = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const domainB = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domainA.id));
+    await harness.fragmentManager.createLink(domainB.id, knowledge.id);
+
+    const domains = await harness.fragmentManager.resolveDomain(knowledge.id);
+
+    expect(domains.sort()).toEqual([domainA.id, domainB.id].sort());
+  });
+
+  it("stops at the nearest DOMAIN and never ascends past it", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const subDomain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, fragmentParent(domain.id));
+    const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(subDomain.id));
+
+    expect(await harness.fragmentManager.resolveDomain(knowledge.id)).toEqual([subDomain.id]);
+    expect(await harness.fragmentManager.resolveDomain(subDomain.id)).toEqual([subDomain.id]);
+  });
+
+  it("returns an empty set for a fragment with no DOMAIN ancestry", async () => {
     const harness = await createHarness();
     const feedback = await createFragment(harness, FRAGMENT_KIND.FEEDBACK, agentParent(AGENT_ID_A));
 
-    expect(await harness.fragmentManager.resolveDomain(feedback.id)).toBeUndefined();
+    expect(await harness.fragmentManager.resolveDomain(feedback.id)).toEqual([]);
   });
 });
 
