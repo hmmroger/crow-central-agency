@@ -1,15 +1,11 @@
 import { z } from "zod";
 import { ENTITY_TYPE } from "@crow-central-agency/shared";
 import type { FragmentManager } from "../../services/fragment/fragment-manager.js";
+import type { AgentRuntimeManager } from "../../services/runtime/agent-runtime-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { assertFragmentAccessible } from "./fragment-tool-utils.js";
 import { toFragmentParent } from "./write-fragment.js";
-
-/** The slice of AgentRuntimeManager the unlink flow needs: dropping collected ids from the acting agent's active set */
-export interface ActiveDomainManager {
-  clearActiveDomain(agentId: string, deletedFragmentId: string): Promise<void>;
-}
 
 export const UNLINK_FRAGMENT_TOOL_NAME = "unlink_fragment";
 
@@ -19,7 +15,7 @@ export const UNLINK_FRAGMENT_TOOL_NAME = "unlink_fragment";
  */
 export async function unlinkFragmentEdge(
   fragmentManager: FragmentManager,
-  runtimeManager: ActiveDomainManager,
+  runtimeManager: AgentRuntimeManager,
   agentId: string,
   fragmentId: string,
   sourceId: string
@@ -42,7 +38,7 @@ export async function unlinkFragmentEdge(
 export function getUnlinkFragmentToolConfig(
   agentId: string,
   fragmentManager: FragmentManager,
-  runtimeManager: ActiveDomainManager
+  runtimeManager: AgentRuntimeManager
 ) {
   const inputSchema = {
     fragmentId: z.string().min(1).describe("Fragment id to unlink."),
