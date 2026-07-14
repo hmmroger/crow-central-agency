@@ -4,6 +4,7 @@ import type { AgentRuntimeManager } from "../../services/runtime/agent-runtime-m
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { signalActiveDomain } from "./active-domain-signal.js";
+import { assertFragmentAccessible } from "./fragment-tool-utils.js";
 
 export const READ_FRAGMENT_TOOL_NAME = "read_fragment";
 
@@ -18,7 +19,8 @@ export function getReadFragmentToolConfig(
 
   const handler: ToolHandler<typeof inputSchema> = async ({ id }) => {
     try {
-      const fragment = await fragmentManager.readFragmentForAgent(agentId, id);
+      assertFragmentAccessible(fragmentManager, agentId, id);
+      const fragment = await fragmentManager.readFragment(id);
       await fragmentManager.recordRecall(id);
       const childCues = await fragmentManager.getChildFragmentCues(id);
       await signalActiveDomain(agentId, id, fragmentManager, runtimeManager);

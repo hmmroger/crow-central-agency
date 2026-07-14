@@ -1,13 +1,77 @@
 import { z } from "zod";
-import { FRAGMENT_MAX_WORDS } from "@crow-central-agency/shared";
+import { ENTITY_TYPE, FRAGMENT_MAX_WORDS, RELATIONSHIP_TYPE, type Relationship } from "@crow-central-agency/shared";
 import type { FragmentManager } from "../../services/fragment/fragment-manager.js";
+import type { FragmentParent } from "../../services/fragment/fragment-manager.types.js";
 import type { AgentRuntimeManager } from "../../services/runtime/agent-runtime-manager.js";
+import { AppError } from "../../core/error/app-error.js";
+import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { signalActiveDomain } from "./active-domain-signal.js";
+import { assertFragmentAccessible } from "./fragment-tool-utils.js";
 import { toFragmentParent } from "./write-fragment.js";
 
 export const UPDATE_FRAGMENT_TOOL_NAME = "update_fragment";
+
+async function restoreParentEdge(fragmentManager: FragmentManager, edge: Relationship, fragmentId: string) {
+  if (edge.relationshipType === RELATIONSHIP_TYPE.LINK) {
+    await fragmentManager.createLink(edge.sourceEntityId, fragmentId);
+  } else {
+    await fragmentManager.createAssociation(edge.sourceEntityId, fragmentId);
+  }
+}
+
+/**
+ * Compose a parent change from named-edge primitives: drop the edges the
+ * fragment currently hangs under for this agent (its incoming LINKs plus the
+ * agent's own ASSOCIATION anchor — other agents' sharing associations are not
+ * part of the op), then add the new parent edge, which re-runs the intrinsic
+ * graph invariants. A rejected add restores the removed edges so a failed move
+ * leaves the graph exactly as it was. Structural move only — updatedTimestamp
+ * is not bumped.
+ */
+export async function changeFragmentParent(
+  fragmentManager: FragmentManager,
+  agentId: string,
+  fragmentId: string,
+  newParent: FragmentParent,
+  expectedUpdatedTimestamp?: number
+): Promise<void> {
+  const fragment = await fragmentManager.readFragment(fragmentId);
+  if (expectedUpdatedTimestamp !== undefined && fragment.updatedTimestamp !== expectedUpdatedTimestamp) {
+    throw new AppError(
+      "Fragment was modified since it was read. Re-read the fragment and retry.",
+      APP_ERROR_CODES.CONFLICT
+    );
+  }
+
+  if (newParent.entityType === ENTITY_TYPE.FRAGMENT) {
+    assertFragmentAccessible(fragmentManager, agentId, newParent.entityId);
+  }
+
+  const parentEdges = fragmentManager.getParentEdges(agentId, fragmentId);
+  for (const edge of parentEdges) {
+    if (edge.relationshipType === RELATIONSHIP_TYPE.LINK) {
+      await fragmentManager.removeLink(edge.sourceEntityId, fragmentId);
+    } else {
+      await fragmentManager.removeAssociation(edge.sourceEntityId, fragmentId);
+    }
+  }
+
+  try {
+    if (newParent.entityType === ENTITY_TYPE.AGENT) {
+      await fragmentManager.createAssociation(newParent.entityId, fragmentId);
+    } else {
+      await fragmentManager.createLink(newParent.entityId, fragmentId);
+    }
+  } catch (error) {
+    for (const edge of parentEdges) {
+      await restoreParentEdge(fragmentManager, edge, fragmentId);
+    }
+
+    throw error;
+  }
+}
 
 export function getUpdateFragmentToolConfig(
   agentId: string,
@@ -39,16 +103,18 @@ export function getUpdateFragmentToolConfig(
         throw new Error("Provide at least one of cue, body, or parent.");
       }
 
+      assertFragmentAccessible(fragmentManager, agentId, id);
+
       const changes: string[] = [];
       // Re-link first: it validates against the same version and does not bump it,
       // so a combined relink + content update stays a single consistent operation
       if (parent !== undefined) {
-        await fragmentManager.relinkFragment(agentId, id, toFragmentParent(agentId, parent), version);
+        await changeFragmentParent(fragmentManager, agentId, id, toFragmentParent(agentId, parent), version);
         changes.push("re-linked");
       }
 
       if (cue !== undefined || body !== undefined) {
-        await fragmentManager.updateFragmentForAgent(agentId, id, {
+        await fragmentManager.updateFragment(id, {
           cue,
           body,
           expectedUpdatedTimestamp: version,

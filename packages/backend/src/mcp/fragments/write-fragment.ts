@@ -6,6 +6,7 @@ import type { AgentRuntimeManager } from "../../services/runtime/agent-runtime-m
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { signalActiveDomain } from "./active-domain-signal.js";
+import { assertFragmentAccessible } from "./fragment-tool-utils.js";
 
 export const WRITE_FRAGMENT_TOOL_NAME = "write_fragment";
 
@@ -37,12 +38,14 @@ export function getWriteFragmentToolConfig(
 
   const handler: ToolHandler<typeof inputSchema> = async ({ kind, cue, body, parent }) => {
     try {
-      const fragment = await fragmentManager.createFragmentForAgent(agentId, {
-        kind,
-        cue,
-        body,
-        parent: toFragmentParent(agentId, parent),
-      });
+      // toFragmentParent maps only the acting agent's own id to an agent anchor,
+      // so the parent is either self or a fragment the agent must be able to reach
+      const parentNode = toFragmentParent(agentId, parent);
+      if (parentNode.entityType === ENTITY_TYPE.FRAGMENT) {
+        assertFragmentAccessible(fragmentManager, agentId, parentNode.entityId);
+      }
+
+      const fragment = await fragmentManager.createFragment({ kind, cue, body, parent: parentNode });
 
       await signalActiveDomain(agentId, fragment.id, fragmentManager, runtimeManager);
 
