@@ -28,6 +28,7 @@ import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { logger } from "../../utils/logger.js";
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
 import type { AgentRunner } from "../../runner/agent-runner.js";
+import type { FragmentManager } from "../fragment/fragment-manager.js";
 import { createAgentRunner as buildAgentRunner } from "../../runner/agent-runner-factory.js";
 import {
   AGENT_STREAM_EVENT_TYPE,
@@ -80,7 +81,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     private readonly messageQueue: MessageQueueManager,
     private readonly taskManager: AgentTaskManager,
     private readonly sensorManager: SensorManager,
-    private readonly circleManager: AgentCircleManager
+    private readonly circleManager: AgentCircleManager,
+    private readonly fragmentManager: FragmentManager
   ) {
     super();
     this.permissionHandler = new PermissionHandler(broadcaster);
@@ -237,6 +239,11 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
 
     return undefined;
+  }
+
+  /** The agent's current active-domain fragment id, if any. */
+  public getActiveDomain(agentId: string): string | undefined {
+    return this.getState(agentId)?.activeDomainFragmentId;
   }
 
   /** Mark the given DOMAIN fragment as the agent's active domain. Signal only — never used as an implicit parent. */
@@ -1026,6 +1033,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       this.mcpManager,
       this.sensorManager,
       this.circleManager,
+      this.fragmentManager,
+      this,
       permissionRequestCallback,
       (streamEvent) => this.handleOobStreamEvent(streamEvent)
     );

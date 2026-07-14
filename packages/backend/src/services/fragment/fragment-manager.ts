@@ -514,6 +514,32 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
     return undefined;
   }
 
+  /** Cue index entry for a single fragment (hot tier only) */
+  public async getFragmentCue(fragmentId: string): Promise<FragmentCueIndexEntry | undefined> {
+    const entry = await this.indexStore.get<FragmentCueIndexEntry>(FRAGMENT_INDEX_STORE_TABLE, fragmentId);
+
+    return entry?.value;
+  }
+
+  /** Cue index entries of the fragments directly associated to an agent (first-order ASSOCIATION edges, hot tier only) */
+  public async getFirstLevelFragmentCues(agentId: string): Promise<FragmentCueIndexEntry[]> {
+    const fragmentIds = this.relationshipManager
+      .queryRelationships({
+        sourceEntityId: agentId,
+        sourceEntityType: ENTITY_TYPE.AGENT,
+        relationshipType: RELATIONSHIP_TYPE.ASSOCIATION,
+      })
+      .map((association) => association.targetEntityId);
+
+    const entries = await this.indexStore.getMany<FragmentCueIndexEntry>(FRAGMENT_INDEX_STORE_TABLE, fragmentIds);
+
+    return fragmentIds.flatMap((fragmentId) => {
+      const entry = entries.get(fragmentId);
+
+      return entry ? [entry.value] : [];
+    });
+  }
+
   /** Cue index entries of a fragment's direct LINK children (hot tier only) */
   public async getChildFragmentCues(fragmentId: string): Promise<FragmentCueIndexEntry[]> {
     const childIds = this.relationshipManager

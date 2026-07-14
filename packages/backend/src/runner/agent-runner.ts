@@ -31,6 +31,9 @@ import type { SensorManager } from "../sensors/sensor-manager.js";
 import type { SensorContext } from "../sensors/sensor-manager.types.js";
 import type { MessageSource } from "../services/message-queue-manager.types.js";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
+import type { FragmentManager } from "../services/fragment/fragment-manager.js";
+import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
+import { renderFragmentCues } from "../services/fragment/fragment-cue-renderer.js";
 import { ADD_REMINDER_TOOL_NAME } from "../mcp/reminders/add-reminder.js";
 import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 import { GMAIL_MCP_SERVER_NAME } from "../mcp/gmail/gmail-mcp-server.js";
@@ -104,6 +107,10 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
       content: ["{sensorReadings}"],
       keys: ["sensorReadings"],
     },
+    {
+      content: ["", "{fragmentCues}"],
+      keys: ["fragmentCues"],
+    },
   ],
   keys: [
     "currentDate",
@@ -117,6 +124,7 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
     "hasFeedMcp",
     "agentMd",
     "sensorReadings",
+    "fragmentCues",
   ],
 };
 
@@ -230,7 +238,9 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     private readonly registry: AgentRegistry,
     private readonly mcpManager: CrowMcpManager,
     private readonly sensorManager: SensorManager,
-    private readonly circleManager: AgentCircleManager
+    private readonly circleManager: AgentCircleManager,
+    private readonly fragmentManager: FragmentManager,
+    private readonly runtimeManager: AgentRuntimeManager
   ) {
     super();
     this.agentStatus = AGENT_STATUS.IDLE;
@@ -457,6 +467,16 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
       }
     }
 
+    let fragmentCues: string | undefined;
+    if (!isCrowSystemAgent(this.agentId)) {
+      try {
+        const activeDomainFragmentId = this.runtimeManager.getActiveDomain(this.agentId);
+        fragmentCues = await renderFragmentCues(this.agentId, activeDomainFragmentId, this.fragmentManager);
+      } catch (error) {
+        log.warn({ agentId: this.agentId, error }, "Failed to render fragment cues.");
+      }
+    }
+
     const gmailServerProfiles = serverConfigs.find(
       (server) => server.name === GMAIL_MCP_SERVER_NAME
     )?.connectionProfiles;
@@ -475,6 +495,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
           hasFeedMcp,
           agentMd: agentMd || undefined,
           sensorReadings: sensorReadings.join("\n"),
+          fragmentCues,
         },
         sensorContext?.timezone
       )

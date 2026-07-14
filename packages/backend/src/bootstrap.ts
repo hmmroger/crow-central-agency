@@ -134,7 +134,8 @@ export async function bootstrap(options: BootstrapOptions) {
     messageQueue,
     taskManager,
     sensorManager,
-    circleManager
+    circleManager,
+    fragmentManager
   );
   await runtimeManager.initialize();
 

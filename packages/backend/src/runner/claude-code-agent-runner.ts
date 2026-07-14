@@ -38,6 +38,8 @@ import type { AgentRegistry } from "../services/agent-registry.js";
 import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
 import type { SensorManager } from "../sensors/sensor-manager.js";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
+import type { FragmentManager } from "../services/fragment/fragment-manager.js";
+import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
 import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 import { toClaudeServer, toClaudeTransport } from "../mcp/claude-mcp-adapter.js";
 
@@ -93,10 +95,12 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
     mcpManager: CrowMcpManager,
     sensorManager: SensorManager,
     circleManager: AgentCircleManager,
+    fragmentManager: FragmentManager,
+    runtimeManager: AgentRuntimeManager,
     private readonly permissionRequestHandler: PermissionRequestCallback,
     private readonly oobEventCallback: OOBStreamEventCallback
   ) {
-    super(agentId, registry, mcpManager, sensorManager, circleManager);
+    super(agentId, registry, mcpManager, sensorManager, circleManager, fragmentManager, runtimeManager);
   }
 
   protected async *runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown> {
