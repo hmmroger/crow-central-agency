@@ -338,10 +338,12 @@ export {
 } from "./constants/system-agent.js";
 
 export {
+  CreateFragmentAssociationInputSchema,
   FRAGMENT_KIND,
   FRAGMENT_MAX_WORDS,
   FragmentKindSchema,
   FragmentSchema,
+  type CreateFragmentAssociationInput,
   type FragmentKind,
   type Fragment,
 } from "./schemas/fragment.schema.js";

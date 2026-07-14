@@ -1,13 +1,9 @@
-import { z } from "zod/v4";
 import type { FastifyInstance } from "fastify";
+import { CreateFragmentAssociationInputSchema } from "@crow-central-agency/shared";
 import type { FragmentManager } from "../services/fragment/fragment-manager.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import { validateAgentIdParam, validateUuidParam } from "../utils/validation.js";
 import { wrapZodError } from "./route-utils.js";
-
-const CreateFragmentAssociationSchema = z.object({
-  agentId: z.string().min(1),
-});
 
 /**
  * Register fragment sharing routes: user-managed agent → fragment
@@ -23,7 +19,7 @@ export async function registerFragmentRoutes(
   server.post<{ Params: { id: string }; Body: unknown }>("/api/fragments/:id/associations", async (request) => {
     const fragmentId = validateUuidParam(request.params.id, "fragment");
     try {
-      const input = CreateFragmentAssociationSchema.parse(request.body);
+      const input = CreateFragmentAssociationInputSchema.parse(request.body);
       const agentId = validateAgentIdParam(input.agentId);
       registry.getAgent(agentId);
 

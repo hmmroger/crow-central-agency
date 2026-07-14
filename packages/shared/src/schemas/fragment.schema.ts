@@ -46,3 +46,10 @@ export const FragmentSchema = z.object({
 });
 
 export type Fragment = z.infer<typeof FragmentSchema>;
+
+/** Input for the user-facing sharing route: associate an agent to a fragment */
+export const CreateFragmentAssociationInputSchema = z.object({
+  agentId: z.string().min(1),
+});
+
+export type CreateFragmentAssociationInput = z.infer<typeof CreateFragmentAssociationInputSchema>;
