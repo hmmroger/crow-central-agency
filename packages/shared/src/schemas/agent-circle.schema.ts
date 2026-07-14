@@ -6,16 +6,21 @@ import { z } from "zod";
 export const ENTITY_TYPE = {
   AGENT: "AGENT",
   AGENT_CIRCLE: "AGENT_CIRCLE",
+  FRAGMENT: "FRAGMENT",
 } as const;
 
 export type EntityType = (typeof ENTITY_TYPE)[keyof typeof ENTITY_TYPE];
 
 /**
  * Relationship types between entities.
- * MEMBERSHIP means "source contains target as a member".
+ * MEMBERSHIP means "source contains target as a member" (agent ↔ circle only).
+ * ASSOCIATION anchors an agent to a fragment (agent → fragment).
+ * LINK connects fragments (fragment → fragment).
  */
 export const RELATIONSHIP_TYPE = {
   MEMBERSHIP: "MEMBERSHIP",
+  ASSOCIATION: "ASSOCIATION",
+  LINK: "LINK",
 } as const;
 
 export type RelationshipType = (typeof RELATIONSHIP_TYPE)[keyof typeof RELATIONSHIP_TYPE];
@@ -53,9 +58,13 @@ export const UpdateAgentCircleInputSchema = z.object({
 
 export type UpdateAgentCircleInput = z.infer<typeof UpdateAgentCircleInputSchema>;
 
-export const EntityTypeSchema = z.enum([ENTITY_TYPE.AGENT, ENTITY_TYPE.AGENT_CIRCLE]);
+export const EntityTypeSchema = z.enum([ENTITY_TYPE.AGENT, ENTITY_TYPE.AGENT_CIRCLE, ENTITY_TYPE.FRAGMENT]);
 
-export const RelationshipTypeSchema = z.enum([RELATIONSHIP_TYPE.MEMBERSHIP]);
+export const RelationshipTypeSchema = z.enum([
+  RELATIONSHIP_TYPE.MEMBERSHIP,
+  RELATIONSHIP_TYPE.ASSOCIATION,
+  RELATIONSHIP_TYPE.LINK,
+]);
 
 export const RelationshipSchema = z.object({
   /** Unique identifier - UUID except for virtual relationship with system agents */

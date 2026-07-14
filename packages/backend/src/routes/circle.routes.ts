@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import {
   ENTITY_TYPE,
+  RELATIONSHIP_TYPE,
   CreateAgentCircleInputSchema,
   CreateRelationshipInputSchema,
   UpdateAgentCircleInputSchema,
@@ -8,6 +9,8 @@ import {
 } from "@crow-central-agency/shared";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
+import { AppError } from "../core/error/app-error.js";
+import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { validateAgentIdParam, validateCircleIdParam, validateUuidParam } from "../utils/validation.js";
 import { wrapZodError } from "./route-utils.js";
 
@@ -29,6 +32,9 @@ export async function registerCircleRoutes(
       case ENTITY_TYPE.AGENT_CIRCLE:
         circleManager.getCircle(entityId);
         break;
+
+      case ENTITY_TYPE.FRAGMENT:
+        throw new AppError(`Entity type ${entityType} is not supported by this route`, APP_ERROR_CODES.VALIDATION);
     }
   };
 
@@ -107,6 +113,14 @@ export async function registerCircleRoutes(
   server.post<{ Body: unknown }>("/api/relationships", async (request) => {
     try {
       const input = CreateRelationshipInputSchema.parse(request.body);
+      // Fragment ASSOCIATION/LINK edges get their own validated routes; this route is memberships only
+      if (input.relationshipType !== RELATIONSHIP_TYPE.MEMBERSHIP) {
+        throw new AppError(
+          `Only ${RELATIONSHIP_TYPE.MEMBERSHIP} relationships can be created via this route`,
+          APP_ERROR_CODES.VALIDATION
+        );
+      }
+
       validateEntity(input.sourceEntityId, input.sourceEntityType);
       validateEntity(input.targetEntityId, input.targetEntityType);
 

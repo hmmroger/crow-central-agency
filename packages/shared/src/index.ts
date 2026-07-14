@@ -194,10 +194,12 @@ export {
   ARTIFACT_CONTENT_TYPE,
   ArtifactTypeSchema,
   ArtifactContentTypeSchema,
+  ArtifactEntityTypeSchema,
   ArtifactMetadataSchema,
   ArtifactUpdateSchema,
   type ArtifactType,
   type ArtifactContentType,
+  type ArtifactEntityType,
   type ArtifactMetadata,
   type ArtifactUpdate,
 } from "./schemas/artifact.schema.js";
@@ -334,6 +336,15 @@ export {
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
   CROW_WORLD_BUILDER_AGENT_ID,
 } from "./constants/system-agent.js";
+
+export {
+  FRAGMENT_KIND,
+  FRAGMENT_MAX_WORDS,
+  FragmentKindSchema,
+  FragmentSchema,
+  type FragmentKind,
+  type Fragment,
+} from "./schemas/fragment.schema.js";
 
 export {
   MESSAGE_SOURCE_TYPE,

@@ -51,6 +51,7 @@ import { GeoLocationSensor } from "./sensors/geolocation-sensor.js";
 import { WeatherSensor } from "./sensors/weather-sensor.js";
 import { AgentCircleManager } from "./services/agent-circle-manager.js";
 import { RelationshipManager } from "./services/relationship-manager.js";
+import { FragmentManager } from "./services/fragment/fragment-manager.js";
 import { registerCircleRoutes } from "./routes/circle.routes.js";
 import { registerGraphRoutes } from "./routes/graph.routes.js";
 import { DiscordBotManager } from "./bot-connectors/discord/discord-bot-manager.js";
@@ -104,6 +105,8 @@ export async function bootstrap(options: BootstrapOptions) {
   await feedManager.initialize();
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
+  const fragmentManager = new FragmentManager(folderFileProvider, storeProvider);
+  await fragmentManager.initialize();
   const documentSearchService = new DocumentSearchService(artifactManager, taskManager, registry, circleManager);
   await documentSearchService.initialize();
   const placesManager = new PlacesManager();
