@@ -559,19 +559,30 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
     });
   }
 
-  /** Rebuild the derived cue index from the fragment store */
-  public async rebuildIndex(): Promise<void> {
+  /** All fragments from the source-of-truth store, skipping invalid entries */
+  public async getAllFragments(): Promise<Fragment[]> {
     const entries = await this.fragmentStore.getAll<Fragment>(FRAGMENT_STORE_TABLE);
 
-    const indexEntries: Array<readonly [string, FragmentCueIndexEntry]> = [];
+    const fragments: Fragment[] = [];
     for (const entry of entries) {
       const result = FragmentSchema.safeParse(entry.value);
       if (result.success) {
-        indexEntries.push([result.data.id, this.toIndexEntry(result.data)]);
+        fragments.push(result.data);
       } else {
         log.warn({ issues: result.error.issues }, "Skipping invalid fragment in fragment store");
       }
     }
+
+    return fragments;
+  }
+
+  /** Rebuild the derived cue index from the fragment store */
+  public async rebuildIndex(): Promise<void> {
+    const fragments = await this.getAllFragments();
+    const indexEntries: Array<readonly [string, FragmentCueIndexEntry]> = fragments.map((fragment) => [
+      fragment.id,
+      this.toIndexEntry(fragment),
+    ]);
 
     await this.indexStore.clear(FRAGMENT_INDEX_STORE_TABLE);
     if (indexEntries.length > 0) {

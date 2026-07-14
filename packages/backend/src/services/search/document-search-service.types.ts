@@ -2,6 +2,7 @@ export const DATA_SOURCE_TYPE = {
   ARTIFACT: "artifact",
   CIRCLE_ARTIFACT: "circleArtifact",
   TASK: "task",
+  FRAGMENT: "fragment",
 } as const;
 export type DataSourceType = (typeof DATA_SOURCE_TYPE)[keyof typeof DATA_SOURCE_TYPE];
 

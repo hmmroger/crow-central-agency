@@ -2,6 +2,7 @@ import type { AgentRegistry } from "../../services/agent-registry.js";
 import type { AgentRuntimeManager } from "../../services/runtime/agent-runtime-manager.js";
 import type { AgentTaskManager } from "../../services/agent-task-manager.js";
 import type { AgentCircleManager } from "../../services/agent-circle-manager.js";
+import type { FragmentManager } from "../../services/fragment/fragment-manager.js";
 import type { DocumentSearchService } from "../../services/search/document-search-service.js";
 import { defineMcpTool } from "../crow-mcp-manager-utils.js";
 import type { McpServerDefinition } from "../crow-mcp-manager.types.js";
@@ -17,7 +18,8 @@ export function getAgentsMcpServerDefinition(
   runtimeManager: AgentRuntimeManager,
   taskManager: AgentTaskManager,
   documentSearchService: DocumentSearchService,
-  circleManager: AgentCircleManager
+  circleManager: AgentCircleManager,
+  fragmentManager: FragmentManager
 ): McpServerDefinition {
   return {
     name: CROW_AGENTS_MCP_SERVER_NAME,
@@ -25,7 +27,9 @@ export function getAgentsMcpServerDefinition(
     getTools: (agentId) => [
       defineMcpTool(getListAgentsToolConfig(agentId, registry)),
       defineMcpTool(getInvokeAgentToolConfig(agentId, registry, runtimeManager, taskManager)),
-      defineMcpTool(getSearchWorkspaceToolConfig(agentId, documentSearchService, taskManager, circleManager)),
+      defineMcpTool(
+        getSearchWorkspaceToolConfig(agentId, documentSearchService, taskManager, circleManager, fragmentManager)
+      ),
     ],
   };
 }

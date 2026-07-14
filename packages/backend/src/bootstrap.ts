@@ -109,7 +109,13 @@ export async function bootstrap(options: BootstrapOptions) {
   await artifactManager.initialize();
   const fragmentManager = new FragmentManager(folderFileProvider, storeProvider, relationshipManager);
   await fragmentManager.initialize();
-  const documentSearchService = new DocumentSearchService(artifactManager, taskManager, registry, circleManager);
+  const documentSearchService = new DocumentSearchService(
+    artifactManager,
+    taskManager,
+    registry,
+    circleManager,
+    fragmentManager
+  );
   await documentSearchService.initialize();
   const placesManager = new PlacesManager();
   const connectorManager = new ConnectorManager(storeProvider, registry, crowScheduler);
@@ -183,7 +189,14 @@ export async function bootstrap(options: BootstrapOptions) {
   );
   mcpManager.registerMcpServer(getFragmentsMcpServerDefinition(fragmentManager, runtimeManager));
   mcpManager.registerMcpServer(
-    getAgentsMcpServerDefinition(registry, runtimeManager, taskManager, documentSearchService, circleManager)
+    getAgentsMcpServerDefinition(
+      registry,
+      runtimeManager,
+      taskManager,
+      documentSearchService,
+      circleManager,
+      fragmentManager
+    )
   );
   mcpManager.registerMcpServer(getTasksMcpServerDefinition(taskManager, circleManager, sensorManager));
   mcpManager.registerMcpServer(getFeedMcpServerDefinition(registry, feedManager, sensorManager, systemSettingsManager));
