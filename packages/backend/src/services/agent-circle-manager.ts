@@ -172,7 +172,8 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
 
   /** Create a relationship between entities */
   public async createRelationship(input: CreateRelationshipInput): Promise<Relationship> {
-    // Prevent self-referencing
+    // Checked here (ahead of the cycle check) to preserve error ordering;
+    // RelationshipManager re-checks independently for non-circle callers.
     if (input.sourceEntityId === input.targetEntityId) {
       throw new AppError(
         "Cannot create a relationship from an entity to itself",
