@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import {
   ENTITY_TYPE,
   type ApiSuccess,
+  type EntityType,
   type GraphData,
   type GraphEdge,
   type GraphNode,
@@ -14,6 +15,9 @@ import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-mana
  * Register graph data route.
  * Returns a pre-assembled graph of all agents, circles, and their relationships.
  */
+/** Entity types rendered as graph nodes; edges touching anything else (e.g. fragments) are skipped */
+const GRAPH_NODE_ENTITY_TYPES: ReadonlySet<EntityType> = new Set([ENTITY_TYPE.AGENT, ENTITY_TYPE.AGENT_CIRCLE]);
+
 export async function registerGraphRoutes(
   server: FastifyInstance,
   circleManager: AgentCircleManager,
@@ -48,14 +52,20 @@ export async function registerGraphRoutes(
 
     const graphData: GraphData = {
       nodes: [...agentNodes, ...circleNodes],
-      edges: relationships.map(
-        (relationship): GraphEdge => ({
-          id: relationship.id,
-          source: relationship.sourceEntityId,
-          target: relationship.targetEntityId,
-          relationshipType: relationship.relationshipType,
-        })
-      ),
+      edges: relationships
+        .filter(
+          (relationship) =>
+            GRAPH_NODE_ENTITY_TYPES.has(relationship.sourceEntityType) &&
+            GRAPH_NODE_ENTITY_TYPES.has(relationship.targetEntityType)
+        )
+        .map(
+          (relationship): GraphEdge => ({
+            id: relationship.id,
+            source: relationship.sourceEntityId,
+            target: relationship.targetEntityId,
+            relationshipType: relationship.relationshipType,
+          })
+        ),
     };
 
     return { success: true, data: graphData };

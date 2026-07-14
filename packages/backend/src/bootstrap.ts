@@ -53,6 +53,7 @@ import { AgentCircleManager } from "./services/agent-circle-manager.js";
 import { RelationshipManager } from "./services/relationship-manager.js";
 import { FragmentManager } from "./services/fragment/fragment-manager.js";
 import { registerCircleRoutes } from "./routes/circle.routes.js";
+import { registerFragmentRoutes } from "./routes/fragment.routes.js";
 import { registerGraphRoutes } from "./routes/graph.routes.js";
 import { DiscordBotManager } from "./bot-connectors/discord/discord-bot-manager.js";
 import { createDiscordRoutine } from "./routines/discord-routine.js";
@@ -105,7 +106,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await feedManager.initialize();
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
-  const fragmentManager = new FragmentManager(folderFileProvider, storeProvider);
+  const fragmentManager = new FragmentManager(folderFileProvider, storeProvider, relationshipManager);
   await fragmentManager.initialize();
   const documentSearchService = new DocumentSearchService(artifactManager, taskManager, registry, circleManager);
   await documentSearchService.initialize();
@@ -222,6 +223,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerMcpRoutes(server, mcpManager);
   await registerSensorRoutes(server, sensorManager);
   await registerCircleRoutes(server, circleManager, registry);
+  await registerFragmentRoutes(server, fragmentManager, registry);
   await registerGraphRoutes(server, circleManager, registry, runtimeManager);
   await registerFeedRoutes(server, feedManager);
   await registerSystemSettingsRoutes(server, systemSettingsManager);
