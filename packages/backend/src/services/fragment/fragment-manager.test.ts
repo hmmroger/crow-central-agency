@@ -516,33 +516,6 @@ describe("FragmentManager optimistic concurrency", () => {
   });
 });
 
-describe("FragmentManager.deleteFragment guards", () => {
-  it("rejects deleting a fragment with children", async () => {
-    const harness = await createHarness();
-    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
-    await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domain.id));
-
-    await expectAppErrorCode(harness.fragmentManager.deleteFragment(domain.id), APP_ERROR_CODES.VALIDATION);
-  });
-
-  it("rejects deleting a shared node more than one agent can reach", async () => {
-    const harness = await createHarness();
-    const lesson = await createFragment(harness, FRAGMENT_KIND.LESSON, agentParent(AGENT_ID_A));
-    await harness.fragmentManager.createAssociation(AGENT_ID_B, lesson.id);
-
-    await expectAppErrorCode(harness.fragmentManager.deleteFragment(lesson.id), APP_ERROR_CODES.VALIDATION);
-  });
-
-  it("deletes a sole-reached leaf", async () => {
-    const harness = await createHarness();
-    const lesson = await createFragment(harness, FRAGMENT_KIND.LESSON, agentParent(AGENT_ID_A));
-
-    await harness.fragmentManager.deleteFragment(lesson.id);
-
-    await expectAppErrorCode(harness.fragmentManager.readFragment(lesson.id), APP_ERROR_CODES.FRAGMENT_NOT_FOUND);
-  });
-});
-
 describe("FragmentManager.resolveDomain", () => {
   it("resolves a DOMAIN to itself and children to the nearest ancestor DOMAIN", async () => {
     const harness = await createHarness();
@@ -611,30 +584,13 @@ describe("FragmentManager reflection-curator allowance", () => {
     expect(harness.fragmentManager.isFragmentAccessible(FRAGMENT_REFLECTION_AGENT_ID, knowledge.id)).toBe(true);
   });
 
-  it("prunes a target's sole-reached leaf through the caller-independent delete", async () => {
+  it("prunes a target's sole-reached leaf through the caller-independent unlink", async () => {
     const harness = await createHarness();
     const lesson = await createFragment(harness, FRAGMENT_KIND.LESSON, agentParent(AGENT_ID_A));
 
-    await harness.fragmentManager.deleteFragment(lesson.id);
+    const collectedIds = await harness.fragmentManager.unlinkFragment(agentParent(AGENT_ID_A), lesson.id);
 
+    expect(collectedIds).toEqual([lesson.id]);
     await expectAppErrorCode(harness.fragmentManager.readFragment(lesson.id), APP_ERROR_CODES.FRAGMENT_NOT_FOUND);
-  });
-});
-
-describe("FragmentManager.deleteFragment cascade", () => {
-  it("cascades the fragment's remaining edges", async () => {
-    const harness = await createHarness();
-    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
-    const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domain.id));
-
-    await harness.fragmentManager.deleteFragment(knowledge.id);
-
-    expect(
-      harness.relationshipManager
-        .getAllRelationships()
-        .filter(
-          (relationship) => relationship.sourceEntityId === knowledge.id || relationship.targetEntityId === knowledge.id
-        )
-    ).toHaveLength(0);
   });
 });

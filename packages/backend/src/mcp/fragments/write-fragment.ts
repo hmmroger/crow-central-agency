@@ -10,7 +10,7 @@ import { assertFragmentAccessible } from "./fragment-tool-utils.js";
 
 export const WRITE_FRAGMENT_TOOL_NAME = "write_fragment";
 
-/** Map the tool's single parent id to the manager's typed parent: the acting agent's own id anchors, anything else is a fragment id */
+/** Map a tool-facing node id to the manager's typed parent: the acting agent's own id anchors, anything else is a fragment id */
 export function toFragmentParent(agentId: string, parent: string): FragmentParent {
   return parent === agentId
     ? { entityType: ENTITY_TYPE.AGENT, entityId: agentId }
@@ -28,7 +28,7 @@ export function getWriteFragmentToolConfig(
     ),
     cue: z.string().min(1).describe("Short one-line descriptor used to recognize when this fragment is relevant."),
     body: z.string().min(1).describe(`The lesson or fact itself, at most ${FRAGMENT_MAX_WORDS} words.`),
-    parent: z
+    source: z
       .string()
       .min(1)
       .describe(
@@ -36,11 +36,11 @@ export function getWriteFragmentToolConfig(
       ),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ kind, cue, body, parent }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ kind, cue, body, source }) => {
     try {
       // toFragmentParent maps only the acting agent's own id to an agent anchor,
-      // so the parent is either self or a fragment the agent must be able to reach
-      const parentNode = toFragmentParent(agentId, parent);
+      // so the source is either self or a fragment the agent must be able to reach
+      const parentNode = toFragmentParent(agentId, source);
       if (parentNode.entityType === ENTITY_TYPE.FRAGMENT) {
         assertFragmentAccessible(fragmentManager, agentId, parentNode.entityId);
       }
@@ -58,7 +58,7 @@ export function getWriteFragmentToolConfig(
   const config: McpToolConfig<typeof inputSchema> = {
     name: WRITE_FRAGMENT_TOOL_NAME,
     description:
-      "Save an atomic piece of experience to your fragment vault. Always requires an explicit parent to hang the fragment under — pick a deliberate spot in your structure.",
+      "Save an atomic piece of experience to your fragment vault. Always requires an explicit source to hang the fragment under — pick a deliberate spot in your structure.",
     inputSchema,
     handler,
   };

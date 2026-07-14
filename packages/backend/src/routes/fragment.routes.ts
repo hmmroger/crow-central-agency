@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { CreateFragmentAssociationInputSchema } from "@crow-central-agency/shared";
+import { CreateFragmentAssociationInputSchema, ENTITY_TYPE } from "@crow-central-agency/shared";
 import type { FragmentManager } from "../services/fragment/fragment-manager.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import { validateAgentIdParam, validateUuidParam } from "../utils/validation.js";
@@ -37,7 +37,8 @@ export async function registerFragmentRoutes(
     async (request) => {
       const fragmentId = validateUuidParam(request.params.id, "fragment");
       const agentId = validateAgentIdParam(request.params.agentId);
-      await fragmentManager.removeAssociation(agentId, fragmentId);
+      // unlink (not plain removeAssociation) so a last-edge unshare cascade-collects orphans
+      await fragmentManager.unlinkFragment({ entityType: ENTITY_TYPE.AGENT, entityId: agentId }, fragmentId);
 
       return { success: true, data: { deleted: true } };
     }

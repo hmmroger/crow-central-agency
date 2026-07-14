@@ -17,7 +17,8 @@ import { FRAGMENTS_MCP_SERVER_NAME } from "../mcp/fragments/fragments-mcp-server
 import { WRITE_FRAGMENT_TOOL_NAME } from "../mcp/fragments/write-fragment.js";
 import { READ_FRAGMENT_TOOL_NAME } from "../mcp/fragments/read-fragment.js";
 import { UPDATE_FRAGMENT_TOOL_NAME } from "../mcp/fragments/update-fragment.js";
-import { DELETE_FRAGMENT_TOOL_NAME } from "../mcp/fragments/delete-fragment.js";
+import { LINK_FRAGMENT_TOOL_NAME } from "../mcp/fragments/link-fragment.js";
+import { UNLINK_FRAGMENT_TOOL_NAME } from "../mcp/fragments/unlink-fragment.js";
 
 const CROW_FRAGMENT_REFLECTION_AGENT_NAME = "Crow Fragment Reflection";
 
@@ -54,18 +55,20 @@ const CROW_FRAGMENT_REFLECTION_AGENT_PERSONA: MessageTemplate = {
         "How you work:",
         "- `read_fragment(id)` opens any fragment in the target's tree (you are permitted to reach the whole",
         "  target vault). Use it to pull bodies you were not given before deciding.",
-        "- `update_fragment` edits a cue/body and/or re-links a fragment to a new parent — this is your main",
-        "  relocate/consolidate instrument.",
-        "- `write_fragment` creates new theme/sub-domain nodes; a parent is always required.",
-        "- `delete_fragment` prunes; it is rejected if the fragment still has children or is shared with",
-        "  another agent, so re-link or fold content first.",
+        "- `update_fragment` edits a cue and/or body — content only.",
+        "- `link_fragment` adds a fragment under a new parent, or moves it when you pass the original",
+        "  parent — this is your main relocate/consolidate instrument.",
+        "- `write_fragment` creates new theme/sub-domain nodes; a source is always required.",
+        "- `unlink_fragment` removes one named parent edge; removing the last edge deletes the fragment and",
+        "  cascade-deletes any children left unreachable, so fold content into a survivor first.",
         "",
         "Guardrails:",
         "- Never destroy knowledge. Always fold unique content into a surviving fragment before removing",
         "  anything.",
-        "- The system enforces the vault's invariants (a KNOWLEDGE fragment has exactly one parent DOMAIN;",
-        "  the parent-type rules; the {maxWords} cap; no cycles). If a tool call is rejected, your move",
-        "  violated an invariant — rethink it, do not fight it.",
+        "- The system enforces the vault's invariants (a KNOWLEDGE fragment hangs only under DOMAIN",
+        "  parents; the parent-type rules; the {maxWords} cap; no cycles). A fragment may have multiple",
+        "  parents. If a tool call is rejected, your move violated an invariant — rethink it, do not",
+        "  fight it.",
         "- Keep cues short and navigational; keep bodies atomic and within the cap.",
         "- Make minimal, high-confidence changes. If a consolidation or merge is not clearly correct, leave",
         "  it — under-organizing is far safer than destroying good structure.",
@@ -84,7 +87,8 @@ const CROW_FRAGMENT_REFLECTION_TOOLS = [
   WRITE_FRAGMENT_TOOL_NAME,
   READ_FRAGMENT_TOOL_NAME,
   UPDATE_FRAGMENT_TOOL_NAME,
-  DELETE_FRAGMENT_TOOL_NAME,
+  LINK_FRAGMENT_TOOL_NAME,
+  UNLINK_FRAGMENT_TOOL_NAME,
 ].map((toolName) => `mcp__${FRAGMENTS_MCP_SERVER_NAME}__${toolName}`);
 
 /**

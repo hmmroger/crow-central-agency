@@ -10,7 +10,8 @@ import type { McpServerDefinition } from "../crow-mcp-manager.types.js";
 import { getWriteFragmentToolConfig } from "./write-fragment.js";
 import { getReadFragmentToolConfig } from "./read-fragment.js";
 import { getUpdateFragmentToolConfig } from "./update-fragment.js";
-import { getDeleteFragmentToolConfig } from "./delete-fragment.js";
+import { getLinkFragmentToolConfig } from "./link-fragment.js";
+import { getUnlinkFragmentToolConfig } from "./unlink-fragment.js";
 
 export const FRAGMENTS_MCP_SERVER_NAME = "crow-fragments";
 
@@ -25,7 +26,8 @@ export function getFragmentsMcpServerDefinition(
       defineMcpTool(getWriteFragmentToolConfig(agentId, fragmentManager, runtimeManager)),
       defineMcpTool(getReadFragmentToolConfig(agentId, fragmentManager, runtimeManager)),
       defineMcpTool(getUpdateFragmentToolConfig(agentId, fragmentManager, runtimeManager)),
-      defineMcpTool(getDeleteFragmentToolConfig(agentId, fragmentManager, runtimeManager)),
+      defineMcpTool(getLinkFragmentToolConfig(agentId, fragmentManager, runtimeManager)),
+      defineMcpTool(getUnlinkFragmentToolConfig(agentId, fragmentManager, runtimeManager)),
     ],
   };
 }

@@ -160,39 +160,6 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
   }
 
   /**
-   * Delete a fragment from both tiers, cascading its remaining graph edges
-   * so no dangling ASSOCIATION/LINK survives it. Caller-independent guards:
-   * rejected while the fragment has children (outgoing LINKs) or more than
-   * one agent can still reach it — a shared node is unshared via the sharing
-   * route, never destroyed out from under other agents.
-   * @throws AppError with FRAGMENT_NOT_FOUND if the fragment does not exist.
-   */
-  public async deleteFragment(fragmentId: string): Promise<void> {
-    await this.readFragmentOrThrow(fragmentId);
-
-    const childLinks = this.relationshipManager.queryRelationships({
-      sourceEntityId: fragmentId,
-      sourceEntityType: ENTITY_TYPE.FRAGMENT,
-      relationshipType: RELATIONSHIP_TYPE.LINK,
-    });
-    if (childLinks.length > 0) {
-      throw new AppError(
-        `Fragment ${fragmentId} has ${childLinks.length} child fragment(s). Re-parent or delete them first`,
-        APP_ERROR_CODES.VALIDATION
-      );
-    }
-
-    if (this.getAgentsReachingFragment(fragmentId).length > 1) {
-      throw new AppError(
-        `Fragment ${fragmentId} is still reachable by other agents. Remove your association instead of deleting it`,
-        APP_ERROR_CODES.VALIDATION
-      );
-    }
-
-    await this.purgeFragment(fragmentId);
-  }
-
-  /**
    * Record a recall: bump usage stats in the truth tier only.
    * Leaves updatedTimestamp untouched — recalls are not content changes.
    */
@@ -450,24 +417,6 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
     }
 
     return false;
-  }
-
-  /**
-   * The named edges a fragment currently hangs under for an acting agent: its
-   * incoming LINKs plus that agent's own ASSOCIATION anchor. Other agents'
-   * sharing ASSOCIATIONs are not parent edges and are never included.
-   */
-  public getParentEdges(agentId: string, fragmentId: string): Relationship[] {
-    return [
-      ...this.getParentLinks(fragmentId),
-      ...this.relationshipManager.queryRelationships({
-        sourceEntityId: agentId,
-        sourceEntityType: ENTITY_TYPE.AGENT,
-        targetEntityId: fragmentId,
-        targetEntityType: ENTITY_TYPE.FRAGMENT,
-        relationshipType: RELATIONSHIP_TYPE.ASSOCIATION,
-      }),
-    ];
   }
 
   /**
