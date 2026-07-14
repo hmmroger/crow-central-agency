@@ -167,7 +167,8 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
 
     const result = FragmentSchema.safeParse(entry.value);
     if (!result.success) {
-      throw new AppError(`Invalid fragment data: ${fragmentId}`, APP_ERROR_CODES.VALIDATION);
+      log.error({ fragmentId, issues: result.error.issues }, "Corrupted fragment data in store");
+      throw new AppError(`Corrupted fragment data: ${fragmentId}`, APP_ERROR_CODES.UNKNOWN);
     }
 
     return result.data;
