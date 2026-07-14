@@ -135,6 +135,33 @@ describe("linkFragment", () => {
     expect(associations.map((association) => association.sourceEntityId)).toEqual([AGENT_ID_B]);
   });
 
+  it("rolls back the added edge when the named original edge does not exist", async () => {
+    const harness = await createHarness();
+    const domainA = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const domainB = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    // accessible to A but NOT a current parent of feedback
+    const domainC = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const feedback = await createFragment(harness, FRAGMENT_KIND.FEEDBACK, fragmentParent(domainA.id));
+
+    await expectAppErrorCode(
+      linkFragment(harness.fragmentManager, AGENT_ID_A, feedback.id, domainB.id, domainC.id),
+      APP_ERROR_CODES.RELATIONSHIP_NOT_FOUND
+    );
+
+    const rolledBackLinks = harness.relationshipManager.queryRelationships({
+      sourceEntityId: domainB.id,
+      targetEntityId: feedback.id,
+      relationshipType: RELATIONSHIP_TYPE.LINK,
+    });
+    const survivingLinks = harness.relationshipManager.queryRelationships({
+      sourceEntityId: domainA.id,
+      targetEntityId: feedback.id,
+      relationshipType: RELATIONSHIP_TYPE.LINK,
+    });
+    expect(rolledBackLinks).toHaveLength(0);
+    expect(survivingLinks).toHaveLength(1);
+  });
+
   it("rejects an original edge the caller cannot access", async () => {
     const harness = await createHarness();
     const domainA = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
