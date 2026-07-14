@@ -229,6 +229,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
     log.warn({ agentId, sessionId: state.sessionId }, "Persisted session no longer exists; resetting session state");
     state.sessionId = undefined;
+    state.activeDomainFragmentId = undefined;
     try {
       await this.persistAgentState(agentId);
     } catch (error) {
