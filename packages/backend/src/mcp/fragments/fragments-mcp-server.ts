@@ -2,6 +2,7 @@ import {
   CROW_TASK_DISPATCHER_AGENT_ID,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
   CROW_WORLD_BUILDER_AGENT_ID,
+  FRAGMENT_REFLECTION_AGENT_ID,
 } from "@crow-central-agency/shared";
 import type { FragmentManager } from "../../services/fragment/fragment-manager.js";
 import type { AgentRuntimeManager } from "../../services/runtime/agent-runtime-manager.js";
@@ -21,7 +22,13 @@ export function getFragmentsMcpServerDefinition(
 ): McpServerDefinition {
   return {
     name: FRAGMENTS_MCP_SERVER_NAME,
-    disallowedAgentIds: [CROW_TASK_DISPATCHER_AGENT_ID, CROW_NARRATIVE_ARCHITECT_AGENT_ID, CROW_WORLD_BUILDER_AGENT_ID],
+    disallowedAgentIds: [
+      CROW_TASK_DISPATCHER_AGENT_ID,
+      CROW_NARRATIVE_ARCHITECT_AGENT_ID,
+      CROW_WORLD_BUILDER_AGENT_ID,
+      // The reflection agent plans, never mutates — it gets only the read-only reflection server
+      FRAGMENT_REFLECTION_AGENT_ID,
+    ],
     getTools: (agentId) => [
       defineMcpTool(getWriteFragmentToolConfig(agentId, fragmentManager, runtimeManager)),
       defineMcpTool(getReadFragmentToolConfig(agentId, fragmentManager, runtimeManager)),
