@@ -19,16 +19,16 @@ export function getSearchFragmentToolConfig(
   documentSearchService: DocumentSearchService
 ) {
   const inputSchema = {
-    agentId: z.string().min(1).describe("The target agent whose fragment scope to search."),
+    targetAgentId: z.string().min(1).describe("The target agent whose fragment scope to search."),
     query: z
       .string()
       .min(1)
       .describe("Full-text query matched against fragment cues and bodies. Supports fuzzy and prefix matching."),
   };
 
-  const handler: ToolHandler<typeof inputSchema> = async ({ agentId, query }) => {
+  const handler: ToolHandler<typeof inputSchema> = async ({ targetAgentId, query }) => {
     try {
-      const scopedFragmentIds = fragmentManager.getScopedFragmentIds(agentId);
+      const scopedFragmentIds = fragmentManager.getScopedFragmentIds(targetAgentId);
       const hits = documentSearchService.search(query, {
         filter: (ref) => ref.dataSourceType === DATA_SOURCE_TYPE.FRAGMENT && scopedFragmentIds.has(ref.documentId),
         limit: SEARCH_FRAGMENT_LIMIT,

@@ -78,7 +78,7 @@ describe("search_fragment", () => {
     // Initialize after the writes: startup indexing is synchronous, event delivery is setImmediate-deferred
     await harness.documentSearchService.initialize();
     const { handler } = getSearchFragmentToolConfig(harness.fragmentManager, harness.documentSearchService);
-    const result = await handler({ agentId: AGENT_ID_A, query: "kubernetes" }, undefined);
+    const result = await handler({ targetAgentId: AGENT_ID_A, query: "kubernetes" }, undefined);
 
     const text = getResultText(result);
     expect(text).toContain(domainA.id);
@@ -106,7 +106,7 @@ describe("search_fragment", () => {
     // Initialize after the writes: startup indexing is synchronous, event delivery is setImmediate-deferred
     await harness.documentSearchService.initialize();
     const { handler } = getSearchFragmentToolConfig(harness.fragmentManager, harness.documentSearchService);
-    const result = await handler({ agentId: AGENT_ID_A, query: "grafana" }, undefined);
+    const result = await handler({ targetAgentId: AGENT_ID_A, query: "grafana" }, undefined);
 
     expect(getResultText(result)).toContain(knowledge.id);
   });
@@ -123,7 +123,7 @@ describe("search_fragment", () => {
     // Initialize after the writes: startup indexing is synchronous, event delivery is setImmediate-deferred
     await harness.documentSearchService.initialize();
     const { handler } = getSearchFragmentToolConfig(harness.fragmentManager, harness.documentSearchService);
-    const result = await handler({ agentId: AGENT_ID_A, query: "kubernetes" }, undefined);
+    const result = await handler({ targetAgentId: AGENT_ID_A, query: "kubernetes" }, undefined);
 
     expect(getResultText(result)).toContain("No fragment matches found");
   });

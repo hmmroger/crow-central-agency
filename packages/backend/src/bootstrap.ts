@@ -54,6 +54,8 @@ import { WeatherSensor } from "./sensors/weather-sensor.js";
 import { AgentCircleManager } from "./services/agent-circle-manager.js";
 import { RelationshipManager } from "./services/relationship-manager.js";
 import { FragmentManager } from "./services/fragment/fragment-manager.js";
+import { FragmentReflectionStateStore } from "./services/fragment/fragment-reflection-state-store.js";
+import { createFragmentReflectionRoutine } from "./routines/fragment-reflection-routine.js";
 import { registerCircleRoutes } from "./routes/circle.routes.js";
 import { registerFragmentRoutes } from "./routes/fragment.routes.js";
 import { registerGraphRoutes } from "./routes/graph.routes.js";
@@ -177,6 +179,14 @@ export async function bootstrap(options: BootstrapOptions) {
     sensorManager
   );
   routineManager.addRoutine(gmailNotificationRoutine);
+  const fragmentReflectionStateStore = new FragmentReflectionStateStore(storeProvider);
+  const fragmentReflectionRoutine = createFragmentReflectionRoutine(
+    registry,
+    runtimeManager,
+    fragmentManager,
+    fragmentReflectionStateStore
+  );
+  routineManager.addRoutine(fragmentReflectionRoutine);
 
   // Discord bot manager — creates per-agent bots for agents with discordConfig
   const discordBotManager = new DiscordBotManager(registry, runtimeManager);

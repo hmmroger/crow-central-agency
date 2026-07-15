@@ -499,6 +499,19 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
     });
   }
 
+  /** Cue index entries of a fragment's direct LINK parents (hot tier only) */
+  public async getParentFragmentCues(fragmentId: string): Promise<FragmentCueIndexEntry[]> {
+    const parentIds = this.getParentLinks(fragmentId).map((link) => link.sourceEntityId);
+
+    const entries = await this.indexStore.getMany<FragmentCueIndexEntry>(FRAGMENT_INDEX_STORE_TABLE, parentIds);
+
+    return parentIds.flatMap((parentId) => {
+      const entry = entries.get(parentId);
+
+      return entry ? [entry.value] : [];
+    });
+  }
+
   /** All fragments from the source-of-truth store, skipping invalid entries */
   public async getAllFragments(): Promise<Fragment[]> {
     const entries = await this.fragmentStore.getAll<Fragment>(FRAGMENT_STORE_TABLE);
