@@ -472,6 +472,13 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
     });
   }
 
+  /** Cue index entries for every fragment in the index (hot tier only, no bodies) */
+  public async getAllFragmentCues(): Promise<FragmentCueIndexEntry[]> {
+    const entries = await this.indexStore.getAll<FragmentCueIndexEntry>(FRAGMENT_INDEX_STORE_TABLE);
+
+    return entries.map((entry) => entry.value);
+  }
+
   /** Cue index entries of the fragments directly associated to an agent (first-order ASSOCIATION edges, hot tier only) */
   public async getFirstLevelFragmentCues(agentId: string): Promise<FragmentCueIndexEntry[]> {
     const fragmentIds = this.relationshipManager
