@@ -396,6 +396,61 @@ describe("FragmentManager.unlinkFragment cascade-GC", () => {
   });
 });
 
+describe("FragmentManager relationship events", () => {
+  it("emits relationshipCreated for named edge writes and relationshipDeleted for their removals", async () => {
+    const harness = await createHarness();
+    const domainA = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const domainB = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domainA.id));
+
+    const createdIds: string[] = [];
+    const deletedIds: string[] = [];
+    harness.fragmentManager.on("relationshipCreated", (event) => {
+      createdIds.push(event.relationship.id);
+    });
+    harness.fragmentManager.on("relationshipDeleted", (event) => {
+      deletedIds.push(event.relationshipId);
+    });
+
+    const association = await harness.fragmentManager.createAssociation(AGENT_ID_B, domainA.id);
+    const link = await harness.fragmentManager.createLink(domainB.id, knowledge.id);
+    await harness.fragmentManager.removeAssociation(AGENT_ID_B, domainA.id);
+    await harness.fragmentManager.removeLink(domainB.id, knowledge.id);
+    // EventBus defers listeners via setImmediate; flush before asserting
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+
+    expect(createdIds).toEqual([association.id, link.id]);
+    expect(deletedIds).toEqual([association.id, link.id]);
+  });
+
+  it("does not emit relationshipDeleted for purge-time edge strips", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domain.id));
+
+    const deletedRelationshipIds: string[] = [];
+    const deletedFragmentIds: string[] = [];
+    harness.fragmentManager.on("relationshipDeleted", (event) => {
+      deletedRelationshipIds.push(event.relationshipId);
+    });
+    harness.fragmentManager.on("fragmentDeleted", (event) => {
+      deletedFragmentIds.push(event.fragmentId);
+    });
+
+    const collected = await harness.fragmentManager.unlinkFragment(agentParent(AGENT_ID_A), domain.id);
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+
+    expect(collected).toEqual([domain.id, knowledge.id]);
+    expect(deletedFragmentIds).toEqual(collected);
+    // Only the named unlink edge emits; the cascade's stripped edges do not
+    expect(deletedRelationshipIds).toHaveLength(1);
+  });
+});
+
 describe("FragmentManager scope resolution", () => {
   it("resolves every fragment reachable from an agent's associations", async () => {
     const harness = await createHarness();
