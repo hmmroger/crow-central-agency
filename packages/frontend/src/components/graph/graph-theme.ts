@@ -1,4 +1,4 @@
-import { AGENT_STATUS, type AgentStatus } from "@crow-central-agency/shared";
+import { AGENT_STATUS, RELATIONSHIP_TYPE, type AgentStatus, type RelationshipType } from "@crow-central-agency/shared";
 
 /** RGB color constants for graph nodes and edges */
 export const GRAPH_COLORS = {
@@ -11,25 +11,27 @@ export const GRAPH_COLORS = {
   /** Orange — compacting agent nodes */
   agentCompacting: "#cb623c",
   /** Green — system agent nodes */
-  systemAgent: "#00d587",
+  systemAgent: "#688fc7",
   /** Amber — DOMAIN fragment nodes */
-  fragmentDomainNode: "#fbbf24",
+  fragmentDomainNode: "#db924c",
   /** Dark amber — other fragment nodes (FEEDBACK/LESSON/KNOWLEDGE) */
-  fragmentNode: "#d97706",
-  /** Subtle gray — default edges */
+  fragmentNode: "#11576d",
+  /** Subtle gray — default (MEMBERSHIP) edges */
   edge: "#475569",
+  /** Indigo — ASSOCIATION edges (agent ↔ fragment) */
+  edgeAssociation: "#6366f1",
+  /** Amber — LINK edges (fragment ↔ fragment) */
+  edgeLink: "#7acc00",
   /** Cyan — highlighted edges */
   edgeHighlight: "#22d3ee",
+  /** Faint slate — non-highlighted edges while a node is hovered */
+  edgeDimmed: "#2a3647",
   /** Light gray — agent node labels */
   label: "#cbd5e1",
   /** Light purple — circle node labels */
   circleLabel: "#c4b5fd",
   /** Dark slate — dimmed non-highlighted nodes */
   dimmed: "#334155",
-  /** Dark surface — hover label background */
-  hoverBackground: "#1e293b",
-  /** White — hover label text */
-  hoverLabel: "#f1f5f9",
 } as const;
 
 /** Node sizes by type and state */
@@ -44,6 +46,13 @@ export const GRAPH_NODE_SIZE = {
 
 /** Default edge size */
 export const GRAPH_EDGE_SIZE = 1.5;
+
+/** Maps a relationship type to its resting edge color */
+export const EDGE_COLOR_BY_RELATIONSHIP: Record<RelationshipType, string> = {
+  [RELATIONSHIP_TYPE.MEMBERSHIP]: GRAPH_COLORS.edge,
+  [RELATIONSHIP_TYPE.ASSOCIATION]: GRAPH_COLORS.edgeAssociation,
+  [RELATIONSHIP_TYPE.LINK]: GRAPH_COLORS.edgeLink,
+};
 
 /** Maps agent status to node color and size */
 export const STATUS_APPEARANCE: Record<AgentStatus, { color: string; size: number }> = {

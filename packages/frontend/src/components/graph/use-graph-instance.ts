@@ -1,4 +1,3 @@
-import { isString } from "es-toolkit";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import Sigma from "sigma";
 import Graph from "graphology";
@@ -6,8 +5,14 @@ import forceAtlas2 from "graphology-layout-forceatlas2";
 import type { NodeDisplayData, PartialButFor } from "sigma/types";
 import { ENTITY_TYPE, FRAGMENT_KIND, type GraphData } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
-import { GRAPH_COLORS, GRAPH_NODE_SIZE, GRAPH_EDGE_SIZE, STATUS_APPEARANCE } from "./graph-theme.js";
-import type { GraphNodeAttributes, GraphEdgeAttributes } from "./graph-view.types.js";
+import {
+  GRAPH_COLORS,
+  GRAPH_NODE_SIZE,
+  GRAPH_EDGE_SIZE,
+  STATUS_APPEARANCE,
+  EDGE_COLOR_BY_RELATIONSHIP,
+} from "./graph-theme.js";
+import type { GraphNodeAttributes, GraphEdgeAttributes, GraphTooltipState } from "./graph-view.types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -28,54 +33,25 @@ const INITIAL_LAYOUT_ITERATIONS = 150;
 // Custom hover renderer
 // ---------------------------------------------------------------------------
 
-/** Dark-background hover tooltip matching the neon-noir theme */
+/**
+ * Minimal hover renderer: redraws just the highlighted node dot, with no
+ * on-canvas label box. Node details are surfaced by the HTML tooltip instead.
+ */
 function drawNodeHover(
   context: CanvasRenderingContext2D,
-  data: PartialButFor<NodeDisplayData, "x" | "y" | "size" | "label" | "color">,
-  settings: { labelSize: number; labelFont: string; labelWeight: string }
+  data: PartialButFor<NodeDisplayData, "x" | "y" | "size" | "label" | "color">
 ) {
-  const { labelSize, labelFont, labelWeight } = settings;
-  context.font = `${labelWeight} ${labelSize}px ${labelFont}`;
-
-  context.fillStyle = GRAPH_COLORS.hoverBackground;
-  context.shadowOffsetX = 0;
-  context.shadowOffsetY = 0;
-  context.shadowBlur = 8;
-  context.shadowColor = "#000";
-
-  const PADDING = 2;
-
-  if (isString(data.label)) {
-    const textWidth = context.measureText(data.label).width;
-    const boxWidth = Math.round(textWidth + 5);
-    const boxHeight = Math.round(labelSize + 2 * PADDING);
-    const radius = Math.max(data.size, labelSize / 2) + PADDING;
-    const angleRadian = Math.asin(boxHeight / 2 / radius);
-    const xDeltaCoord = Math.sqrt(Math.abs(radius ** 2 - (boxHeight / 2) ** 2));
-
-    context.beginPath();
-    context.moveTo(data.x + xDeltaCoord, data.y + boxHeight / 2);
-    context.lineTo(data.x + radius + boxWidth, data.y + boxHeight / 2);
-    context.lineTo(data.x + radius + boxWidth, data.y - boxHeight / 2);
-    context.lineTo(data.x + xDeltaCoord, data.y - boxHeight / 2);
-    context.arc(data.x, data.y, radius, angleRadian, -angleRadian);
-    context.closePath();
-    context.fill();
-
-    context.fillStyle = GRAPH_COLORS.hoverLabel;
-    context.fillText(data.label, data.x + radius + 3, data.y + labelSize / 3);
-  }
-
-  context.shadowOffsetX = 0;
-  context.shadowOffsetY = 0;
-  context.shadowBlur = 0;
-
   context.beginPath();
   context.fillStyle = data.color;
   context.arc(data.x, data.y, data.size, 0, Math.PI * 2);
   context.closePath();
   context.fill();
 }
+
+/** Estimated tooltip footprint used to keep it inside the container bounds */
+const TOOLTIP_ESTIMATED_WIDTH = 200;
+const TOOLTIP_ESTIMATED_HEIGHT = 56;
+const TOOLTIP_CURSOR_OFFSET = 14;
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -84,6 +60,7 @@ function drawNodeHover(
 interface GraphInstanceResult {
   graphRef: RefObject<Graph<GraphNodeAttributes, GraphEdgeAttributes>>;
   sigmaRef: RefObject<Sigma<GraphNodeAttributes, GraphEdgeAttributes> | null>;
+  tooltip: GraphTooltipState | undefined;
 }
 
 /**
@@ -102,6 +79,7 @@ export function useGraphInstance(
   );
   const sigmaRef = useRef<Sigma<GraphNodeAttributes, GraphEdgeAttributes> | null>(null);
   const [ready, setReady] = useState(false);
+  const [tooltip, setTooltip] = useState<GraphTooltipState | undefined>(undefined);
 
   // Reconcile graph data on every change
   useEffect(() => {
@@ -124,6 +102,11 @@ export function useGraphInstance(
     }
 
     const graph = graphRef.current;
+
+    // --- Hover state (read by the reducers) ---
+    let hoveredNode: string | null = null;
+    let neighbors = new Set<string>();
+    let isDragging = false;
 
     // --- Sigma ---
     const sigma = new Sigma(graph, container, {
@@ -149,8 +132,6 @@ export function useGraphInstance(
 
     // --- Events ---
     const goToAgentConsole = useAppStore.getState().goToAgentConsole;
-    let hoveredNode: string | null = null;
-    let neighbors = new Set<string>();
 
     const handleClickNode = ({ node }: { node: string }) => {
       const entityType = graph.getNodeAttribute(node, "entityType");
@@ -159,29 +140,60 @@ export function useGraphInstance(
       }
     };
 
-    const handleEnterNode = ({ node }: { node: string }) => {
+    const handleEnterNode = ({ node, event }: { node: string; event: { x: number; y: number } }) => {
       hoveredNode = node;
       neighbors = new Set(graph.neighbors(node));
       sigma.refresh({ skipIndexation: true });
+
+      // Suppress the tooltip while panning, and only for fragments (which carry no persistent label).
+      if (isDragging || graph.getNodeAttribute(node, "entityType") !== ENTITY_TYPE.FRAGMENT) {
+        setTooltip(undefined);
+        return;
+      }
+
+      let tooltipX = event.x + TOOLTIP_CURSOR_OFFSET;
+      let tooltipY = event.y + TOOLTIP_CURSOR_OFFSET;
+      if (tooltipX + TOOLTIP_ESTIMATED_WIDTH > container.clientWidth) {
+        tooltipX = event.x - TOOLTIP_ESTIMATED_WIDTH - TOOLTIP_CURSOR_OFFSET;
+      }
+
+      if (tooltipY + TOOLTIP_ESTIMATED_HEIGHT > container.clientHeight) {
+        tooltipY = event.y - TOOLTIP_ESTIMATED_HEIGHT - TOOLTIP_CURSOR_OFFSET;
+      }
+
+      setTooltip({
+        x: Math.max(0, tooltipX),
+        y: Math.max(0, tooltipY),
+        label: graph.getNodeAttribute(node, "label"),
+        kind: graph.getNodeAttribute(node, "kind"),
+      });
     };
 
     const handleLeaveNode = () => {
       hoveredNode = null;
       neighbors.clear();
+      setTooltip(undefined);
       sigma.refresh({ skipIndexation: true });
     };
 
     const handleDoubleClickStage = () => {
+      setTooltip(undefined);
       sigma.getCamera().animatedReset({ duration: 300 });
     };
 
     sigma.setSetting("nodeReducer", (node, data) => {
+      const isFragment = graph.getNodeAttribute(node, "entityType") === ENTITY_TYPE.FRAGMENT;
+      const isHovered = node === hoveredNode;
+
+      // Fragments never render a persistent label; the tooltip reveals it on hover.
+      const label = isFragment ? "" : data.label;
+
       if (!hoveredNode) {
-        return data;
+        return { ...data, label };
       }
 
-      if (node === hoveredNode || neighbors.has(node)) {
-        return { ...data, zIndex: 1 };
+      if (isHovered || neighbors.has(node)) {
+        return { ...data, label, zIndex: 1 };
       }
 
       return { ...data, color: GRAPH_COLORS.dimmed, label: "" };
@@ -195,16 +207,32 @@ export function useGraphInstance(
       const source = graph.source(edge);
       const target = graph.target(edge);
       if (source === hoveredNode || target === hoveredNode) {
-        return { ...data, color: GRAPH_COLORS.edgeHighlight };
+        return { ...data, color: GRAPH_COLORS.edgeHighlight, zIndex: 1 };
       }
 
-      return { ...data, hidden: true };
+      return { ...data, color: GRAPH_COLORS.edgeDimmed };
     });
+
+    // Camera drag (pan) tracking — hide the tooltip while the graph is being dragged.
+    const mouseCaptor = sigma.getMouseCaptor();
+
+    const handleDragMove = () => {
+      if (mouseCaptor.isMouseDown && !isDragging) {
+        isDragging = true;
+        setTooltip(undefined);
+      }
+    };
+
+    const handleDragEnd = () => {
+      isDragging = false;
+    };
 
     sigma.on("clickNode", handleClickNode);
     sigma.on("enterNode", handleEnterNode);
     sigma.on("leaveNode", handleLeaveNode);
     sigma.on("doubleClickStage", handleDoubleClickStage);
+    mouseCaptor.on("mousemovebody", handleDragMove);
+    mouseCaptor.on("mouseup", handleDragEnd);
 
     // --- Resize ---
     let resizeRafHandle: number | undefined;
@@ -231,12 +259,14 @@ export function useGraphInstance(
       sigma.off("enterNode", handleEnterNode);
       sigma.off("leaveNode", handleLeaveNode);
       sigma.off("doubleClickStage", handleDoubleClickStage);
+      mouseCaptor.off("mousemovebody", handleDragMove);
+      mouseCaptor.off("mouseup", handleDragEnd);
       sigma.kill();
       sigmaRef.current = null;
     };
   }, [containerRef, ready]);
 
-  return { graphRef, sigmaRef };
+  return { graphRef, sigmaRef, tooltip };
 }
 
 // ---------------------------------------------------------------------------
@@ -324,14 +354,17 @@ function reconcileGraph(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, 
       continue;
     }
 
+    const edgeColor = EDGE_COLOR_BY_RELATIONSHIP[edge.relationshipType];
+
     if (!graph.hasEdge(edge.id)) {
       graph.addEdgeWithKey(edge.id, edge.source, edge.target, {
-        color: GRAPH_COLORS.edge,
+        color: edgeColor,
         size: GRAPH_EDGE_SIZE,
         relationshipType: edge.relationshipType,
       });
     } else {
       graph.setEdgeAttribute(edge.id, "relationshipType", edge.relationshipType);
+      graph.setEdgeAttribute(edge.id, "color", edgeColor);
     }
   }
 

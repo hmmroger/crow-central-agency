@@ -21,3 +21,11 @@ export interface GraphEdgeAttributes {
   size: number;
   relationshipType: RelationshipType;
 }
+
+/** State for the HTML hover tooltip, positioned within the graph container */
+export interface GraphTooltipState {
+  x: number;
+  y: number;
+  label: string;
+  kind?: FragmentKind;
+}
