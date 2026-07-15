@@ -96,12 +96,12 @@ class FragmentReflectionRoutine {
   private async findFragmentsNewerThanWatermark(agentId: string): Promise<Fragment[]> {
     const watermark = (await this.reflectionStateStore.getLastSweepTimestamp(agentId)) ?? 0;
     const scopedFragmentIds = this.fragmentManager.getScopedFragmentIds(agentId);
+    const cueEntries = await this.fragmentManager.getFragmentCues(Array.from(scopedFragmentIds));
 
     const focusFragments: Fragment[] = [];
-    for (const fragmentId of scopedFragmentIds) {
-      const cueEntry = await this.fragmentManager.getFragmentCue(fragmentId);
-      if (cueEntry && cueEntry.createdTimestamp > watermark) {
-        focusFragments.push(await this.fragmentManager.readFragment(fragmentId));
+    for (const cueEntry of cueEntries) {
+      if (cueEntry.createdTimestamp > watermark) {
+        focusFragments.push(await this.fragmentManager.readFragment(cueEntry.id));
       }
     }
 

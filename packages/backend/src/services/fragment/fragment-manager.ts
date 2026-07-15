@@ -461,6 +461,17 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
     return entry?.value;
   }
 
+  /** Cue index entries for the given fragments, skipping ids missing from the index (hot tier only) */
+  public async getFragmentCues(fragmentIds: string[]): Promise<FragmentCueIndexEntry[]> {
+    const entries = await this.indexStore.getMany<FragmentCueIndexEntry>(FRAGMENT_INDEX_STORE_TABLE, fragmentIds);
+
+    return fragmentIds.flatMap((fragmentId) => {
+      const entry = entries.get(fragmentId);
+
+      return entry ? [entry.value] : [];
+    });
+  }
+
   /** Cue index entries of the fragments directly associated to an agent (first-order ASSOCIATION edges, hot tier only) */
   public async getFirstLevelFragmentCues(agentId: string): Promise<FragmentCueIndexEntry[]> {
     const fragmentIds = this.relationshipManager
@@ -471,13 +482,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       })
       .map((association) => association.targetEntityId);
 
-    const entries = await this.indexStore.getMany<FragmentCueIndexEntry>(FRAGMENT_INDEX_STORE_TABLE, fragmentIds);
-
-    return fragmentIds.flatMap((fragmentId) => {
-      const entry = entries.get(fragmentId);
-
-      return entry ? [entry.value] : [];
-    });
+    return this.getFragmentCues(fragmentIds);
   }
 
   /** Cue index entries of a fragment's direct LINK children (hot tier only) */
@@ -490,26 +495,14 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       })
       .map((link) => link.targetEntityId);
 
-    const entries = await this.indexStore.getMany<FragmentCueIndexEntry>(FRAGMENT_INDEX_STORE_TABLE, childIds);
-
-    return childIds.flatMap((childId) => {
-      const entry = entries.get(childId);
-
-      return entry ? [entry.value] : [];
-    });
+    return this.getFragmentCues(childIds);
   }
 
   /** Cue index entries of a fragment's direct LINK parents (hot tier only) */
   public async getParentFragmentCues(fragmentId: string): Promise<FragmentCueIndexEntry[]> {
     const parentIds = this.getParentLinks(fragmentId).map((link) => link.sourceEntityId);
 
-    const entries = await this.indexStore.getMany<FragmentCueIndexEntry>(FRAGMENT_INDEX_STORE_TABLE, parentIds);
-
-    return parentIds.flatMap((parentId) => {
-      const entry = entries.get(parentId);
-
-      return entry ? [entry.value] : [];
-    });
+    return this.getFragmentCues(parentIds);
   }
 
   /** All fragments from the source-of-truth store, skipping invalid entries */
