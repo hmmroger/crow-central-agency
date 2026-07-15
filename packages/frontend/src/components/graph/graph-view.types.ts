@@ -1,4 +1,4 @@
-import type { AgentStatus, EntityType, RelationshipType } from "@crow-central-agency/shared";
+import type { AgentStatus, EntityType, FragmentKind, RelationshipType } from "@crow-central-agency/shared";
 
 /** Sigma node attributes for the relationship graph */
 export interface GraphNodeAttributes {
@@ -12,6 +12,7 @@ export interface GraphNodeAttributes {
   agentStatus?: AgentStatus;
   isSystemAgent?: boolean;
   isSystemCircle?: boolean;
+  kind?: FragmentKind;
 }
 
 /** Sigma edge attributes for the relationship graph */

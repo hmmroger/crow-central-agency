@@ -12,6 +12,10 @@ export const GRAPH_COLORS = {
   agentCompacting: "#cb623c",
   /** Green — system agent nodes */
   systemAgent: "#00d587",
+  /** Amber — DOMAIN fragment nodes */
+  fragmentDomainNode: "#fbbf24",
+  /** Dark amber — other fragment nodes (FEEDBACK/LESSON/KNOWLEDGE) */
+  fragmentNode: "#d97706",
   /** Subtle gray — default edges */
   edge: "#475569",
   /** Cyan — highlighted edges */
@@ -34,6 +38,8 @@ export const GRAPH_NODE_SIZE = {
   agentIdle: 8,
   agentStreaming: 10,
   agentCompacting: 9,
+  fragmentDomain: 6,
+  fragment: 4,
 } as const;
 
 /** Default edge size */

@@ -26,6 +26,8 @@ export function GraphLegend() {
       <LegendItem color={GRAPH_COLORS.agentStreaming} label="Agent (streaming)" />
       <LegendItem color={GRAPH_COLORS.agentCompacting} label="Agent (compacting)" />
       <LegendItem color={GRAPH_COLORS.systemAgent} label="System agent" />
+      <LegendItem color={GRAPH_COLORS.fragmentDomainNode} label="Fragment (domain)" />
+      <LegendItem color={GRAPH_COLORS.fragmentNode} label="Fragment" />
     </div>
   );
 }

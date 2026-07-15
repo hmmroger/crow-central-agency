@@ -4,7 +4,7 @@ import Sigma from "sigma";
 import Graph from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import type { NodeDisplayData, PartialButFor } from "sigma/types";
-import { ENTITY_TYPE, type GraphData } from "@crow-central-agency/shared";
+import { ENTITY_TYPE, FRAGMENT_KIND, type GraphData } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
 import { GRAPH_COLORS, GRAPH_NODE_SIZE, GRAPH_EDGE_SIZE, STATUS_APPEARANCE } from "./graph-theme.js";
 import type { GraphNodeAttributes, GraphEdgeAttributes } from "./graph-view.types.js";
@@ -266,16 +266,29 @@ function reconcileGraph(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, 
   const newNodeIds: string[] = [];
   for (const node of graphData.nodes) {
     const isCircle = node.entityType === ENTITY_TYPE.AGENT_CIRCLE;
+    const isFragment = node.entityType === ENTITY_TYPE.FRAGMENT;
+    const isDomainFragment = isFragment && node.kind === FRAGMENT_KIND.DOMAIN;
     const isSystem = node.isSystemAgent === true;
-    const statusAppearance = !isCircle && !isSystem && node.status ? STATUS_APPEARANCE[node.status] : undefined;
+    const statusAppearance =
+      !isCircle && !isFragment && !isSystem && node.status ? STATUS_APPEARANCE[node.status] : undefined;
 
     const color = isCircle
       ? GRAPH_COLORS.circleNode
-      : isSystem
-        ? GRAPH_COLORS.systemAgent
-        : (statusAppearance?.color ?? GRAPH_COLORS.agentNode);
+      : isFragment
+        ? isDomainFragment
+          ? GRAPH_COLORS.fragmentDomainNode
+          : GRAPH_COLORS.fragmentNode
+        : isSystem
+          ? GRAPH_COLORS.systemAgent
+          : (statusAppearance?.color ?? GRAPH_COLORS.agentNode);
     const labelColor = isCircle ? GRAPH_COLORS.circleLabel : GRAPH_COLORS.label;
-    const size = isCircle ? GRAPH_NODE_SIZE.circle : (statusAppearance?.size ?? GRAPH_NODE_SIZE.agentIdle);
+    const size = isCircle
+      ? GRAPH_NODE_SIZE.circle
+      : isFragment
+        ? isDomainFragment
+          ? GRAPH_NODE_SIZE.fragmentDomain
+          : GRAPH_NODE_SIZE.fragment
+        : (statusAppearance?.size ?? GRAPH_NODE_SIZE.agentIdle);
 
     if (graph.hasNode(node.id)) {
       graph.setNodeAttribute(node.id, "label", node.name);
@@ -286,6 +299,7 @@ function reconcileGraph(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, 
       graph.setNodeAttribute(node.id, "isSystemAgent", node.isSystemAgent);
       graph.setNodeAttribute(node.id, "isSystemCircle", node.isSystemCircle);
       graph.setNodeAttribute(node.id, "agentStatus", node.status);
+      graph.setNodeAttribute(node.id, "kind", node.kind);
     } else {
       graph.addNode(node.id, {
         label: node.name,
@@ -298,6 +312,7 @@ function reconcileGraph(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, 
         entityType: node.entityType,
         isSystemAgent: node.isSystemAgent,
         isSystemCircle: node.isSystemCircle,
+        kind: node.kind,
       });
       newNodeIds.push(node.id);
     }
