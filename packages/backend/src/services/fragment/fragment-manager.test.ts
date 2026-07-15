@@ -574,6 +574,25 @@ describe("FragmentManager.getChildFragmentCues", () => {
   });
 });
 
+describe("FragmentManager.getAllFragmentCues", () => {
+  it("returns every indexed cue and drops entries removed from the index", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domain.id));
+    const feedback = await createFragment(harness, FRAGMENT_KIND.FEEDBACK, agentParent(AGENT_ID_B));
+
+    const allCues = await harness.fragmentManager.getAllFragmentCues();
+    expect(allCues.map((entry) => entry.id).sort()).toEqual([domain.id, knowledge.id, feedback.id].sort());
+    expect(allCues.find((entry) => entry.id === feedback.id)?.cue).toBe(feedback.cue);
+    expect(allCues.find((entry) => entry.id === feedback.id)?.kind).toBe(FRAGMENT_KIND.FEEDBACK);
+
+    await harness.fragmentManager.unlinkFragment(agentParent(AGENT_ID_B), feedback.id);
+
+    const remainingCues = await harness.fragmentManager.getAllFragmentCues();
+    expect(remainingCues.map((entry) => entry.id).sort()).toEqual([domain.id, knowledge.id].sort());
+  });
+});
+
 describe("FragmentManager reflection-curator allowance", () => {
   it("grants the curator access to any fragment without an association of its own", async () => {
     const harness = await createHarness();
