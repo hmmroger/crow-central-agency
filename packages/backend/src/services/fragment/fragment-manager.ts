@@ -5,6 +5,7 @@ import {
   FRAGMENT_REFLECTION_AGENT_ID,
   FragmentSchema,
   RELATIONSHIP_TYPE,
+  SERVER_MESSAGE_TYPE,
   type Fragment,
   type FragmentKind,
   type Relationship,
@@ -12,6 +13,7 @@ import {
 import { EventBus } from "../../core/event-bus/event-bus.js";
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
 import type { RelationshipManager } from "../relationship-manager.js";
+import type { WsBroadcaster } from "../ws-broadcaster.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { generateId } from "../../utils/id-utils.js";
@@ -73,7 +75,8 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
   constructor(
     private readonly fragmentStore: ObjectStoreProvider,
     private readonly indexStore: ObjectStoreProvider,
-    private readonly relationshipManager: RelationshipManager
+    private readonly relationshipManager: RelationshipManager,
+    private readonly broadcaster: WsBroadcaster
   ) {
     super();
   }
@@ -116,6 +119,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
 
     log.info({ fragmentId: fragment.id, kind: fragment.kind }, "Fragment created");
     this.emit("fragmentCreated", { fragment });
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.FRAGMENT_CREATED, fragmentId: fragment.id });
 
     return fragment;
   }
@@ -155,6 +159,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
 
     log.info({ fragmentId }, "Fragment updated");
     this.emit("fragmentUpdated", { fragment });
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.FRAGMENT_UPDATED, fragmentId: fragment.id });
 
     return fragment;
   }
@@ -199,7 +204,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       targetEntityType: ENTITY_TYPE.FRAGMENT,
       relationshipType: RELATIONSHIP_TYPE.ASSOCIATION,
     });
-    this.emit("relationshipCreated", { relationship });
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.RELATIONSHIP_CREATED, relationship });
 
     return relationship;
   }
@@ -225,7 +230,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
 
     for (const association of associations) {
       await this.relationshipManager.deleteRelationship(association.id);
-      this.emit("relationshipDeleted", { relationshipId: association.id });
+      this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED, relationshipId: association.id });
     }
   }
 
@@ -260,7 +265,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       targetEntityType: ENTITY_TYPE.FRAGMENT,
       relationshipType: RELATIONSHIP_TYPE.LINK,
     });
-    this.emit("relationshipCreated", { relationship });
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.RELATIONSHIP_CREATED, relationship });
 
     return relationship;
   }
@@ -286,7 +291,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
 
     for (const link of links) {
       await this.relationshipManager.deleteRelationship(link.id);
-      this.emit("relationshipDeleted", { relationshipId: link.id });
+      this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED, relationshipId: link.id });
     }
   }
 
@@ -612,6 +617,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
 
     log.info({ fragmentId }, "Fragment deleted");
     this.emit("fragmentDeleted", { fragmentId });
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.FRAGMENT_DELETED, fragmentId });
   }
 
   /** Cascade-GC: purge a fragment with no incoming edge left, then re-check its former children */

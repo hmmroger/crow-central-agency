@@ -31,7 +31,8 @@ async function createHarness(): Promise<Harness> {
   const fragmentManager = new FragmentManager(
     new InMemoryObjectStore(),
     new InMemoryObjectStore(),
-    relationshipManager
+    relationshipManager,
+    broadcaster
   );
   const documentSearchService = new DocumentSearchService(
     artifactManager,

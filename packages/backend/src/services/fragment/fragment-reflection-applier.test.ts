@@ -13,6 +13,7 @@ import { applyReflectionPlan } from "./fragment-reflection-applier.js";
 import { FragmentManager } from "./fragment-manager.js";
 import type { FragmentParent } from "./fragment-manager.types.js";
 import { RelationshipManager } from "../relationship-manager.js";
+import { WsBroadcaster } from "../ws-broadcaster.js";
 import { InMemoryObjectStore } from "../../core/store/in-memory-object-store.mock.js";
 
 const TARGET_AGENT_ID = "11111111-1111-4111-8111-111111111111";
@@ -28,7 +29,8 @@ async function createHarness(): Promise<Harness> {
   const fragmentManager = new FragmentManager(
     new InMemoryObjectStore(),
     new InMemoryObjectStore(),
-    relationshipManager
+    relationshipManager,
+    new WsBroadcaster()
   );
   await relationshipManager.initialize();
   await fragmentManager.initialize();

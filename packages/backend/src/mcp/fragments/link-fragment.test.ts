@@ -11,6 +11,7 @@ import { toFragmentParent } from "./write-fragment.js";
 import { FragmentManager } from "../../services/fragment/fragment-manager.js";
 import type { FragmentParent } from "../../services/fragment/fragment-manager.types.js";
 import { RelationshipManager } from "../../services/relationship-manager.js";
+import { WsBroadcaster } from "../../services/ws-broadcaster.js";
 import { InMemoryObjectStore } from "../../core/store/in-memory-object-store.mock.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
@@ -28,7 +29,8 @@ async function createHarness(): Promise<Harness> {
   const fragmentManager = new FragmentManager(
     new InMemoryObjectStore(),
     new InMemoryObjectStore(),
-    relationshipManager
+    relationshipManager,
+    new WsBroadcaster()
   );
   await relationshipManager.initialize();
   await fragmentManager.initialize();

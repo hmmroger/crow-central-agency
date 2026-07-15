@@ -1,16 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ENTITY_TYPE,
   FRAGMENT_KIND,
   FRAGMENT_MAX_WORDS,
   FRAGMENT_REFLECTION_AGENT_ID,
   RELATIONSHIP_TYPE,
+  SERVER_MESSAGE_TYPE,
   type Fragment,
   type FragmentKind,
 } from "@crow-central-agency/shared";
 import { FRAGMENT_STORE_TABLE, FragmentManager } from "./fragment-manager.js";
 import type { FragmentParent } from "./fragment-manager.types.js";
 import { RelationshipManager } from "../relationship-manager.js";
+import { WsBroadcaster } from "../ws-broadcaster.js";
 import { InMemoryObjectStore } from "../../core/store/in-memory-object-store.mock.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
@@ -24,6 +26,7 @@ interface Harness {
   indexStore: InMemoryObjectStore;
   relationshipManager: RelationshipManager;
   fragmentManager: FragmentManager;
+  broadcaster: WsBroadcaster;
 }
 
 async function createHarness(): Promise<Harness> {
@@ -31,11 +34,12 @@ async function createHarness(): Promise<Harness> {
   const indexStore = new InMemoryObjectStore();
   const relationshipStore = new InMemoryObjectStore();
   const relationshipManager = new RelationshipManager(relationshipStore);
-  const fragmentManager = new FragmentManager(fragmentStore, indexStore, relationshipManager);
+  const broadcaster = new WsBroadcaster();
+  const fragmentManager = new FragmentManager(fragmentStore, indexStore, relationshipManager, broadcaster);
   await relationshipManager.initialize();
   await fragmentManager.initialize();
 
-  return { fragmentStore, indexStore, relationshipManager, fragmentManager };
+  return { fragmentStore, indexStore, relationshipManager, fragmentManager, broadcaster };
 }
 
 function agentParent(agentId: string): FragmentParent {
@@ -396,58 +400,47 @@ describe("FragmentManager.unlinkFragment cascade-GC", () => {
   });
 });
 
-describe("FragmentManager relationship events", () => {
-  it("emits relationshipCreated for named edge writes and relationshipDeleted for their removals", async () => {
+describe("FragmentManager relationship broadcasts", () => {
+  it("broadcasts relationship_created for named edge writes and relationship_deleted for their removals", async () => {
     const harness = await createHarness();
     const domainA = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
     const domainB = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
     const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domainA.id));
 
-    const createdIds: string[] = [];
-    const deletedIds: string[] = [];
-    harness.fragmentManager.on("relationshipCreated", (event) => {
-      createdIds.push(event.relationship.id);
-    });
-    harness.fragmentManager.on("relationshipDeleted", (event) => {
-      deletedIds.push(event.relationshipId);
-    });
+    const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
 
     const association = await harness.fragmentManager.createAssociation(AGENT_ID_B, domainA.id);
     const link = await harness.fragmentManager.createLink(domainB.id, knowledge.id);
     await harness.fragmentManager.removeAssociation(AGENT_ID_B, domainA.id);
     await harness.fragmentManager.removeLink(domainB.id, knowledge.id);
-    // EventBus defers listeners via setImmediate; flush before asserting
-    await new Promise<void>((resolve) => {
-      setImmediate(resolve);
-    });
 
-    expect(createdIds).toEqual([association.id, link.id]);
-    expect(deletedIds).toEqual([association.id, link.id]);
+    expect(broadcastSpy.mock.calls.map(([message]) => message)).toEqual([
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIP_CREATED, relationship: association },
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIP_CREATED, relationship: link },
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED, relationshipId: association.id },
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED, relationshipId: link.id },
+    ]);
   });
 
-  it("does not emit relationshipDeleted for purge-time edge strips", async () => {
+  it("broadcasts one fragment_deleted per collected fragment and stays silent on purge-time edge strips", async () => {
     const harness = await createHarness();
     const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
     const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domain.id));
 
-    const deletedRelationshipIds: string[] = [];
-    const deletedFragmentIds: string[] = [];
-    harness.fragmentManager.on("relationshipDeleted", (event) => {
-      deletedRelationshipIds.push(event.relationshipId);
-    });
-    harness.fragmentManager.on("fragmentDeleted", (event) => {
-      deletedFragmentIds.push(event.fragmentId);
-    });
+    const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
 
     const collected = await harness.fragmentManager.unlinkFragment(agentParent(AGENT_ID_A), domain.id);
-    await new Promise<void>((resolve) => {
-      setImmediate(resolve);
-    });
+
+    const messages = broadcastSpy.mock.calls.map(([message]) => message);
+    const fragmentDeleted = messages.filter((message) => message.type === SERVER_MESSAGE_TYPE.FRAGMENT_DELETED);
+    const relationshipDeleted = messages.filter((message) => message.type === SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED);
 
     expect(collected).toEqual([domain.id, knowledge.id]);
-    expect(deletedFragmentIds).toEqual(collected);
-    // Only the named unlink edge emits; the cascade's stripped edges do not
-    expect(deletedRelationshipIds).toHaveLength(1);
+    expect(fragmentDeleted).toEqual(
+      collected.map((fragmentId) => ({ type: SERVER_MESSAGE_TYPE.FRAGMENT_DELETED, fragmentId }))
+    );
+    // Only the named unlink edge broadcasts; the cascade's stripped edges do not
+    expect(relationshipDeleted).toHaveLength(1);
   });
 });
 

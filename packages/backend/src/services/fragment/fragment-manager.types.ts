@@ -1,4 +1,4 @@
-import type { ENTITY_TYPE, Fragment, FragmentKind, Relationship } from "@crow-central-agency/shared";
+import type { ENTITY_TYPE, Fragment, FragmentKind } from "@crow-central-agency/shared";
 import type { EventMap } from "../../core/event-bus/event-bus.types.js";
 
 /** The source node a new fragment hangs off: an agent (ASSOCIATION) or a fragment (LINK) */
@@ -8,16 +8,14 @@ export interface FragmentParent {
 }
 
 /**
- * Events emitted by the FragmentManager.
- * Relationship events fire for named ASSOCIATION/LINK edge writes; purge-time
- * edge strips are covered by the accompanying fragmentDeleted.
+ * Fragment lifecycle events emitted by the FragmentManager, consumed by the
+ * search index to keep fragment documents in sync. WS graph broadcasts are
+ * emitted inline via the injected broadcaster, not through these events.
  */
 export interface FragmentManagerEvents extends EventMap {
   fragmentCreated: { fragment: Fragment };
   fragmentUpdated: { fragment: Fragment };
   fragmentDeleted: { fragmentId: string };
-  relationshipCreated: { relationship: Relationship };
-  relationshipDeleted: { relationshipId: string };
 }
 
 /** Hot-tier cue index entry — derived from the fragment store, never authoritative */
