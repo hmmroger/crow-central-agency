@@ -17,6 +17,7 @@ import { setupWebSocket } from "./server/setup-websocket.js";
 import { registerArtifactRoutes } from "./routes/artifact.routes.js";
 import { getArtifactsMcpServerDefinition } from "./mcp/artifacts/artifacts-mcp-server.js";
 import { getFragmentsMcpServerDefinition } from "./mcp/fragments/fragments-mcp-server.js";
+import { getFragmentsReflectionMcpServerDefinition } from "./mcp/fragments/fragments-reflection-mcp-server.js";
 import { getAgentsMcpServerDefinition } from "./mcp/agents/agents-mcp-server.js";
 import { getSuperAgentMcpServerDefinition } from "./mcp/agents/super-agent-mcp-server.js";
 import { getBuilderAgentMcpServerDefinition } from "./mcp/agents/builder-agent-mcp-server.js";
@@ -188,6 +189,9 @@ export async function bootstrap(options: BootstrapOptions) {
     getArtifactsMcpServerDefinition(artifactManager, registry, circleManager, sensorManager)
   );
   mcpManager.registerMcpServer(getFragmentsMcpServerDefinition(fragmentManager, runtimeManager));
+  mcpManager.registerMcpServer(
+    getFragmentsReflectionMcpServerDefinition(fragmentManager, runtimeManager, documentSearchService)
+  );
   mcpManager.registerMcpServer(
     getAgentsMcpServerDefinition(
       registry,

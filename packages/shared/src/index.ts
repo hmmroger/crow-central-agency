@@ -351,6 +351,19 @@ export {
 } from "./schemas/fragment.schema.js";
 
 export {
+  REFLECTION_NODE_REF,
+  REFLECTION_OP,
+  ReflectionNodeRefSchema,
+  ReflectionOpSchema,
+  ReflectionPlanSchema,
+  type ReflectionNodeRefType,
+  type ReflectionNodeRef,
+  type ReflectionOpType,
+  type ReflectionOp,
+  type ReflectionPlan,
+} from "./schemas/fragment-reflection.schema.js";
+
+export {
   MESSAGE_SOURCE_TYPE,
   MessageSourceSchema,
   type MessageSourceType,
