@@ -192,13 +192,16 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       );
     }
 
-    return this.relationshipManager.createRelationship({
+    const relationship = await this.relationshipManager.createRelationship({
       sourceEntityId: agentId,
       sourceEntityType: ENTITY_TYPE.AGENT,
       targetEntityId: fragmentId,
       targetEntityType: ENTITY_TYPE.FRAGMENT,
       relationshipType: RELATIONSHIP_TYPE.ASSOCIATION,
     });
+    this.emit("relationshipCreated", { relationship });
+
+    return relationship;
   }
 
   /**
@@ -222,6 +225,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
 
     for (const association of associations) {
       await this.relationshipManager.deleteRelationship(association.id);
+      this.emit("relationshipDeleted", { relationshipId: association.id });
     }
   }
 
@@ -249,13 +253,16 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       );
     }
 
-    return this.relationshipManager.createRelationship({
+    const relationship = await this.relationshipManager.createRelationship({
       sourceEntityId: parentFragmentId,
       sourceEntityType: ENTITY_TYPE.FRAGMENT,
       targetEntityId: childFragmentId,
       targetEntityType: ENTITY_TYPE.FRAGMENT,
       relationshipType: RELATIONSHIP_TYPE.LINK,
     });
+    this.emit("relationshipCreated", { relationship });
+
+    return relationship;
   }
 
   /**
@@ -279,6 +286,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
 
     for (const link of links) {
       await this.relationshipManager.deleteRelationship(link.id);
+      this.emit("relationshipDeleted", { relationshipId: link.id });
     }
   }
 

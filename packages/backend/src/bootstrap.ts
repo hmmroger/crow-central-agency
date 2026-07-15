@@ -1,3 +1,4 @@
+import { SERVER_MESSAGE_TYPE } from "@crow-central-agency/shared";
 import { assertRequiredEnv, env } from "./config/env.js";
 import { logger } from "./utils/logger.js";
 import { createServer } from "./server/create-server.js";
@@ -112,6 +113,22 @@ export async function bootstrap(options: BootstrapOptions) {
   await artifactManager.initialize();
   const fragmentManager = new FragmentManager(folderFileProvider, storeProvider, relationshipManager);
   await fragmentManager.initialize();
+  // Bridge fragment node/edge changes to WS so the Circles Map refreshes live
+  fragmentManager.on("fragmentCreated", ({ fragment }) => {
+    broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.FRAGMENT_CREATED, fragmentId: fragment.id });
+  });
+  fragmentManager.on("fragmentUpdated", ({ fragment }) => {
+    broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.FRAGMENT_UPDATED, fragmentId: fragment.id });
+  });
+  fragmentManager.on("fragmentDeleted", ({ fragmentId }) => {
+    broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.FRAGMENT_DELETED, fragmentId });
+  });
+  fragmentManager.on("relationshipCreated", ({ relationship }) => {
+    broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.RELATIONSHIP_CREATED, relationship });
+  });
+  fragmentManager.on("relationshipDeleted", ({ relationshipId }) => {
+    broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED, relationshipId });
+  });
   const documentSearchService = new DocumentSearchService(
     artifactManager,
     taskManager,
