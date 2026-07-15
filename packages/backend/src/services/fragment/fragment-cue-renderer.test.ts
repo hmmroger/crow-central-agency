@@ -59,9 +59,9 @@ describe("renderFragmentCues", () => {
       [
         "### Fragment vault",
         "",
-        "### Domains",
+        "#### Domains",
         `- [${domain.id}] Project A`,
-        "### Lessons",
+        "#### Lessons",
         `- [${lesson.id}] Verify billing`,
       ].join("\n")
     );
@@ -108,7 +108,7 @@ describe("renderFragmentCues", () => {
     const block = await renderFragmentCues(AGENT_ID, [domain.id], fragmentManager);
 
     expect(block).toContain(`Active domains: Project A (${domain.id})`);
-    expect(block).toContain(`### Active domain — Project A`);
+    expect(block).toContain(`#### Active domain — Project A`);
     expect(block).toContain(`- [${knowledge.id}] (${FRAGMENT_KIND.KNOWLEDGE}) Auth flow`);
     expect(block).toContain(`- [${subDomain.id}] (${FRAGMENT_KIND.DOMAIN}) Auth service`);
     expect(block).not.toContain(grandChild.id);
@@ -134,9 +134,9 @@ describe("renderFragmentCues", () => {
     const block = await renderFragmentCues(AGENT_ID, [domainA.id, domainB.id], fragmentManager);
 
     expect(block).toContain(`Active domains: Project A (${domainA.id}), Platform (${domainB.id})`);
-    expect(block).toContain(`### Active domain — Project A`);
+    expect(block).toContain(`#### Active domain — Project A`);
     expect(block).toContain(`- [${childA.id}] (${FRAGMENT_KIND.KNOWLEDGE}) Auth flow`);
-    expect(block).toContain(`### Active domain — Platform`);
+    expect(block).toContain(`#### Active domain — Platform`);
     expect(block).toContain(`- [${childB.id}] (${FRAGMENT_KIND.KNOWLEDGE}) Logging conventions`);
   });
 
@@ -147,7 +147,7 @@ describe("renderFragmentCues", () => {
 
     const block = await renderFragmentCues(AGENT_ID, [STALE_FRAGMENT_ID, domain.id], fragmentManager);
 
-    expect(block).toContain("### Feedback");
+    expect(block).toContain("#### Feedback");
     expect(block).toContain(`Active domains: Project A (${domain.id})`);
     expect(block).not.toContain(STALE_FRAGMENT_ID);
   });
@@ -158,7 +158,7 @@ describe("renderFragmentCues", () => {
 
     const block = await renderFragmentCues(AGENT_ID, [STALE_FRAGMENT_ID], fragmentManager);
 
-    expect(block).toContain("### Feedback");
+    expect(block).toContain("#### Feedback");
     expect(block).not.toContain("Active domain");
   });
 

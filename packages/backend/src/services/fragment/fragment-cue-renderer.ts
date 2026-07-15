@@ -3,9 +3,9 @@ import type { FragmentManager } from "./fragment-manager.js";
 import type { FragmentCueIndexEntry } from "./fragment-manager.types.js";
 
 const FIRST_LEVEL_SECTIONS = [
-  { kind: FRAGMENT_KIND.DOMAIN, heading: "### Domains" },
-  { kind: FRAGMENT_KIND.FEEDBACK, heading: "### Feedback" },
-  { kind: FRAGMENT_KIND.LESSON, heading: "### Lessons" },
+  { kind: FRAGMENT_KIND.DOMAIN, heading: "#### Domains" },
+  { kind: FRAGMENT_KIND.FEEDBACK, heading: "#### Feedback" },
+  { kind: FRAGMENT_KIND.LESSON, heading: "#### Lessons" },
 ] as const;
 
 /**
@@ -58,7 +58,7 @@ export async function renderFragmentCues(
     if (childCues.length > 0) {
       lines.push(
         "",
-        `### Active domain — ${activeDomain.cue}`,
+        `#### Active domain — ${activeDomain.cue}`,
         ...childCues.map((cueEntry) => `- [${cueEntry.id}] (${cueEntry.kind}) ${cueEntry.cue}`)
       );
     }
