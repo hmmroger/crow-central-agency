@@ -57,7 +57,7 @@ describe("renderFragmentCues", () => {
 
     expect(block).toBe(
       [
-        "## Fragment vault",
+        "### Fragment vault",
         "",
         "### Domains",
         `- [${domain.id}] Project A`,

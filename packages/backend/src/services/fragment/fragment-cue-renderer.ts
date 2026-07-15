@@ -34,7 +34,7 @@ export async function renderFragmentCues(
     return undefined;
   }
 
-  const lines: string[] = ["## Fragment vault"];
+  const lines: string[] = ["### Fragment vault"];
   if (activeDomains.length > 0) {
     lines.push(`Active domains: ${activeDomains.map((domain) => `${domain.cue} (${domain.id})`).join(", ")}`);
   }

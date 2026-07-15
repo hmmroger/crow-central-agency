@@ -19,6 +19,7 @@ import { MessageRoles } from "../services/content-generation/content-generation.
 import { INVOKE_AGENT_TOOL_NAME } from "../mcp/agents/invoke-agent.js";
 import { SEARCH_WORKSPACE_TOOL_NAME } from "../mcp/agents/search-workspace.js";
 import { FEED_MCP_SERVER_NAME } from "../mcp/feed/feed-mcp-server.js";
+import { FRAGMENTS_MCP_SERVER_NAME } from "../mcp/fragments/fragments-mcp-server.js";
 import {
   AGENT_STREAM_EVENT_TYPE,
   type AgentRunnerEvents,
@@ -108,6 +109,18 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
       keys: ["sensorReadings"],
     },
     {
+      content: [
+        "",
+        "## Memory",
+        "",
+        "You have a persistent fragment vault — your long-term memory across sessions; curating it is part of the work.",
+        "- Capture a fragment when you learn something durable that should change how you act later: a user correction or preference, a lesson from how a task turned out, or a stable fact worth reusing. One atomic point each; skip transient detail.",
+        "- Before acting, build on the fragments already surfaced to you — file each new one under the right domain and link related ones instead of restating what you know.",
+        "- Organize deeply, not as a flat list: distributing fragments into the right domains and deeper nodes is what keeps recall sharp.",
+      ],
+      keys: ["hasFragmentTools"],
+    },
+    {
       content: ["", "{fragmentCues}"],
       keys: ["fragmentCues"],
     },
@@ -124,6 +137,7 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
     "hasFeedMcp",
     "agentMd",
     "sensorReadings",
+    "hasFragmentTools",
     "fragmentCues",
   ],
 };
@@ -481,6 +495,9 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
       (server) => server.name === GMAIL_MCP_SERVER_NAME
     )?.connectionProfiles;
     const hasFeedMcp = serverConfigs.find((server) => server.name === FEED_MCP_SERVER_NAME) ? "true" : undefined;
+    const hasFragmentTools = serverConfigs.find((server) => server.name === FRAGMENTS_MCP_SERVER_NAME)
+      ? "true"
+      : undefined;
     const systemPromptTemplate = this.selectSystemPromptTemplate();
     const content = createMessageContentFromTemplate(
       systemPromptTemplate,
@@ -495,6 +512,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
           hasFeedMcp,
           agentMd: agentMd || undefined,
           sensorReadings: sensorReadings.join("\n"),
+          hasFragmentTools,
           fragmentCues,
         },
         sensorContext?.timezone
