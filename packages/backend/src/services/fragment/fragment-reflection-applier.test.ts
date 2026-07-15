@@ -2,12 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   ENTITY_TYPE,
   FRAGMENT_KIND,
-  REFLECTION_NODE_REF,
+  REFLECTION_AGENT_REF,
   REFLECTION_OP,
   RELATIONSHIP_TYPE,
   type Fragment,
   type FragmentKind,
-  type ReflectionNodeRef,
 } from "@crow-central-agency/shared";
 import { applyReflectionPlan } from "./fragment-reflection-applier.js";
 import { FragmentManager } from "./fragment-manager.js";
@@ -46,18 +45,6 @@ function fragmentParent(fragmentId: string): FragmentParent {
   return { entityType: ENTITY_TYPE.FRAGMENT, entityId: fragmentId };
 }
 
-function agentRef(): ReflectionNodeRef {
-  return { ref: REFLECTION_NODE_REF.AGENT };
-}
-
-function fragmentRef(fragmentId: string): ReflectionNodeRef {
-  return { ref: REFLECTION_NODE_REF.FRAGMENT, id: fragmentId };
-}
-
-function tempRef(tempId: string): ReflectionNodeRef {
-  return { ref: REFLECTION_NODE_REF.TEMP, tempId };
-}
-
 async function createFragment(harness: Harness, kind: FragmentKind, parent: FragmentParent): Promise<Fragment> {
   return harness.fragmentManager.createFragment({ kind, cue: `${kind} cue`, body: `${kind} body`, parent });
 }
@@ -87,21 +74,21 @@ describe("applyReflectionPlan", () => {
       operations: [
         {
           op: REFLECTION_OP.CREATE,
-          tempId: "theme",
+          tempId: "$theme",
           kind: FRAGMENT_KIND.DOMAIN,
           cue: "Build tooling",
           body: "Sub-domain grouping build and lint lessons.",
-          source: agentRef(),
+          parent: REFLECTION_AGENT_REF,
         },
         {
           op: REFLECTION_OP.CREATE,
-          tempId: "fact",
+          tempId: "$fact",
           kind: FRAGMENT_KIND.KNOWLEDGE,
           cue: "Lint runs separately",
           body: "The scoped build script does not run lint.",
-          source: tempRef("theme"),
+          parent: "$theme",
         },
-        { op: REFLECTION_OP.LINK, fragment: fragmentRef(lesson.id), target: tempRef("theme"), original: agentRef() },
+        { op: REFLECTION_OP.LINK, fragment: lesson.id, parent: "$theme", from: REFLECTION_AGENT_REF },
       ],
     });
 
@@ -120,18 +107,18 @@ describe("applyReflectionPlan", () => {
     expect(scopedFragmentIds.has(lesson.id)).toBe(true);
   });
 
-  it("resolves an agent NodeRef to the target agent being reorganized", async () => {
+  it("resolves the agent sentinel ref to the target agent being reorganized", async () => {
     const harness = await createHarness();
 
     const result = await applyReflectionPlan(harness.fragmentManager, OTHER_AGENT_ID, {
       operations: [
         {
           op: REFLECTION_OP.CREATE,
-          tempId: "domain",
+          tempId: "$domain",
           kind: FRAGMENT_KIND.DOMAIN,
           cue: "Anchored domain",
           body: "Anchored to the target agent.",
-          source: agentRef(),
+          parent: REFLECTION_AGENT_REF,
         },
       ],
     });
@@ -140,6 +127,34 @@ describe("applyReflectionPlan", () => {
     const targetFirstLevel = await harness.fragmentManager.getFirstLevelFragmentCues(OTHER_AGENT_ID);
     expect(targetFirstLevel.map((cueEntry) => cueEntry.cue)).toEqual(["Anchored domain"]);
     expect(await harness.fragmentManager.getFirstLevelFragmentCues(TARGET_AGENT_ID)).toEqual([]);
+  });
+
+  it("rejects the agent sentinel in a fragment slot as an operand failure", async () => {
+    const harness = await createHarness();
+
+    const result = await applyReflectionPlan(harness.fragmentManager, TARGET_AGENT_ID, {
+      operations: [{ op: REFLECTION_OP.UPDATE, fragment: REFLECTION_AGENT_REF, cue: "Rewritten" }],
+    });
+
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0].error).toContain("cannot be the fragment operand");
+  });
+
+  it("fails a dependent op whose temp ref never resolved without touching later ops", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(TARGET_AGENT_ID));
+
+    const result = await applyReflectionPlan(harness.fragmentManager, TARGET_AGENT_ID, {
+      operations: [
+        { op: REFLECTION_OP.LINK, fragment: "$never-created", parent: domain.id },
+        { op: REFLECTION_OP.UPDATE, fragment: domain.id, cue: "Later still runs" },
+      ],
+    });
+
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0].error).toContain('Unresolved temp id "$never-created"');
+    const updated = await harness.fragmentManager.readFragment(domain.id);
+    expect(updated.cue).toBe("Later still runs");
   });
 
   it("rolls a move's added edge back when the original edge removal fails", async () => {
@@ -153,9 +168,9 @@ describe("applyReflectionPlan", () => {
       operations: [
         {
           op: REFLECTION_OP.LINK,
-          fragment: fragmentRef(feedback.id),
-          target: fragmentRef(newDomain.id),
-          original: fragmentRef(notAParent.id),
+          fragment: feedback.id,
+          parent: newDomain.id,
+          from: notAParent.id,
         },
       ],
     });
@@ -171,7 +186,7 @@ describe("applyReflectionPlan", () => {
     const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domain.id));
 
     const result = await applyReflectionPlan(harness.fragmentManager, TARGET_AGENT_ID, {
-      operations: [{ op: REFLECTION_OP.UNLINK, fragment: fragmentRef(domain.id), source: agentRef() }],
+      operations: [{ op: REFLECTION_OP.UNLINK, fragment: domain.id, parent: REFLECTION_AGENT_REF }],
     });
 
     expect(result.failures).toEqual([]);
@@ -190,27 +205,27 @@ describe("applyReflectionPlan", () => {
         // KNOWLEDGE cannot anchor to an agent — the create fails
         {
           op: REFLECTION_OP.CREATE,
-          tempId: "orphan-fact",
+          tempId: "$orphan-fact",
           kind: FRAGMENT_KIND.KNOWLEDGE,
           cue: "Misparented fact",
           body: "Never created.",
-          source: agentRef(),
+          parent: REFLECTION_AGENT_REF,
         },
         // its tempId therefore never resolved, so the dependent link fails too
-        { op: REFLECTION_OP.LINK, fragment: tempRef("orphan-fact"), target: fragmentRef(domain.id) },
+        { op: REFLECTION_OP.LINK, fragment: "$orphan-fact", parent: domain.id },
         // linking the ancestor under its descendant closes a cycle
-        { op: REFLECTION_OP.LINK, fragment: fragmentRef(domain.id), target: fragmentRef(subDomain.id) },
+        { op: REFLECTION_OP.LINK, fragment: domain.id, parent: subDomain.id },
         // the agent is never a valid fragment operand
-        { op: REFLECTION_OP.UPDATE, fragment: agentRef(), cue: "Rewritten" },
+        { op: REFLECTION_OP.UPDATE, fragment: REFLECTION_AGENT_REF, cue: "Rewritten" },
         // a later valid op still applies
-        { op: REFLECTION_OP.UPDATE, fragment: fragmentRef(subDomain.id), cue: "Sharper sub-domain cue" },
+        { op: REFLECTION_OP.UPDATE, fragment: subDomain.id, cue: "Sharper sub-domain cue" },
       ],
     });
 
     expect(result.failures).toHaveLength(4);
     expect(result.failures.map((failure) => failure.error)).toEqual([
       expect.stringContaining("cannot be associated directly to an agent"),
-      expect.stringContaining('Unresolved temp id "orphan-fact"'),
+      expect.stringContaining('Unresolved temp id "$orphan-fact"'),
       expect.stringContaining("would create a cycle"),
       expect.stringContaining("cannot be the fragment operand"),
     ]);

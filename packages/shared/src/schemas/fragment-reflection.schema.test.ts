@@ -1,38 +1,38 @@
 import { describe, expect, it } from "vitest";
 import { FRAGMENT_KIND } from "./fragment.schema.js";
-import { REFLECTION_NODE_REF, REFLECTION_OP, ReflectionPlanSchema } from "./fragment-reflection.schema.js";
+import { REFLECTION_AGENT_REF, REFLECTION_OP, ReflectionPlanSchema } from "./fragment-reflection.schema.js";
 
 describe("ReflectionPlanSchema", () => {
-  it("parses a plan with every op type and every NodeRef variant", () => {
+  it("parses a plan with every op type and every node-ref variant", () => {
     const plan = {
       operations: [
         {
           op: REFLECTION_OP.CREATE,
-          tempId: "theme-1",
+          tempId: "$theme-1",
           kind: FRAGMENT_KIND.DOMAIN,
           cue: "Build tooling",
           body: "Sub-domain grouping build and lint knowledge.",
-          source: { ref: REFLECTION_NODE_REF.AGENT },
+          parent: REFLECTION_AGENT_REF,
         },
         {
           op: REFLECTION_OP.LINK,
-          fragment: { ref: REFLECTION_NODE_REF.FRAGMENT, id: "frag-1" },
-          target: { ref: REFLECTION_NODE_REF.TEMP, tempId: "theme-1" },
-          original: { ref: REFLECTION_NODE_REF.AGENT },
+          fragment: "frag-1",
+          parent: "$theme-1",
+          from: REFLECTION_AGENT_REF,
         },
         {
           op: REFLECTION_OP.LINK,
-          fragment: { ref: REFLECTION_NODE_REF.FRAGMENT, id: "frag-2" },
-          target: { ref: REFLECTION_NODE_REF.FRAGMENT, id: "frag-3" },
+          fragment: "frag-2",
+          parent: "frag-3",
         },
         {
           op: REFLECTION_OP.UNLINK,
-          fragment: { ref: REFLECTION_NODE_REF.FRAGMENT, id: "frag-4" },
-          source: { ref: REFLECTION_NODE_REF.FRAGMENT, id: "frag-5" },
+          fragment: "frag-4",
+          parent: "frag-5",
         },
         {
           op: REFLECTION_OP.UPDATE,
-          fragment: { ref: REFLECTION_NODE_REF.FRAGMENT, id: "frag-6" },
+          fragment: "frag-6",
           cue: "Sharper cue",
           body: "Merged body content.",
         },
@@ -49,7 +49,7 @@ describe("ReflectionPlanSchema", () => {
 
   it("rejects an unknown op", () => {
     const result = ReflectionPlanSchema.safeParse({
-      operations: [{ op: "merge", fragment: { ref: REFLECTION_NODE_REF.FRAGMENT, id: "frag-1" } }],
+      operations: [{ op: "merge", fragment: "frag-1" }],
     });
     expect(result.success).toBe(false);
   });
@@ -62,22 +62,32 @@ describe("ReflectionPlanSchema", () => {
           kind: FRAGMENT_KIND.DOMAIN,
           cue: "Cue",
           body: "Body",
-          source: { ref: REFLECTION_NODE_REF.AGENT },
+          parent: REFLECTION_AGENT_REF,
         },
       ],
     });
     expect(result.success).toBe(false);
   });
 
-  it("rejects a malformed NodeRef", () => {
+  it("rejects a create op whose tempId does not start with the temp prefix", () => {
     const result = ReflectionPlanSchema.safeParse({
       operations: [
         {
-          op: REFLECTION_OP.UNLINK,
-          fragment: { ref: REFLECTION_NODE_REF.FRAGMENT, id: "frag-1" },
-          source: { ref: REFLECTION_NODE_REF.TEMP },
+          op: REFLECTION_OP.CREATE,
+          tempId: "theme-1",
+          kind: FRAGMENT_KIND.DOMAIN,
+          cue: "Cue",
+          body: "Body",
+          parent: REFLECTION_AGENT_REF,
         },
       ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an empty node ref string", () => {
+    const result = ReflectionPlanSchema.safeParse({
+      operations: [{ op: REFLECTION_OP.UNLINK, fragment: "frag-1", parent: "" }],
     });
     expect(result.success).toBe(false);
   });

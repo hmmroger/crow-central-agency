@@ -357,13 +357,11 @@ export {
 } from "./schemas/fragment.schema.js";
 
 export {
-  REFLECTION_NODE_REF,
+  REFLECTION_AGENT_REF,
+  REFLECTION_TEMP_PREFIX,
   REFLECTION_OP,
-  ReflectionNodeRefSchema,
   ReflectionOpSchema,
   ReflectionPlanSchema,
-  type ReflectionNodeRefType,
-  type ReflectionNodeRef,
   type ReflectionOpType,
   type ReflectionOp,
   type ReflectionPlan,
