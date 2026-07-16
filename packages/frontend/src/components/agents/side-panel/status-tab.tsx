@@ -1,16 +1,13 @@
 import type { ComponentType } from "react";
 import { useCallback } from "react";
 import { Plus, FoldVertical } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AGENT_COMMAND, AGENT_STATUS, CLIENT_MESSAGE_TYPE } from "@crow-central-agency/shared";
 import { cn } from "../../../utils/cn.js";
 import { useWs } from "../../../hooks/use-ws.js";
 import { useAgentStateQuery, DEFAULT_SESSION_USAGE } from "../../../hooks/queries/use-agent-state-query.js";
-import { apiClient, unwrapResponse } from "../../../services/api-client.js";
-import { agentKeys } from "../../../services/query-keys.js";
+import { useNewConversation } from "../../../hooks/queries/use-new-conversation.js";
 import { STATUS_DOT_COLOR, STATUS_TEXT_COLOR, STATUS_LABEL } from "../../../utils/agent-status-display.js";
 import { ActivityFeed } from "../activity/activity-feed.js";
-import type { ApiError } from "../../../services/api-client.types.js";
 
 interface StatusTabProps {
   agentId: string;
@@ -34,28 +31,12 @@ interface ControlButtonProps {
  * and the recent activity feed.
  */
 export function StatusTab({ agentId }: StatusTabProps) {
-  const queryClient = useQueryClient();
   const { send } = useWs();
   const { data: agentState } = useAgentStateQuery(agentId);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
   const usage = agentState?.sessionUsage ?? DEFAULT_SESSION_USAGE;
   const isStreaming = status === AGENT_STATUS.STREAMING;
-
-  const newConversationMutation = useMutation<void, ApiError>({
-    mutationFn: async () => {
-      const response = await apiClient.post<void>(`/agents/${agentId}/session/new`);
-
-      return unwrapResponse(response);
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: agentKeys.detail(agentId) });
-    },
-    onError: (error) => {
-      console.error(`[newConversation] failed for agent ${agentId}:`, error.message);
-    },
-  });
-
-  const newConversation = useCallback(() => newConversationMutation.mutate(), [newConversationMutation]);
+  const { newConversation } = useNewConversation(agentId);
 
   const compactSession = useCallback(() => {
     send({ type: CLIENT_MESSAGE_TYPE.COMMAND, agentId, command: AGENT_COMMAND.COMPACT });

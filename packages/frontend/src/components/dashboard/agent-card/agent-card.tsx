@@ -4,10 +4,9 @@ import { useAgentMessagesQuery } from "../../../hooks/queries/use-agent-messages
 import { useAgentStateQuery } from "../../../hooks/queries/use-agent-state-query.js";
 import { useAgentStreamState } from "../../../hooks/queries/use-agent-stream-state.js";
 import { useAgentActions } from "../../../hooks/queries/use-agent-actions.js";
-import { useComposeDraft } from "../../../stores/compose-draft-store.js";
 import { AgentCardHeader } from "./agent-card-header.js";
 import { AgentCardMessages } from "./agent-card-messages.js";
-import { MessageInput } from "../../common/message-input.js";
+import { AgentComposer } from "../../common/agent-composer.js";
 import { AgentCardPermission } from "./agent-card-permission.js";
 
 interface AgentCardProps {
@@ -25,16 +24,9 @@ export function AgentCard({ agent }: AgentCardProps) {
   const { data: messages = [] } = useAgentMessagesQuery(agent.id);
   const { data: agentState } = useAgentStateQuery(agent.id);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
-  const { streamingText, activeToolUse, resetStreamState } = useAgentStreamState(agent.id);
+  const { streamingText, activeToolUse } = useAgentStreamState(agent.id);
   const pendingPermissions = agentState?.pendingPermissions ?? [];
-  const { sendMessage, injectMessage, abort, allowPermission, allowAlwaysPermission, denyPermission } = useAgentActions(
-    agent.id,
-    {
-      resetStreamState,
-    }
-  );
-  const isStreaming = status === AGENT_STATUS.STREAMING;
-  const { draft, setDraft } = useComposeDraft(agent.id);
+  const { allowPermission, allowAlwaysPermission, denyPermission } = useAgentActions(agent.id);
 
   return (
     <div
@@ -70,16 +62,7 @@ export function AgentCard({ agent }: AgentCardProps) {
       )}
 
       <div className="shrink-0 border-t border-border-subtle px-2.5 py-2">
-        <MessageInput
-          value={draft}
-          onChange={setDraft}
-          onSend={sendMessage}
-          onInject={injectMessage}
-          onAbort={abort}
-          isStreaming={isStreaming}
-          history={agentState?.inputHistory}
-          variant="compact"
-        />
+        <AgentComposer agentId={agent.id} variant="compact" />
       </div>
     </div>
   );

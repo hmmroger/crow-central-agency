@@ -4,9 +4,8 @@ import { useAgentMessagesQuery } from "../../../hooks/queries/use-agent-messages
 import { useAgentStateQuery } from "../../../hooks/queries/use-agent-state-query.js";
 import { useAgentStreamState } from "../../../hooks/queries/use-agent-stream-state.js";
 import { useAgentActions } from "../../../hooks/queries/use-agent-actions.js";
-import { useComposeDraft } from "../../../stores/compose-draft-store.js";
 import { MessageList } from "./message-list.js";
-import { MessageInput } from "../../common/message-input.js";
+import { AgentComposer } from "../../common/agent-composer.js";
 import { PermissionQueue } from "./permission-queue.js";
 
 interface AgentConsoleProps {
@@ -24,16 +23,10 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
   const { data: messages = [] } = useAgentMessagesQuery(agentId);
   const { data: agentState } = useAgentStateQuery(agentId);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
-  const { streamingText, activeToolUse, resetStreamState } = useAgentStreamState(agentId);
+  const { streamingText, activeToolUse } = useAgentStreamState(agentId);
   const pendingPermissions = agentState?.pendingPermissions ?? [];
-  const { sendMessage, injectMessage, abort, allowPermission, allowAlwaysPermission, denyPermission } = useAgentActions(
-    agentId,
-    {
-      resetStreamState,
-    }
-  );
+  const { allowPermission, allowAlwaysPermission, denyPermission } = useAgentActions(agentId);
   const isStreaming = status === AGENT_STATUS.STREAMING;
-  const { draft, setDraft } = useComposeDraft(agentId);
 
   if (isLoading || !agent) {
     return (
@@ -64,15 +57,7 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
           />
         </div>
 
-        <MessageInput
-          value={draft}
-          onChange={setDraft}
-          onSend={sendMessage}
-          onInject={injectMessage}
-          onAbort={abort}
-          isStreaming={isStreaming}
-          history={agentState?.inputHistory}
-        />
+        <AgentComposer agentId={agent.id} variant="full" />
       </div>
     </div>
   );

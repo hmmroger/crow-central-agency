@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { AGENT_STATUS, SERVER_MESSAGE_TYPE } from "@crow-central-agency/shared";
 import { useWsSubscription } from "../use-ws-subscription.js";
 import type { QueryResult, ActiveToolUse } from "./use-agent-stream-state.types.js";
@@ -11,8 +11,6 @@ export interface AgentStreamState {
   activeToolUse: ActiveToolUse | undefined;
   /** Last query result (cost, duration) - displayed outside message list */
   lastResult: QueryResult | undefined;
-  /** Reset all ephemeral state (for new conversation) */
-  resetStreamState: () => void;
 }
 
 /**
@@ -82,11 +80,5 @@ export function useAgentStreamState(agentId: string): AgentStreamState {
     }
   });
 
-  const resetStreamState = useCallback(() => {
-    setStreamingText("");
-    setActiveToolUse(undefined);
-    setLastResult(undefined);
-  }, []);
-
-  return { streamingText, activeToolUse, lastResult, resetStreamState };
+  return { streamingText, activeToolUse, lastResult };
 }
