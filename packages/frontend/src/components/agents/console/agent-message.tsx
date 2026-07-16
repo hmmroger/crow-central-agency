@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
 import { MarkdownRenderer } from "../../common/markdown-renderer.js";
 import { ActivityItem } from "./activity-item.js";
@@ -15,7 +16,7 @@ interface AgentMessageProps {
  * User messages are right-aligned bubbles, agent messages are left-aligned bubbles.
  * Per-message actions render below the bubble via MessageActions.
  */
-export function AgentMessageView({ agentId, message }: AgentMessageProps) {
+export const AgentMessageView = memo(({ agentId, message }: AgentMessageProps) => {
   switch (message.role) {
     case AGENT_MESSAGE_ROLE.USER:
       return (
@@ -59,4 +60,4 @@ export function AgentMessageView({ agentId, message }: AgentMessageProps) {
     default:
       return null;
   }
-}
+});

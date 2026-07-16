@@ -1,8 +1,9 @@
-import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
-import { Zap } from "lucide-react";
+import { useMemo } from "react";
+import type { AgentMessage } from "@crow-central-agency/shared";
 import type { ActiveToolUse } from "../../../hooks/queries/use-agent-stream-state.types.js";
 import { useAutoScroll } from "../../../hooks/use-auto-scroll.js";
 import { MarkdownRenderer } from "../../common/markdown-renderer.js";
+import { AgentCardMessage } from "./agent-card-message.js";
 
 interface AgentCardMessagesProps {
   messages: AgentMessage[];
@@ -38,6 +39,10 @@ export function AgentCardMessages({
     transition: "height var(--duration-normal) var(--ease-in-out)",
   };
 
+  const agentMessages = useMemo(() => {
+    return recentMessages.map((message) => <AgentCardMessage key={message.id} message={message} />);
+  }, [recentMessages]);
+
   if (recentMessages.length === 0 && !streamingText) {
     return (
       <div
@@ -55,45 +60,7 @@ export function AgentCardMessages({
       style={heightStyle}
       className={`${expanded ? "space-y-1 overflow-y-auto" : "space-y-0.5 overflow-hidden flex flex-col justify-end"} text-xs shrink-0 overflow-x-hidden px-2.5 py-2`}
     >
-      {recentMessages.map((message) => (
-        <div key={message.id}>
-          {message.role === AGENT_MESSAGE_ROLE.USER && (
-            <div className="text-xs font-mono leading-relaxed">
-              <span className="text-accent">{"> "}</span>
-              <span className="text-text-neutral">
-                <span>{message.content}</span>
-              </span>
-            </div>
-          )}
-
-          {message.role === AGENT_MESSAGE_ROLE.AGENT && message.type !== AGENT_MESSAGE_TYPE.THINKING && (
-            <MarkdownRenderer content={message.content} className="text-xs text-text-neutral" />
-          )}
-
-          {message.role === AGENT_MESSAGE_ROLE.AGENT && message.type === AGENT_MESSAGE_TYPE.THINKING && (
-            <div className="flex items-center gap-1 text-xs font-mono leading-relaxed text-text-muted">
-              <Zap className="h-3 w-3 text-secondary-muted" />
-              <span className="italic">Thinking...</span>
-            </div>
-          )}
-
-          {message.role === AGENT_MESSAGE_ROLE.SYSTEM && message.type === AGENT_MESSAGE_TYPE.TOOL_USE && (
-            <div className="text-xs font-mono leading-relaxed">
-              <span className="text-text-muted/60">{"~ "}</span>
-              <span className="text-text-muted">
-                <span>{message.toolName}</span> {message.content}
-              </span>
-            </div>
-          )}
-
-          {message.role === AGENT_MESSAGE_ROLE.SYSTEM && message.type === AGENT_MESSAGE_TYPE.COMMAND && (
-            <div className="text-2xs font-mono leading-relaxed text-text-muted">
-              <span className="text-secondary-muted">{"& "}</span>
-              <span className="italic">{message.content}</span>
-            </div>
-          )}
-        </div>
-      ))}
+      {agentMessages}
 
       {streamingText && (
         <div className="animate-pulse">
