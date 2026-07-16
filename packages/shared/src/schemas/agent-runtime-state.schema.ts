@@ -97,7 +97,6 @@ export const AgentRuntimeStateSchema = z.object({
   messageSource: MessageSourceSchema.optional(),
   discordDmChannelId: z.string().optional(),
   sessionId: z.string().optional(),
-  /** Nearest DOMAIN fragments of the agent's last touched fragment (the graph is a DAG, so there may be several); a signal for context injection, never an implicit parent. */
   activeDomainFragmentIds: z.array(z.string()).default([]),
   sessionUsage: SessionUsageSchema,
   prevLoopMessageTimestamp: z.number().optional(),
@@ -105,7 +104,6 @@ export const AgentRuntimeStateSchema = z.object({
   lastError: z.string().optional(),
   pendingPermissions: z.array(PendingPermissionInfoSchema).optional(),
   pendingInstructionReminder: PendingInstructionReminderSchema.optional(),
-  /** Recent user message inputs (oldest first) for compose-box Up/Down recall; survives new sessions. */
   inputHistory: z.array(z.string()).optional(),
 });
 

@@ -241,11 +241,6 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     return undefined;
   }
 
-  /** The agent's current active-domain fragment ids (empty when none). */
-  public getActiveDomains(agentId: string): string[] {
-    return this.getState(agentId)?.activeDomainFragmentIds ?? [];
-  }
-
   /** Replace the agent's active-domain set with the given DOMAIN fragment ids. Signal only — never used as an implicit parent. */
   public async setActiveDomains(agentId: string, domainFragmentIds: string[]): Promise<void> {
     const state = this.ensureState(agentId);
@@ -360,7 +355,13 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       await this.ensureValidSession(agentId);
 
       const instructionReminder = state.pendingInstructionReminder;
-      const eventStream = agentRunner.sendMessage(message, source, state.sessionId, instructionReminder);
+      const eventStream = agentRunner.sendMessage(
+        message,
+        source,
+        state.activeDomainFragmentIds,
+        state.sessionId,
+        instructionReminder
+      );
       for await (const event of eventStream) {
         switch (event.type) {
           case AGENT_STREAM_EVENT_TYPE.INIT:
@@ -1037,7 +1038,6 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       this.sensorManager,
       this.circleManager,
       this.fragmentManager,
-      this,
       permissionRequestCallback,
       (streamEvent) => this.handleOobStreamEvent(streamEvent)
     );
