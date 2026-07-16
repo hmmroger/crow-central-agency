@@ -24,7 +24,7 @@ export function getWriteFragmentToolConfig(
 ) {
   const inputSchema = {
     kind: FragmentKindSchema.describe(
-      "FEEDBACK: a piece of user feedback. LESSON: a lesson from your own work outcomes. DOMAIN: an area you work in that other fragments organize under. KNOWLEDGE: a specific fact, a leaf under a DOMAIN."
+      "DOMAIN: an organizing topic others nest under. KNOWLEDGE: a fact (even one a user tells you), leaf under a DOMAIN. LESSON: a how-to-act rule from your own reflection. FEEDBACK: a correction or preference from the user."
     ),
     cue: z.string().min(1).describe("Short one-line descriptor used to recognize when this fragment is relevant."),
     body: z.string().min(1).describe(`The lesson or fact itself, at most ${FRAGMENT_MAX_WORDS} words.`),

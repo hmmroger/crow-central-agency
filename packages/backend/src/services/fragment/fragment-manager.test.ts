@@ -100,7 +100,9 @@ describe("FragmentManager.createFragment parent rules", () => {
 
   it.each([
     [FRAGMENT_KIND.FEEDBACK, FRAGMENT_KIND.FEEDBACK],
+    [FRAGMENT_KIND.FEEDBACK, FRAGMENT_KIND.LESSON],
     [FRAGMENT_KIND.FEEDBACK, FRAGMENT_KIND.DOMAIN],
+    [FRAGMENT_KIND.LESSON, FRAGMENT_KIND.FEEDBACK],
     [FRAGMENT_KIND.LESSON, FRAGMENT_KIND.LESSON],
     [FRAGMENT_KIND.LESSON, FRAGMENT_KIND.DOMAIN],
     [FRAGMENT_KIND.DOMAIN, FRAGMENT_KIND.FEEDBACK],
@@ -121,11 +123,9 @@ describe("FragmentManager.createFragment parent rules", () => {
   });
 
   it.each([
-    [FRAGMENT_KIND.FEEDBACK, FRAGMENT_KIND.LESSON],
-    [FRAGMENT_KIND.LESSON, FRAGMENT_KIND.FEEDBACK],
     [FRAGMENT_KIND.KNOWLEDGE, FRAGMENT_KIND.FEEDBACK],
     [FRAGMENT_KIND.KNOWLEDGE, FRAGMENT_KIND.LESSON],
-  ])("rejects %s under a %s fragment", async (childKind, parentKind) => {
+  ])("rejects %s under a %s fragment (KNOWLEDGE only under DOMAIN)", async (childKind, parentKind) => {
     const harness = await createHarness();
     const parent = await createFragment(harness, parentKind, agentParent(AGENT_ID_A));
 

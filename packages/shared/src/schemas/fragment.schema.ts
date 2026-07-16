@@ -2,10 +2,10 @@ import { z } from "zod";
 
 /**
  * Fragment kinds.
- * FEEDBACK - an atomic piece of user feedback.
- * LESSON - an atomic lesson from the agent's own work outcomes.
- * DOMAIN - an area worked in / organized around; the signpost KNOWLEDGE hangs under.
- * KNOWLEDGE - a specific fact; a leaf under a DOMAIN.
+ * DOMAIN - an organizing topic others nest under.
+ * KNOWLEDGE - a fact (even one a user tells you); leaf under a DOMAIN.
+ * LESSON - a how-to-act rule from the agent's own reflection.
+ * FEEDBACK - a correction or preference from the user.
  */
 export const FRAGMENT_KIND = {
   FEEDBACK: "FEEDBACK",
