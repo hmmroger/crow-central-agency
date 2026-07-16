@@ -30,7 +30,7 @@ export function PermissionList({
       (rule) => !effectiveTools.includes(rule)
     );
 
-    return buildPermissionGroups(effectiveTools, customRules);
+    return buildPermissionGroups(effectiveTools, customRules, []);
   }, [effectiveTools, autoApprovedTools, disallowedTools]);
 
   const handleToggleCollapsed = useCallback((groupKey: string) => {

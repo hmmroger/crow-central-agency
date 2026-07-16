@@ -26,12 +26,48 @@ const MCP_SEGMENT_SEPARATOR = "__";
 const WILDCARD_DISPLAY = "*";
 
 /**
+ * Join between an external MCP server name and its tool as observed in Copilot's tool-event names
+ * (`${server}-${tool}`). This is the provider's format, not one we assign — used only as a
+ * best-effort heuristic to regroup external tools under their server.
+ */
+const SERVER_TOOL_SEPARATOR = "-";
+
+/**
+ * Best-effort match of a tool name left over from the `mcp__` branch against the agent's known
+ * external MCP server names (Copilot external servers). Picks the longest matching server name so
+ * overlapping names disambiguate (e.g. `a` vs `a-b` for `a-b-foo`). Returns the server and the
+ * remainder tool segment, or undefined when nothing matches.
+ */
+function matchExternalMcpServer(
+  tool: string,
+  knownMcpServerNames: string[]
+): { server: string; remainder: string } | undefined {
+  let matched: { server: string; remainder: string } | undefined;
+  for (const server of knownMcpServerNames) {
+    const prefix = `${server}${SERVER_TOOL_SEPARATOR}`;
+    if (tool.startsWith(prefix) && (matched === undefined || server.length > matched.server.length)) {
+      matched = { server, remainder: tool.slice(prefix.length) };
+    }
+  }
+
+  return matched;
+}
+
+/**
  * Split the built-in catalog into a single Built-in group plus one group per MCP server, and bucket
  * remaining custom rules by tool name. Catalog MCP tools and custom `mcp__server__*` rules for the
  * same server merge into that server's group so a wildcard sits next to its specific tools. Group
  * order is Built-in, then MCP servers, then by-tool custom groups (each in first-appearance order).
+ *
+ * `knownMcpServerNames` are the agent's normalized external MCP server names. Tools we name ourselves
+ * (`mcp__server__tool`: Claude Code + Copilot internal) group generically; external tools Copilot
+ * names `${server}-${tool}` are then best-effort regrouped under a matching known server.
  */
-export function buildPermissionGroups(catalogRules: string[], customRules: string[]): PermissionGroup[] {
+export function buildPermissionGroups(
+  catalogRules: string[],
+  customRules: string[],
+  knownMcpServerNames: string[]
+): PermissionGroup[] {
   const catalogSet = new Set(catalogRules);
   const groupsByKey = new Map<string, PermissionGroup>();
 
@@ -60,6 +96,15 @@ export function buildPermissionGroups(catalogRules: string[], customRules: strin
         groupFor(`${MCP_GROUP_KEY_PREFIX}${server}`, server).entries.push({ rule, displayName, removable });
         continue;
       }
+    }
+
+    const externalMatch = matchExternalMcpServer(tool, knownMcpServerNames);
+    if (externalMatch !== undefined) {
+      const { server, remainder } = externalMatch;
+      const baseName = remainder.length > 0 ? remainder : WILDCARD_DISPLAY;
+      const displayName = parsed?.specifier !== undefined ? `${baseName}(${parsed.specifier})` : baseName;
+      groupFor(`${MCP_GROUP_KEY_PREFIX}${server}`, server).entries.push({ rule, displayName, removable });
+      continue;
     }
 
     if (catalogSet.has(rule)) {

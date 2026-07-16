@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --project ./tsconfig.json --noEmit",
-    "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\""
+    "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\"",
+    "test": "vitest run"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.19",
@@ -39,6 +40,7 @@
     "@vitejs/plugin-react": "^6.0.2",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.9.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.10"
   }
 }
