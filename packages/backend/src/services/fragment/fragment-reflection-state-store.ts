@@ -1,30 +1,36 @@
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
 
 /** Per-agent reflection sweep state persisted between routine ticks */
-interface FragmentReflectionState {
+export interface FragmentReflectionState {
   lastReflectionSweepTimestamp: number;
+  failureCount: number;
 }
 
 /** Object store table holding per-agent fragment reflection sweep state */
 export const FRAGMENT_REFLECTION_STATE_STORE_TABLE = "fragment-reflection-state";
 
+const DEFAULT_REFLECTION_STATE: FragmentReflectionState = {
+  lastReflectionSweepTimestamp: 0,
+  failureCount: 0,
+};
+
 /**
- * Persists the per-agent reflection sweep watermark: fragments created after it
- * are the "new set" the next reflection run reorganizes. Only a successfully
- * completed run advances it, so a failed run is retried on the next tick.
+ * Persists per-agent reflection sweep state: the watermark (fragments created
+ * after it are the "new set" for the next run) plus a consecutive run/parse
+ * failure counter. A successful sweep advances the watermark and resets the
+ * counter; a give-up (after MAX consecutive failures) also advances the
+ * watermark and resets, so retries against a poison set stay bounded.
  */
 export class FragmentReflectionStateStore {
   constructor(private readonly store: ObjectStoreProvider) {}
 
-  public async getLastSweepTimestamp(agentId: string): Promise<number | undefined> {
+  public async getState(agentId: string): Promise<FragmentReflectionState> {
     const entry = await this.store.get<FragmentReflectionState>(FRAGMENT_REFLECTION_STATE_STORE_TABLE, agentId);
 
-    return entry?.value.lastReflectionSweepTimestamp;
+    return entry?.value ?? { ...DEFAULT_REFLECTION_STATE };
   }
 
-  public async setLastSweepTimestamp(agentId: string, timestamp: number): Promise<void> {
-    await this.store.set<FragmentReflectionState>(FRAGMENT_REFLECTION_STATE_STORE_TABLE, agentId, {
-      lastReflectionSweepTimestamp: timestamp,
-    });
+  public async setState(agentId: string, state: FragmentReflectionState): Promise<void> {
+    await this.store.set<FragmentReflectionState>(FRAGMENT_REFLECTION_STATE_STORE_TABLE, agentId, state);
   }
 }

@@ -21,6 +21,7 @@ import { logger } from "../utils/logger.js";
 
 const ROUTINE_ID = "fragment-reflection";
 const REFLECTION_INTERVAL_MINUTES = 30;
+const MAX_REFLECTION_FAILURES = 2;
 
 const log = logger.child({ context: "fragment-reflection-routine" });
 
@@ -29,7 +30,10 @@ const log = logger.child({ context: "fragment-reflection-routine" });
  * its watermark, dispatch one reflection run and apply the returned plan. The watermark is
  * anchored to the sweep start (not completion) so nodes the apply itself creates surface
  * once in a follow-up sweep that then settles as a no-op; per-op failures still count as
- * completed, while a thrown run/parse leaves the watermark for the next tick to retry.
+ * completed. A thrown run/parse increments a consecutive-failure counter and leaves the
+ * watermark for the next tick to retry; after MAX_REFLECTION_FAILURES consecutive throws
+ * the sweep gives up on the current fragment set — the watermark advances past it and the
+ * counter resets — so a poison set cannot loop forever.
  */
 class FragmentReflectionRoutine {
   constructor(
@@ -61,22 +65,45 @@ class FragmentReflectionRoutine {
 
   private async reflectOnAgent(agentId: string): Promise<void> {
     const sweepStart = Date.now();
-    const focusFragments = await this.findFragmentsNewerThanWatermark(agentId);
+    const state = await this.reflectionStateStore.getState(agentId);
+    const focusFragments = await this.findFragmentsNewerThanWatermark(agentId, state.lastReflectionSweepTimestamp);
     if (focusFragments.length === 0) {
       return;
     }
 
     const prompt = await composeReflectionContext(this.fragmentManager, agentId, focusFragments);
-    const raw = await this.runtimeManager.runAgentForResult(FRAGMENT_REFLECTION_AGENT_ID, prompt, {
-      sourceType: MESSAGE_SOURCE_TYPE.INTERNAL,
-    });
 
     let plan: ReflectionPlan;
+    let raw: string | undefined;
     try {
+      raw = await this.runtimeManager.runAgentForResult(FRAGMENT_REFLECTION_AGENT_ID, prompt, {
+        sourceType: MESSAGE_SOURCE_TYPE.INTERNAL,
+      });
       plan = extractMarkedJson(raw ?? "", ReflectionPlanSchema, FRAGMENT_REFLECTION_BEGIN, FRAGMENT_REFLECTION_END);
     } catch (error) {
-      log.debug({ agentId, rawPlan: raw }, "Reflection plan validation failed.");
-      throw error;
+      if (raw !== undefined) {
+        log.debug({ agentId, rawPlan: raw }, "Reflection plan validation failed.");
+      }
+
+      const failureCount = state.failureCount + 1;
+      if (failureCount >= MAX_REFLECTION_FAILURES) {
+        await this.reflectionStateStore.setState(agentId, {
+          lastReflectionSweepTimestamp: sweepStart,
+          failureCount: 0,
+        });
+        log.error(
+          { agentId, error, failureCount },
+          "Reflection run failed too many times; advancing watermark past this fragment set"
+        );
+        return;
+      }
+
+      await this.reflectionStateStore.setState(agentId, {
+        lastReflectionSweepTimestamp: state.lastReflectionSweepTimestamp,
+        failureCount,
+      });
+      log.warn({ agentId, error, failureCount }, "Reflection run failed; will retry on the next tick");
+      return;
     }
 
     const { failures, collectedIds } = await applyReflectionPlan(this.fragmentManager, agentId, plan);
@@ -88,7 +115,7 @@ class FragmentReflectionRoutine {
       await this.runtimeManager.clearActiveDomain(agentId, collectedId);
     }
 
-    await this.reflectionStateStore.setLastSweepTimestamp(agentId, sweepStart);
+    await this.reflectionStateStore.setState(agentId, { lastReflectionSweepTimestamp: sweepStart, failureCount: 0 });
     log.info(
       { agentId, newFragments: focusFragments.length, operations: plan.operations.length, failures: failures.length },
       "Reflection sweep applied"
@@ -96,8 +123,7 @@ class FragmentReflectionRoutine {
   }
 
   /** The new set N: scoped fragments whose cue-index createdTimestamp is past the agent's watermark */
-  private async findFragmentsNewerThanWatermark(agentId: string): Promise<Fragment[]> {
-    const watermark = (await this.reflectionStateStore.getLastSweepTimestamp(agentId)) ?? 0;
+  private async findFragmentsNewerThanWatermark(agentId: string, watermark: number): Promise<Fragment[]> {
     const scopedFragmentIds = this.fragmentManager.getScopedFragmentIds(agentId);
     const cueEntries = await this.fragmentManager.getFragmentCues(Array.from(scopedFragmentIds));
 
