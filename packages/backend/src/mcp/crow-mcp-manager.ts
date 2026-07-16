@@ -10,6 +10,7 @@ import {
   type InternalMcpConfig,
   type AgentConfig,
   AGENT_TYPE,
+  normalizeMcpName,
 } from "@crow-central-agency/shared";
 import { logger } from "../utils/logger.js";
 import { AppError } from "../core/error/app-error.js";
@@ -114,7 +115,7 @@ export class CrowMcpManager {
         return (isCrowSystemAgent(agentId) && config.enableForCrow) || configuredMcpIds.has(config.id);
       });
       for (const config of userMcpConfigs) {
-        const name = this.normalizeMcpName(config.name);
+        const name = normalizeMcpName(config.name);
         if (serverConfigMap.has(name)) {
           log.warn({ configId: config.id, name }, "User MCP config name collides with an internal server, skipping");
           continue;
@@ -256,10 +257,6 @@ export class CrowMcpManager {
     await this.store.delete(MCP_CONFIG_STORE_TABLE, configId);
 
     log.info({ configId, name: existing.name }, "MCP config deleted");
-  }
-
-  private normalizeMcpName(name: string): string {
-    return name.toLowerCase().replaceAll(" ", "_");
   }
 
   /** Map a persisted user MCP config to a Crow MCP transport. */

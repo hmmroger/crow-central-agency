@@ -417,3 +417,5 @@ export {
 export { defaultRuleStrategy, commandRuleStrategy } from "./auto-approve/rule-strategies.js";
 export { getRuleStrategy } from "./auto-approve/rule-strategy-registry.js";
 export { AutoApproveRuleSet } from "./auto-approve/auto-approve-rule-set.js";
+
+export { normalizeMcpName } from "./utils/mcp-utils.js";
