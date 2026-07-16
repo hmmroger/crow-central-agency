@@ -583,8 +583,7 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
       const feeds = await this.getFeeds();
       for (const feed of feeds) {
         try {
-          const items = await this.refreshFeed(feed.id, false);
-          log.info({ feedId: feed.id, feedName: feed.title, newItemsCount: items.length }, "Refreshed feed");
+          await this.refreshFeed(feed.id, false);
         } catch (error) {
           log.error({ feedId: feed.id, feedName: feed.title, error }, "Failed to refresh feed");
         }

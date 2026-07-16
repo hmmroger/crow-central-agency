@@ -95,6 +95,7 @@ See `.env.example` for the full list, including:
 - `HOST` / `PORT` — server bind address (defaults: `localhost:3101`). Keep `HOST=localhost` and front the server with a secure tunnel for remote access rather than binding to `0.0.0.0`.
 - `CORS_ORIGINS` — only needed when the frontend is served from a different origin (e.g. during frontend dev). Single-box deployments can leave it unset.
 - `LOG_LEVEL` — log verbosity (defaults to `debug` in development, `info` otherwise).
+- `LOG_PRETTY` — force human-readable, colorized logs (pino-pretty) even in production. Enabled automatically in development.
 - `CROW_SYSTEM_PATH` — directory for Crow's file-based storage. Defaults to `~/.crow`.
 - `CROW_SYSTEM_AGENT_NAME` — display name for the built-in Crow system agent (default: `Crow`).
 - `CROW_SYSTEM_AGENT_PROVIDER` — provider backing the built-in system agents: `claude` or `copilot` (default: `claude`). Forced to `claude` when `DISABLE_GITHUB_COPILOT` is set.
