@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { Terminal } from "lucide-react";
 import type { AgentMessage } from "@crow-central-agency/shared";
 import type { ActiveToolUse } from "../../../hooks/queries/use-agent-stream-state.types.js";
@@ -25,6 +25,10 @@ export function MessageList({ agentId, messages, streamingText, isStreaming, act
     bottomRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages.length, streamingText.length, activeToolUse?.toolName]);
 
+  const agentMessages = useMemo(() => {
+    return messages.map((message) => <AgentMessageView key={message.id} agentId={agentId} message={message} />);
+  }, [agentId, messages]);
+
   if (messages.length === 0 && !isStreaming) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3">
@@ -39,9 +43,7 @@ export function MessageList({ agentId, messages, streamingText, isStreaming, act
   return (
     <div className="flex-1 overflow-y-auto px-5 py-5">
       <div className="max-w-3xl mx-auto space-y-3">
-        {messages.map((message) => (
-          <AgentMessageView key={message.id} agentId={agentId} message={message} />
-        ))}
+        {agentMessages}
 
         {streamingText && (
           <div className="bg-surface-elevated/40 border border-border-subtle rounded-lg px-4 py-3">

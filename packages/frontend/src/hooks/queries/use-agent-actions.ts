@@ -11,12 +11,6 @@ import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { agentKeys } from "../../services/query-keys.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
-/** Options for useAgentActions */
-export interface UseAgentActionsOptions {
-  /** Reset all ephemeral stream state (for new conversation) */
-  resetStreamState: () => void;
-}
-
 /** Return type of useAgentActions */
 export interface AgentActions {
   /** Send a user message - backend creates the AgentMessage and broadcasts via WS */
@@ -25,8 +19,6 @@ export interface AgentActions {
   injectMessage: (text: string) => void;
   /** Stop the agent */
   abort: () => void;
-  /** Start a new conversation - invalidates messages and state caches */
-  newConversation: () => void;
   /** Allow a pending permission request */
   allowPermission: (toolUseId: string) => void;
   /** Allow a pending permission request and remember the tool in the agent's auto-approved list */
@@ -40,12 +32,10 @@ export interface AgentActions {
  * WS sends for real-time commands, useMutation for REST lifecycle operations.
  *
  * @param agentId - The agent to act on
- * @param options - Callbacks for coordinating with local stream state
  */
-export function useAgentActions(agentId: string, options: UseAgentActionsOptions): AgentActions {
+export function useAgentActions(agentId: string): AgentActions {
   const { send } = useWs();
   const queryClient = useQueryClient();
-  const { resetStreamState } = options;
 
   // Optimistic update (mirrors the backend dedupe + cap) so the just-sent message is
   // recallable until the next mount refetch reconciles inputHistory from /state.
@@ -92,21 +82,6 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
     },
     onError: (error) => {
       console.error(`[abort] failed for agent ${agentId}:`, error.message);
-    },
-  });
-
-  /** Start a new conversation - clears ephemeral state and invalidates query caches */
-  const newConversationMutation = useMutation<void, ApiError>({
-    mutationFn: async () => {
-      const response = await apiClient.post<void>(`/agents/${agentId}/session/new`);
-      return unwrapResponse(response);
-    },
-    onSuccess: () => {
-      resetStreamState();
-      void queryClient.invalidateQueries({ queryKey: agentKeys.detail(agentId) });
-    },
-    onError: (error) => {
-      console.error(`[newConversation] failed for agent ${agentId}:`, error.message);
     },
   });
 
@@ -166,16 +141,13 @@ export function useAgentActions(agentId: string, options: UseAgentActionsOptions
   );
 
   const { mutate: abortMutate } = abortMutation;
-  const { mutate: newConversationMutate } = newConversationMutation;
 
   const abort = useCallback(() => abortMutate(), [abortMutate]);
-  const newConversation = useCallback(() => newConversationMutate(), [newConversationMutate]);
 
   return {
     sendMessage,
     injectMessage,
     abort,
-    newConversation,
     allowPermission,
     allowAlwaysPermission,
     denyPermission,
