@@ -14,13 +14,7 @@ const DEFAULT_REFLECTION_STATE: FragmentReflectionState = {
   failureCount: 0,
 };
 
-/**
- * Persists per-agent reflection sweep state: the watermark (fragments created
- * after it are the "new set" for the next run) plus a consecutive run/parse
- * failure counter. A successful sweep advances the watermark and resets the
- * counter; a give-up (after MAX consecutive failures) also advances the
- * watermark and resets, so retries against a poison set stay bounded.
- */
+/** Persists per-agent reflection sweep state. */
 export class FragmentReflectionStateStore {
   constructor(private readonly store: ObjectStoreProvider) {}
 
