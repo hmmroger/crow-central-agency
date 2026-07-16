@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ENTITY_TYPE } from "@crow-central-agency/shared";
 import type { AgentTaskManager } from "../../services/agent-task-manager.js";
 import type { AgentCircleManager } from "../../services/agent-circle-manager.js";
+import type { FragmentManager } from "../../services/fragment/fragment-manager.js";
 import type { DocumentSearchService } from "../../services/search/document-search-service.js";
 import {
   DATA_SOURCE_TYPE,
@@ -17,20 +18,26 @@ const MAX_SEARCH_LIMIT = 200;
 
 export const SEARCH_WORKSPACE_TOOL_NAME = "search_workspace";
 
-const SEARCH_SOURCE_VALUES = [DATA_SOURCE_TYPE.ARTIFACT, DATA_SOURCE_TYPE.CIRCLE_ARTIFACT, DATA_SOURCE_TYPE.TASK];
+const SEARCH_SOURCE_VALUES = [
+  DATA_SOURCE_TYPE.ARTIFACT,
+  DATA_SOURCE_TYPE.CIRCLE_ARTIFACT,
+  DATA_SOURCE_TYPE.TASK,
+  DATA_SOURCE_TYPE.FRAGMENT,
+];
 
 export function getSearchWorkspaceToolConfig(
   agentId: string,
   documentSearchService: DocumentSearchService,
   taskManager: AgentTaskManager,
-  circleManager: AgentCircleManager
+  circleManager: AgentCircleManager,
+  fragmentManager: FragmentManager
 ) {
   const inputSchema = {
     query: z
       .string()
       .min(1)
       .describe(
-        "Full-text query matched against artifact filenames and contents, task titles and results, and tags. Supports fuzzy and prefix matching."
+        "Full-text query matched against artifact filenames and contents, task titles and results, fragment cues and bodies, and tags. Supports fuzzy and prefix matching."
       ),
     sources: z
       .array(z.enum(SEARCH_SOURCE_VALUES))
@@ -46,7 +53,7 @@ export function getSearchWorkspaceToolConfig(
 
   const handler: ToolHandler<typeof inputSchema> = async ({ query, sources, limit, offset }) => {
     try {
-      const filter = buildAccessFilter(agentId, taskManager, circleManager, sources);
+      const filter = buildAccessFilter(agentId, taskManager, circleManager, fragmentManager, sources);
       const hits = documentSearchService.search(query, { filter, limit: MAX_SEARCH_LIMIT });
       if (hits.length === 0) {
         return textToolResult([`No matches found for query "${query}".`]);
@@ -63,7 +70,7 @@ export function getSearchWorkspaceToolConfig(
   const config: McpToolConfig<typeof inputSchema> = {
     name: SEARCH_WORKSPACE_TOOL_NAME,
     description:
-      "Full-text search across your own artifacts, artifacts in circles you directly belong to, and the results of tasks you own. Supports fuzzy and prefix matching, ranked by relevance. Results are grouped by source; open a hit with the read tool named in its section.",
+      "Full-text search across your own artifacts, artifacts in circles you directly belong to, the results of tasks you own, and fragments in your memory. Supports fuzzy and prefix matching, ranked by relevance. Results are grouped by source; open a hit with the read tool named in its section.",
     inputSchema,
     handler,
   };
@@ -73,18 +80,21 @@ export function getSearchWorkspaceToolConfig(
 
 /**
  * Build the predicate that limits results to what the agent may see: its own artifacts, artifacts
- * in circles it directly belongs to, and tasks it owns. An optional `sources` list narrows further.
+ * in circles it directly belongs to, tasks it owns, and fragments within its resolved reachable
+ * scope. An optional `sources` list narrows further.
  */
 function buildAccessFilter(
   agentId: string,
   taskManager: AgentTaskManager,
   circleManager: AgentCircleManager,
+  fragmentManager: FragmentManager,
   sources: DataSourceType[] | undefined
 ): DocumentSearchFilter {
   const memberCircleIds = new Set(
     circleManager.getCirclesForEntity(agentId, ENTITY_TYPE.AGENT).map((circle) => circle.id)
   );
   const ownedTaskIds = new Set(taskManager.getTasksByOwner(agentId).map((task) => task.id));
+  const scopedFragmentIds = fragmentManager.getScopedFragmentIds(agentId);
   const allowedSources = sources ? new Set<DataSourceType>(sources) : undefined;
 
   return (ref) => {
@@ -102,6 +112,9 @@ function buildAccessFilter(
       case DATA_SOURCE_TYPE.TASK:
         return ownedTaskIds.has(ref.documentId);
 
+      case DATA_SOURCE_TYPE.FRAGMENT:
+        return scopedFragmentIds.has(ref.documentId);
+
       default:
         return false;
     }
@@ -109,8 +122,11 @@ function buildAccessFilter(
 }
 
 function renderHits(hits: DocumentSearchHit[]): string[] {
-  const artifactHits = hits.filter((hit) => hit.dataSourceType !== DATA_SOURCE_TYPE.TASK);
+  const artifactHits = hits.filter(
+    (hit) => hit.dataSourceType === DATA_SOURCE_TYPE.ARTIFACT || hit.dataSourceType === DATA_SOURCE_TYPE.CIRCLE_ARTIFACT
+  );
   const taskHits = hits.filter((hit) => hit.dataSourceType === DATA_SOURCE_TYPE.TASK);
+  const fragmentHits = hits.filter((hit) => hit.dataSourceType === DATA_SOURCE_TYPE.FRAGMENT);
 
   const sections: string[][] = [];
   if (artifactHits.length > 0) {
@@ -123,6 +139,10 @@ function renderHits(hits: DocumentSearchHit[]): string[] {
 
   if (taskHits.length > 0) {
     sections.push(["Tasks:", "[Read with get_task_result]", ...taskHits.map(renderTaskHit)]);
+  }
+
+  if (fragmentHits.length > 0) {
+    sections.push(["Fragments:", "[Read with read_fragment]", ...fragmentHits.map(renderFragmentHit)]);
   }
 
   const lines: string[] = [];
@@ -145,4 +165,9 @@ function renderArtifactHit(hit: DocumentSearchHit): string {
 
 function renderTaskHit(hit: DocumentSearchHit): string {
   return `- Id: ${hit.documentId} Title: ${hit.title}`;
+}
+
+function renderFragmentHit(hit: DocumentSearchHit): string {
+  const kind = hit.tags?.length ? ` (${hit.tags.join(", ")})` : "";
+  return `- Id: ${hit.documentId}${kind} Cue: ${hit.title}`;
 }

@@ -28,6 +28,7 @@ import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { logger } from "../../utils/logger.js";
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
 import type { AgentRunner } from "../../runner/agent-runner.js";
+import type { FragmentManager } from "../fragment/fragment-manager.js";
 import { createAgentRunner as buildAgentRunner } from "../../runner/agent-runner-factory.js";
 import {
   AGENT_STREAM_EVENT_TYPE,
@@ -80,7 +81,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     private readonly messageQueue: MessageQueueManager,
     private readonly taskManager: AgentTaskManager,
     private readonly sensorManager: SensorManager,
-    private readonly circleManager: AgentCircleManager
+    private readonly circleManager: AgentCircleManager,
+    private readonly fragmentManager: FragmentManager
   ) {
     super();
     this.permissionHandler = new PermissionHandler(broadcaster);
@@ -196,6 +198,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   public async newSession(agentId: string): Promise<void> {
     const state = this.ensureState(agentId);
     state.sessionId = undefined;
+    state.activeDomainFragmentIds = [];
     state.pendingInstructionReminder = undefined;
     state.sessionUsage = {
       inputTokens: 0,
@@ -228,6 +231,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
     log.warn({ agentId, sessionId: state.sessionId }, "Persisted session no longer exists; resetting session state");
     state.sessionId = undefined;
+    state.activeDomainFragmentIds = [];
     try {
       await this.persistAgentState(agentId);
     } catch (error) {
@@ -235,6 +239,40 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
 
     return undefined;
+  }
+
+  /** Replace the agent's active-domain set with the given DOMAIN fragment ids. Signal only — never used as an implicit parent. */
+  public async setActiveDomains(agentId: string, domainFragmentIds: string[]): Promise<void> {
+    const state = this.ensureState(agentId);
+    const currentIds = new Set(state.activeDomainFragmentIds);
+    const nextIds = new Set(domainFragmentIds);
+    if (currentIds.size === nextIds.size && domainFragmentIds.every((domainId) => currentIds.has(domainId))) {
+      return;
+    }
+
+    state.activeDomainFragmentIds = Array.from(nextIds);
+
+    try {
+      await this.persistAgentState(agentId);
+    } catch (error) {
+      log.error({ agentId, error }, "Failed to persist state after setActiveDomains");
+    }
+  }
+
+  /** Drop the deleted fragment from the agent's active-domain set, if present. */
+  public async clearActiveDomain(agentId: string, deletedFragmentId: string): Promise<void> {
+    const state = this.getState(agentId);
+    if (!state || !state.activeDomainFragmentIds.includes(deletedFragmentId)) {
+      return;
+    }
+
+    state.activeDomainFragmentIds = state.activeDomainFragmentIds.filter((domainId) => domainId !== deletedFragmentId);
+
+    try {
+      await this.persistAgentState(agentId);
+    } catch (error) {
+      log.error({ agentId, error }, "Failed to persist state after clearActiveDomain");
+    }
   }
 
   /** Set the timestamp of the last Gmail check for an agent. */
@@ -317,7 +355,13 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       await this.ensureValidSession(agentId);
 
       const instructionReminder = state.pendingInstructionReminder;
-      const eventStream = agentRunner.sendMessage(message, source, state.sessionId, instructionReminder);
+      const eventStream = agentRunner.sendMessage(
+        message,
+        source,
+        state.activeDomainFragmentIds,
+        state.sessionId,
+        instructionReminder
+      );
       for await (const event of eventStream) {
         switch (event.type) {
           case AGENT_STREAM_EVENT_TYPE.INIT:
@@ -628,6 +672,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       state = {
         agentId,
         status: AGENT_STATUS.IDLE,
+        activeDomainFragmentIds: [],
         sessionUsage: {
           inputTokens: 0,
           outputTokens: 0,
@@ -992,6 +1037,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       this.mcpManager,
       this.sensorManager,
       this.circleManager,
+      this.fragmentManager,
       permissionRequestCallback,
       (streamEvent) => this.handleOobStreamEvent(streamEvent)
     );

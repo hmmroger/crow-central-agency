@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { EntityTypeSchema, RelationshipTypeSchema } from "./agent-circle.schema.js";
 import { AGENT_STATUS } from "./agent-runtime-state.schema.js";
+import { FragmentKindSchema } from "./fragment.schema.js";
 
-/** A node in the relationship graph — represents either an agent or a circle */
+/** A node in the relationship graph — represents an agent, a circle, or a fragment */
 export const GraphNodeSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -10,6 +11,7 @@ export const GraphNodeSchema = z.object({
   isSystemAgent: z.boolean().optional(),
   isPinned: z.boolean().optional(),
   isSystemCircle: z.boolean().optional(),
+  kind: FragmentKindSchema.optional(),
   status: z
     .enum([AGENT_STATUS.IDLE, AGENT_STATUS.ACTIVATING, AGENT_STATUS.STREAMING, AGENT_STATUS.COMPACTING])
     .optional(),

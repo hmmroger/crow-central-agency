@@ -24,6 +24,7 @@ export const APP_ERROR_CODES = {
   SDK_ERROR: "sdk_error",
   WS_ERROR: "ws_error",
   CIRCLE_NOT_FOUND: "circle_not_found",
+  FRAGMENT_NOT_FOUND: "fragment_not_found",
   RELATIONSHIP_NOT_FOUND: "relationship_not_found",
   DUPLICATE_RELATIONSHIP: "duplicate_relationship",
   CIRCLE_IMMUTABLE: "circle_immutable",

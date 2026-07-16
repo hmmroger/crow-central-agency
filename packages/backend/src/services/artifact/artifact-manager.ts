@@ -3,8 +3,8 @@ import {
   ARTIFACT_CONTENT_TYPE,
   ARTIFACT_TYPE,
   ENTITY_TYPE,
+  type ArtifactEntityType,
   type ArtifactMetadata,
-  type EntityType,
 } from "@crow-central-agency/shared";
 import {
   assertWithinBase,
@@ -51,7 +51,7 @@ import { normalizeTags } from "./artifact-tags.js";
 const log = logger.child({ context: "artifact-manager" });
 
 /** Maps entity type to its base directory name */
-const ENTITY_DIR_NAME: Record<EntityType, string> = {
+const ENTITY_DIR_NAME: Record<ArtifactEntityType, string> = {
   [ENTITY_TYPE.AGENT]: AGENTS_DIR_NAME,
   [ENTITY_TYPE.AGENT_CIRCLE]: CIRCLES_DIR_NAME,
 };
@@ -290,7 +290,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
   }
 
   private async renameEntityArtifact(
-    entityType: EntityType,
+    entityType: ArtifactEntityType,
     entityId: string,
     sourceMetadata: ArtifactMetadata,
     destinationFilename: string
@@ -315,7 +315,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
   }
 
   private async readEntityArtifact(
-    entityType: EntityType,
+    entityType: ArtifactEntityType,
     entityId: string,
     filename: string,
     options?: ReadArtifactOptions
@@ -342,7 +342,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
    * are preserved.
    */
   private async writeEntityArtifact(
-    entityType: EntityType,
+    entityType: ArtifactEntityType,
     entityId: string,
     filename: string,
     content: Buffer,
@@ -397,7 +397,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
    * Tag merge: existing tags minus removeTags, then unioned with addTags (deduped).
    */
   private async updateEntityArtifact(
-    entityType: EntityType,
+    entityType: ArtifactEntityType,
     entityId: string,
     filename: string,
     options: UpdateArtifactOptions
@@ -463,7 +463,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
   }
 
   private async listEntityArtifacts(
-    entityType: EntityType,
+    entityType: ArtifactEntityType,
     entityId: string,
     options?: ArtifactListOptions
   ): Promise<ArtifactMetadata[]> {
@@ -486,7 +486,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
   }
 
   private async findEntityArtifactContent(
-    entityType: EntityType,
+    entityType: ArtifactEntityType,
     entityId: string,
     filename: string,
     query: string,
@@ -536,7 +536,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
   }
 
   private async getEntityArtifactMetadata(
-    entityType: EntityType,
+    entityType: ArtifactEntityType,
     entityId: string,
     filename: string
   ): Promise<ArtifactMetadata> {
@@ -554,14 +554,18 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
   }
 
   private async getMostRecentEntityArtifact(
-    entityType: EntityType,
+    entityType: ArtifactEntityType,
     entityId: string
   ): Promise<ArtifactMetadata | undefined> {
     const artifacts = await this.listEntityArtifacts(entityType, entityId);
     return artifacts[0];
   }
 
-  private async deleteEntityArtifact(entityType: EntityType, entityId: string, filename: string): Promise<boolean> {
+  private async deleteEntityArtifact(
+    entityType: ArtifactEntityType,
+    entityId: string,
+    filename: string
+  ): Promise<boolean> {
     const normalizedFilename = normalizeArtifactFilename(filename);
     const table = this.getStoreTable(entityType, entityId);
     const existing = await this.store.get<ArtifactMetadata>(table, normalizedFilename);
@@ -581,7 +585,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
   }
 
   /** Migrate legacy entries (if any) and remove entries whose backing file no longer exists. */
-  private async migrateAndSync(entityType: EntityType, entityId: string): Promise<void> {
+  private async migrateAndSync(entityType: ArtifactEntityType, entityId: string): Promise<void> {
     const artifactsDir = this.getEntityArtifactsDir(entityType, entityId);
     await ensureDir(artifactsDir);
 
@@ -596,7 +600,11 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
    * a UUID for any without `id`, renames the disk file to `<id>`, and rewrites
    * the store entry under the normalized filename.
    */
-  private async migrateLegacyArtifacts(entityType: EntityType, entityId: string, artifactsDir: string): Promise<void> {
+  private async migrateLegacyArtifacts(
+    entityType: ArtifactEntityType,
+    entityId: string,
+    artifactsDir: string
+  ): Promise<void> {
     const table = this.getStoreTable(entityType, entityId);
     const entries = await this.store.getAll<MaybeLegacyArtifactMetadata>(table);
     const needsMigration = entries.some(
@@ -655,7 +663,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
   }
 
   private async removeStaleArtifactEntries(
-    entityType: EntityType,
+    entityType: ArtifactEntityType,
     entityId: string,
     artifactsDir: string
   ): Promise<void> {
@@ -687,15 +695,15 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
     log.info({ entityType, entityId, count: staleKeys.length }, "Cleaned up stale artifact metadata");
   }
 
-  private getStoreTable(entityType: EntityType, entityId: string): string {
+  private getStoreTable(entityType: ArtifactEntityType, entityId: string): string {
     return `${ENTITY_DIR_NAME[entityType]}/${entityId}/artifacts`;
   }
 
-  private getBaseDir(entityType: EntityType): string {
+  private getBaseDir(entityType: ArtifactEntityType): string {
     return path.join(env.CROW_SYSTEM_PATH, ENTITY_DIR_NAME[entityType]);
   }
 
-  private getEntityArtifactsDir(entityType: EntityType, entityId: string): string {
+  private getEntityArtifactsDir(entityType: ArtifactEntityType, entityId: string): string {
     const baseDir = this.getBaseDir(entityType);
     const entityDir = path.join(baseDir, entityId);
     assertWithinBase(entityDir, baseDir);
@@ -703,7 +711,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
     return path.join(entityDir, AGENT_ARTIFACTS_DIR_NAME);
   }
 
-  private getEntityArtifactPath(entityType: EntityType, entityId: string, id: string): string {
+  private getEntityArtifactPath(entityType: ArtifactEntityType, entityId: string, id: string): string {
     const artifactsDir = this.getEntityArtifactsDir(entityType, entityId);
     const filePath = path.join(artifactsDir, id);
     assertWithinBase(filePath, artifactsDir);

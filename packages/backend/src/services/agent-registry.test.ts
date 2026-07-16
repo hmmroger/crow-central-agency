@@ -15,6 +15,7 @@ import {
 } from "@crow-central-agency/shared";
 import { AgentRegistry, AGENT_STORE_TABLE } from "./agent-registry.js";
 import { AgentCircleManager } from "./agent-circle-manager.js";
+import { RelationshipManager } from "./relationship-manager.js";
 import { WsBroadcaster } from "./ws-broadcaster.js";
 import { InMemoryObjectStore } from "../core/store/in-memory-object-store.mock.js";
 import { AppError } from "../core/error/app-error.js";
@@ -33,6 +34,7 @@ const SYSTEM_AGENT_IDS = [
 
 interface Harness {
   store: InMemoryObjectStore;
+  relationshipManager: RelationshipManager;
   circleManager: AgentCircleManager;
   registry: AgentRegistry;
 }
@@ -41,10 +43,11 @@ function createHarness(): Harness {
   const store = new InMemoryObjectStore();
   const templateStore = new InMemoryObjectStore();
   const broadcaster = new WsBroadcaster();
-  const circleManager = new AgentCircleManager(store, broadcaster);
+  const relationshipManager = new RelationshipManager(store);
+  const circleManager = new AgentCircleManager(store, relationshipManager, broadcaster);
   const registry = new AgentRegistry(store, templateStore, broadcaster, circleManager);
 
-  return { store, circleManager, registry };
+  return { store, relationshipManager, circleManager, registry };
 }
 
 function makePersistedAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
@@ -59,6 +62,7 @@ function makePersistedAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
 
 /** Bring both managers up in the same order the composition root uses. */
 async function initialize(harness: Harness): Promise<void> {
+  await harness.relationshipManager.initialize();
   await harness.circleManager.initialize();
   await harness.registry.initialize();
 }

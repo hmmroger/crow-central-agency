@@ -16,6 +16,8 @@ import { PlacesManager } from "./services/places/places-manager.js";
 import { setupWebSocket } from "./server/setup-websocket.js";
 import { registerArtifactRoutes } from "./routes/artifact.routes.js";
 import { getArtifactsMcpServerDefinition } from "./mcp/artifacts/artifacts-mcp-server.js";
+import { getFragmentsMcpServerDefinition } from "./mcp/fragments/fragments-mcp-server.js";
+import { getFragmentsReflectionMcpServerDefinition } from "./mcp/fragments/fragments-reflection-mcp-server.js";
 import { getAgentsMcpServerDefinition } from "./mcp/agents/agents-mcp-server.js";
 import { getSuperAgentMcpServerDefinition } from "./mcp/agents/super-agent-mcp-server.js";
 import { getBuilderAgentMcpServerDefinition } from "./mcp/agents/builder-agent-mcp-server.js";
@@ -50,7 +52,12 @@ import { SensorManager } from "./sensors/sensor-manager.js";
 import { GeoLocationSensor } from "./sensors/geolocation-sensor.js";
 import { WeatherSensor } from "./sensors/weather-sensor.js";
 import { AgentCircleManager } from "./services/agent-circle-manager.js";
+import { RelationshipManager } from "./services/relationship-manager.js";
+import { FragmentManager } from "./services/fragment/fragment-manager.js";
+import { FragmentReflectionStateStore } from "./services/fragment/fragment-reflection-state-store.js";
+import { createFragmentReflectionRoutine } from "./routines/fragment-reflection-routine.js";
 import { registerCircleRoutes } from "./routes/circle.routes.js";
+import { registerFragmentRoutes } from "./routes/fragment.routes.js";
 import { registerGraphRoutes } from "./routes/graph.routes.js";
 import { DiscordBotManager } from "./bot-connectors/discord/discord-bot-manager.js";
 import { createDiscordRoutine } from "./routines/discord-routine.js";
@@ -89,7 +96,9 @@ export async function bootstrap(options: BootstrapOptions) {
   const folderFileProvider = new FolderFileStoreProvider(env.CROW_SYSTEM_PATH);
   const storeProvider = new FileObjectStoreProvider(env.CROW_SYSTEM_PATH);
   const systemSettingsManager = new SystemSettingsManager(storeProvider);
-  const circleManager = new AgentCircleManager(storeProvider, broadcaster);
+  const relationshipManager = new RelationshipManager(storeProvider);
+  await relationshipManager.initialize();
+  const circleManager = new AgentCircleManager(storeProvider, relationshipManager, broadcaster);
   await circleManager.initialize();
   const registry = new AgentRegistry(storeProvider, folderFileProvider, broadcaster, circleManager);
   await registry.initialize();
@@ -101,7 +110,15 @@ export async function bootstrap(options: BootstrapOptions) {
   await feedManager.initialize();
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
-  const documentSearchService = new DocumentSearchService(artifactManager, taskManager, registry, circleManager);
+  const fragmentManager = new FragmentManager(folderFileProvider, storeProvider, relationshipManager, broadcaster);
+  await fragmentManager.initialize();
+  const documentSearchService = new DocumentSearchService(
+    artifactManager,
+    taskManager,
+    registry,
+    circleManager,
+    fragmentManager
+  );
   await documentSearchService.initialize();
   const placesManager = new PlacesManager();
   const connectorManager = new ConnectorManager(storeProvider, registry, crowScheduler);
@@ -126,7 +143,8 @@ export async function bootstrap(options: BootstrapOptions) {
     messageQueue,
     taskManager,
     sensorManager,
-    circleManager
+    circleManager,
+    fragmentManager
   );
   await runtimeManager.initialize();
 
@@ -161,6 +179,14 @@ export async function bootstrap(options: BootstrapOptions) {
     sensorManager
   );
   routineManager.addRoutine(gmailNotificationRoutine);
+  const fragmentReflectionStateStore = new FragmentReflectionStateStore(storeProvider);
+  const fragmentReflectionRoutine = createFragmentReflectionRoutine(
+    registry,
+    runtimeManager,
+    fragmentManager,
+    fragmentReflectionStateStore
+  );
+  routineManager.addRoutine(fragmentReflectionRoutine);
 
   // Discord bot manager — creates per-agent bots for agents with discordConfig
   const discordBotManager = new DiscordBotManager(registry, runtimeManager);
@@ -172,8 +198,19 @@ export async function bootstrap(options: BootstrapOptions) {
   mcpManager.registerMcpServer(
     getArtifactsMcpServerDefinition(artifactManager, registry, circleManager, sensorManager)
   );
+  mcpManager.registerMcpServer(getFragmentsMcpServerDefinition(fragmentManager, runtimeManager));
   mcpManager.registerMcpServer(
-    getAgentsMcpServerDefinition(registry, runtimeManager, taskManager, documentSearchService, circleManager)
+    getFragmentsReflectionMcpServerDefinition(fragmentManager, runtimeManager, documentSearchService)
+  );
+  mcpManager.registerMcpServer(
+    getAgentsMcpServerDefinition(
+      registry,
+      runtimeManager,
+      taskManager,
+      documentSearchService,
+      circleManager,
+      fragmentManager
+    )
   );
   mcpManager.registerMcpServer(getTasksMcpServerDefinition(taskManager, circleManager, sensorManager));
   mcpManager.registerMcpServer(getFeedMcpServerDefinition(registry, feedManager, sensorManager, systemSettingsManager));
@@ -216,7 +253,8 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerMcpRoutes(server, mcpManager);
   await registerSensorRoutes(server, sensorManager);
   await registerCircleRoutes(server, circleManager, registry);
-  await registerGraphRoutes(server, circleManager, registry, runtimeManager);
+  await registerFragmentRoutes(server, fragmentManager, registry);
+  await registerGraphRoutes(server, circleManager, registry, runtimeManager, fragmentManager);
   await registerFeedRoutes(server, feedManager);
   await registerSystemSettingsRoutes(server, systemSettingsManager);
   await registerConnectorsRoutes(server, connectorManager);

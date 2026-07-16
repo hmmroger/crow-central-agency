@@ -6,10 +6,12 @@ import {
   type AgentTaskItem,
   type ArtifactMetadata,
   type EntityType,
+  type Fragment,
 } from "@crow-central-agency/shared";
 import { logger } from "../../utils/logger.js";
 import type { ArtifactManager } from "../artifact/artifact-manager.js";
 import type { AgentTaskManager } from "../agent-task-manager.js";
+import type { FragmentManager } from "../fragment/fragment-manager.js";
 import type { AgentRegistry } from "../agent-registry.js";
 import type { AgentCircleManager } from "../agent-circle-manager.js";
 import {
@@ -68,11 +70,16 @@ function taskRef(taskId: string): DocumentRef {
   return { documentId: taskId, dataSourceType: DATA_SOURCE_TYPE.TASK, provenanceId: GLOBAL_PROVENANCE_ID };
 }
 
+function fragmentRef(fragmentId: string): DocumentRef {
+  return { documentId: fragmentId, dataSourceType: DATA_SOURCE_TYPE.FRAGMENT, provenanceId: GLOBAL_PROVENANCE_ID };
+}
+
 /**
- * In-memory full-text search over workspace documents (artifacts, circle artifacts, tasks),
- * backed by MiniSearch. On `initialize` it indexes everything that already exists, then keeps the
- * index in sync by subscribing to artifact and task change events. `search` ranks matches with
- * prefix and fuzzy matching, filtered to what the caller is allowed to see.
+ * In-memory full-text search over workspace documents (artifacts, circle artifacts, tasks,
+ * fragments), backed by MiniSearch. On `initialize` it indexes everything that already exists,
+ * then keeps the index in sync by subscribing to artifact, task, and fragment change events.
+ * `search` ranks matches with prefix and fuzzy matching, filtered to what the caller is allowed
+ * to see.
  */
 export class DocumentSearchService {
   private readonly index: MiniSearch<IndexedDocument>;
@@ -81,7 +88,8 @@ export class DocumentSearchService {
     private readonly artifactManager: ArtifactManager,
     private readonly taskManager: AgentTaskManager,
     private readonly registry: AgentRegistry,
-    private readonly circleManager: AgentCircleManager
+    private readonly circleManager: AgentCircleManager,
+    private readonly fragmentManager: FragmentManager
   ) {
     this.index = new MiniSearch<IndexedDocument>({
       idField: "uid",
@@ -98,6 +106,7 @@ export class DocumentSearchService {
   public async initialize(): Promise<void> {
     await this.indexAllArtifacts();
     this.indexAllTasks();
+    await this.indexAllFragments();
     this.subscribe();
   }
 
@@ -142,6 +151,10 @@ export class DocumentSearchService {
       }
     });
     this.taskManager.on("taskDeleted", ({ taskId }) => this.removeDocument(taskRef(taskId)));
+
+    this.fragmentManager.on("fragmentCreated", ({ fragment }) => this.indexFragment(fragment));
+    this.fragmentManager.on("fragmentUpdated", ({ fragment }) => this.indexFragment(fragment));
+    this.fragmentManager.on("fragmentDeleted", ({ fragmentId }) => this.removeDocument(fragmentRef(fragmentId)));
   }
 
   private async indexAllArtifacts(): Promise<void> {
@@ -188,11 +201,26 @@ export class DocumentSearchService {
     }
   }
 
+  private async indexAllFragments(): Promise<void> {
+    for (const fragment of await this.fragmentManager.getAllFragments()) {
+      this.indexFragment(fragment);
+    }
+  }
+
   private indexTask(task: AgentTaskItem): void {
     this.indexDocument({
       ...taskRef(task.id),
       title: task.task,
       text: task.taskResult ?? "",
+    });
+  }
+
+  private indexFragment(fragment: Fragment): void {
+    this.indexDocument({
+      ...fragmentRef(fragment.id),
+      title: fragment.cue,
+      text: fragment.body,
+      tags: [fragment.kind],
     });
   }
 

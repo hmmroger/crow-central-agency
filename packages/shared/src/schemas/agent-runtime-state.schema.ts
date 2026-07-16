@@ -97,13 +97,13 @@ export const AgentRuntimeStateSchema = z.object({
   messageSource: MessageSourceSchema.optional(),
   discordDmChannelId: z.string().optional(),
   sessionId: z.string().optional(),
+  activeDomainFragmentIds: z.array(z.string()).default([]),
   sessionUsage: SessionUsageSchema,
   prevLoopMessageTimestamp: z.number().optional(),
   lastGmailCheckTimestamp: z.number().optional(),
   lastError: z.string().optional(),
   pendingPermissions: z.array(PendingPermissionInfoSchema).optional(),
   pendingInstructionReminder: PendingInstructionReminderSchema.optional(),
-  /** Recent user message inputs (oldest first) for compose-box Up/Down recall; survives new sessions. */
   inputHistory: z.array(z.string()).optional(),
 });
 

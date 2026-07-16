@@ -48,6 +48,9 @@ export const SERVER_MESSAGE_TYPE = {
   CIRCLE_DELETED: "circle_deleted",
   RELATIONSHIP_CREATED: "relationship_created",
   RELATIONSHIP_DELETED: "relationship_deleted",
+  FRAGMENT_CREATED: "fragment_created",
+  FRAGMENT_UPDATED: "fragment_updated",
+  FRAGMENT_DELETED: "fragment_deleted",
   AGENT_BUILDER_DRAFT_UPDATED: "agent_builder_draft_updated",
 } as const;
 
@@ -233,6 +236,21 @@ export const RelationshipDeletedWsMessageSchema = z.object({
   relationshipId: z.string(),
 });
 
+export const FragmentCreatedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.FRAGMENT_CREATED),
+  fragmentId: z.string(),
+});
+
+export const FragmentUpdatedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.FRAGMENT_UPDATED),
+  fragmentId: z.string(),
+});
+
+export const FragmentDeletedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.FRAGMENT_DELETED),
+  fragmentId: z.string(),
+});
+
 /** The single agent-builder draft changed; carries the resolved view, or null when it was cleared. */
 export const AgentBuilderDraftUpdatedWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.AGENT_BUILDER_DRAFT_UPDATED),
@@ -264,6 +282,9 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   CircleDeletedWsMessageSchema,
   RelationshipCreatedWsMessageSchema,
   RelationshipDeletedWsMessageSchema,
+  FragmentCreatedWsMessageSchema,
+  FragmentUpdatedWsMessageSchema,
+  FragmentDeletedWsMessageSchema,
   AgentBuilderDraftUpdatedWsMessageSchema,
 ]);
 
@@ -290,6 +311,9 @@ export type CircleUpdatedWsMessage = z.infer<typeof CircleUpdatedWsMessageSchema
 export type CircleDeletedWsMessage = z.infer<typeof CircleDeletedWsMessageSchema>;
 export type RelationshipCreatedWsMessage = z.infer<typeof RelationshipCreatedWsMessageSchema>;
 export type RelationshipDeletedWsMessage = z.infer<typeof RelationshipDeletedWsMessageSchema>;
+export type FragmentCreatedWsMessage = z.infer<typeof FragmentCreatedWsMessageSchema>;
+export type FragmentUpdatedWsMessage = z.infer<typeof FragmentUpdatedWsMessageSchema>;
+export type FragmentDeletedWsMessage = z.infer<typeof FragmentDeletedWsMessageSchema>;
 export type AgentBuilderDraftUpdatedWsMessage = z.infer<typeof AgentBuilderDraftUpdatedWsMessageSchema>;
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 

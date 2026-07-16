@@ -52,6 +52,7 @@ import type { AgentRegistry } from "../services/agent-registry.js";
 import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
 import type { SensorManager } from "../sensors/sensor-manager.js";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
+import type { FragmentManager } from "../services/fragment/fragment-manager.js";
 import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 import { toCopilotMcpServer, toCopilotTools } from "../mcp/copilot-mcp-adapter.js";
 import { toToolArgsRecord } from "./tool-activity-parser-utils.js";
@@ -128,10 +129,11 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     mcpManager: CrowMcpManager,
     sensorManager: SensorManager,
     circleManager: AgentCircleManager,
+    fragmentManager: FragmentManager,
     private readonly permissionRequestHandler: PermissionRequestCallback,
     private readonly oobEventCallback: OOBStreamEventCallback
   ) {
-    super(agentId, registry, mcpManager, sensorManager, circleManager);
+    super(agentId, registry, mcpManager, sensorManager, circleManager, fragmentManager);
   }
 
   protected async *runProviderQuery(request: AgentRunQueryRequest): AsyncGenerator<AgentStreamEvent, void, unknown> {

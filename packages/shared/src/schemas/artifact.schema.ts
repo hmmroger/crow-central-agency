@@ -1,6 +1,11 @@
 import { z } from "zod";
-import { EntityTypeSchema } from "./agent-circle.schema.js";
+import { ENTITY_TYPE } from "./agent-circle.schema.js";
 import { AgentTaskSourceSchema } from "./agent-task.schema.js";
+
+/** Entity types that can own artifacts — fragments are never artifact-bearing */
+export const ArtifactEntityTypeSchema = z.enum([ENTITY_TYPE.AGENT, ENTITY_TYPE.AGENT_CIRCLE]);
+
+export type ArtifactEntityType = z.infer<typeof ArtifactEntityTypeSchema>;
 
 /**
  * TODO: layered memory system via artifacts.
@@ -48,7 +53,7 @@ export const ArtifactMetadataSchema = z.object({
   type: ArtifactTypeSchema,
   contentType: ArtifactContentTypeSchema,
   entityId: z.string(),
-  entityType: EntityTypeSchema,
+  entityType: ArtifactEntityTypeSchema,
   size: z.number(),
   tags: z.array(z.string()).optional(),
   createdTimestamp: z.number(),

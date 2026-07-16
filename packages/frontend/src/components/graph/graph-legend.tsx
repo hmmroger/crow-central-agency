@@ -1,14 +1,26 @@
 import { GRAPH_COLORS } from "./graph-theme.js";
 
+const LEGEND_SHAPE = {
+  NODE: "node",
+  EDGE: "edge",
+} as const;
+
+type LegendShape = (typeof LEGEND_SHAPE)[keyof typeof LEGEND_SHAPE];
+
 interface LegendItemProps {
   color: string;
   label: string;
+  shape?: LegendShape;
 }
 
-function LegendItem({ color, label }: LegendItemProps) {
+function LegendItem({ color, label, shape = LEGEND_SHAPE.NODE }: LegendItemProps) {
   return (
     <div className="flex items-center gap-2">
-      <span className="inline-block w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
+      {shape === LEGEND_SHAPE.EDGE ? (
+        <span className="inline-block w-3 h-0.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+      ) : (
+        <span className="inline-block w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
+      )}
       <span className="text-2xs text-text-neutral">{label}</span>
     </div>
   );
@@ -26,6 +38,10 @@ export function GraphLegend() {
       <LegendItem color={GRAPH_COLORS.agentStreaming} label="Agent (streaming)" />
       <LegendItem color={GRAPH_COLORS.agentCompacting} label="Agent (compacting)" />
       <LegendItem color={GRAPH_COLORS.systemAgent} label="System agent" />
+      <LegendItem color={GRAPH_COLORS.fragmentDomainNode} label="Fragment (domain)" />
+      <LegendItem color={GRAPH_COLORS.fragmentNode} label="Fragment" />
+      <LegendItem color={GRAPH_COLORS.edgeAssociation} label="Association" shape={LEGEND_SHAPE.EDGE} />
+      <LegendItem color={GRAPH_COLORS.edgeLink} label="Link" shape={LEGEND_SHAPE.EDGE} />
     </div>
   );
 }

@@ -19,6 +19,7 @@ import { MessageRoles } from "../services/content-generation/content-generation.
 import { INVOKE_AGENT_TOOL_NAME } from "../mcp/agents/invoke-agent.js";
 import { SEARCH_WORKSPACE_TOOL_NAME } from "../mcp/agents/search-workspace.js";
 import { FEED_MCP_SERVER_NAME } from "../mcp/feed/feed-mcp-server.js";
+import { FRAGMENTS_MCP_SERVER_NAME } from "../mcp/fragments/fragments-mcp-server.js";
 import {
   AGENT_STREAM_EVENT_TYPE,
   type AgentRunnerEvents,
@@ -31,6 +32,8 @@ import type { SensorManager } from "../sensors/sensor-manager.js";
 import type { SensorContext } from "../sensors/sensor-manager.types.js";
 import type { MessageSource } from "../services/message-queue-manager.types.js";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
+import type { FragmentManager } from "../services/fragment/fragment-manager.js";
+import { renderFragmentCues } from "../services/fragment/fragment-cue-renderer.js";
 import { ADD_REMINDER_TOOL_NAME } from "../mcp/reminders/add-reminder.js";
 import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 import { GMAIL_MCP_SERVER_NAME } from "../mcp/gmail/gmail-mcp-server.js";
@@ -104,6 +107,22 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
       content: ["{sensorReadings}"],
       keys: ["sensorReadings"],
     },
+    {
+      content: [
+        "",
+        "## Memory",
+        "",
+        "You have a persistent long-term memory that carries across sessions, built from atomic memory fragments; keeping it well-organized is part of the work.",
+        "- Capture a memory fragment when you learn something durable that should change how you act later: a user correction or preference, a lesson from how a task turned out, or a stable fact worth reusing. One atomic point each; skip transient detail.",
+        "- Before acting, build on the fragments already surfaced to you — file each new one under the right domain and link related ones instead of restating what you know.",
+        "- Organize deeply, not as a flat list: distributing fragments into the right domains and deeper nodes is what keeps recall sharp.",
+      ],
+      keys: ["hasFragmentTools"],
+    },
+    {
+      content: ["", "{fragmentCues}"],
+      keys: ["fragmentCues"],
+    },
   ],
   keys: [
     "currentDate",
@@ -117,6 +136,8 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
     "hasFeedMcp",
     "agentMd",
     "sensorReadings",
+    "hasFragmentTools",
+    "fragmentCues",
   ],
 };
 
@@ -175,6 +196,22 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
       content: ["{sensorReadings}"],
       keys: ["sensorReadings"],
     },
+    {
+      content: [
+        "",
+        "## Memory",
+        "",
+        "You have a persistent long-term memory that carries across sessions, built from atomic memory fragments; keeping it well-organized is part of the work.",
+        "- Capture a memory fragment when you learn something durable that should change how you act later: a user correction or preference, a lesson from how a task turned out, or a stable fact worth reusing. One atomic point each; skip transient detail.",
+        "- Before acting, build on the fragments already surfaced to you — file each new one under the right domain and link related ones instead of restating what you know.",
+        "- Organize deeply, not as a flat list: distributing fragments into the right domains and deeper nodes is what keeps recall sharp.",
+      ],
+      keys: ["hasFragmentTools"],
+    },
+    {
+      content: ["", "{fragmentCues}"],
+      keys: ["fragmentCues"],
+    },
   ],
   keys: [
     "currentDate",
@@ -186,6 +223,8 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
     "peerAgents",
     "hasFeedMcp",
     "sensorReadings",
+    "hasFragmentTools",
+    "fragmentCues",
   ],
 };
 
@@ -230,7 +269,8 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     private readonly registry: AgentRegistry,
     private readonly mcpManager: CrowMcpManager,
     private readonly sensorManager: SensorManager,
-    private readonly circleManager: AgentCircleManager
+    private readonly circleManager: AgentCircleManager,
+    private readonly fragmentManager: FragmentManager
   ) {
     super();
     this.agentStatus = AGENT_STATUS.IDLE;
@@ -248,6 +288,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
   public async *sendMessage(
     message: string,
     messageSource: MessageSource,
+    activeDomainFragmentIds: string[],
     sessionId?: string,
     instructionReminder?: PendingInstructionReminder
   ): AsyncGenerator<AgentStreamEvent, void, unknown> {
@@ -256,7 +297,14 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     let nextMessageSource = messageSource;
     let pendingReminder = instructionReminder;
     while (nextMessage || (nextMessage !== undefined && nextMessageSource.sourceType === MESSAGE_SOURCE_TYPE.COMMAND)) {
-      const agentStream = this.runQuery(nextMessage, nextMessageSource, agentConfig, sessionId, pendingReminder);
+      const agentStream = this.runQuery(
+        nextMessage,
+        nextMessageSource,
+        activeDomainFragmentIds,
+        agentConfig,
+        sessionId,
+        pendingReminder
+      );
       for await (const agentStreamEvent of agentStream) {
         yield agentStreamEvent;
       }
@@ -327,6 +375,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
   private async *runQuery(
     message: string,
     messageSource: MessageSource,
+    activeDomainFragmentIds: string[],
     agentConfig: AgentConfig,
     sessionId?: string,
     instructionReminder?: PendingInstructionReminder
@@ -336,7 +385,13 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     const serverConfigs = await this.mcpManager.getMcpServersForAgent(this.agentId);
     const sensorContext = await this.sensorManager.getSensorContext();
     const agentMd = await this.registry.getAgentMd(this.agentId);
-    const systemPrompt = await this.buildSystemPrompt(agentConfig, sensorContext, serverConfigs, agentMd);
+    const systemPrompt = await this.buildSystemPrompt(
+      agentConfig,
+      sensorContext,
+      serverConfigs,
+      agentMd,
+      activeDomainFragmentIds
+    );
     const cwd = this.registry.resolveWorkspace(agentConfig);
 
     this.abortController = new AbortController();
@@ -407,7 +462,8 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     agent: AgentConfig,
     sensorContext: SensorContext,
     serverConfigs: CrowMcpServerConfig[],
-    agentMd: string | undefined
+    agentMd: string | undefined,
+    activeDomainFragmentIds: string[]
   ): Promise<string> {
     const circles = this.circleManager.getCirclesForEntity(this.agentId, ENTITY_TYPE.AGENT);
     const agentCircles = circles.length
@@ -457,10 +513,20 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
       }
     }
 
+    let fragmentCues: string | undefined;
+    try {
+      fragmentCues = await renderFragmentCues(this.agentId, activeDomainFragmentIds, this.fragmentManager);
+    } catch (error) {
+      log.warn({ agentId: this.agentId, error }, "Failed to render fragment cues.");
+    }
+
     const gmailServerProfiles = serverConfigs.find(
       (server) => server.name === GMAIL_MCP_SERVER_NAME
     )?.connectionProfiles;
     const hasFeedMcp = serverConfigs.find((server) => server.name === FEED_MCP_SERVER_NAME) ? "true" : undefined;
+    const hasFragmentTools = serverConfigs.find((server) => server.name === FRAGMENTS_MCP_SERVER_NAME)
+      ? "true"
+      : undefined;
     const systemPromptTemplate = this.selectSystemPromptTemplate();
     const content = createMessageContentFromTemplate(
       systemPromptTemplate,
@@ -475,6 +541,8 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
           hasFeedMcp,
           agentMd: agentMd || undefined,
           sensorReadings: sensorReadings.join("\n"),
+          hasFragmentTools,
+          fragmentCues,
         },
         sensorContext?.timezone
       )

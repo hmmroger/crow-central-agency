@@ -152,12 +152,18 @@ export {
   CircleDeletedWsMessageSchema,
   RelationshipCreatedWsMessageSchema,
   RelationshipDeletedWsMessageSchema,
+  FragmentCreatedWsMessageSchema,
+  FragmentUpdatedWsMessageSchema,
+  FragmentDeletedWsMessageSchema,
   AgentBuilderDraftUpdatedWsMessageSchema,
   type CircleCreatedWsMessage,
   type CircleUpdatedWsMessage,
   type CircleDeletedWsMessage,
   type RelationshipCreatedWsMessage,
   type RelationshipDeletedWsMessage,
+  type FragmentCreatedWsMessage,
+  type FragmentUpdatedWsMessage,
+  type FragmentDeletedWsMessage,
   type AgentBuilderDraftUpdatedWsMessage,
   type ServerMessage,
   type AgentServerMessage,
@@ -194,10 +200,12 @@ export {
   ARTIFACT_CONTENT_TYPE,
   ArtifactTypeSchema,
   ArtifactContentTypeSchema,
+  ArtifactEntityTypeSchema,
   ArtifactMetadataSchema,
   ArtifactUpdateSchema,
   type ArtifactType,
   type ArtifactContentType,
+  type ArtifactEntityType,
   type ArtifactMetadata,
   type ArtifactUpdate,
 } from "./schemas/artifact.schema.js";
@@ -333,7 +341,31 @@ export {
   CROW_TASK_DISPATCHER_AGENT_ID,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
   CROW_WORLD_BUILDER_AGENT_ID,
+  FRAGMENT_REFLECTION_AGENT_ID,
 } from "./constants/system-agent.js";
+
+export {
+  CreateFragmentAssociationInputSchema,
+  FRAGMENT_KIND,
+  FRAGMENT_FIRST_LEVEL_TARGET,
+  FRAGMENT_MAX_WORDS,
+  FragmentKindSchema,
+  FragmentSchema,
+  type CreateFragmentAssociationInput,
+  type FragmentKind,
+  type Fragment,
+} from "./schemas/fragment.schema.js";
+
+export {
+  REFLECTION_AGENT_REF,
+  REFLECTION_TEMP_PREFIX,
+  REFLECTION_OP,
+  ReflectionOpSchema,
+  ReflectionPlanSchema,
+  type ReflectionOpType,
+  type ReflectionOp,
+  type ReflectionPlan,
+} from "./schemas/fragment-reflection.schema.js";
 
 export {
   MESSAGE_SOURCE_TYPE,

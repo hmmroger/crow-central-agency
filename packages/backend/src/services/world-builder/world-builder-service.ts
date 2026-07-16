@@ -31,7 +31,8 @@ import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { logger } from "../../utils/logger.js";
 import { composeGenerationInstruction } from "./instruction-composer.js";
 import { composeFleetInstruction } from "./fleet-instruction-composer.js";
-import { extractMarked, extractMarkedJson } from "./extract-marked.js";
+import { extractMarked, extractMarkedJson } from "../../utils/extract-marked.js";
+import { WORLD_BUILDER_BEGIN, WORLD_BUILDER_END } from "./world-builder.constants.js";
 
 const log = logger.child({ context: "world-builder-service" });
 
@@ -51,7 +52,7 @@ export class WorldBuilderService {
     const raw = await this.runtimeManager.runAgentForResult(CROW_NARRATIVE_ARCHITECT_AGENT_ID, instruction, {
       sourceType: MESSAGE_SOURCE_TYPE.INTERNAL,
     });
-    const content = extractMarked(raw ?? "");
+    const content = extractMarked(raw ?? "", WORLD_BUILDER_BEGIN, WORLD_BUILDER_END);
     if (!content) {
       log.warn({ type: request.type }, "Narrative Architect returned empty content");
       throw new AppError("Generation produced no content", APP_ERROR_CODES.SDK_ERROR);
@@ -83,7 +84,7 @@ export class WorldBuilderService {
     const raw = await this.runtimeManager.runAgentForResult(CROW_WORLD_BUILDER_AGENT_ID, instruction, {
       sourceType: MESSAGE_SOURCE_TYPE.INTERNAL,
     });
-    const fleet = extractMarkedJson(raw ?? "", FleetResponseSchema);
+    const fleet = extractMarkedJson(raw ?? "", FleetResponseSchema, WORLD_BUILDER_BEGIN, WORLD_BUILDER_END);
 
     const draft: AgentBuilderDraft = {
       projectPath: existing?.projectPath,

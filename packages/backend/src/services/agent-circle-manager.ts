@@ -4,7 +4,6 @@ import {
   BASE_CIRCLE_ID,
   BASE_CIRCLE_NAME,
   AgentCircleSchema,
-  RelationshipSchema,
   type AgentCircle,
   type Relationship,
   type CreateAgentCircleInput,
@@ -14,6 +13,8 @@ import {
 } from "@crow-central-agency/shared";
 import { EventBus } from "../core/event-bus/event-bus.js";
 import type { AgentCircleManagerEvents } from "./agent-circle-manager.types.js";
+import type { QueryRelationshipOptions } from "./relationship-manager.types.js";
+import { relationshipMatchesQuery, type RelationshipManager } from "./relationship-manager.js";
 import type { WsBroadcaster } from "./ws-broadcaster.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 import { AppError } from "../core/error/app-error.js";
@@ -23,32 +24,28 @@ import { logger } from "../utils/logger.js";
 
 const log = logger.child({ context: "agent-circle-manager" });
 
-type QueryRelationshipOptions = Partial<CreateRelationshipInput>;
-
 /** Object store table name for agent circles */
 export const CIRCLE_STORE_TABLE = "agent-circles";
 
-/** Object store table name for entity relationships */
-export const RELATIONSHIP_STORE_TABLE = "relationships";
-
 /**
- * Manages AgentCircle entities and Relationship records.
- * System agents are virtually visible in all circles.
+ * Manages AgentCircle entities and circle membership semantics.
+ * Edge persistence and queries are delegated to the RelationshipManager;
+ * system agents are virtually visible in all circles.
  */
 export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
   private circles = new Map<string, AgentCircle>();
-  private relationships = new Map<string, Relationship>();
   private virtualRelationships = new Map<string, Relationship>();
 
   constructor(
     private readonly store: ObjectStoreProvider,
+    private readonly relationshipManager: RelationshipManager,
     private readonly broadcaster: WsBroadcaster
   ) {
     super();
   }
 
   /**
-   * Load circles and relationships from the object store.
+   * Load circles from the object store.
    * Ensures the Base Circle exists.
    */
   public async initialize(): Promise<void> {
@@ -63,17 +60,6 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
       }
     }
 
-    // Load relationships
-    const relEntries = await this.store.getAll<Relationship>(RELATIONSHIP_STORE_TABLE);
-    for (const entry of relEntries) {
-      const result = RelationshipSchema.safeParse(entry.value);
-      if (result.success) {
-        this.relationships.set(result.data.id, result.data);
-      } else {
-        log.warn({ issues: result.error.issues }, "Skipping invalid relationship in object store");
-      }
-    }
-
     // Ensure Base Circle exists
     await this.ensureBaseCircle();
 
@@ -81,7 +67,7 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
       this.addSystemAgentVirtualRelationships(circle.id);
     }
 
-    log.info({ circles: this.circles.size, relationships: this.relationships.size }, "AgentCircleManager initialized");
+    log.info({ circles: this.circles.size }, "AgentCircleManager initialized");
   }
 
   /** Get all circles */
@@ -167,21 +153,13 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
     this.broadcaster.broadcast({ type: "circle_deleted", circleId });
   }
 
-  /** Get all relationships */
+  /** Get all relationships, including virtual system-agent memberships */
   public getAllRelationships(): Relationship[] {
-    return Array.from(this.relationships.values()).concat(Array.from(this.virtualRelationships.values()));
+    return this.relationshipManager.getAllRelationships().concat(Array.from(this.virtualRelationships.values()));
   }
 
   public queryRelationships(options: QueryRelationshipOptions): Relationship[] {
-    return this.getAllRelationships().filter((relationship) => {
-      return (
-        (!options.sourceEntityId || options.sourceEntityId === relationship.sourceEntityId) &&
-        (!options.sourceEntityType || options.sourceEntityType === relationship.sourceEntityType) &&
-        (!options.targetEntityId || options.targetEntityId === relationship.targetEntityId) &&
-        (!options.targetEntityType || options.targetEntityType === relationship.targetEntityType) &&
-        (!options.relationshipType || options.relationshipType === relationship.relationshipType)
-      );
-    });
+    return this.getAllRelationships().filter((relationship) => relationshipMatchesQuery(relationship, options));
   }
 
   /**
@@ -189,17 +167,13 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
    * @throws AppError with RELATIONSHIP_NOT_FOUND if not found.
    */
   public getRelationship(relationshipId: string): Relationship {
-    const relationship = this.relationships.get(relationshipId);
-    if (!relationship) {
-      throw new AppError(`Relationship not found: ${relationshipId}`, APP_ERROR_CODES.RELATIONSHIP_NOT_FOUND);
-    }
-
-    return relationship;
+    return this.relationshipManager.getRelationship(relationshipId);
   }
 
   /** Create a relationship between entities */
   public async createRelationship(input: CreateRelationshipInput): Promise<Relationship> {
-    // Prevent self-referencing
+    // Checked here (ahead of the cycle check) to preserve error ordering;
+    // RelationshipManager re-checks independently for non-circle callers.
     if (input.sourceEntityId === input.targetEntityId) {
       throw new AppError(
         "Cannot create a relationship from an entity to itself",
@@ -207,7 +181,7 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
       );
     }
 
-    // Prevent duplicates
+    // Prevent duplicates, including against virtual system-agent memberships
     this.assertNoDuplicateRelationship(input);
 
     // Cycle detection for circle-to-circle memberships
@@ -219,27 +193,8 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
       this.assertNoCycle(input.sourceEntityId, input.targetEntityId);
     }
 
-    const relationship: Relationship = {
-      id: generateId(),
-      sourceEntityId: input.sourceEntityId,
-      sourceEntityType: input.sourceEntityType,
-      targetEntityId: input.targetEntityId,
-      targetEntityType: input.targetEntityType,
-      relationshipType: input.relationshipType,
-      createdTimestamp: Date.now(),
-    };
+    const relationship = await this.relationshipManager.createRelationship(input);
 
-    this.relationships.set(relationship.id, relationship);
-    await this.store.set(RELATIONSHIP_STORE_TABLE, relationship.id, relationship);
-
-    log.info(
-      {
-        relationshipId: relationship.id,
-        source: `${input.sourceEntityType}:${input.sourceEntityId}`,
-        target: `${input.targetEntityType}:${input.targetEntityId}`,
-      },
-      "Relationship created"
-    );
     this.emit("relationshipCreated", { relationship });
     this.broadcaster.broadcast({ type: "relationship_created", relationship });
 
@@ -264,10 +219,8 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
       }
     }
 
-    this.relationships.delete(relationshipId);
-    await this.store.delete(RELATIONSHIP_STORE_TABLE, relationshipId);
+    await this.relationshipManager.deleteRelationship(relationshipId);
 
-    log.info({ relationshipId }, "Relationship deleted");
     this.emit("relationshipDeleted", { relationshipId });
     this.broadcaster.broadcast({ type: "relationship_deleted", relationshipId });
   }
@@ -367,23 +320,11 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
 
   /** Remove all relationships involving an entity and emit events for each */
   public async removeRelationshipsForEntity(entityId: string): Promise<void> {
-    const toRemove: string[] = [];
+    const removedIds = await this.relationshipManager.removeRelationshipsForEntity(entityId);
 
-    for (const relationship of this.relationships.values()) {
-      if (relationship.sourceEntityId === entityId || relationship.targetEntityId === entityId) {
-        toRemove.push(relationship.id);
-      }
-    }
-
-    for (const relationshipId of toRemove) {
-      this.relationships.delete(relationshipId);
-      await this.store.delete(RELATIONSHIP_STORE_TABLE, relationshipId);
+    for (const relationshipId of removedIds) {
       this.emit("relationshipDeleted", { relationshipId });
       this.broadcaster.broadcast({ type: "relationship_deleted", relationshipId });
-    }
-
-    if (toRemove.length > 0) {
-      log.info({ entityId, count: toRemove.length }, "Removed relationships for entity");
     }
   }
 
@@ -473,7 +414,7 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
     }
   }
 
-  /** Check that no identical relationship already exists */
+  /** Check that no identical relationship already exists, including virtual ones */
   private assertNoDuplicateRelationship(input: CreateRelationshipInput): void {
     const duplicates = this.queryRelationships(input);
     if (duplicates.length > 0) {
@@ -483,39 +424,17 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
 
   /**
    * Detect if adding a circle-to-circle membership (source contains target) would create a cycle.
-   * Starting from targetCircleId, recursively follows existing "source contains sub-circle" edges
-   * (i.e., where sourceEntityId → targetEntityId in stored relationships).
-   * If sourceCircleId is encountered during this walk, the proposed edge would close a cycle.
+   * The proposed edge would close a cycle if sourceCircleId is already reachable from
+   * targetCircleId through existing circle-to-circle membership edges.
    */
   private assertNoCycle(sourceCircleId: string, targetCircleId: string): void {
-    const visited = new Set<string>();
+    const wouldCycle = this.relationshipManager.canReach(targetCircleId, sourceCircleId, {
+      sourceEntityType: ENTITY_TYPE.AGENT_CIRCLE,
+      targetEntityType: ENTITY_TYPE.AGENT_CIRCLE,
+      relationshipType: RELATIONSHIP_TYPE.MEMBERSHIP,
+    });
 
-    const wouldCycle = (currentId: string): boolean => {
-      if (currentId === sourceCircleId) {
-        return true;
-      }
-
-      if (visited.has(currentId)) {
-        return false;
-      }
-
-      visited.add(currentId);
-
-      for (const relationship of this.queryRelationships({
-        sourceEntityId: currentId,
-        sourceEntityType: ENTITY_TYPE.AGENT_CIRCLE,
-        targetEntityType: ENTITY_TYPE.AGENT_CIRCLE,
-        relationshipType: RELATIONSHIP_TYPE.MEMBERSHIP,
-      })) {
-        if (wouldCycle(relationship.targetEntityId)) {
-          return true;
-        }
-      }
-
-      return false;
-    };
-
-    if (wouldCycle(targetCircleId)) {
+    if (wouldCycle) {
       throw new AppError(
         "Adding this membership would create a circular dependency",
         APP_ERROR_CODES.CIRCULAR_MEMBERSHIP

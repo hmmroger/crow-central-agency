@@ -27,7 +27,10 @@ export function MiniGraph({ className }: MiniGraphProps) {
 
   return (
     <DashboardWidget title="Circles Map" action={expandAction} className={className}>
-      <GraphCanvas className="relative h-52 rounded-lg border border-border-subtle overflow-hidden bg-surface-inset" />
+      <GraphCanvas
+        className="relative h-52 rounded-lg border border-border-subtle overflow-hidden bg-surface-inset"
+        hideFragments
+      />
     </DashboardWidget>
   );
 }

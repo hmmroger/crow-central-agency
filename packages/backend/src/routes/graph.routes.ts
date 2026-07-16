@@ -8,23 +8,26 @@ import {
 } from "@crow-central-agency/shared";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
+import type { FragmentManager } from "../services/fragment/fragment-manager.js";
 import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
 
 /**
  * Register graph data route.
- * Returns a pre-assembled graph of all agents, circles, and their relationships.
+ * Returns a pre-assembled graph of all agents, circles, fragments, and their relationships.
  */
 export async function registerGraphRoutes(
   server: FastifyInstance,
   circleManager: AgentCircleManager,
   registry: AgentRegistry,
-  runtimeManager: AgentRuntimeManager
+  runtimeManager: AgentRuntimeManager,
+  fragmentManager: FragmentManager
 ) {
   /** Get the full relationship graph (nodes + edges) */
   server.get<{ Reply: ApiSuccess<GraphData> }>("/api/graph", async () => {
     const agents = registry.getAllAgents(false);
     const circles = circleManager.getAllCircles();
     const relationships = circleManager.getAllRelationships();
+    const fragmentCues = await fragmentManager.getAllFragmentCues();
 
     const agentNodes = agents.map(
       (agent): GraphNode => ({
@@ -46,8 +49,17 @@ export async function registerGraphRoutes(
       })
     );
 
+    const fragmentNodes = fragmentCues.map(
+      (fragmentCue): GraphNode => ({
+        id: fragmentCue.id,
+        name: fragmentCue.cue,
+        entityType: ENTITY_TYPE.FRAGMENT,
+        kind: fragmentCue.kind,
+      })
+    );
+
     const graphData: GraphData = {
-      nodes: [...agentNodes, ...circleNodes],
+      nodes: [...agentNodes, ...circleNodes, ...fragmentNodes],
       edges: relationships.map(
         (relationship): GraphEdge => ({
           id: relationship.id,

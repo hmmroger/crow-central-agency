@@ -9,6 +9,9 @@ import {
   AgentCreatedWsMessageSchema,
   AgentUpdatedWsMessageSchema,
   AgentDeletedWsMessageSchema,
+  FragmentCreatedWsMessageSchema,
+  FragmentUpdatedWsMessageSchema,
+  FragmentDeletedWsMessageSchema,
   type GraphData,
 } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
@@ -18,7 +21,7 @@ import type { ApiError } from "../../services/api-client.types.js";
 
 /**
  * Fetch graph data via React Query, kept fresh by WS events.
- * Invalidates and refetches when circles, relationships, or agents change.
+ * Invalidates and refetches when circles, relationships, agents, or fragments change.
  */
 export function useGraphQuery() {
   const queryClient = useQueryClient();
@@ -45,7 +48,10 @@ export function useGraphQuery() {
         RelationshipDeletedWsMessageSchema.safeParse(raw).success ||
         AgentCreatedWsMessageSchema.safeParse(raw).success ||
         AgentUpdatedWsMessageSchema.safeParse(raw).success ||
-        AgentDeletedWsMessageSchema.safeParse(raw).success;
+        AgentDeletedWsMessageSchema.safeParse(raw).success ||
+        FragmentCreatedWsMessageSchema.safeParse(raw).success ||
+        FragmentUpdatedWsMessageSchema.safeParse(raw).success ||
+        FragmentDeletedWsMessageSchema.safeParse(raw).success;
 
       if (isGraphRelevant) {
         void queryClient.invalidateQueries({ queryKey: graphKeys.data() });

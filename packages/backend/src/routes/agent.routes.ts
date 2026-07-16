@@ -209,6 +209,7 @@ export async function registerAgentRoutes(
     const defaultState: AgentRuntimeState = {
       agentId,
       status: AGENT_STATUS.IDLE,
+      activeDomainFragmentIds: [],
       sessionUsage: { inputTokens: 0, outputTokens: 0, totalCostUsd: 0, contextUsed: 0, contextTotal: 0 },
     };
 
