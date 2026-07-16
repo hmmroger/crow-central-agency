@@ -2,9 +2,9 @@ import pino from "pino";
 import { env } from "../config/env.js";
 
 async function createLogger(): Promise<pino.Logger> {
-  if (env.IS_DEV) {
+  if (env.IS_DEV || env.LOG_PRETTY) {
     const pinoPretty = (await import("pino-pretty")).default;
-    return pino({ level: env.LOG_LEVEL }, pinoPretty({ colorize: true, sync: true }));
+    return pino({ level: env.LOG_LEVEL }, pinoPretty({ colorize: true, sync: true, destination: process.stdout }));
   }
 
   return pino(

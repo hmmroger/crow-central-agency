@@ -60,6 +60,7 @@ export const env = {
   NODE_ENV: nodeEnv,
   IS_DEV: isDev,
   LOG_LEVEL: getOptional("LOG_LEVEL") ?? (isDev ? "debug" : "info"),
+  LOG_PRETTY: getBoolean("LOG_PRETTY"),
   HOST: host,
   PORT: port,
   CORS_ORIGINS: corsOrigins.split(",").map((origin) => origin.trim()),
