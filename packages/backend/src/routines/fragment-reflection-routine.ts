@@ -26,14 +26,8 @@ const MAX_REFLECTION_FAILURES = 2;
 const log = logger.child({ context: "fragment-reflection-routine" });
 
 /**
- * The reflection sweep: per tick, for every user-facing agent with fragments created since
- * its watermark, dispatch one reflection run and apply the returned plan. The watermark is
- * anchored to the sweep start (not completion) so nodes the apply itself creates surface
- * once in a follow-up sweep that then settles as a no-op; per-op failures still count as
- * completed. A thrown run/parse increments a consecutive-failure counter and leaves the
- * watermark for the next tick to retry; after MAX_REFLECTION_FAILURES consecutive throws
- * the sweep gives up on the current fragment set — the watermark advances past it and the
- * counter resets — so a poison set cannot loop forever.
+ * Periodic reflection sweep: per tick, for every user-facing agent with fragments
+ * created past its watermark, dispatch one reflection run and apply the returned plan.
  */
 class FragmentReflectionRoutine {
   constructor(
@@ -115,7 +109,8 @@ class FragmentReflectionRoutine {
       await this.runtimeManager.clearActiveDomain(agentId, collectedId);
     }
 
-    await this.reflectionStateStore.setState(agentId, { lastReflectionSweepTimestamp: sweepStart, failureCount: 0 });
+    // accept trade off on new fragments added mid-run by target agent
+    await this.reflectionStateStore.setState(agentId, { lastReflectionSweepTimestamp: Date.now(), failureCount: 0 });
     log.info(
       { agentId, newFragments: focusFragments.length, operations: plan.operations.length, failures: failures.length },
       "Reflection sweep applied"
