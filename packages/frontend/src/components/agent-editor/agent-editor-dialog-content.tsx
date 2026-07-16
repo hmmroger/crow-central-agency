@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useImperativeHandle, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import type { Ref } from "react";
 import { BookmarkPlus, Sparkles, Trash2 } from "lucide-react";
 import {
   AGENT_TYPE,
+  MCP_CONFIG_TYPE,
   THINKING_MODE,
   TOOL_MODE,
+  normalizeMcpName,
   resolveModel,
   type AgentConfigTemplate,
   type AgentType,
@@ -95,6 +97,16 @@ export function AgentEditorDialogContent({
   const { data: agentMcpConfigs = [] } = useAgentMcpConfigsQuery(agentId);
   const { data: globalMcpConfigs = [] } = useMcpConfigsQuery({ enabled: !isEditing });
   const mcpConfigs = isEditing ? agentMcpConfigs : globalMcpConfigs;
+
+  // External (user-configured) MCP server names, normalized to the server key Copilot receives —
+  // used to best-effort regroup Copilot external tools in the permissions dialog.
+  const mcpServerNames = useMemo(
+    () =>
+      mcpConfigs
+        .filter((config) => config.type !== MCP_CONFIG_TYPE.INTERNAL)
+        .map((config) => normalizeMcpName(config.name)),
+    [mcpConfigs]
+  );
 
   // An existing agent's saved type wins; the prop only seeds new agents.
   const effectiveAgentType = agentQuery.data?.type ?? agentType;
@@ -453,6 +465,7 @@ export function AgentEditorDialogContent({
               autoApprovedTools={form.autoApprovedTools}
               disallowedTools={form.disallowedTools}
               availableTools={form.availableTools}
+              mcpServerNames={mcpServerNames}
               onToolModeChange={editorForm.setToolMode}
               onToggleTool={editorForm.toggleTool}
               onSetPermissions={editorForm.setPermissions}

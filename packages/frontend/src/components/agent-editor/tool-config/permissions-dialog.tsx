@@ -8,6 +8,7 @@ interface PermissionsDialogProps {
   effectiveTools: string[];
   autoApprovedTools: string[];
   disallowedTools: string[];
+  mcpServerNames: string[];
   onSave: (autoApprovedTools: string[], disallowedTools: string[]) => void;
   onClose: () => void;
 }
@@ -20,6 +21,7 @@ export function PermissionsDialog({
   effectiveTools,
   autoApprovedTools,
   disallowedTools,
+  mcpServerNames,
   onSave,
   onClose,
 }: PermissionsDialogProps) {
@@ -100,6 +102,7 @@ export function PermissionsDialog({
             effectiveTools={effectiveTools}
             autoApprovedTools={permissions.autoApprovedTools}
             disallowedTools={permissions.disallowedTools}
+            mcpServerNames={mcpServerNames}
             filter={filter}
             onSetToolPermission={handleSetToolPermission}
           />

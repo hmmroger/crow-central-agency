@@ -8,6 +8,7 @@ interface OpenPermissionsDialogArgs {
   effectiveTools: string[];
   autoApprovedTools: string[];
   disallowedTools: string[];
+  mcpServerNames: string[];
   onSave: (autoApprovedTools: string[], disallowedTools: string[]) => void;
 }
 
@@ -15,11 +16,11 @@ export function useOpenPermissionsDialog() {
   const { showDialog } = useModalDialog();
 
   return useCallback(
-    ({ effectiveTools, autoApprovedTools, disallowedTools, onSave }: OpenPermissionsDialogArgs) => {
+    ({ effectiveTools, autoApprovedTools, disallowedTools, mcpServerNames, onSave }: OpenPermissionsDialogArgs) => {
       showDialog({
         id: PERMISSIONS_DIALOG_ID,
         component: PermissionsDialog,
-        componentProps: { effectiveTools, autoApprovedTools, disallowedTools, onSave },
+        componentProps: { effectiveTools, autoApprovedTools, disallowedTools, mcpServerNames, onSave },
         title: "Permissions",
         className: "w-[95vw] md:w-xl",
       });
