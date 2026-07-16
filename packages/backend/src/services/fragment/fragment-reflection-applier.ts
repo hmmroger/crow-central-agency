@@ -24,9 +24,9 @@ export interface ReflectionApplyResult {
 }
 
 /**
- * Apply a reflection plan against the target agent's vault, in order, through the
+ * Apply a reflection plan against the target agent's memory fragments, in order, through the
  * FragmentManager named-edge primitives. The `"agent"` sentinel resolves to the TARGET agent
- * (the vault being reorganized), never the reflection agent; a `$`-prefixed ref resolves
+ * (the memory being reorganized), never the reflection agent; a `$`-prefixed ref resolves
  * to the fragment an earlier create in the same plan produced. Best-effort: a throwing op
  * is recorded as a failure and the remaining ops still apply.
  */

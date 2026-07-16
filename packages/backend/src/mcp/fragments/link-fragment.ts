@@ -51,7 +51,6 @@ export async function linkFragment(
       await fragmentManager.removeLink(original.entityId, fragmentId);
     }
   } catch (error) {
-    // roll back the added edge so a failed move leaves the graph untouched
     if (target.entityType === ENTITY_TYPE.AGENT) {
       await fragmentManager.removeAssociation(target.entityId, fragmentId);
     } else {

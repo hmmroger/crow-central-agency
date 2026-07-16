@@ -3,6 +3,7 @@ import {
   MESSAGE_SOURCE_TYPE,
   ReflectionPlanSchema,
   type Fragment,
+  type ReflectionPlan,
 } from "@crow-central-agency/shared";
 import type { Routine } from "./routine-manager.types.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
@@ -16,7 +17,6 @@ import {
   FRAGMENT_REFLECTION_END,
 } from "../services/fragment/fragment-reflection.constants.js";
 import { extractMarkedJson } from "../utils/extract-marked.js";
-import { isCrowSystemAgent } from "../utils/id-utils.js";
 import { logger } from "../utils/logger.js";
 
 const ROUTINE_ID = "fragment-reflection";
@@ -25,14 +25,11 @@ const REFLECTION_INTERVAL_MINUTES = 30;
 const log = logger.child({ context: "fragment-reflection-routine" });
 
 /**
- * The reflection sweep: per tick, for every user-facing agent with fragments created
- * since its watermark, dispatch one single-pass reflection run and apply the returned
- * plan against that agent's vault. The watermark advances to the sweep start only when
- * the run completed and the plan parsed and applied — per-op failures are logged but
- * still count as completed, so the same sweep is never re-run forever; a thrown
- * run/parse leaves the watermark for the next tick to retry. Using the sweep start
- * (not completion time) means nodes the apply itself creates surface once in a
- * follow-up sweep that finds an organized vault and terminates as a no-op.
+ * The reflection sweep: per tick, for every user-facing agent with fragments created since
+ * its watermark, dispatch one reflection run and apply the returned plan. The watermark is
+ * anchored to the sweep start (not completion) so nodes the apply itself creates surface
+ * once in a follow-up sweep that then settles as a no-op; per-op failures still count as
+ * completed, while a thrown run/parse leaves the watermark for the next tick to retry.
  */
 class FragmentReflectionRoutine {
   constructor(
@@ -52,7 +49,7 @@ class FragmentReflectionRoutine {
   }
 
   private async onInterval(): Promise<void> {
-    const targetAgents = this.registry.getAllAgents().filter((agent) => !isCrowSystemAgent(agent.id));
+    const targetAgents = this.registry.getAllAgents();
     for (const agent of targetAgents) {
       try {
         await this.reflectOnAgent(agent.id);
@@ -70,11 +67,17 @@ class FragmentReflectionRoutine {
     }
 
     const prompt = await composeReflectionContext(this.fragmentManager, agentId, focusFragments);
-    await this.runtimeManager.newSession(FRAGMENT_REFLECTION_AGENT_ID);
     const raw = await this.runtimeManager.runAgentForResult(FRAGMENT_REFLECTION_AGENT_ID, prompt, {
       sourceType: MESSAGE_SOURCE_TYPE.INTERNAL,
     });
-    const plan = extractMarkedJson(raw ?? "", ReflectionPlanSchema, FRAGMENT_REFLECTION_BEGIN, FRAGMENT_REFLECTION_END);
+
+    let plan: ReflectionPlan;
+    try {
+      plan = extractMarkedJson(raw ?? "", ReflectionPlanSchema, FRAGMENT_REFLECTION_BEGIN, FRAGMENT_REFLECTION_END);
+    } catch (error) {
+      log.debug({ agentId, rawPlan: raw }, "Reflection plan validation failed.");
+      throw error;
+    }
 
     const { failures, collectedIds } = await applyReflectionPlan(this.fragmentManager, agentId, plan);
     if (failures.length > 0) {

@@ -26,7 +26,7 @@ export const FragmentKindSchema = z.enum([
 /** Maximum number of words in a fragment body, kind-agnostic, enforced on write */
 export const FRAGMENT_MAX_WORDS = 100;
 
-/** Target ceiling for a first-level bucket or any parent's direct children before the curator consolidates */
+/** Target ceiling for a first-level bucket or any parent's direct children before reflection consolidates */
 export const FRAGMENT_FIRST_LEVEL_TARGET = 20;
 
 /**

@@ -50,7 +50,7 @@ export function getSearchFragmentToolConfig(
   const config: McpToolConfig<typeof inputSchema> = {
     name: SEARCH_FRAGMENT_TOOL_NAME,
     description:
-      "Full-text search over the fragments visible to the given target agent, ranked by relevance. Use it to find near-duplicates or related fragments elsewhere in the target's vault.",
+      "Full-text search over the fragments visible to the given target agent, ranked by relevance. Use it to find near-duplicates or related fragments elsewhere in the target's memory.",
     inputSchema,
     handler,
   };

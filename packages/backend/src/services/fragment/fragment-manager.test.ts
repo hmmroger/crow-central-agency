@@ -641,8 +641,8 @@ describe("FragmentManager.getAllFragmentCues", () => {
   });
 });
 
-describe("FragmentManager reflection-curator allowance", () => {
-  it("grants the curator access to any fragment without an association of its own", async () => {
+describe("FragmentManager reflection allowance", () => {
+  it("grants the reflection agent access to any fragment without an association of its own", async () => {
     const harness = await createHarness();
     const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
     const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domain.id));

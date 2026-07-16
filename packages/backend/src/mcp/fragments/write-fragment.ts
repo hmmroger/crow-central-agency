@@ -38,8 +38,6 @@ export function getWriteFragmentToolConfig(
 
   const handler: ToolHandler<typeof inputSchema> = async ({ kind, cue, body, source }) => {
     try {
-      // toFragmentParent maps only the acting agent's own id to an agent anchor,
-      // so the source is either self or a fragment the agent must be able to reach
       const parentNode = toFragmentParent(agentId, source);
       if (parentNode.entityType === ENTITY_TYPE.FRAGMENT) {
         assertFragmentAccessible(fragmentManager, agentId, parentNode.entityId);
@@ -58,7 +56,7 @@ export function getWriteFragmentToolConfig(
   const config: McpToolConfig<typeof inputSchema> = {
     name: WRITE_FRAGMENT_TOOL_NAME,
     description:
-      "Save an atomic piece of experience to your fragment vault. Always requires an explicit source to hang the fragment under — pick a deliberate spot in your structure.",
+      "Save an atomic piece of experience as a memory fragment. Always requires an explicit source to hang the fragment under — pick a deliberate spot in your memory structure.",
     inputSchema,
     handler,
   };

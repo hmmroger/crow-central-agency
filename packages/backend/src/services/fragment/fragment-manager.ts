@@ -62,14 +62,6 @@ function countWords(text: string): number {
  * - fragments-index (object store, hot): {id, kind, cue, createdTimestamp} per fragment.
  * Create/update/delete write through to both tiers; body-only and usage-stat
  * writes skip the index since it holds neither.
- *
- * Also the domain authority over fragment graph edges (ASSOCIATION/LINK via
- * RelationshipManager): the graph is a DAG — multiple parents are legal —
- * and the intrinsic invariants (parent rules, word cap, acyclicity) live
- * inside the pure ops, caller-independent. A fragment exists exactly as long
- * as something still links to it: unlinkFragment cascade-collects whatever
- * loses its last incoming edge. Accessibility is owned here behind the one
- * opaque isFragmentAccessible API; the fragment tools enforce it per call.
  */
 export class FragmentManager extends EventBus<FragmentManagerEvents> {
   constructor(
@@ -129,7 +121,18 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
    * @throws AppError with FRAGMENT_NOT_FOUND if the fragment does not exist.
    */
   public async readFragment(fragmentId: string): Promise<Fragment> {
-    return this.readFragmentOrThrow(fragmentId);
+    const entry = await this.fragmentStore.get<Fragment>(FRAGMENT_STORE_TABLE, fragmentId);
+    if (!entry) {
+      throw new AppError(`Fragment not found: ${fragmentId}`, APP_ERROR_CODES.FRAGMENT_NOT_FOUND);
+    }
+
+    const result = FragmentSchema.safeParse(entry.value);
+    if (!result.success) {
+      log.error({ fragmentId, issues: result.error.issues }, "Corrupted fragment data in store");
+      throw new AppError(`Corrupted fragment data: ${fragmentId}`, APP_ERROR_CODES.UNKNOWN);
+    }
+
+    return result.data;
   }
 
   /**
@@ -141,7 +144,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       this.assertBodyWithinWordCap(input.body);
     }
 
-    const existing = await this.readFragmentOrThrow(fragmentId);
+    const existing = await this.readFragment(fragmentId);
     this.assertNoUpdateConflict(existing, input.expectedUpdatedTimestamp);
 
     const fragment: Fragment = {
@@ -169,7 +172,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
    * Leaves updatedTimestamp untouched — recalls are not content changes.
    */
   public async recordRecall(fragmentId: string): Promise<Fragment> {
-    const existing = await this.readFragmentOrThrow(fragmentId);
+    const existing = await this.readFragment(fragmentId);
 
     const fragment: Fragment = {
       ...existing,
@@ -189,7 +192,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
    * @throws AppError with DUPLICATE_RELATIONSHIP if the association already exists.
    */
   public async createAssociation(agentId: string, fragmentId: string): Promise<Relationship> {
-    const fragment = await this.readFragmentOrThrow(fragmentId);
+    const fragment = await this.readFragment(fragmentId);
     if (!AGENT_PARENT_KINDS.has(fragment.kind)) {
       throw new AppError(
         `${fragment.kind} fragments cannot be associated directly to an agent`,
@@ -241,8 +244,8 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
    * rejected.
    */
   public async createLink(parentFragmentId: string, childFragmentId: string): Promise<Relationship> {
-    const parentFragment = await this.readFragmentOrThrow(parentFragmentId);
-    const childFragment = await this.readFragmentOrThrow(childFragmentId);
+    const parentFragment = await this.readFragment(parentFragmentId);
+    const childFragment = await this.readFragment(childFragmentId);
 
     this.assertFragmentParentKindAllowed(childFragment.kind, parentFragment.kind);
 
@@ -391,11 +394,9 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
   }
 
   /**
-   * The one opaque accessibility rule (graph twin of circleManager.isAgentVisible):
-   * walk up the fragment's incoming LINKs and return true the moment the fragment
+   * Walk up the fragment's incoming LINKs and return true the moment the fragment
    * itself or any ancestor carries an ASSOCIATION from the agent, short-circuiting
-   * on the first hit. The reflection-curator allowance is encapsulated here — it
-   * may reach any fragment, exactly like a user editing the graph.
+   * on the first hit.
    */
   public isFragmentAccessible(agentId: string, fragmentId: string): boolean {
     if (agentId === FRAGMENT_REFLECTION_AGENT_ID) {
@@ -596,7 +597,7 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       return;
     }
 
-    const parentFragment = await this.readFragmentOrThrow(parent.entityId);
+    const parentFragment = await this.readFragment(parent.entityId);
     this.assertFragmentParentKindAllowed(kind, parentFragment.kind);
   }
 
@@ -672,20 +673,5 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       cue: fragment.cue,
       createdTimestamp: fragment.createdTimestamp,
     };
-  }
-
-  private async readFragmentOrThrow(fragmentId: string): Promise<Fragment> {
-    const entry = await this.fragmentStore.get<Fragment>(FRAGMENT_STORE_TABLE, fragmentId);
-    if (!entry) {
-      throw new AppError(`Fragment not found: ${fragmentId}`, APP_ERROR_CODES.FRAGMENT_NOT_FOUND);
-    }
-
-    const result = FragmentSchema.safeParse(entry.value);
-    if (!result.success) {
-      log.error({ fragmentId, issues: result.error.issues }, "Corrupted fragment data in store");
-      throw new AppError(`Corrupted fragment data: ${fragmentId}`, APP_ERROR_CODES.UNKNOWN);
-    }
-
-    return result.data;
   }
 }

@@ -10,18 +10,18 @@ export const GRAPH_COLORS = {
   agentStreaming: "#22d3ee",
   /** Orange — compacting agent nodes */
   agentCompacting: "#cb623c",
-  /** Green — system agent nodes */
+  /** system agent nodes */
   systemAgent: "#688fc7",
-  /** Amber — DOMAIN fragment nodes */
+  /** DOMAIN fragment nodes */
   fragmentDomainNode: "#db924c",
-  /** Dark amber — other fragment nodes (FEEDBACK/LESSON/KNOWLEDGE) */
+  /** other fragment nodes (FEEDBACK/LESSON/KNOWLEDGE) */
   fragmentNode: "#11576d",
   /** Subtle gray — default (MEMBERSHIP) edges */
   edge: "#475569",
-  /** Indigo — ASSOCIATION edges (agent ↔ fragment) */
-  edgeAssociation: "#6366f1",
-  /** Amber — LINK edges (fragment ↔ fragment) */
-  edgeLink: "#7acc00",
+  /** ASSOCIATION edges (agent ↔ fragment) */
+  edgeAssociation: "#1c4e80",
+  /** LINK edges (fragment ↔ fragment) */
+  edgeLink: "#518877",
   /** Cyan — highlighted edges */
   edgeHighlight: "#22d3ee",
   /** Faint slate — non-highlighted edges while a node is hovered */

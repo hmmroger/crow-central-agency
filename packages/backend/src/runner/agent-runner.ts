@@ -113,8 +113,8 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
         "",
         "## Memory",
         "",
-        "You have a persistent fragment vault — your long-term memory across sessions; curating it is part of the work.",
-        "- Capture a fragment when you learn something durable that should change how you act later: a user correction or preference, a lesson from how a task turned out, or a stable fact worth reusing. One atomic point each; skip transient detail.",
+        "You have a persistent long-term memory that carries across sessions, built from atomic memory fragments; keeping it well-organized is part of the work.",
+        "- Capture a memory fragment when you learn something durable that should change how you act later: a user correction or preference, a lesson from how a task turned out, or a stable fact worth reusing. One atomic point each; skip transient detail.",
         "- Before acting, build on the fragments already surfaced to you — file each new one under the right domain and link related ones instead of restating what you know.",
         "- Organize deeply, not as a flat list: distributing fragments into the right domains and deeper nodes is what keeps recall sharp.",
       ],
@@ -197,6 +197,22 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
       content: ["{sensorReadings}"],
       keys: ["sensorReadings"],
     },
+    {
+      content: [
+        "",
+        "## Memory",
+        "",
+        "You have a persistent long-term memory that carries across sessions, built from atomic memory fragments; keeping it well-organized is part of the work.",
+        "- Capture a memory fragment when you learn something durable that should change how you act later: a user correction or preference, a lesson from how a task turned out, or a stable fact worth reusing. One atomic point each; skip transient detail.",
+        "- Before acting, build on the fragments already surfaced to you — file each new one under the right domain and link related ones instead of restating what you know.",
+        "- Organize deeply, not as a flat list: distributing fragments into the right domains and deeper nodes is what keeps recall sharp.",
+      ],
+      keys: ["hasFragmentTools"],
+    },
+    {
+      content: ["", "{fragmentCues}"],
+      keys: ["fragmentCues"],
+    },
   ],
   keys: [
     "currentDate",
@@ -208,6 +224,8 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
     "peerAgents",
     "hasFeedMcp",
     "sensorReadings",
+    "hasFragmentTools",
+    "fragmentCues",
   ],
 };
 
@@ -482,13 +500,11 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
     }
 
     let fragmentCues: string | undefined;
-    if (!isCrowSystemAgent(this.agentId)) {
-      try {
-        const activeDomainFragmentIds = this.runtimeManager.getActiveDomains(this.agentId);
-        fragmentCues = await renderFragmentCues(this.agentId, activeDomainFragmentIds, this.fragmentManager);
-      } catch (error) {
-        log.warn({ agentId: this.agentId, error }, "Failed to render fragment cues.");
-      }
+    try {
+      const activeDomainFragmentIds = this.runtimeManager.getActiveDomains(this.agentId);
+      fragmentCues = await renderFragmentCues(this.agentId, activeDomainFragmentIds, this.fragmentManager);
+    } catch (error) {
+      log.warn({ agentId: this.agentId, error }, "Failed to render fragment cues.");
     }
 
     const gmailServerProfiles = serverConfigs.find(

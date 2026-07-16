@@ -13,7 +13,7 @@ export const REFLECTION_TEMP_PREFIX = "$";
 const NodeRefSchema = z.string().min(1);
 
 /**
- * Reflection plan operations, applied in order against the target agent's vault.
+ * Reflection plan operations, applied in order against the target agent's memory fragments.
  * CREATE - a new node (theme/sub-domain) hanging under `parent`.
  * LINK - add an edge, or move when `from` names the edge to drop.
  * UNLINK - remove one named edge (last-edge removal cascade-deletes).

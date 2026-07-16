@@ -70,7 +70,7 @@ export function getSearchWorkspaceToolConfig(
   const config: McpToolConfig<typeof inputSchema> = {
     name: SEARCH_WORKSPACE_TOOL_NAME,
     description:
-      "Full-text search across your own artifacts, artifacts in circles you directly belong to, the results of tasks you own, and fragments in your vault. Supports fuzzy and prefix matching, ranked by relevance. Results are grouped by source; open a hit with the read tool named in its section.",
+      "Full-text search across your own artifacts, artifacts in circles you directly belong to, the results of tasks you own, and fragments in your memory. Supports fuzzy and prefix matching, ranked by relevance. Results are grouped by source; open a hit with the read tool named in its section.",
     inputSchema,
     handler,
   };

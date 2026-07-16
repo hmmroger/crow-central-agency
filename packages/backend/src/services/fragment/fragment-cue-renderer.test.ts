@@ -42,7 +42,7 @@ function fragmentParent(fragmentId: string): FragmentParent {
 }
 
 describe("renderFragmentCues", () => {
-  it("returns undefined for an empty vault", async () => {
+  it("returns undefined for empty memory", async () => {
     const fragmentManager = await createFragmentManager();
 
     expect(await renderFragmentCues(AGENT_ID, [], fragmentManager)).toBeUndefined();
@@ -57,7 +57,7 @@ describe("renderFragmentCues", () => {
 
     expect(block).toBe(
       [
-        "### Fragment vault",
+        "### Memory fragments",
         "",
         "#### Domains",
         `- [${domain.id}] Project A`,
@@ -165,7 +165,7 @@ describe("renderFragmentCues", () => {
   it("does not surface another agent's fragments", async () => {
     const fragmentManager = await createFragmentManager();
     const otherAgentId = "22222222-2222-4222-8222-222222222222";
-    await createFragment(fragmentManager, FRAGMENT_KIND.DOMAIN, "Other vault", agentParent(otherAgentId));
+    await createFragment(fragmentManager, FRAGMENT_KIND.DOMAIN, "Other agent domain", agentParent(otherAgentId));
 
     expect(await renderFragmentCues(AGENT_ID, [], fragmentManager)).toBeUndefined();
   });
