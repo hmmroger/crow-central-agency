@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveRules, matchesRules, splitSubcommands } from "./command-decomposition.js";
+import { deriveRules, matchesRules, splitSubcommands, SUBCOMMAND_MATCH_MODE } from "./command-decomposition.js";
 
 describe("splitSubcommands", () => {
   it("splits on every shell separator", () => {
@@ -103,5 +103,16 @@ describe("matchesRules", () => {
 
   it("respects the word boundary when matching", () => {
     expect(matchesRules("lsof", ["ls *"])).toBe(false);
+  });
+
+  it("matches ANY subcommand in deny mode while ALL requires every part", () => {
+    expect(matchesRules("a && b", ["a *"], SUBCOMMAND_MATCH_MODE.ANY)).toBe(true);
+    expect(matchesRules("a && b", ["a *"], SUBCOMMAND_MATCH_MODE.ALL)).toBe(false);
+    expect(matchesRules("npm i && rm -rf x", ["rm *"], SUBCOMMAND_MATCH_MODE.ANY)).toBe(true);
+  });
+
+  it("fails closed in ANY mode on empty specifiers or empty command", () => {
+    expect(matchesRules("a && b", [], SUBCOMMAND_MATCH_MODE.ANY)).toBe(false);
+    expect(matchesRules("", ["a *"], SUBCOMMAND_MATCH_MODE.ANY)).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { parseRule, type AutoApproveRuleSet } from "@crow-central-agency/shared";
+import { parseRule, SUBCOMMAND_MATCH_MODE, type AutoApproveRuleSet } from "@crow-central-agency/shared";
 import type { Logger } from "pino";
 
 /** How the current turn resolves permission requests: prompt the user, deny outright, or allow all. */
@@ -41,7 +41,7 @@ export function resolveConfiguredPermission({
   toolName,
   input,
 }: CopilotPermissionQuery): CopilotPermissionDecision {
-  if (disallowed.matches(toolName, input)) {
+  if (disallowed.matches(toolName, input, SUBCOMMAND_MATCH_MODE.ANY)) {
     logger.info({ toolName, input }, "tool use auto-deny");
     return COPILOT_PERMISSION_DECISION.DENY;
   }

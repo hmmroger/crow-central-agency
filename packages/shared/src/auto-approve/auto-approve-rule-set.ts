@@ -1,4 +1,5 @@
 import type { ParsedRule } from "./auto-approve-rule.types.js";
+import { SUBCOMMAND_MATCH_MODE, type SubcommandMatchMode } from "./command-decomposition.js";
 import { parseRule } from "./rule-format.js";
 import { getRuleStrategy } from "./rule-strategy-registry.js";
 
@@ -29,7 +30,11 @@ export class AutoApproveRuleSet {
     }
   }
 
-  public matches(toolName: string, input: Record<string, unknown>): boolean {
-    return getRuleStrategy(toolName).matches(toolName, input, this.parsed);
+  public matches(
+    toolName: string,
+    input: Record<string, unknown>,
+    mode: SubcommandMatchMode = SUBCOMMAND_MATCH_MODE.ALL
+  ): boolean {
+    return getRuleStrategy(toolName).matches(toolName, input, this.parsed, mode);
   }
 }

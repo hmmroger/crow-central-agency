@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import pino from "pino";
 import { AutoApproveRuleSet } from "@crow-central-agency/shared";
 import {
   COPILOT_PERMISSION_DECISION,
@@ -9,6 +10,8 @@ import {
 
 const POWERSHELL_TOOL = "powershell";
 
+const logger = pino({ level: "silent" });
+
 function resolve(
   disallowedRules: string[],
   autoApprovedRules: string[],
@@ -16,6 +19,7 @@ function resolve(
   command: string
 ): string {
   return resolveConfiguredPermission({
+    logger,
     disallowed: new AutoApproveRuleSet(disallowedRules),
     autoApproved: new AutoApproveRuleSet(autoApprovedRules),
     policy,
@@ -64,6 +68,23 @@ describe("resolveConfiguredPermission", () => {
 
   it("denies via a whole-tool deny rule regardless of input", () => {
     expect(resolve([POWERSHELL_TOOL], [], "allow", "anything")).toBe(COPILOT_PERMISSION_DECISION.DENY);
+  });
+
+  it("denies a compound command when any subcommand matches a deny rule", () => {
+    expect(resolve(["PowerShell(rm *)"], [], "prompt", "npm i && rm -rf x")).toBe(COPILOT_PERMISSION_DECISION.DENY);
+  });
+
+  it("still requires every part matched to auto-approve a compound command", () => {
+    expect(resolve([], ["PowerShell(npm i *)"], "prompt", "npm i && rm -rf x")).toBe(
+      COPILOT_PERMISSION_DECISION.PROMPT
+    );
+    expect(resolve([], ["PowerShell(npm i *)", "PowerShell(rm *)"], "prompt", "npm i && rm -rf x")).toBe(
+      COPILOT_PERMISSION_DECISION.ALLOW
+    );
+  });
+
+  it("denies a compound command via a whole-tool deny rule", () => {
+    expect(resolve([POWERSHELL_TOOL], [], "prompt", "npm i && rm -rf x")).toBe(COPILOT_PERMISSION_DECISION.DENY);
   });
 });
 

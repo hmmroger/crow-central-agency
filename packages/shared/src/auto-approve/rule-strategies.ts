@@ -66,7 +66,7 @@ export const commandRuleStrategy: AutoApproveRuleStrategy = {
     return deriveCommandRules(command).map((specifier) => formatRule({ tool: toolName, specifier }));
   },
 
-  matches: (toolName, input, rules) => {
+  matches: (toolName, input, rules, mode) => {
     if (wholeToolMatches(toolName, rules)) {
       return true;
     }
@@ -84,6 +84,6 @@ export const commandRuleStrategy: AutoApproveRuleStrategy = {
       }
     }
 
-    return matchesCommandRules(command, specifiers);
+    return matchesCommandRules(command, specifiers, mode);
   },
 };

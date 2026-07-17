@@ -3,6 +3,17 @@ import { matchesSpecifier, WORD_BOUNDARY_SUFFIX } from "./rule-format.js";
 /** Number of non-flag tokens a derived prefix keeps before wildcarding the rest. */
 export const DEFAULT_PREFIX_DEPTH = 3;
 
+/**
+ * How a compound command aggregates per-subcommand matches. `ALL` (approve) requires every
+ * subcommand to match a specifier; `ANY` (deny) fires when a single subcommand matches.
+ */
+export const SUBCOMMAND_MATCH_MODE = {
+  ALL: "all",
+  ANY: "any",
+} as const;
+
+export type SubcommandMatchMode = (typeof SUBCOMMAND_MATCH_MODE)[keyof typeof SUBCOMMAND_MATCH_MODE];
+
 /** Maximum number of rules derived from a single compound command, mirroring the SDK cap. */
 export const MAX_DERIVED_RULES = 5;
 
@@ -244,20 +255,25 @@ export function deriveRules(command: string, depth = DEFAULT_PREFIX_DEPTH): stri
 }
 
 /**
- * Match side: fails closed. Every raw subcommand must match one of the specifiers via literal-prefix
- * `matchesSpecifier` (no flag logic on this side). Empty/unparseable input yields `false`.
+ * Match side: fails closed. Each raw subcommand is matched against the specifiers via literal-prefix
+ * `matchesSpecifier` (no flag logic on this side). `ALL` (approve) requires every subcommand to
+ * match; `ANY` (deny) fires when a single subcommand matches. Empty/unparseable input yields `false`
+ * in both modes.
  */
-export function matchesRules(command: string, specifiers: string[]): boolean {
+export function matchesRules(
+  command: string,
+  specifiers: string[],
+  mode: SubcommandMatchMode = SUBCOMMAND_MATCH_MODE.ALL
+): boolean {
   const subcommands = splitSubcommands(command);
   if (subcommands.length === 0) {
     return false;
   }
 
-  for (const subcommand of subcommands) {
-    if (!specifiers.some((specifier) => matchesSpecifier(subcommand, specifier))) {
-      return false;
-    }
-  }
+  const subcommandMatches = (subcommand: string): boolean =>
+    specifiers.some((specifier) => matchesSpecifier(subcommand, specifier));
 
-  return true;
+  return mode === SUBCOMMAND_MATCH_MODE.ANY
+    ? subcommands.some(subcommandMatches)
+    : subcommands.every(subcommandMatches);
 }
