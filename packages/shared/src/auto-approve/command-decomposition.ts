@@ -1,7 +1,18 @@
 import { matchesSpecifier, WORD_BOUNDARY_SUFFIX } from "./rule-format.js";
 
-/** Prefix depth for derived rules (first N tokens of a subcommand). */
-export const DEFAULT_PREFIX_DEPTH = 2;
+/** Number of non-flag tokens a derived prefix keeps before wildcarding the rest. */
+export const DEFAULT_PREFIX_DEPTH = 3;
+
+/**
+ * How a compound command aggregates per-subcommand matches. `ALL` (approve) requires every
+ * subcommand to match a specifier; `ANY` (deny) fires when a single subcommand matches.
+ */
+export const SUBCOMMAND_MATCH_MODE = {
+  ALL: "all",
+  ANY: "any",
+} as const;
+
+export type SubcommandMatchMode = (typeof SUBCOMMAND_MATCH_MODE)[keyof typeof SUBCOMMAND_MATCH_MODE];
 
 /** Maximum number of rules derived from a single compound command, mirroring the SDK cap. */
 export const MAX_DERIVED_RULES = 5;
@@ -21,30 +32,7 @@ export const PROCESS_WRAPPERS = new Set(["timeout", "time", "nice", "nohup", "st
 const WRAPPERS_WITH_NUMERIC_ARG = new Set(["timeout", "nice"]);
 const XARGS_WRAPPER = "xargs";
 
-/**
- * Read-only shell builtins that run with no prompt. `cd` and `git` are handled separately
- * (in-cwd `cd` only; read-only `git` subcommands only).
- */
-export const READ_ONLY_BUILTINS = new Set([
-  "ls",
-  "cat",
-  "echo",
-  "pwd",
-  "head",
-  "tail",
-  "grep",
-  "find",
-  "wc",
-  "which",
-  "diff",
-  "stat",
-  "du",
-]);
-
-const CD_COMMAND = "cd";
-const IN_CWD_CD_ARGS = new Set([".", "./"]);
-const GIT_COMMAND = "git";
-const READ_ONLY_GIT_SUBCOMMANDS = new Set(["status", "log", "diff", "show"]);
+const OPTION_PREFIX = "-";
 
 const SINGLE_QUOTE = "'";
 const DOUBLE_QUOTE = '"';
@@ -131,7 +119,7 @@ function stripWrappers(tokens: string[]): string[] {
     if (head === XARGS_WRAPPER) {
       // Only bare `xargs` (no flags) is transparent; flagged xargs stays and simply won't match.
       const next = remaining[1];
-      if (next !== undefined && next.startsWith("-")) {
+      if (next !== undefined && next.startsWith(OPTION_PREFIX)) {
         break;
       }
 
@@ -144,7 +132,7 @@ function stripWrappers(tokens: string[]): string[] {
     }
 
     remaining = remaining.slice(1);
-    while (remaining.length > 0 && remaining[0].startsWith("-")) {
+    while (remaining.length > 0 && remaining[0].startsWith(OPTION_PREFIX)) {
       remaining = remaining.slice(1);
     }
 
@@ -212,30 +200,37 @@ export function splitSubcommands(command: string): string[] {
   return subcommands;
 }
 
-/** Whether a normalized subcommand is a read-only builtin, in-cwd `cd`, or read-only `git`. */
-export function isReadOnlyCommand(subcommand: string): boolean {
-  const tokens = tokenize(subcommand);
-  const head = tokens[0];
-  if (head === undefined) {
-    return false;
+function derivePrefixTokens(tokens: string[], depth: number): string[] | undefined {
+  const prefix: string[] = [];
+  let counted = 0;
+  let index = 0;
+
+  while (index < tokens.length && counted < depth) {
+    const token = tokens[index];
+
+    if (token.startsWith(OPTION_PREFIX)) {
+      prefix.push(token);
+      index += 1;
+      if (index < tokens.length && !tokens[index].startsWith(OPTION_PREFIX)) {
+        prefix.push(tokens[index]);
+        index += 1;
+      }
+
+      continue;
+    }
+
+    prefix.push(token);
+    counted += 1;
+    index += 1;
   }
 
-  if (head === CD_COMMAND) {
-    const target = tokens[1];
-    return target === undefined || IN_CWD_CD_ARGS.has(target);
-  }
-
-  if (head === GIT_COMMAND) {
-    const gitSubcommand = tokens[1];
-    return gitSubcommand !== undefined && READ_ONLY_GIT_SUBCOMMANDS.has(gitSubcommand);
-  }
-
-  return READ_ONLY_BUILTINS.has(head);
+  return counted === 0 ? undefined : prefix;
 }
 
 /**
- * Capture side: derive one prefix-`depth` specifier per non-read-only subcommand (in-cwd `cd` and
- * read-only builtins contribute nothing), deduped and capped at {@link MAX_DERIVED_RULES}.
+ * Capture side: derive one flag-aware prefix specifier per subcommand, deduped and capped at
+ * {@link MAX_DERIVED_RULES}. A subcommand with no non-flag token (e.g. a lone `--flag`) contributes
+ * nothing. User config is the only auto-approve authority — there is no read-only skip.
  */
 export function deriveRules(command: string, depth = DEFAULT_PREFIX_DEPTH): string[] {
   const specifiers: string[] = [];
@@ -245,17 +240,12 @@ export function deriveRules(command: string, depth = DEFAULT_PREFIX_DEPTH): stri
       break;
     }
 
-    if (isReadOnlyCommand(subcommand)) {
+    const prefixTokens = derivePrefixTokens(tokenize(subcommand), depth);
+    if (prefixTokens === undefined) {
       continue;
     }
 
-    const tokens = tokenize(subcommand);
-    if (tokens.length === 0) {
-      continue;
-    }
-
-    const prefix = tokens.slice(0, depth).join(" ");
-    const specifier = `${prefix}${WORD_BOUNDARY_SUFFIX}`;
+    const specifier = `${prefixTokens.join(" ")}${WORD_BOUNDARY_SUFFIX}`;
     if (!specifiers.includes(specifier)) {
       specifiers.push(specifier);
     }
@@ -265,24 +255,25 @@ export function deriveRules(command: string, depth = DEFAULT_PREFIX_DEPTH): stri
 }
 
 /**
- * Match side: fails closed. Every subcommand must be a read-only builtin or match one of the
- * specifiers. Empty/unparseable input yields `false`.
+ * Match side: fails closed. Each raw subcommand is matched against the specifiers via literal-prefix
+ * `matchesSpecifier` (no flag logic on this side). `ALL` (approve) requires every subcommand to
+ * match; `ANY` (deny) fires when a single subcommand matches. Empty/unparseable input yields `false`
+ * in both modes.
  */
-export function matchesRules(command: string, specifiers: string[]): boolean {
+export function matchesRules(
+  command: string,
+  specifiers: string[],
+  mode: SubcommandMatchMode = SUBCOMMAND_MATCH_MODE.ALL
+): boolean {
   const subcommands = splitSubcommands(command);
   if (subcommands.length === 0) {
     return false;
   }
 
-  for (const subcommand of subcommands) {
-    if (isReadOnlyCommand(subcommand)) {
-      continue;
-    }
+  const subcommandMatches = (subcommand: string): boolean =>
+    specifiers.some((specifier) => matchesSpecifier(subcommand, specifier));
 
-    if (!specifiers.some((specifier) => matchesSpecifier(subcommand, specifier))) {
-      return false;
-    }
-  }
-
-  return true;
+  return mode === SUBCOMMAND_MATCH_MODE.ANY
+    ? subcommands.some(subcommandMatches)
+    : subcommands.every(subcommandMatches);
 }

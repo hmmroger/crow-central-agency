@@ -56,6 +56,12 @@ import type { FragmentManager } from "../services/fragment/fragment-manager.js";
 import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 import { toCopilotMcpServer, toCopilotTools } from "../mcp/copilot-mcp-adapter.js";
 import { toToolArgsRecord } from "./tool-activity-parser-utils.js";
+import {
+  COPILOT_PERMISSION_DECISION,
+  resolveConfiguredPermission,
+  wholeToolDenyRules,
+  type PermissionPolicy,
+} from "./github-copilot-permission.js";
 
 const log = logger.child({ context: "github-copilot-agent-runner" });
 
@@ -64,9 +70,6 @@ const COMPACT_DONE_TYPE = "compact";
 
 /** Copilot agent interaction mode applied per send. */
 type CopilotAgentMode = "interactive" | "plan" | "autopilot";
-
-/** How the current turn resolves permission requests: prompt the user, deny outright, or allow all. */
-type PermissionPolicy = "prompt" | "deny" | "allow";
 
 /** Copilot's reasoning effort levels, derived from the SDK's session config (no `max`; not exported by name). */
 type CopilotReasoningEffort = NonNullable<SessionConfig["reasoningEffort"]>;
@@ -159,6 +162,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     const inProcessTools = this.buildInProcessTools(serverConfigs);
     const availableTools = this.buildAvailableTools(agentConfig.toolConfig);
     const autoApproved = new AutoApproveRuleSet(agentConfig.toolConfig.autoApprovedTools ?? []);
+    const disallowed = new AutoApproveRuleSet(agentConfig.toolConfig.disallowedTools ?? []);
     const { agentMode, policy } = resolvePermissionMode(agentConfig.permissionMode);
     // replace mode drops the SDK's foundation prompt (and guardrails); append layers onto it.
     const systemMessage: SessionConfig["systemMessage"] = systemPrompt
@@ -181,9 +185,11 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       reasoningEffort: toCopilotReasoningEffort(agentConfig.effort),
       reasoningSummary: "detailed",
       systemMessage,
-      // Restricted mode gates builtins via availableTools; disallowedTools always wins via excludedTools.
+      // Restricted mode gates builtins via availableTools; excludedTools removes tools from the
+      // catalog by exact name, so only whole-tool denies go here — specifier denies are enforced
+      // in-house via `disallowed` (deny-first) in the permission resolvers below.
       availableTools,
-      excludedTools: agentConfig.toolConfig.disallowedTools,
+      excludedTools: wholeToolDenyRules(agentConfig.toolConfig.disallowedTools ?? []),
       tools: inProcessTools,
       enableConfigDiscovery,
       contextTier: "long_context",
@@ -203,6 +209,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
             input.toolArgs,
             serverConfigs,
             autoApproved,
+            disallowed,
             policy
           );
           const additionalContext = this.drainInjectedContextForHook(input, invocation);
@@ -241,7 +248,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       turnStartedAtMs: Date.now(),
       // Auto-approved internal tools skip permission and stay hidden; configurable ones surface for management.
       configurableInternalToolNames: inProcessTools.filter((tool) => !tool.skipPermission).map((tool) => tool.name),
-      resolvePermission: (event) => this.resolvePermission(session, event, toolCalls, autoApproved, policy),
+      resolvePermission: (event) => this.resolvePermission(session, event, toolCalls, autoApproved, disallowed, policy),
     };
 
     try {
@@ -554,6 +561,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     toolArgs: unknown,
     serverConfigs: CrowMcpServerConfig[],
     autoApproved: AutoApproveRuleSet,
+    disallowed: AutoApproveRuleSet,
     policy: PermissionPolicy
   ): Promise<{ permissionDecision: "allow" | "deny"; permissionDecisionReason?: string } | undefined> {
     const isExternalMcpTool = serverConfigs.some(
@@ -564,21 +572,36 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     }
 
     const toolArgsRecord = toToolArgsRecord(toolArgs);
-    if (policy === "allow" || autoApproved.matches(toolName, toolArgsRecord)) {
+    const decision = resolveConfiguredPermission({
+      logger: log,
+      disallowed,
+      autoApproved,
+      policy,
+      toolName,
+      input: toolArgsRecord,
+    });
+    if (decision === COPILOT_PERMISSION_DECISION.DENY) {
+      return { permissionDecision: "deny", permissionDecisionReason: DEFAULT_PERMISSION_DENY_MESSAGE };
+    }
+
+    if (decision === COPILOT_PERMISSION_DECISION.ALLOW) {
       return { permissionDecision: "allow" };
     }
 
-    if (policy === "deny") {
+    if (decision === COPILOT_PERMISSION_DECISION.UNAVAILABLE) {
       return { permissionDecision: "deny", permissionDecisionReason: PERMISSION_USER_UNAVAILABLE_MESSAGE };
     }
 
-    const decision = await this.permissionRequestHandler(this.agentId, toolName, toolArgsRecord, generateId());
-    if (decision.behavior === "allow_always") {
+    const promptDecision = await this.permissionRequestHandler(this.agentId, toolName, toolArgsRecord, generateId());
+    if (promptDecision.behavior === "allow_always") {
       this.rememberAutoApproval(toolName, toolArgsRecord, autoApproved);
     }
 
-    return decision.behavior === "deny"
-      ? { permissionDecision: "deny", permissionDecisionReason: decision.message ?? DEFAULT_PERMISSION_DENY_MESSAGE }
+    return promptDecision.behavior === "deny"
+      ? {
+          permissionDecision: "deny",
+          permissionDecisionReason: promptDecision.message ?? DEFAULT_PERMISSION_DENY_MESSAGE,
+        }
       : { permissionDecision: "allow" };
   }
 
@@ -610,14 +633,15 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   /**
    * Resolve a permission request from the event stream. Copilot requests permission by category
    * (shell/write/...) carrying only a toolCallId, so we resolve that to a tool name via `toolCalls`,
-   * auto-approve the tools the agent configured, otherwise route through the shared permission
-   * handler, then answer the runtime over RPC.
+   * evaluate the configured rules deny-first (disallowed beats auto-approve and bypass), otherwise
+   * route through the shared permission handler, then answer the runtime over RPC.
    */
   private async resolvePermission(
     session: CopilotSession,
     event: Extract<SessionEvent, { type: "permission.requested" }>,
     toolCalls: Map<string, CopilotToolCall>,
     autoApproved: AutoApproveRuleSet,
+    disallowed: AutoApproveRuleSet,
     policy: PermissionPolicy
   ): Promise<void> {
     const { requestId, permissionRequest, resolvedByHook } = event.data;
@@ -633,25 +657,30 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         ? permissionRequest.toolName
         : permissionRequest.kind);
 
+    const input = toolCall?.input ?? {};
+    const decision = resolveConfiguredPermission({ logger: log, disallowed, autoApproved, policy, toolName, input });
+
     let result: Exclude<PermissionRequestResult, { kind: "no-result" }>;
-    if (policy === "allow" || autoApproved.matches(toolName, toolCall?.input ?? {})) {
+    if (decision === COPILOT_PERMISSION_DECISION.DENY) {
+      result = { kind: "reject", feedback: DEFAULT_PERMISSION_DENY_MESSAGE };
+    } else if (decision === COPILOT_PERMISSION_DECISION.ALLOW) {
       result = { kind: "approve-once" };
-    } else if (policy === "deny") {
+    } else if (decision === COPILOT_PERMISSION_DECISION.UNAVAILABLE) {
       result = { kind: "reject", feedback: PERMISSION_USER_UNAVAILABLE_MESSAGE };
     } else {
-      const decision = await this.permissionRequestHandler(
+      const promptDecision = await this.permissionRequestHandler(
         this.agentId,
         toolName,
-        toolCall?.input ?? {},
+        input,
         toolCallId ?? generateId()
       );
-      if (decision.behavior === "allow_always") {
-        this.rememberAutoApproval(toolName, toolCall?.input ?? {}, autoApproved);
+      if (promptDecision.behavior === "allow_always") {
+        this.rememberAutoApproval(toolName, input, autoApproved);
       }
 
       result =
-        decision.behavior === "deny"
-          ? { kind: "reject", feedback: decision.message ?? DEFAULT_PERMISSION_DENY_MESSAGE }
+        promptDecision.behavior === "deny"
+          ? { kind: "reject", feedback: promptDecision.message ?? DEFAULT_PERMISSION_DENY_MESSAGE }
           : { kind: "approve-once" };
     }
 

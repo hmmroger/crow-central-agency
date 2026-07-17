@@ -16,22 +16,24 @@ const COMMAND_TOOL_BASE_NAMES = new Set([
 ]);
 
 /**
- * Whole-tool matching, preserving the legacy `isToolAutoApproved` behavior: exact tool-name match,
- * plus a trailing `*` (including a bare `*` and MCP prefixes like `mcp__crow-artifacts__*`) as a
- * prefix match.
+ * Whole-tool matching: case-insensitive exact tool-name match, plus a trailing `*` (including a bare
+ * `*` and MCP prefixes like `mcp__crow-artifacts__*`) as a prefix match. Case-insensitivity aligns
+ * with the command strategy (which lowercases the tool name) so a `Bash` rule covers Copilot's
+ * `bash`, for both allow and deny.
  */
 function wholeToolMatches(toolName: string, rules: ParsedRule[]): boolean {
+  const targetTool = toolName.toLowerCase();
   for (const rule of rules) {
     if (rule.specifier !== undefined) {
       continue;
     }
 
-    const pattern = rule.tool;
-    if (pattern === toolName) {
+    const pattern = rule.tool.toLowerCase();
+    if (pattern === targetTool) {
       return true;
     }
 
-    if (pattern.endsWith(GLOB_STAR) && toolName.startsWith(pattern.slice(0, -GLOB_STAR.length))) {
+    if (pattern.endsWith(GLOB_STAR) && targetTool.startsWith(pattern.slice(0, -GLOB_STAR.length))) {
       return true;
     }
   }
@@ -64,7 +66,7 @@ export const commandRuleStrategy: AutoApproveRuleStrategy = {
     return deriveCommandRules(command).map((specifier) => formatRule({ tool: toolName, specifier }));
   },
 
-  matches: (toolName, input, rules) => {
+  matches: (toolName, input, rules, mode) => {
     if (wholeToolMatches(toolName, rules)) {
       return true;
     }
@@ -82,6 +84,6 @@ export const commandRuleStrategy: AutoApproveRuleStrategy = {
       }
     }
 
-    return matchesCommandRules(command, specifiers);
+    return matchesCommandRules(command, specifiers, mode);
   },
 };

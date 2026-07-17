@@ -30,16 +30,27 @@ describe("defaultRuleStrategy", () => {
     );
     expect(defaultRuleStrategy.matches("Read", {}, parseRules(["Write"]))).toBe(false);
   });
+
+  it("matches the tool name case-insensitively (exact, wildcard prefix, MCP prefix)", () => {
+    expect(defaultRuleStrategy.matches("bash", {}, parseRules(["Bash"]))).toBe(true);
+    expect(defaultRuleStrategy.matches("Bash", {}, parseRules(["bash"]))).toBe(true);
+    expect(defaultRuleStrategy.matches("mcp__crow-artifacts__foo", {}, parseRules(["mcp__Crow-Artifacts__*"]))).toBe(
+      true
+    );
+    expect(defaultRuleStrategy.matches("mcp__Crow-Artifacts__foo", {}, parseRules(["mcp__crow-artifacts__*"]))).toBe(
+      true
+    );
+  });
 });
 
 describe("commandRuleStrategy", () => {
   it("derives tool-prefixed rules from the command input", () => {
     expect(commandRuleStrategy.deriveRules("Bash", { command: "git commit -m x && npm test" })).toEqual([
-      "Bash(git commit *)",
+      "Bash(git commit -m x *)",
       "Bash(npm test *)",
     ]);
     expect(commandRuleStrategy.deriveRules("PowerShell", { command: "npm run build" })).toEqual([
-      "PowerShell(npm run *)",
+      "PowerShell(npm run build *)",
     ]);
   });
 
@@ -60,6 +71,11 @@ describe("commandRuleStrategy", () => {
   it("applies Claude-form rules to lowercase Copilot tool names", () => {
     const rules = parseRules(["Bash(npm test *)"]);
     expect(commandRuleStrategy.matches("bash", { command: "npm test" }, rules)).toBe(true);
+  });
+
+  it("keeps the command text case-sensitive even though the tool name is not", () => {
+    const rules = parseRules(["Bash(git commit *)"]);
+    expect(commandRuleStrategy.matches("bash", { command: "GIT COMMIT" }, rules)).toBe(false);
   });
 
   it("fails closed when the command input is missing", () => {

@@ -408,12 +408,12 @@ export {
   splitSubcommands,
   deriveRules,
   matchesRules,
-  isReadOnlyCommand,
   DEFAULT_PREFIX_DEPTH,
   MAX_DERIVED_RULES,
-  READ_ONLY_BUILTINS,
   PROCESS_WRAPPERS,
+  SUBCOMMAND_MATCH_MODE,
 } from "./auto-approve/command-decomposition.js";
+export type { SubcommandMatchMode } from "./auto-approve/command-decomposition.js";
 export { defaultRuleStrategy, commandRuleStrategy } from "./auto-approve/rule-strategies.js";
 export { getRuleStrategy } from "./auto-approve/rule-strategy-registry.js";
 export { AutoApproveRuleSet } from "./auto-approve/auto-approve-rule-set.js";

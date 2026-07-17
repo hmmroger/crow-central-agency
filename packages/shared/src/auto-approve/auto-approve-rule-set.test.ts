@@ -8,6 +8,11 @@ describe("AutoApproveRuleSet", () => {
     expect(ruleSet.matches("Read", {})).toBe(false);
   });
 
+  it("matches a whole-tool rule case-insensitively (allow or deny path)", () => {
+    expect(new AutoApproveRuleSet(["Bash"]).matches("bash", {})).toBe(true);
+    expect(new AutoApproveRuleSet(["bash"]).matches("Bash", {})).toBe(true);
+  });
+
   it("matches a command rule via the command strategy", () => {
     const ruleSet = new AutoApproveRuleSet(["Bash(git commit *)"]);
     expect(ruleSet.matches("Bash", { command: "git commit -m x" })).toBe(true);

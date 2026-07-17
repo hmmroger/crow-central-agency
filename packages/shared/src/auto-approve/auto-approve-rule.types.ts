@@ -1,3 +1,5 @@
+import type { SubcommandMatchMode } from "./command-decomposition.js";
+
 /**
  * A single auto-approve rule in the Claude SDK's canonical form: `Tool` or `Tool(specifier)`.
  * The `specifier` is absent for whole-tool rules (`Write`, `*`, `mcp__crow-artifacts__*`) and
@@ -17,6 +19,9 @@ export interface AutoApproveRuleStrategy {
   appliesTo(toolName: string): boolean;
   /** Capture side: derive the rule string(s) to persist when the user picks "always allow". */
   deriveRules(toolName: string, input: Record<string, unknown>): string[];
-  /** Match side: whether the pending invocation is auto-approved by the configured rules. */
-  matches(toolName: string, input: Record<string, unknown>, rules: ParsedRule[]): boolean;
+  /**
+   * Match side: whether the pending invocation matches the configured rules. `mode` governs how a
+   * compound command aggregates its subcommands (`ALL` for approve, `ANY` for deny).
+   */
+  matches(toolName: string, input: Record<string, unknown>, rules: ParsedRule[], mode?: SubcommandMatchMode): boolean;
 }
