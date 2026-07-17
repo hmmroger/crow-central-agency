@@ -30,7 +30,9 @@ export function PermissionRow({
 
   return (
     <div className="flex items-center justify-between gap-2">
-      <code className="font-mono text-xs text-text-neutral truncate">{displayName}</code>
+      <code className="font-mono text-xs text-text-neutral truncate" title={displayName}>
+        {displayName}
+      </code>
       <div className="flex items-center gap-1.5 shrink-0">
         <PermissionDispositionControl disposition={disposition} onDispositionChange={handleDispositionChange} />
         {removable && (

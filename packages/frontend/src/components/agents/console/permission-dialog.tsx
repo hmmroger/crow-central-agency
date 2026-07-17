@@ -114,7 +114,11 @@ export function PermissionDialog({
           <span>Always allow will remember:</span>
           <div className="mt-1 flex flex-wrap gap-1">
             {autoApproveRules.map((rule) => (
-              <code key={rule} className="font-mono text-text-neutral bg-surface-inset rounded px-1.5 py-0.5">
+              <code
+                key={rule}
+                title={rule}
+                className="max-w-full truncate font-mono text-text-neutral bg-surface-inset rounded px-1.5 py-0.5"
+              >
                 {rule}
               </code>
             ))}
