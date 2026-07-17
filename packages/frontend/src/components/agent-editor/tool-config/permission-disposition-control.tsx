@@ -4,18 +4,43 @@ import { TOOL_DISPOSITION, type ToolDisposition } from "./tool-permission.js";
 
 interface PermissionDispositionControlProps {
   disposition: ToolDisposition;
+  allowClear: boolean;
   onDispositionChange: (disposition: ToolDisposition) => void;
 }
 
-/** Mutually-exclusive Approve / Deny control; clicking the active disposition returns the rule to Ask. */
-export function PermissionDispositionControl({ disposition, onDispositionChange }: PermissionDispositionControlProps) {
+/**
+ * Mutually-exclusive Approve / Deny control. Clicking the inactive disposition switches to it;
+ * clicking the active disposition returns the rule to Ask only when `allowClear` is true (catalog
+ * rows), and is a no-op otherwise (custom rows, which are cleared via their dedicated remove button).
+ */
+export function PermissionDispositionControl({
+  disposition,
+  allowClear,
+  onDispositionChange,
+}: PermissionDispositionControlProps) {
   const handleApprove = useCallback(() => {
-    onDispositionChange(disposition === TOOL_DISPOSITION.APPROVE ? TOOL_DISPOSITION.ASK : TOOL_DISPOSITION.APPROVE);
-  }, [disposition, onDispositionChange]);
+    if (disposition === TOOL_DISPOSITION.APPROVE) {
+      if (allowClear) {
+        onDispositionChange(TOOL_DISPOSITION.ASK);
+      }
+
+      return;
+    }
+
+    onDispositionChange(TOOL_DISPOSITION.APPROVE);
+  }, [allowClear, disposition, onDispositionChange]);
 
   const handleDeny = useCallback(() => {
-    onDispositionChange(disposition === TOOL_DISPOSITION.DENY ? TOOL_DISPOSITION.ASK : TOOL_DISPOSITION.DENY);
-  }, [disposition, onDispositionChange]);
+    if (disposition === TOOL_DISPOSITION.DENY) {
+      if (allowClear) {
+        onDispositionChange(TOOL_DISPOSITION.ASK);
+      }
+
+      return;
+    }
+
+    onDispositionChange(TOOL_DISPOSITION.DENY);
+  }, [allowClear, disposition, onDispositionChange]);
 
   return (
     <div className="flex gap-1 shrink-0">

@@ -34,7 +34,11 @@ export function PermissionRow({
         {displayName}
       </code>
       <div className="flex items-center gap-1.5 shrink-0">
-        <PermissionDispositionControl disposition={disposition} onDispositionChange={handleDispositionChange} />
+        <PermissionDispositionControl
+          disposition={disposition}
+          allowClear={!removable}
+          onDispositionChange={handleDispositionChange}
+        />
         {removable && (
           <button
             type="button"
