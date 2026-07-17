@@ -35,11 +35,11 @@ describe("defaultRuleStrategy", () => {
 describe("commandRuleStrategy", () => {
   it("derives tool-prefixed rules from the command input", () => {
     expect(commandRuleStrategy.deriveRules("Bash", { command: "git commit -m x && npm test" })).toEqual([
-      "Bash(git commit *)",
+      "Bash(git commit -m x *)",
       "Bash(npm test *)",
     ]);
     expect(commandRuleStrategy.deriveRules("PowerShell", { command: "npm run build" })).toEqual([
-      "PowerShell(npm run *)",
+      "PowerShell(npm run build *)",
     ]);
   });
 

@@ -408,10 +408,8 @@ export {
   splitSubcommands,
   deriveRules,
   matchesRules,
-  isReadOnlyCommand,
   DEFAULT_PREFIX_DEPTH,
   MAX_DERIVED_RULES,
-  READ_ONLY_BUILTINS,
   PROCESS_WRAPPERS,
 } from "./auto-approve/command-decomposition.js";
 export { defaultRuleStrategy, commandRuleStrategy } from "./auto-approve/rule-strategies.js";

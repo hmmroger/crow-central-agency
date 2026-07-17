@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveRules, isReadOnlyCommand, matchesRules, splitSubcommands } from "./command-decomposition.js";
+import { deriveRules, matchesRules, splitSubcommands } from "./command-decomposition.js";
 
 describe("splitSubcommands", () => {
   it("splits on every shell separator", () => {
@@ -37,47 +37,34 @@ describe("splitSubcommands", () => {
   });
 });
 
-describe("isReadOnlyCommand", () => {
-  it("recognizes read-only builtins", () => {
-    expect(isReadOnlyCommand("ls -la")).toBe(true);
-    expect(isReadOnlyCommand("cat file")).toBe(true);
-    expect(isReadOnlyCommand("rm -rf /")).toBe(false);
-  });
-
-  it("treats cd as read-only only for the current directory", () => {
-    expect(isReadOnlyCommand("cd")).toBe(true);
-    expect(isReadOnlyCommand("cd .")).toBe(true);
-    expect(isReadOnlyCommand("cd ./")).toBe(true);
-    expect(isReadOnlyCommand("cd /other")).toBe(false);
-    expect(isReadOnlyCommand("cd src")).toBe(false);
-  });
-
-  it("treats only read-only git subcommands as read-only", () => {
-    expect(isReadOnlyCommand("git status")).toBe(true);
-    expect(isReadOnlyCommand("git log --oneline")).toBe(true);
-    expect(isReadOnlyCommand("git diff")).toBe(true);
-    expect(isReadOnlyCommand("git show HEAD")).toBe(true);
-    expect(isReadOnlyCommand("git push")).toBe(false);
-    expect(isReadOnlyCommand("git")).toBe(false);
-  });
-});
-
 describe("deriveRules", () => {
-  it("derives one prefix-2 specifier per non-read-only subcommand", () => {
-    expect(deriveRules("git commit -m msg")).toEqual(["git commit *"]);
-    expect(deriveRules("npm run build && npm test")).toEqual(["npm run *", "npm test *"]);
+  it("derives a flag-aware prefix specifier per subcommand (depth counts non-flag tokens only)", () => {
+    expect(deriveRules("npm run build")).toEqual(["npm run build *"]);
+    expect(deriveRules("git commit -m x")).toEqual(["git commit -m x *"]);
+    expect(deriveRules("npm run build && npm test")).toEqual(["npm run build *", "npm test *"]);
   });
 
-  it("skips read-only builtins and in-cwd cd", () => {
-    expect(deriveRules("cd . && ls -la && git status")).toEqual([]);
+  it("keeps flags and their values inline without counting them toward depth", () => {
+    expect(deriveRules("git -C /dir/abc command xyz")).toEqual(["git -C /dir/abc command xyz *"]);
+    expect(deriveRules("docker -H host compose up")).toEqual(["docker -H host compose up *"]);
+    expect(deriveRules("rm -rf /tmp/build")).toEqual(["rm -rf /tmp/build *"]);
+  });
+
+  it("derives rules for every subcommand, including former read-only builtins", () => {
+    expect(deriveRules("ls -la && git status")).toEqual(["ls -la *", "git status *"]);
     expect(deriveRules("cd src && npm test")).toEqual(["cd src *", "npm test *"]);
   });
 
-  it("dedupes identical prefixes", () => {
-    expect(deriveRules("git add a && git add b")).toEqual(["git add *"]);
+  it("contributes nothing for a subcommand with no non-flag token", () => {
+    expect(deriveRules("--flag")).toEqual([]);
+    expect(deriveRules("--flag && npm test")).toEqual(["npm test *"]);
   });
 
-  it("caps at five rules", () => {
+  it("dedupes identical prefixes", () => {
+    expect(deriveRules("npm run build one && npm run build two")).toEqual(["npm run build *"]);
+  });
+
+  it("caps at five rules for a long chain", () => {
     const command = "c1 x && c2 x && c3 x && c4 x && c5 x && c6 x";
     expect(deriveRules(command)).toEqual(["c1 x *", "c2 x *", "c3 x *", "c4 x *", "c5 x *"]);
   });
@@ -88,14 +75,20 @@ describe("deriveRules", () => {
 });
 
 describe("matchesRules", () => {
-  it("approves when every subcommand matches a specifier", () => {
+  it("approves when every subcommand matches a specifier via literal prefix", () => {
     expect(matchesRules("git commit -m x", ["git commit *"])).toBe(true);
     expect(matchesRules("git add . && git commit -m x", ["git add *", "git commit *"])).toBe(true);
   });
 
-  it("approves read-only builtins without a matching specifier", () => {
-    expect(matchesRules("ls -la && git commit -m x", ["git commit *"])).toBe(true);
-    expect(matchesRules("cd . && git status", [])).toBe(true);
+  it("matches a rule against its own source command (literal prefix)", () => {
+    expect(matchesRules("git -C /dir/abc command xyz", ["git -C /dir/abc command *"])).toBe(true);
+    expect(matchesRules("npm run build", deriveRules("npm run build"))).toBe(true);
+  });
+
+  it("no longer auto-approves read-only commands without a matching rule", () => {
+    expect(matchesRules("ls -la", [])).toBe(false);
+    expect(matchesRules("cat .env", [])).toBe(false);
+    expect(matchesRules("cd . && git status", [])).toBe(false);
   });
 
   it("fails closed when any subcommand is unmatched (the auth-bypass case)", () => {
@@ -103,7 +96,7 @@ describe("matchesRules", () => {
     expect(matchesRules("cd /other && git commit -m x", ["git commit *"])).toBe(false);
   });
 
-  it("fails closed on empty input or no specifiers for a mutating command", () => {
+  it("fails closed on empty or unparseable input", () => {
     expect(matchesRules("", ["git commit *"])).toBe(false);
     expect(matchesRules("npm publish", [])).toBe(false);
   });
