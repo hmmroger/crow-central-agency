@@ -7,6 +7,7 @@ interface PermissionListProps {
   effectiveTools: string[];
   autoApprovedTools: string[];
   disallowedTools: string[];
+  mcpServerNames: string[];
   filter: string;
   onSetToolPermission: (rule: string, disposition: ToolDisposition) => void;
 }
@@ -20,6 +21,7 @@ export function PermissionList({
   effectiveTools,
   autoApprovedTools,
   disallowedTools,
+  mcpServerNames,
   filter,
   onSetToolPermission,
 }: PermissionListProps) {
@@ -30,8 +32,8 @@ export function PermissionList({
       (rule) => !effectiveTools.includes(rule)
     );
 
-    return buildPermissionGroups(effectiveTools, customRules);
-  }, [effectiveTools, autoApprovedTools, disallowedTools]);
+    return buildPermissionGroups(effectiveTools, customRules, mcpServerNames);
+  }, [effectiveTools, autoApprovedTools, disallowedTools, mcpServerNames]);
 
   const handleToggleCollapsed = useCallback((groupKey: string) => {
     setCollapsedGroups((prev) => {
