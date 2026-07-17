@@ -203,6 +203,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
       // allow_always approvals from this run, matched via the registry so command tools match on their
       // command while other tools keep the whole-name behavior.
       if (autoApproved.matches(toolName, input)) {
+        log.info({ agentId: this.agentId, toolName, input }, "tool use auto-approved");
         return { behavior: "allow" as const, updatedInput: input, toolUseID: options.toolUseID };
       }
 

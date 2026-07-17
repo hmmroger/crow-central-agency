@@ -1,4 +1,5 @@
 import { parseRule, type AutoApproveRuleSet } from "@crow-central-agency/shared";
+import type { Logger } from "pino";
 
 /** How the current turn resolves permission requests: prompt the user, deny outright, or allow all. */
 export type PermissionPolicy = "prompt" | "deny" | "allow";
@@ -18,6 +19,7 @@ export const COPILOT_PERMISSION_DECISION = {
 export type CopilotPermissionDecision = (typeof COPILOT_PERMISSION_DECISION)[keyof typeof COPILOT_PERMISSION_DECISION];
 
 export interface CopilotPermissionQuery {
+  logger: Logger;
   disallowed: AutoApproveRuleSet;
   autoApproved: AutoApproveRuleSet;
   policy: PermissionPolicy;
@@ -32,6 +34,7 @@ export interface CopilotPermissionQuery {
  * can be asked; the caller owns the prompt round-trip.
  */
 export function resolveConfiguredPermission({
+  logger,
   disallowed,
   autoApproved,
   policy,
@@ -39,14 +42,22 @@ export function resolveConfiguredPermission({
   input,
 }: CopilotPermissionQuery): CopilotPermissionDecision {
   if (disallowed.matches(toolName, input)) {
+    logger.info({ toolName, input }, "tool use auto-deny");
     return COPILOT_PERMISSION_DECISION.DENY;
   }
 
-  if (policy === "allow" || autoApproved.matches(toolName, input)) {
+  if (policy === "allow") {
+    logger.info({ toolName, input }, "tool use policy allow");
+    return COPILOT_PERMISSION_DECISION.ALLOW;
+  }
+
+  if (autoApproved.matches(toolName, input)) {
+    logger.info({ toolName, input }, "tool use auto-approve");
     return COPILOT_PERMISSION_DECISION.ALLOW;
   }
 
   if (policy === "deny") {
+    logger.info({ toolName, input }, "tool use policy deny");
     return COPILOT_PERMISSION_DECISION.UNAVAILABLE;
   }
 

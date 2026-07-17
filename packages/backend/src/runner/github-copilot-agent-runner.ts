@@ -572,7 +572,14 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     }
 
     const toolArgsRecord = toToolArgsRecord(toolArgs);
-    const decision = resolveConfiguredPermission({ disallowed, autoApproved, policy, toolName, input: toolArgsRecord });
+    const decision = resolveConfiguredPermission({
+      logger: log,
+      disallowed,
+      autoApproved,
+      policy,
+      toolName,
+      input: toolArgsRecord,
+    });
     if (decision === COPILOT_PERMISSION_DECISION.DENY) {
       return { permissionDecision: "deny", permissionDecisionReason: DEFAULT_PERMISSION_DENY_MESSAGE };
     }
@@ -651,7 +658,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         : permissionRequest.kind);
 
     const input = toolCall?.input ?? {};
-    const decision = resolveConfiguredPermission({ disallowed, autoApproved, policy, toolName, input });
+    const decision = resolveConfiguredPermission({ logger: log, disallowed, autoApproved, policy, toolName, input });
 
     let result: Exclude<PermissionRequestResult, { kind: "no-result" }>;
     if (decision === COPILOT_PERMISSION_DECISION.DENY) {
