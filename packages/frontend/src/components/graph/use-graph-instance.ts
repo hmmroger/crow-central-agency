@@ -3,9 +3,8 @@ import Sigma from "sigma";
 import Graph from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import type { MouseCoords, NodeDisplayData, PartialButFor } from "sigma/types";
-import { ENTITY_TYPE, FRAGMENT_KIND, type GraphData } from "@crow-central-agency/shared";
+import { ENTITY_TYPE, FRAGMENT_KIND, type GraphData, type GraphNodePosition } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
-import type { SaveGraphPositionInput } from "../../hooks/queries/use-graph-mutations.js";
 import {
   GRAPH_COLORS,
   GRAPH_NODE_SIZE,
@@ -84,7 +83,7 @@ function clearAnchors(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>): v
 export function useGraphInstance(
   containerRef: RefObject<HTMLDivElement | null>,
   graphData: GraphData | undefined,
-  onPersistPosition?: (position: SaveGraphPositionInput) => void
+  onPersistPosition?: (position: GraphNodePosition) => void
 ): GraphInstanceResult {
   const graphRef = useRef<Graph<GraphNodeAttributes, GraphEdgeAttributes>>(
     new Graph<GraphNodeAttributes, GraphEdgeAttributes>()

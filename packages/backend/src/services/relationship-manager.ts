@@ -55,13 +55,13 @@ export class RelationshipManager {
       }
     }
 
-    const positionEntries = await this.store.query<GraphNodePosition>(GRAPH_NODE_POSITION_STORE_TABLE, []);
-    for (const [entityId, entry] of positionEntries) {
+    const positionEntries = await this.store.getAll<GraphNodePosition>(GRAPH_NODE_POSITION_STORE_TABLE);
+    for (const entry of positionEntries) {
       const result = GraphNodePositionSchema.safeParse(entry.value);
       if (result.success) {
-        this.positions.set(entityId, result.data);
+        this.positions.set(result.data.id, result.data);
       } else {
-        log.warn({ entityId, issues: result.error.issues }, "Skipping invalid node position in object store");
+        log.warn({ issues: result.error.issues }, "Skipping invalid node position in object store");
       }
     }
 
@@ -82,18 +82,21 @@ export class RelationshipManager {
   }
 
   /** Persist node layout positions (write-through, single atomic store persist) */
-  public async savePositions(entries: ReadonlyArray<readonly [string, GraphNodePosition]>): Promise<void> {
-    if (entries.length === 0) {
+  public async savePositions(positions: ReadonlyArray<GraphNodePosition>): Promise<void> {
+    if (positions.length === 0) {
       return;
     }
 
-    for (const [entityId, position] of entries) {
-      this.positions.set(entityId, position);
+    for (const position of positions) {
+      this.positions.set(position.id, position);
     }
 
-    await this.store.setMany(GRAPH_NODE_POSITION_STORE_TABLE, entries);
+    await this.store.setMany(
+      GRAPH_NODE_POSITION_STORE_TABLE,
+      positions.map((position) => [position.id, position] as const)
+    );
 
-    log.info({ count: entries.length }, "Saved node positions");
+    log.info({ count: positions.length }, "Saved node positions");
   }
 
   /** Clear every saved node layout position (backs the reset-all control) */

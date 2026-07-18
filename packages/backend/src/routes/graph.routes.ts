@@ -15,9 +15,9 @@ import type { RelationshipManager } from "../services/relationship-manager.js";
 import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
 import { wrapZodError } from "./route-utils.js";
 
-/** Body for saving node layout positions: each node's id plus its x/y */
+/** Body for saving node layout positions: each entry carries the node id plus its x/y */
 const SaveGraphPositionsInputSchema = z.object({
-  positions: z.array(GraphNodePositionSchema.extend({ id: z.string() })),
+  positions: z.array(GraphNodePositionSchema),
 });
 
 /**
@@ -95,7 +95,7 @@ export async function registerGraphRoutes(
   server.patch<{ Body: unknown }>("/api/graph/positions", async (request) => {
     try {
       const { positions } = SaveGraphPositionsInputSchema.parse(request.body);
-      await relationshipManager.savePositions(positions.map(({ id, x, y }) => [id, { x, y }] as const));
+      await relationshipManager.savePositions(positions);
 
       return { success: true, data: { saved: positions.length } };
     } catch (error) {

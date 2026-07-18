@@ -1,12 +1,8 @@
 import { useCallback, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ENTITY_TYPE, type GraphData } from "@crow-central-agency/shared";
+import { ENTITY_TYPE, type GraphData, type GraphNodePosition } from "@crow-central-agency/shared";
 import { useGraphQuery } from "../../hooks/queries/use-graph-query.js";
-import {
-  useClearGraphPositions,
-  useSaveGraphPositions,
-  type SaveGraphPositionInput,
-} from "../../hooks/queries/use-graph-mutations.js";
+import { useClearGraphPositions, useSaveGraphPositions } from "../../hooks/queries/use-graph-mutations.js";
 import { graphKeys } from "../../services/query-keys.js";
 import { useGraphInstance } from "./use-graph-instance.js";
 import { useGraphAgentStatus } from "./use-graph-agent-status.js";
@@ -52,7 +48,7 @@ export function GraphCanvas({ className, showControls, showLegend, hideFragments
 
   // Dragging persists layout, so it is enabled only on the interactive full graph (controls shown).
   const handlePersistPosition = useCallback(
-    (position: SaveGraphPositionInput) => saveGraphPositions([position]),
+    (position: GraphNodePosition) => saveGraphPositions([position]),
     [saveGraphPositions]
   );
   const { graphRef, sigmaRef, tooltip, resetLayout } = useGraphInstance(

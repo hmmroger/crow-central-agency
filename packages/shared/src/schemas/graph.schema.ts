@@ -3,8 +3,9 @@ import { EntityTypeSchema, RelationshipTypeSchema } from "./agent-circle.schema.
 import { AGENT_STATUS } from "./agent-runtime-state.schema.js";
 import { FragmentKindSchema } from "./fragment.schema.js";
 
-/** A user-authored layout position for a graph node */
+/** A user-authored layout position for a graph node; `id` is the node's entity id */
 export const GraphNodePositionSchema = z.object({
+  id: z.string(),
   x: z.number(),
   y: z.number(),
 });
