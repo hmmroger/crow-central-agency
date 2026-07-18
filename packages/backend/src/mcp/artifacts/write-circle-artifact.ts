@@ -55,6 +55,12 @@ export function getWriteCircleArtifactToolConfig(
     const filename = rawFilename.trim();
     try {
       const isBinary = content_type && content_type !== ARTIFACT_CONTENT_TYPE.TEXT;
+      if (!isBinary && !content.trim()) {
+        throw new Error(
+          "Artifact content must not be empty. Provide content, or use delete_circle_artifact if you meant to remove it."
+        );
+      }
+
       const artifactContent: string | Buffer = isBinary ? Buffer.from(content, "base64") : content;
       const metadata = await artifactManager.writeCircleArtifact(circle_id, filename, artifactContent, {
         type,
