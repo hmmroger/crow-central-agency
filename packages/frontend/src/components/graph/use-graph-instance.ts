@@ -249,7 +249,13 @@ export function useGraphInstance(
     const mouseCaptor = sigma.getMouseCaptor();
 
     // Begin a node drag: anchor the node, suppress the tooltip, and reset the moved flag.
+    // Layout editing is only offered where a persistence sink exists (the full graph);
+    // the controls-less MiniGraph stays a read-only preview.
     const handleDownNode = ({ node }: { node: string }) => {
+      if (!persistPositionRef.current) {
+        return;
+      }
+
       draggedNode = node;
       didDragNode = false;
       setTooltip(undefined);
