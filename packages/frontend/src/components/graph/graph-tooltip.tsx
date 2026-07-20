@@ -1,16 +1,9 @@
-import { FRAGMENT_KIND, type FragmentKind } from "@crow-central-agency/shared";
 import type { GraphTooltipState } from "./graph-view.types.js";
+import { KIND_LABEL } from "./fragment-kind-label.js";
 
 interface GraphTooltipProps {
   tooltip: GraphTooltipState;
 }
-
-const KIND_LABEL: Record<FragmentKind, string> = {
-  [FRAGMENT_KIND.FEEDBACK]: "Feedback",
-  [FRAGMENT_KIND.LESSON]: "Lesson",
-  [FRAGMENT_KIND.DOMAIN]: "Domain",
-  [FRAGMENT_KIND.KNOWLEDGE]: "Knowledge",
-};
 
 /**
  * HTML hover popover for a graph node, positioned within the graph container.

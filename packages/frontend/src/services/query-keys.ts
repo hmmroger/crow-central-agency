@@ -95,6 +95,16 @@ export const graphKeys = {
 };
 
 /**
+ * Query key factory for fragment queries.
+ */
+export const fragmentKeys = {
+  /** Root key for all fragment queries */
+  all: ["fragments"] as const,
+  /** Single fragment detail */
+  detail: (fragmentId: string) => [...fragmentKeys.all, "detail", fragmentId] as const,
+};
+
+/**
  * Query key factory for feed queries.
  */
 export const feedKeys = {
