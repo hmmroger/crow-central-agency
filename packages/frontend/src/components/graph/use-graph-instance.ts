@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import Sigma from "sigma";
 import Graph from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
-import type { NodeDisplayData, PartialButFor } from "sigma/types";
-import { ENTITY_TYPE, FRAGMENT_KIND, type GraphData } from "@crow-central-agency/shared";
+import type { MouseCoords, NodeDisplayData, PartialButFor } from "sigma/types";
+import { ENTITY_TYPE, FRAGMENT_KIND, type GraphData, type GraphNodePosition } from "@crow-central-agency/shared";
 import { useAppStore } from "../../stores/app-store.js";
 import {
   GRAPH_COLORS,
@@ -61,18 +61,29 @@ interface GraphInstanceResult {
   graphRef: RefObject<Graph<GraphNodeAttributes, GraphEdgeAttributes>>;
   sigmaRef: RefObject<Sigma<GraphNodeAttributes, GraphEdgeAttributes> | null>;
   tooltip: GraphTooltipState | undefined;
+  /** Clear anchors, re-run ForceAtlas2 over the live graph, and reset the camera */
+  resetLayout: () => void;
+}
+
+/** Clear the transient FA2 `fixed` anchors left over from a layout pass */
+function clearAnchors(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>): void {
+  graph.forEachNode((node) => graph.removeNodeAttribute(node, "fixed"));
 }
 
 /**
  * Manages the full graph lifecycle: graphology data, sigma renderer,
- * ForceAtlas2 layout, and click/hover interactions.
+ * ForceAtlas2 layout, and click/hover/drag interactions.
  *
  * Sigma is created once on first data arrival and destroyed on unmount.
  * Subsequent data changes reconcile the graphology graph in-place.
+ *
+ * When `onPersistPosition` is provided, nodes become draggable and each
+ * drag-end persists the node's new position.
  */
 export function useGraphInstance(
   containerRef: RefObject<HTMLDivElement | null>,
-  graphData: GraphData | undefined
+  graphData: GraphData | undefined,
+  onPersistPosition?: (position: GraphNodePosition) => void
 ): GraphInstanceResult {
   const graphRef = useRef<Graph<GraphNodeAttributes, GraphEdgeAttributes>>(
     new Graph<GraphNodeAttributes, GraphEdgeAttributes>()
@@ -80,6 +91,12 @@ export function useGraphInstance(
   const sigmaRef = useRef<Sigma<GraphNodeAttributes, GraphEdgeAttributes> | null>(null);
   const [ready, setReady] = useState(false);
   const [tooltip, setTooltip] = useState<GraphTooltipState | undefined>(undefined);
+
+  // Held in a ref so the sigma lifecycle effect never re-runs when the callback identity changes.
+  const persistPositionRef = useRef(onPersistPosition);
+  useEffect(() => {
+    persistPositionRef.current = onPersistPosition;
+  }, [onPersistPosition]);
 
   // Reconcile graph data on every change
   useEffect(() => {
@@ -103,10 +120,12 @@ export function useGraphInstance(
 
     const graph = graphRef.current;
 
-    // --- Hover state (read by the reducers) ---
+    // --- Hover / interaction state (read by the reducers and handlers) ---
     let hoveredNode: string | null = null;
     let neighbors = new Set<string>();
     let isDragging = false;
+    let draggedNode: string | null = null;
+    let didDragNode = false;
 
     // --- Sigma ---
     const sigma = new Sigma(graph, container, {
@@ -127,13 +146,25 @@ export function useGraphInstance(
     sigmaRef.current = sigma;
 
     // --- Layout ---
-    forceAtlas2.assign(graph, { iterations: INITIAL_LAYOUT_ITERATIONS, settings: LAYOUT_SETTINGS });
+    // Saved-position nodes are anchored (`fixed`) by reconcileGraph; only unsaved
+    // nodes need to settle. Skip the whole pass when every node is anchored.
+    const hasUnsavedNodes = graph.someNode((_node, attributes) => !attributes.fixed);
+    if (hasUnsavedNodes) {
+      forceAtlas2.assign(graph, { iterations: INITIAL_LAYOUT_ITERATIONS, settings: LAYOUT_SETTINGS });
+    }
+
+    clearAnchors(graph);
     sigma.getCamera().animatedReset({ duration: 300 });
 
     // --- Events ---
     const goToAgentConsole = useAppStore.getState().goToAgentConsole;
 
     const handleClickNode = ({ node }: { node: string }) => {
+      // Sigma emits clickNode at the tail of a drag; a reposition must not navigate.
+      if (didDragNode) {
+        return;
+      }
+
       const entityType = graph.getNodeAttribute(node, "entityType");
       if (entityType === ENTITY_TYPE.AGENT) {
         goToAgentConsole(node);
@@ -145,8 +176,8 @@ export function useGraphInstance(
       neighbors = new Set(graph.neighbors(node));
       sigma.refresh({ skipIndexation: true });
 
-      // Suppress the tooltip while panning, and only for fragments (which carry no persistent label).
-      if (isDragging || graph.getNodeAttribute(node, "entityType") !== ENTITY_TYPE.FRAGMENT) {
+      // Suppress the tooltip while panning or dragging a node, and only for fragments (which carry no persistent label).
+      if (isDragging || draggedNode || graph.getNodeAttribute(node, "entityType") !== ENTITY_TYPE.FRAGMENT) {
         setTooltip(undefined);
         return;
       }
@@ -216,7 +247,31 @@ export function useGraphInstance(
     // Camera drag (pan) tracking — hide the tooltip while the graph is being dragged.
     const mouseCaptor = sigma.getMouseCaptor();
 
-    const handleDragMove = () => {
+    // Begin a node drag: anchor the node, suppress the tooltip, and reset the moved flag.
+    // Layout editing is only offered where a persistence sink exists (the full graph);
+    // the controls-less MiniGraph stays a read-only preview.
+    const handleDownNode = ({ node }: { node: string }) => {
+      if (!persistPositionRef.current) {
+        return;
+      }
+
+      draggedNode = node;
+      didDragNode = false;
+      setTooltip(undefined);
+    };
+
+    const handleDragMove = (event: MouseCoords) => {
+      // While dragging a node, move it and keep the camera from panning the stage.
+      if (draggedNode) {
+        didDragNode = true;
+        const position = sigma.viewportToGraph(event);
+        graph.setNodeAttribute(draggedNode, "x", position.x);
+        graph.setNodeAttribute(draggedNode, "y", position.y);
+        setTooltip(undefined);
+        event.preventSigmaDefault();
+        return;
+      }
+
       if (mouseCaptor.isMouseDown && !isDragging) {
         isDragging = true;
         setTooltip(undefined);
@@ -224,6 +279,18 @@ export function useGraphInstance(
     };
 
     const handleDragEnd = () => {
+      if (draggedNode) {
+        if (didDragNode) {
+          persistPositionRef.current?.({
+            id: draggedNode,
+            x: graph.getNodeAttribute(draggedNode, "x"),
+            y: graph.getNodeAttribute(draggedNode, "y"),
+          });
+        }
+
+        draggedNode = null;
+      }
+
       isDragging = false;
     };
 
@@ -231,6 +298,7 @@ export function useGraphInstance(
     sigma.on("enterNode", handleEnterNode);
     sigma.on("leaveNode", handleLeaveNode);
     sigma.on("doubleClickStage", handleDoubleClickStage);
+    sigma.on("downNode", handleDownNode);
     mouseCaptor.on("mousemovebody", handleDragMove);
     mouseCaptor.on("mouseup", handleDragEnd);
 
@@ -259,6 +327,7 @@ export function useGraphInstance(
       sigma.off("enterNode", handleEnterNode);
       sigma.off("leaveNode", handleLeaveNode);
       sigma.off("doubleClickStage", handleDoubleClickStage);
+      sigma.off("downNode", handleDownNode);
       mouseCaptor.off("mousemovebody", handleDragMove);
       mouseCaptor.off("mouseup", handleDragEnd);
       sigma.kill();
@@ -266,7 +335,20 @@ export function useGraphInstance(
     };
   }, [containerRef, ready]);
 
-  return { graphRef, sigmaRef, tooltip };
+  const resetLayout = useCallback(() => {
+    const sigma = sigmaRef.current;
+    if (!sigma) {
+      return;
+    }
+
+    const graph = graphRef.current;
+    clearAnchors(graph);
+    forceAtlas2.assign(graph, { iterations: INITIAL_LAYOUT_ITERATIONS, settings: LAYOUT_SETTINGS });
+    sigma.getCamera().animatedReset({ duration: 300 });
+    sigma.refresh();
+  }, []);
+
+  return { graphRef, sigmaRef, tooltip, resetLayout };
 }
 
 // ---------------------------------------------------------------------------
@@ -331,10 +413,13 @@ function reconcileGraph(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, 
       graph.setNodeAttribute(node.id, "agentStatus", node.status);
       graph.setNodeAttribute(node.id, "kind", node.kind);
     } else {
+      // Nodes with a saved position anchor the layout (`fixed`); the rest are
+      // circular-seeded below and settled by ForceAtlas2.
+      const hasSavedPosition = node.x !== undefined && node.y !== undefined;
       graph.addNode(node.id, {
         label: node.name,
-        x: 0,
-        y: 0,
+        x: node.x ?? 0,
+        y: node.y ?? 0,
         size,
         color,
         agentStatus: node.status,
@@ -343,8 +428,12 @@ function reconcileGraph(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, 
         isSystemAgent: node.isSystemAgent,
         isSystemCircle: node.isSystemCircle,
         kind: node.kind,
+        fixed: hasSavedPosition ? true : undefined,
       });
-      newNodeIds.push(node.id);
+
+      if (!hasSavedPosition) {
+        newNodeIds.push(node.id);
+      }
     }
   }
 

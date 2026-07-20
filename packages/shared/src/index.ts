@@ -377,9 +377,11 @@ export {
 export { AGENT_COMMAND, AgentCommandSchema, type AgentCommand } from "./schemas/agent-command.schema.js";
 
 export {
+  GraphNodePositionSchema,
   GraphNodeSchema,
   GraphEdgeSchema,
   GraphDataSchema,
+  type GraphNodePosition,
   type GraphNode,
   type GraphEdge,
   type GraphData,

@@ -3,6 +3,15 @@ import { EntityTypeSchema, RelationshipTypeSchema } from "./agent-circle.schema.
 import { AGENT_STATUS } from "./agent-runtime-state.schema.js";
 import { FragmentKindSchema } from "./fragment.schema.js";
 
+/** A user-authored layout position for a graph node; `id` is the node's entity id */
+export const GraphNodePositionSchema = z.object({
+  id: z.string(),
+  x: z.number(),
+  y: z.number(),
+});
+
+export type GraphNodePosition = z.infer<typeof GraphNodePositionSchema>;
+
 /** A node in the relationship graph — represents an agent, a circle, or a fragment */
 export const GraphNodeSchema = z.object({
   id: z.string(),
@@ -15,6 +24,8 @@ export const GraphNodeSchema = z.object({
   status: z
     .enum([AGENT_STATUS.IDLE, AGENT_STATUS.ACTIVATING, AGENT_STATUS.STREAMING, AGENT_STATUS.COMPACTING])
     .optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
 });
 
 export type GraphNode = z.infer<typeof GraphNodeSchema>;

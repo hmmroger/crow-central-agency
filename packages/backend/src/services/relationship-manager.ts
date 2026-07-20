@@ -1,4 +1,10 @@
-import { RelationshipSchema, type CreateRelationshipInput, type Relationship } from "@crow-central-agency/shared";
+import {
+  GraphNodePositionSchema,
+  RelationshipSchema,
+  type CreateRelationshipInput,
+  type GraphNodePosition,
+  type Relationship,
+} from "@crow-central-agency/shared";
 import type { QueryRelationshipOptions } from "./relationship-manager.types.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 import { AppError } from "../core/error/app-error.js";
@@ -10,6 +16,9 @@ const log = logger.child({ context: "relationship-manager" });
 
 /** Object store table name for entity relationships */
 export const RELATIONSHIP_STORE_TABLE = "relationships";
+
+/** Object store table name for user-authored node layout positions */
+export const GRAPH_NODE_POSITION_STORE_TABLE = "graph-node-positions";
 
 /** Check whether a relationship matches the given query options */
 export function relationshipMatchesQuery(relationship: Relationship, options: QueryRelationshipOptions): boolean {
@@ -23,16 +32,18 @@ export function relationshipMatchesQuery(relationship: Relationship, options: Qu
 }
 
 /**
- * Generic relationship/edge engine over the object store.
- * Owns edge persistence, queries, and reachability checks; entity semantics
+ * Generic graph-structure engine over the object store: owns both edges and
+ * node layout. Edges cover topology (persistence, queries, reachability checks);
+ * positions cover the user-authored layout keyed by entity id. Entity semantics
  * (circle membership rules, virtual relationships) live with the callers.
  */
 export class RelationshipManager {
   private relationships = new Map<string, Relationship>();
+  private positions = new Map<string, GraphNodePosition>();
 
   constructor(private readonly store: ObjectStoreProvider) {}
 
-  /** Load relationships from the object store */
+  /** Load relationships and node positions from the object store */
   public async initialize(): Promise<void> {
     const relEntries = await this.store.getAll<Relationship>(RELATIONSHIP_STORE_TABLE);
     for (const entry of relEntries) {
@@ -44,12 +55,56 @@ export class RelationshipManager {
       }
     }
 
-    log.info({ relationships: this.relationships.size }, "RelationshipManager initialized");
+    const positionEntries = await this.store.getAll<GraphNodePosition>(GRAPH_NODE_POSITION_STORE_TABLE);
+    for (const entry of positionEntries) {
+      const result = GraphNodePositionSchema.safeParse(entry.value);
+      if (result.success) {
+        this.positions.set(result.data.id, result.data);
+      } else {
+        log.warn({ issues: result.error.issues }, "Skipping invalid node position in object store");
+      }
+    }
+
+    log.info(
+      { relationships: this.relationships.size, positions: this.positions.size },
+      "RelationshipManager initialized"
+    );
   }
 
   /** Get all persisted relationships */
   public getAllRelationships(): Relationship[] {
     return Array.from(this.relationships.values());
+  }
+
+  /** Get all saved node layout positions, keyed by entity id */
+  public getAllPositions(): ReadonlyMap<string, GraphNodePosition> {
+    return this.positions;
+  }
+
+  /** Persist node layout positions (write-through, single atomic store persist) */
+  public async savePositions(positions: ReadonlyArray<GraphNodePosition>): Promise<void> {
+    if (positions.length === 0) {
+      return;
+    }
+
+    for (const position of positions) {
+      this.positions.set(position.id, position);
+    }
+
+    await this.store.setMany(
+      GRAPH_NODE_POSITION_STORE_TABLE,
+      positions.map((position) => [position.id, position] as const)
+    );
+
+    log.info({ count: positions.length }, "Saved node positions");
+  }
+
+  /** Clear every saved node layout position (backs the reset-all control) */
+  public async clearAllPositions(): Promise<void> {
+    this.positions.clear();
+    await this.store.clear(GRAPH_NODE_POSITION_STORE_TABLE);
+
+    log.info("Cleared all node positions");
   }
 
   public queryRelationships(options: QueryRelationshipOptions): Relationship[] {
@@ -122,7 +177,11 @@ export class RelationshipManager {
     log.info({ relationshipId }, "Relationship deleted");
   }
 
-  /** Remove all relationships involving an entity and return the removed IDs */
+  /**
+   * Remove all relationships involving an entity and its saved layout position,
+   * returning the removed relationship IDs. Every entity-delete site funnels
+   * through here, so both edges and position are cleaned up for all entity types.
+   */
   public async removeRelationshipsForEntity(entityId: string): Promise<string[]> {
     const toRemove: string[] = [];
 
@@ -135,6 +194,10 @@ export class RelationshipManager {
     for (const relationshipId of toRemove) {
       this.relationships.delete(relationshipId);
       await this.store.delete(RELATIONSHIP_STORE_TABLE, relationshipId);
+    }
+
+    if (this.positions.delete(entityId)) {
+      await this.store.delete(GRAPH_NODE_POSITION_STORE_TABLE, entityId);
     }
 
     if (toRemove.length > 0) {

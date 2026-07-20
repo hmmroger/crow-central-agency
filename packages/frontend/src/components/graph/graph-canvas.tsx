@@ -1,6 +1,9 @@
-import { useMemo, useRef } from "react";
-import { ENTITY_TYPE, type GraphData } from "@crow-central-agency/shared";
+import { useCallback, useMemo, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ENTITY_TYPE, type GraphData, type GraphNodePosition } from "@crow-central-agency/shared";
 import { useGraphQuery } from "../../hooks/queries/use-graph-query.js";
+import { useClearGraphPositions, useSaveGraphPositions } from "../../hooks/queries/use-graph-mutations.js";
+import { graphKeys } from "../../services/query-keys.js";
 import { useGraphInstance } from "./use-graph-instance.js";
 import { useGraphAgentStatus } from "./use-graph-agent-status.js";
 import { GraphControls } from "./graph-controls.js";
@@ -34,20 +37,42 @@ function excludeFragments(graphData: GraphData): GraphData {
  */
 export function GraphCanvas({ className, showControls, showLegend, hideFragments }: GraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
   const { data: graphData } = useGraphQuery();
+  const { mutate: saveGraphPositions } = useSaveGraphPositions();
+  const { mutate: clearGraphPositions } = useClearGraphPositions();
   const displayData = useMemo(
     () => (graphData && hideFragments ? excludeFragments(graphData) : graphData),
     [graphData, hideFragments]
   );
-  const { graphRef, sigmaRef, tooltip } = useGraphInstance(containerRef, displayData);
+
+  // Dragging persists layout, so it is enabled only on the interactive full graph (controls shown).
+  const handlePersistPosition = useCallback(
+    (position: GraphNodePosition) => saveGraphPositions([position]),
+    [saveGraphPositions]
+  );
+  const { graphRef, sigmaRef, tooltip, resetLayout } = useGraphInstance(
+    containerRef,
+    displayData,
+    showControls ? handlePersistPosition : undefined
+  );
 
   useGraphAgentStatus(graphRef);
+
+  const handleResetPositions = useCallback(() => {
+    clearGraphPositions(undefined, {
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: graphKeys.data() });
+        resetLayout();
+      },
+    });
+  }, [clearGraphPositions, queryClient, resetLayout]);
 
   return (
     <div className={className}>
       <div ref={containerRef} className="h-full w-full" />
       {tooltip && <GraphTooltip tooltip={tooltip} />}
-      {showControls && <GraphControls sigmaRef={sigmaRef} />}
+      {showControls && <GraphControls sigmaRef={sigmaRef} onResetPositions={handleResetPositions} />}
       {showLegend && <GraphLegend />}
     </div>
   );

@@ -13,6 +13,8 @@ export interface GraphNodeAttributes {
   isSystemAgent?: boolean;
   isSystemCircle?: boolean;
   kind?: FragmentKind;
+  /** Transient ForceAtlas2 anchor flag; frontend-only, cleared after each layout pass */
+  fixed?: boolean;
 }
 
 /** Sigma edge attributes for the relationship graph */
