@@ -6,6 +6,7 @@ import { useClearGraphPositions, useSaveGraphPositions } from "../../hooks/queri
 import { graphKeys } from "../../services/query-keys.js";
 import { useGraphInstance } from "./use-graph-instance.js";
 import { useGraphAgentStatus } from "./use-graph-agent-status.js";
+import { useOpenFragmentViewer } from "./use-open-fragment-viewer.js";
 import { GraphControls } from "./graph-controls.js";
 import { GraphLegend } from "./graph-legend.js";
 import { GraphTooltip } from "./graph-tooltip.js";
@@ -51,10 +52,26 @@ export function GraphCanvas({ className, showControls, showLegend, hideFragments
     (position: GraphNodePosition) => saveGraphPositions([position]),
     [saveGraphPositions]
   );
+
+  // Fragment view is read-only, so it is wired unconditionally (works in the full graph and MiniGraph).
+  const openFragmentViewer = useOpenFragmentViewer();
+  const handleFragmentClick = useCallback(
+    (fragmentId: string) => {
+      const node = displayData?.nodes.find((candidate) => candidate.id === fragmentId);
+      if (!node) {
+        return;
+      }
+
+      openFragmentViewer(fragmentId, node.name, node.kind);
+    },
+    [displayData, openFragmentViewer]
+  );
+
   const { graphRef, sigmaRef, tooltip, resetLayout } = useGraphInstance(
     containerRef,
     displayData,
-    showControls ? handlePersistPosition : undefined
+    showControls ? handlePersistPosition : undefined,
+    handleFragmentClick
   );
 
   useGraphAgentStatus(graphRef);

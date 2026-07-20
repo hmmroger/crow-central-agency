@@ -83,7 +83,8 @@ function clearAnchors(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>): v
 export function useGraphInstance(
   containerRef: RefObject<HTMLDivElement | null>,
   graphData: GraphData | undefined,
-  onPersistPosition?: (position: GraphNodePosition) => void
+  onPersistPosition?: (position: GraphNodePosition) => void,
+  onFragmentClick?: (fragmentId: string) => void
 ): GraphInstanceResult {
   const graphRef = useRef<Graph<GraphNodeAttributes, GraphEdgeAttributes>>(
     new Graph<GraphNodeAttributes, GraphEdgeAttributes>()
@@ -97,6 +98,11 @@ export function useGraphInstance(
   useEffect(() => {
     persistPositionRef.current = onPersistPosition;
   }, [onPersistPosition]);
+
+  const fragmentClickRef = useRef(onFragmentClick);
+  useEffect(() => {
+    fragmentClickRef.current = onFragmentClick;
+  }, [onFragmentClick]);
 
   // Reconcile graph data on every change
   useEffect(() => {
@@ -168,6 +174,8 @@ export function useGraphInstance(
       const entityType = graph.getNodeAttribute(node, "entityType");
       if (entityType === ENTITY_TYPE.AGENT) {
         goToAgentConsole(node);
+      } else if (entityType === ENTITY_TYPE.FRAGMENT) {
+        fragmentClickRef.current?.(node);
       }
     };
 

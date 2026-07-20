@@ -15,6 +15,13 @@ export async function registerFragmentRoutes(
   fragmentManager: FragmentManager,
   registry: AgentRegistry
 ) {
+  /** Read a single full fragment (cue, body, usage, timestamps) */
+  server.get<{ Params: { id: string } }>("/api/fragments/:id", async (request) => {
+    const fragment = await fragmentManager.readFragment(request.params.id);
+
+    return { success: true, data: fragment };
+  });
+
   /** Associate an agent to a fragment (share) */
   server.post<{ Params: { id: string }; Body: unknown }>("/api/fragments/:id/associations", async (request) => {
     const fragmentId = validateUuidParam(request.params.id, "fragment");
