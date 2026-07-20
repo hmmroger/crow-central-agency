@@ -38,7 +38,7 @@ export function FragmentViewerDialog({ fragmentId, cue, kind, onClose }: Fragmen
       {/* Body */}
       <div className="flex-1 overflow-y-auto m-4 p-3 rounded-md bg-surface-inset border border-border-subtle">
         {isLoading && <p className="text-xs text-text-muted">Loading fragment…</p>}
-        {isError && <p className="text-xs text-error">This fragment could not be found.</p>}
+        {isError && <p className="text-xs text-error">This fragment could not be loaded.</p>}
         {fragment && <MarkdownRenderer content={fragment.body} />}
       </div>
 

@@ -21,7 +21,7 @@ export function useOpenFragmentViewer() {
           cue,
           kind,
         },
-        className: "w-full max-w-2xl max-h-(--max-height-editor-dialog) flex flex-col",
+        className: "w-(--width-editor-dialog) max-w-2xl max-h-(--max-height-editor-dialog) flex flex-col",
       });
     },
     [showDialog]
