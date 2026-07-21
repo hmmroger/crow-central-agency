@@ -1,6 +1,8 @@
-import { useCallback, useState, type ChangeEvent } from "react";
+import { useCallback, useImperativeHandle, useState, type ChangeEvent, type Ref } from "react";
 import { AGENT_TASK_STATE, type AgentTaskItem } from "@crow-central-agency/shared";
 import { useUpdateTaskResult, useUpdateTaskState } from "../../hooks/queries/use-task-mutations.js";
+import { useConfirmDiscard } from "../../hooks/dialogs/use-confirm-discard.js";
+import type { ModalDialogHandle } from "../../providers/modal-dialog-provider.types.js";
 import { canCompleteTask, isTerminalTask } from "../../utils/task-utils.js";
 import { MarkdownRenderer } from "../common/markdown-renderer.js";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../common/action-button.js";
@@ -20,13 +22,15 @@ interface TaskDetailDialogProps {
   initialMode?: TaskDetailMode;
   /** Injected by ModalDialogRenderer */
   onClose: () => void;
+  /** Injected by ModalDialogRenderer for dismiss guard */
+  ref: Ref<ModalDialogHandle>;
 }
 
 /**
  * Task-specific detail dialog. Shows the task content and, when the task is in
  * the user's court, hosts an inline respond pane to draft, save, and submit a result.
  */
-export function TaskDetailDialog({ task, initialMode = TASK_DETAIL_MODE.VIEW, onClose }: TaskDetailDialogProps) {
+export function TaskDetailDialog({ task, initialMode = TASK_DETAIL_MODE.VIEW, onClose, ref }: TaskDetailDialogProps) {
   const canRespond = canCompleteTask(task);
   const [mode, setMode] = useState<TaskDetailMode>(
     initialMode === TASK_DETAIL_MODE.RESPOND && canRespond ? TASK_DETAIL_MODE.RESPOND : TASK_DETAIL_MODE.VIEW
@@ -42,6 +46,9 @@ export function TaskDetailDialog({ task, initialMode = TASK_DETAIL_MODE.VIEW, on
   const isDirty = response !== savedBaseline;
   const isBusy = updateTaskResult.isPending || updateTaskState.isPending;
   const showTerminalResult = !isResponding && isTerminalTask(task.state) && Boolean(task.taskResult);
+
+  const confirmDiscard = useConfirmDiscard(isDirty);
+  useImperativeHandle(ref, () => ({ canDismiss: confirmDiscard }), [confirmDiscard]);
 
   const handleRespond = useCallback(() => {
     setError(undefined);
@@ -115,7 +122,7 @@ export function TaskDetailDialog({ task, initialMode = TASK_DETAIL_MODE.VIEW, on
           <textarea
             id="task-detail-response"
             className={cn(
-              "w-full h-32 px-3 py-2 rounded-md text-sm text-text-base",
+              "w-full h-28 px-3 py-2 rounded-md text-sm text-text-base",
               "bg-surface-inset border border-border-subtle",
               "placeholder:text-text-muted/60 resize-none",
               "focus:outline-none focus:border-border-focus",
