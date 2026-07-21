@@ -146,6 +146,34 @@ const TASK_COMPLETED_NO_MESSAGE_PROMPT: MessageTemplate = {
   keys: ["agentId", "agentName", "taskId"],
 };
 
+const TASK_USER_RESPONDED_PROMPT: MessageTemplate = {
+  role: MessageRoles.user,
+  content: [
+    {
+      content: [
+        `[The user responded to your note (Task ID: {taskId})]`,
+        "",
+        `Review their response using ${GET_TASK_RESULT_TOOL_NAME} tool.`,
+      ],
+    },
+  ],
+  keys: ["taskId"],
+};
+
+const TASK_USER_DISMISSED_PROMPT: MessageTemplate = {
+  role: MessageRoles.user,
+  content: [
+    {
+      content: [`[The user dismissed your note (Task ID: {taskId})]`],
+    },
+    {
+      content: ["", "They left a message:", "{note}"],
+      keys: ["note"],
+    },
+  ],
+  keys: ["taskId", "note"],
+};
+
 const TASK_INCOMPLETE_PROMPT: MessageTemplate = {
   role: MessageRoles.user,
   content: [
@@ -308,12 +336,37 @@ class InterAgentTaskRoutine {
     await this.scheduleTask(assignedAgentId);
   }
 
-  private async onTaskStateChanged(task: AgentTaskItem, _previousState: AgentTaskState): Promise<void> {
-    if (task.state !== AGENT_TASK_STATE.COMPLETED && task.state !== AGENT_TASK_STATE.INCOMPLETE) {
+  private async onTaskStateChanged(task: AgentTaskItem, previousState: AgentTaskState): Promise<void> {
+    if (task.state === AGENT_TASK_STATE.COMPLETED || task.state === AGENT_TASK_STATE.INCOMPLETE) {
+      await this.tryClosingTask(task);
       return;
     }
 
-    await this.tryClosingTask(task);
+    // A user dismissing an agent's notify_user note: closed straight from OPEN by the user.
+    // The OPEN guard excludes tryClosingTask's own internal COMPLETED → CLOSED, avoiding a double-fire.
+    if (
+      task.state === AGENT_TASK_STATE.CLOSED &&
+      previousState === AGENT_TASK_STATE.OPEN &&
+      task.originateSource.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT &&
+      task.ownerSource?.sourceType === AGENT_TASK_SOURCE_TYPE.USER
+    ) {
+      await this.notifyUserDismissedNote(task, task.originateSource.agentId);
+    }
+  }
+
+  private async notifyUserDismissedNote(task: AgentTaskItem, originateAgentId: string): Promise<void> {
+    const notificationPrompt = createMessageContentFromTemplate(
+      TASK_USER_DISMISSED_PROMPT,
+      getDefaultPromptContext({ taskId: task.id, note: task.taskResult })
+    );
+
+    this.runtimeManager
+      .sendMessage(originateAgentId, notificationPrompt, {
+        sourceType: MESSAGE_SOURCE_TYPE.NOTIFICATION,
+      })
+      .catch((error) => {
+        log.error({ agentId: originateAgentId, taskId: task.id, error }, "User dismissal notification failed");
+      });
   }
 
   private async scheduleTask(agentId: string): Promise<void> {
@@ -383,6 +436,11 @@ class InterAgentTaskRoutine {
         notificationPrompt = createMessageContentFromTemplate(
           TASK_INCOMPLETE_PROMPT,
           getDefaultPromptContext({ agentId: owningAgentId, agentName: owningAgentName, taskId: task.id })
+        );
+      } else if (task.ownerSource?.sourceType === AGENT_TASK_SOURCE_TYPE.USER) {
+        notificationPrompt = createMessageContentFromTemplate(
+          TASK_USER_RESPONDED_PROMPT,
+          getDefaultPromptContext({ taskId: task.id })
         );
       } else {
         notificationPrompt = createMessageContentFromTemplate(
