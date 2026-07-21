@@ -5,12 +5,9 @@ import {
   type AgentTaskState,
 } from "@crow-central-agency/shared";
 
-/** Whether a task is an agent→user notification (from `notify_user`): originated by an agent, owned by the user */
-export function isAgentToUserTask(task: AgentTaskItem): boolean {
-  return (
-    task.originateSource.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT &&
-    task.ownerSource?.sourceType === AGENT_TASK_SOURCE_TYPE.USER
-  );
+/** Whether the user can complete a task: it is in their court (OPEN and owned by the user) */
+export function canCompleteTask(task: AgentTaskItem): boolean {
+  return task.state === AGENT_TASK_STATE.OPEN && task.ownerSource?.sourceType === AGENT_TASK_SOURCE_TYPE.USER;
 }
 
 /** Whether a task's content can be edited (only OPEN tasks) */

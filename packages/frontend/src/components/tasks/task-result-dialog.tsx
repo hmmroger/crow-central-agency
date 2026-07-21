@@ -9,41 +9,28 @@ interface TaskResultDialogProps {
   taskId: string;
   /** Target state to transition the task into */
   state: UpdateTaskStateInput["state"];
-  /** When true, a non-empty result is required before submitting */
-  resultRequired: boolean;
-  /** Label for the result textarea */
-  resultLabel: string;
   /** Label for the confirm button */
   confirmLabel: string;
-  /** Body text explaining what the result is used for */
+  /** Body text explaining what the transition does */
   description: string;
   /** Injected by ModalDialogRenderer */
   onClose: () => void;
 }
 
-/** Modal content for transitioning a task to a new state, optionally capturing a result. */
-export function TaskResultDialog({
-  taskId,
-  state,
-  resultRequired,
-  resultLabel,
-  confirmLabel,
-  description,
-  onClose,
-}: TaskResultDialogProps) {
+/** Modal content for transitioning a task to a new state, optionally capturing a result note. */
+export function TaskResultDialog({ taskId, state, confirmLabel, description, onClose }: TaskResultDialogProps) {
   const [result, setResult] = useState("");
   const updateTaskState = useUpdateTaskState();
   const [error, setError] = useState<string | undefined>(undefined);
 
   const trimmedResult = result.trim();
-  const canSubmit = (!resultRequired || trimmedResult.length > 0) && !updateTaskState.isPending;
 
   const handleChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
     setResult(event.target.value);
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!canSubmit) {
+    if (updateTaskState.isPending) {
       return;
     }
 
@@ -57,7 +44,7 @@ export function TaskResultDialog({
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     }
-  }, [canSubmit, updateTaskState, taskId, state, trimmedResult, onClose]);
+  }, [updateTaskState, taskId, state, trimmedResult, onClose]);
 
   return (
     <div className="flex flex-col overflow-hidden">
@@ -68,7 +55,7 @@ export function TaskResultDialog({
             htmlFor="task-result-content"
             className="text-xs font-medium text-text-neutral uppercase tracking-wide"
           >
-            {resultLabel}
+            Result Note (optional)
           </label>
           <textarea
             id="task-result-content"
@@ -93,7 +80,7 @@ export function TaskResultDialog({
           label={updateTaskState.isPending ? "..." : confirmLabel}
           variant={ACTION_BUTTON_VARIANT.PRIMARY}
           onClick={handleSubmit}
-          disabled={!canSubmit}
+          disabled={updateTaskState.isPending}
         />
       </div>
     </div>
