@@ -1,4 +1,4 @@
-import { useCallback, useImperativeHandle, useState, type ChangeEvent, type Ref } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type ChangeEvent, type Ref } from "react";
 import { AGENT_TASK_STATE, type AgentTaskItem } from "@crow-central-agency/shared";
 import { useUpdateTaskResult, useUpdateTaskState } from "../../hooks/queries/use-task-mutations.js";
 import { useConfirmDiscard } from "../../hooks/dialogs/use-confirm-discard.js";
@@ -39,6 +39,8 @@ export function TaskDetailDialog({ task, initialMode = TASK_DETAIL_MODE.VIEW, on
   const [savedBaseline, setSavedBaseline] = useState(task.taskResult ?? "");
   const [error, setError] = useState<string | undefined>(undefined);
 
+  const responseRef = useRef<HTMLTextAreaElement>(null);
+
   const updateTaskResult = useUpdateTaskResult();
   const updateTaskState = useUpdateTaskState();
 
@@ -49,6 +51,12 @@ export function TaskDetailDialog({ task, initialMode = TASK_DETAIL_MODE.VIEW, on
 
   const confirmDiscard = useConfirmDiscard(isDirty);
   useImperativeHandle(ref, () => ({ canDismiss: confirmDiscard }), [confirmDiscard]);
+
+  useEffect(() => {
+    if (isResponding) {
+      responseRef.current?.focus({ preventScroll: true });
+    }
+  }, [isResponding]);
 
   const handleRespond = useCallback(() => {
     setError(undefined);
@@ -110,31 +118,39 @@ export function TaskDetailDialog({ task, initialMode = TASK_DETAIL_MODE.VIEW, on
         )}
       </div>
 
-      {/* Respond pane — slides up when composing a response */}
-      {isResponding && (
-        <div className="px-3 pb-2 space-y-1.5 animate-fade-slide-up">
-          <label
-            htmlFor="task-detail-response"
-            className="text-xs font-medium text-text-neutral uppercase tracking-wide"
-          >
-            Your Response
-          </label>
-          <textarea
-            id="task-detail-response"
-            className={cn(
-              "w-full h-28 px-3 py-2 rounded-md text-sm text-text-base",
-              "bg-surface-inset border border-border-subtle",
-              "placeholder:text-text-muted/60 resize-none",
-              "focus:outline-none focus:border-border-focus",
-              "transition-colors duration-(--duration-fast)"
-            )}
-            value={response}
-            onChange={handleChange}
-            disabled={isBusy}
-            autoFocus
-          />
+      {/* Respond pane — expands with a height transition when composing a response */}
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows] duration-(--duration-normal) ease-out",
+          isResponding ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        )}
+        inert={!isResponding}
+      >
+        <div className="overflow-hidden">
+          <div className="px-3 pb-2 space-y-1.5">
+            <label
+              htmlFor="task-detail-response"
+              className="text-xs font-medium text-text-neutral uppercase tracking-wide"
+            >
+              Your Response
+            </label>
+            <textarea
+              id="task-detail-response"
+              ref={responseRef}
+              className={cn(
+                "w-full h-28 px-3 py-2 rounded-md text-sm text-text-base",
+                "bg-surface-inset border border-border-subtle",
+                "placeholder:text-text-muted/60 resize-none",
+                "focus:outline-none focus:border-border-focus",
+                "transition-colors duration-(--duration-fast)"
+              )}
+              value={response}
+              onChange={handleChange}
+              disabled={isBusy}
+            />
+          </div>
         </div>
-      )}
+      </div>
 
       {error && <p className="px-3 pb-1 text-xs text-error">{error}</p>}
 
