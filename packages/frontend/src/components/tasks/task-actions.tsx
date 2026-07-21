@@ -10,11 +10,25 @@ import { EditTaskDialog } from "./edit-task-dialog.js";
 import { AssignTaskDialog } from "./assign-task-dialog.js";
 import { cn } from "../../utils/cn.js";
 
+const ACTION_BUTTON_TONE = {
+  NEUTRAL: "neutral",
+  SUCCESS: "success",
+  DESTRUCTIVE: "destructive",
+} as const;
+
+type ActionButtonTone = (typeof ACTION_BUTTON_TONE)[keyof typeof ACTION_BUTTON_TONE];
+
+const ACTION_BUTTON_TONE_CLASS: Record<ActionButtonTone, string> = {
+  [ACTION_BUTTON_TONE.NEUTRAL]: "text-text-muted hover:text-text-base hover:bg-surface-elevated",
+  [ACTION_BUTTON_TONE.SUCCESS]: "text-success hover:bg-success/10",
+  [ACTION_BUTTON_TONE.DESTRUCTIVE]: "text-error hover:bg-error/10",
+};
+
 interface ActionButtonProps {
   icon: ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
-  isDestructive?: boolean;
+  tone?: ActionButtonTone;
 }
 
 interface TaskActionsProps {
@@ -114,24 +128,23 @@ export function TaskActions({ task }: TaskActionsProps) {
     <div className="flex items-center gap-0.5">
       {canEditTask(task.state) && <ActionButton icon={Pencil} label="Edit" onClick={handleEdit} />}
       {canAssignTask(task.state) && <ActionButton icon={UserPlus} label="Assign" onClick={handleAssign} />}
-      {canCompleteTask(task) && <ActionButton icon={CheckCircle} label="Complete" onClick={handleComplete} />}
+      {canCompleteTask(task) && (
+        <ActionButton icon={CheckCircle} label="Complete" onClick={handleComplete} tone={ACTION_BUTTON_TONE.SUCCESS} />
+      )}
       {canCloseTask(task.state) && <ActionButton icon={XCircle} label="Close" onClick={handleClose} />}
-      {canDeleteTask(task.state) && <ActionButton icon={Trash2} label="Delete" onClick={handleDelete} isDestructive />}
+      {canDeleteTask(task.state) && (
+        <ActionButton icon={Trash2} label="Delete" onClick={handleDelete} tone={ACTION_BUTTON_TONE.DESTRUCTIVE} />
+      )}
     </div>
   );
 }
 
 /** Small icon-only action button with tooltip */
-function ActionButton({ icon: Icon, label, onClick, isDestructive }: ActionButtonProps) {
+function ActionButton({ icon: Icon, label, onClick, tone = ACTION_BUTTON_TONE.NEUTRAL }: ActionButtonProps) {
   return (
     <button
       type="button"
-      className={cn(
-        "p-1.5 rounded-md transition-colors",
-        isDestructive
-          ? "text-text-muted hover:text-error hover:bg-error/10"
-          : "text-text-muted hover:text-text-base hover:bg-surface-elevated"
-      )}
+      className={cn("p-1.5 rounded-md transition-colors", ACTION_BUTTON_TONE_CLASS[tone])}
       onClick={onClick}
       title={label}
     >

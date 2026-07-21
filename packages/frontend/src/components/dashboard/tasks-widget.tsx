@@ -104,7 +104,7 @@ export function TasksWidget({ tasks, className }: TasksWidgetProps) {
       {createTask.error && <p className="text-3xs text-error mb-2">{createTask.error.message}</p>}
 
       {/* Task list */}
-      <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
+      <div className="flex flex-col gap-1 max-h-28 overflow-y-auto">
         {pendingTasks.map((task) => (
           <TaskRow key={task.id} task={task} />
         ))}
