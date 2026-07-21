@@ -18,13 +18,14 @@ export function getNotifyUserToolConfig(agentId: string, taskManager: AgentTaskM
   };
 
   const handler: ToolHandler<typeof inputSchema> = async ({ note }) => {
-    if (!note.trim()) {
+    const trimmedNote = note.trim();
+    if (!trimmedNote) {
       return textToolResult(["Error: note cannot be empty"], true);
     }
 
     try {
       await taskManager.addTask(
-        note,
+        trimmedNote,
         { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId },
         { sourceType: AGENT_TASK_SOURCE_TYPE.USER }
       );

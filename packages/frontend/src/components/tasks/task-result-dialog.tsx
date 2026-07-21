@@ -21,11 +21,7 @@ interface TaskResultDialogProps {
   onClose: () => void;
 }
 
-/**
- * Modal content for transitioning a task while capturing an optional or required result.
- * Serves both the Complete (result required) and Close-with-note (result optional) actions
- * on agent→user notification tasks. The backend remains source of truth; this only submits.
- */
+/** Modal content for transitioning a task to a new state, optionally capturing a result. */
 export function TaskResultDialog({
   taskId,
   state,
