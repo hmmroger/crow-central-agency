@@ -12,6 +12,7 @@ import { cn } from "../../utils/cn.js";
 import { getTaskStateLabel } from "../../utils/task-utils.js";
 import { useModalDialog } from "../../providers/modal-dialog-provider.js";
 import { MarkdownViewerDialog } from "../common/dialogs/markdown-viewer-dialog.js";
+import { TaskDetailDialog } from "./task-detail-dialog.js";
 import { TaskActions } from "./task-actions.js";
 import { formatRelativeTime } from "../../utils/format-utils.js";
 
@@ -38,12 +39,12 @@ export function TaskCard({ task, agents }: TaskCardProps) {
   const isClosed = task.state === AGENT_TASK_STATE.CLOSED;
   const isActive = task.state === AGENT_TASK_STATE.ACTIVE;
 
-  const openContentViewer = () => {
+  const openTaskDetail = () => {
     showDialog({
-      id: `task-content-${task.id}`,
-      component: MarkdownViewerDialog,
-      componentProps: { content: task.task },
-      title: "Task Content",
+      id: `task-detail-${task.id}`,
+      component: TaskDetailDialog,
+      componentProps: { task },
+      title: "Task Detail",
       className: "w-[95vw] md:w-3xl h-[60vh] flex flex-col",
     });
   };
@@ -119,7 +120,7 @@ export function TaskCard({ task, agents }: TaskCardProps) {
             ? "text-text-muted line-through decoration-text-muted/30"
             : "text-text-base hover:underline decoration-text-muted/30 underline-offset-2"
         )}
-        onClick={openContentViewer}
+        onClick={openTaskDetail}
       >
         {task.task}
       </button>

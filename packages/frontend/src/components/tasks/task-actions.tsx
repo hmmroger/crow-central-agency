@@ -6,6 +6,7 @@ import { useDeleteTask } from "../../hooks/queries/use-task-mutations.js";
 import { canEditTask, canAssignTask, canCloseTask, canCompleteTask, canDeleteTask } from "../../utils/task-utils.js";
 import { ConfirmationDialog } from "../common/dialogs/confirmation-dialog.js";
 import { TaskResultDialog } from "./task-result-dialog.js";
+import { TaskDetailDialog, TASK_DETAIL_MODE } from "./task-detail-dialog.js";
 import { EditTaskDialog } from "./edit-task-dialog.js";
 import { AssignTaskDialog } from "./assign-task-dialog.js";
 import { cn } from "../../utils/cn.js";
@@ -78,16 +79,11 @@ export function TaskActions({ task }: TaskActionsProps) {
 
   const handleComplete = () => {
     showDialog({
-      id: "complete-task",
-      component: TaskResultDialog,
-      componentProps: {
-        taskId: task.id,
-        state: AGENT_TASK_STATE.COMPLETED,
-        confirmLabel: "Complete Task",
-        description: "Complete this task. Optionally add a result note.",
-      },
-      title: "Complete Task",
-      className: "w-[95vw] md:w-md",
+      id: `task-detail-${task.id}`,
+      component: TaskDetailDialog,
+      componentProps: { task, initialMode: TASK_DETAIL_MODE.RESPOND },
+      title: "Task Detail",
+      className: "w-[95vw] md:w-3xl h-[60vh] flex flex-col",
     });
   };
 

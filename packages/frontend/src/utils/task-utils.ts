@@ -32,6 +32,13 @@ export function canDeleteTask(state: AgentTaskState): boolean {
   return state !== AGENT_TASK_STATE.ACTIVE;
 }
 
+/** Whether a task has reached a terminal state (COMPLETED, INCOMPLETE, or CLOSED) */
+export function isTerminalTask(state: AgentTaskState): boolean {
+  return (
+    state === AGENT_TASK_STATE.COMPLETED || state === AGENT_TASK_STATE.INCOMPLETE || state === AGENT_TASK_STATE.CLOSED
+  );
+}
+
 /** Sort priority for task states — lower = shown first */
 const TASK_STATE_ORDER: Record<AgentTaskState, number> = {
   [AGENT_TASK_STATE.ACTIVE]: 0,
