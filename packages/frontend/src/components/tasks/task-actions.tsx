@@ -1,10 +1,11 @@
 import type { ComponentType } from "react";
 import { AGENT_TASK_STATE, type AgentTaskItem } from "@crow-central-agency/shared";
-import { Pencil, UserPlus, XCircle, Trash2, Loader } from "lucide-react";
+import { Pencil, UserPlus, XCircle, CheckCircle, Trash2, Loader } from "lucide-react";
 import { useModalDialog } from "../../providers/modal-dialog-provider.js";
 import { useDeleteTask, useUpdateTaskState } from "../../hooks/queries/use-task-mutations.js";
-import { canEditTask, canAssignTask, canCloseTask, canDeleteTask } from "../../utils/task-utils.js";
+import { canEditTask, canAssignTask, canCloseTask, canDeleteTask, isAgentToUserTask } from "../../utils/task-utils.js";
 import { ConfirmationDialog } from "../common/dialogs/confirmation-dialog.js";
+import { TaskResultDialog } from "./task-result-dialog.js";
 import { EditTaskDialog } from "./edit-task-dialog.js";
 import { AssignTaskDialog } from "./assign-task-dialog.js";
 import { cn } from "../../utils/cn.js";
@@ -31,6 +32,7 @@ export function TaskActions({ task }: TaskActionsProps) {
   const updateTaskState = useUpdateTaskState();
 
   const isActive = task.state === AGENT_TASK_STATE.ACTIVE;
+  const isNotifyUserTask = isAgentToUserTask(task);
 
   if (isActive) {
     return (
@@ -62,7 +64,42 @@ export function TaskActions({ task }: TaskActionsProps) {
     });
   };
 
+  const handleComplete = () => {
+    showDialog({
+      id: "complete-task",
+      component: TaskResultDialog,
+      componentProps: {
+        taskId: task.id,
+        state: AGENT_TASK_STATE.COMPLETED,
+        resultRequired: true,
+        resultLabel: "Your Response",
+        confirmLabel: "Send Response",
+        description: "Respond to this note. Your response will be sent back to the agent.",
+      },
+      title: "Respond to Note",
+      className: "w-[95vw] md:w-md",
+    });
+  };
+
   const handleClose = () => {
+    if (isNotifyUserTask) {
+      showDialog({
+        id: "close-task",
+        component: TaskResultDialog,
+        componentProps: {
+          taskId: task.id,
+          state: AGENT_TASK_STATE.CLOSED,
+          resultRequired: false,
+          resultLabel: "Note to Agent (optional)",
+          confirmLabel: "Dismiss Note",
+          description: "Dismiss this note. Optionally leave a brief message for the agent.",
+        },
+        title: "Dismiss Note",
+        className: "w-[95vw] md:w-md",
+      });
+      return;
+    }
+
     showDialog({
       id: "close-task",
       component: ConfirmationDialog,
@@ -103,7 +140,12 @@ export function TaskActions({ task }: TaskActionsProps) {
     <div className="flex items-center gap-0.5">
       {canEditTask(task.state) && <ActionButton icon={Pencil} label="Edit" onClick={handleEdit} />}
       {canAssignTask(task.state) && <ActionButton icon={UserPlus} label="Assign" onClick={handleAssign} />}
-      {canCloseTask(task.state) && <ActionButton icon={XCircle} label="Close" onClick={handleClose} />}
+      {isNotifyUserTask && task.state === AGENT_TASK_STATE.OPEN && (
+        <ActionButton icon={CheckCircle} label="Respond" onClick={handleComplete} />
+      )}
+      {canCloseTask(task.state) && (
+        <ActionButton icon={XCircle} label={isNotifyUserTask ? "Dismiss" : "Close"} onClick={handleClose} />
+      )}
       {canDeleteTask(task.state) && <ActionButton icon={Trash2} label="Delete" onClick={handleDelete} isDestructive />}
     </div>
   );
