@@ -160,6 +160,16 @@ const TASK_USER_RESPONDED_PROMPT: MessageTemplate = {
   keys: ["taskId"],
 };
 
+const TASK_USER_RESPONDED_NO_MESSAGE_PROMPT: MessageTemplate = {
+  role: MessageRoles.user,
+  content: [
+    {
+      content: [`[The user completed your note (Task ID: {taskId}) without leaving a response.]`],
+    },
+  ],
+  keys: ["taskId"],
+};
+
 const TASK_USER_DISMISSED_PROMPT: MessageTemplate = {
   role: MessageRoles.user,
   content: [
@@ -439,7 +449,7 @@ class InterAgentTaskRoutine {
         );
       } else if (task.ownerSource?.sourceType === AGENT_TASK_SOURCE_TYPE.USER) {
         notificationPrompt = createMessageContentFromTemplate(
-          TASK_USER_RESPONDED_PROMPT,
+          task.taskResult ? TASK_USER_RESPONDED_PROMPT : TASK_USER_RESPONDED_NO_MESSAGE_PROMPT,
           getDefaultPromptContext({ taskId: task.id })
         );
       } else {
