@@ -98,6 +98,7 @@ export type UpdateTaskInput = z.infer<typeof UpdateTaskInputSchema>;
  */
 export const UpdateTaskStateInputSchema = z.object({
   state: z.enum([AGENT_TASK_STATE.INCOMPLETE, AGENT_TASK_STATE.COMPLETED, AGENT_TASK_STATE.CLOSED]),
+  taskResult: z.string().optional(),
 });
 export type UpdateTaskStateInput = z.infer<typeof UpdateTaskStateInputSchema>;
 

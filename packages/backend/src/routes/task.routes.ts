@@ -78,7 +78,7 @@ export async function registerTaskRoutes(
   server.patch<{ Params: { id: string }; Body: unknown }>("/api/tasks/:id/state", async (request) => {
     try {
       const input = UpdateTaskStateInputSchema.parse(request.body);
-      const task = await taskManager.updateTaskState(request.params.id, input.state);
+      const task = await taskManager.updateTaskState(request.params.id, input.state, input.taskResult);
 
       return { success: true, data: task };
     } catch (error) {
