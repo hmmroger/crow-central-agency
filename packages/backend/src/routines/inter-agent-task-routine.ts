@@ -103,23 +103,6 @@ const USER_TASK_RESUME_PROMPT: MessageTemplate = {
   keys: ["taskId"],
 };
 
-const TASK_CONTENT_UPDATED_PROMPT: MessageTemplate = {
-  role: MessageRoles.user,
-  content: [
-    {
-      content: [
-        `[Task updated: The content of task (Task ID: {taskId}) assigned to you has been updated]`,
-        "",
-        "Updated content:",
-        "{task}",
-        "",
-        "Please review the updated task. If you have already started work based on the previous content, adjust accordingly.",
-      ],
-    },
-  ],
-  keys: ["taskId", "task"],
-};
-
 const TASK_COMPLETED_PROMPT: MessageTemplate = {
   role: MessageRoles.user,
   content: [
@@ -212,7 +195,6 @@ class InterAgentTaskRoutine {
       onRuntimeManagerStartup: this.onRuntimeManagerStartup.bind(this),
       onMessageDone: this.onMessageDone.bind(this),
       onAgentStatusChanged: this.onAgentStatusChanged.bind(this),
-      onTaskUpdated: this.onTaskUpdated.bind(this),
       onTaskAssigned: this.onTaskAssigned.bind(this),
       onTaskStateChanged: this.onTaskStateChanged.bind(this),
     };
@@ -315,25 +297,6 @@ class InterAgentTaskRoutine {
     }
 
     await this.scheduleTask(agentId);
-  }
-
-  private async onTaskUpdated(task: AgentTaskItem): Promise<void> {
-    const ownerAgentId =
-      task.ownerSource?.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT ? task.ownerSource.agentId : undefined;
-    if (!ownerAgentId) {
-      return;
-    }
-
-    const prompt = createMessageContentFromTemplate(
-      TASK_CONTENT_UPDATED_PROMPT,
-      getDefaultPromptContext({ taskId: task.id, task: task.task })
-    );
-
-    this.runtimeManager
-      .sendMessage(ownerAgentId, prompt, { sourceType: MESSAGE_SOURCE_TYPE.NOTIFICATION })
-      .catch((error) => {
-        log.error({ agentId: ownerAgentId, taskId: task.id, error }, "Task update notification failed");
-      });
   }
 
   private async onTaskAssigned(task: AgentTaskItem): Promise<void> {

@@ -201,8 +201,8 @@ export class AgentTaskManager extends EventBus<AgentTaskManagerEvents> {
     this.tasks.set(taskId, task);
     await this.store.set(TASK_STORE_TABLE, taskId, task);
 
-    log.info({ taskId }, "Task result drafted");
-    this.emit("taskResultDrafted", { task });
+    log.info({ taskId }, "Task result updated");
+    this.emit("taskUpdated", { task });
     this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.TASK_UPDATED, task });
 
     return task;
