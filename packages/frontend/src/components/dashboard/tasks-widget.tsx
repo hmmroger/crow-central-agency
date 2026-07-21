@@ -2,6 +2,7 @@ import { useState, type KeyboardEvent } from "react";
 import { Plus, CircleDot, Zap, ExternalLink } from "lucide-react";
 import { AGENT_TASK_STATE, type AgentTaskItem } from "@crow-central-agency/shared";
 import { useCreateTask } from "../../hooks/queries/use-task-mutations.js";
+import { useOpenTaskDetail } from "../../hooks/dialogs/use-open-task-detail.js";
 import { useAppStore, VIEW_MODE } from "../../stores/app-store.js";
 import { cn } from "../../utils/cn.js";
 import { DashboardWidget } from "./dashboard-widget.js";
@@ -104,7 +105,7 @@ export function TasksWidget({ tasks, className }: TasksWidgetProps) {
       {createTask.error && <p className="text-3xs text-error mb-2">{createTask.error.message}</p>}
 
       {/* Task list */}
-      <div className="flex flex-col gap-1 max-h-28 overflow-y-auto">
+      <div className="flex flex-col p-0.5 gap-1 max-h-28 overflow-y-auto">
         {pendingTasks.map((task) => (
           <TaskRow key={task.id} task={task} />
         ))}
@@ -116,9 +117,14 @@ export function TasksWidget({ tasks, className }: TasksWidgetProps) {
 
 function TaskRow({ task }: TaskRowProps) {
   const isActive = task.state === AGENT_TASK_STATE.ACTIVE;
+  const openTaskDetail = useOpenTaskDetail(task);
 
   return (
-    <div className="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-surface-elevated/50 transition-colors">
+    <button
+      type="button"
+      className="flex items-start gap-2 px-2 py-1.5 rounded-md text-left cursor-pointer hover:bg-surface-elevated/50 transition-colors"
+      onClick={openTaskDetail}
+    >
       {isActive ? (
         <Zap className="h-3 w-3 mt-0.5 shrink-0 text-accent" />
       ) : (
@@ -127,6 +133,6 @@ function TaskRow({ task }: TaskRowProps) {
       <span className={cn("text-xs leading-tight line-clamp-2", isActive ? "text-text-base" : "text-text-neutral")}>
         {task.task}
       </span>
-    </div>
+    </button>
   );
 }

@@ -7,12 +7,13 @@ import {
   type AgentTaskSourceType,
   type AgentConfig,
 } from "@crow-central-agency/shared";
+import { useCallback } from "react";
 import { Clock, User, Bot, RotateCw, FileText, Cog, Bell } from "lucide-react";
 import { cn } from "../../utils/cn.js";
 import { getTaskStateLabel } from "../../utils/task-utils.js";
 import { useModalDialog } from "../../providers/modal-dialog-provider.js";
+import { useOpenTaskDetail } from "../../hooks/dialogs/use-open-task-detail.js";
 import { MarkdownViewerDialog } from "../common/dialogs/markdown-viewer-dialog.js";
-import { TaskDetailDialog } from "./task-detail-dialog.js";
 import { TaskActions } from "./task-actions.js";
 import { formatRelativeTime } from "../../utils/format-utils.js";
 
@@ -39,17 +40,9 @@ export function TaskCard({ task, agents }: TaskCardProps) {
   const isClosed = task.state === AGENT_TASK_STATE.CLOSED;
   const isActive = task.state === AGENT_TASK_STATE.ACTIVE;
 
-  const openTaskDetail = () => {
-    showDialog({
-      id: `task-detail-${task.id}`,
-      component: TaskDetailDialog,
-      componentProps: { task },
-      title: "Task Detail",
-      className: "w-[95vw] md:w-3xl h-[60vh] flex flex-col",
-    });
-  };
+  const openTaskDetail = useOpenTaskDetail(task);
 
-  const openResultViewer = () => {
+  const openResultViewer = useCallback(() => {
     if (!task.taskResult) {
       return;
     }
@@ -61,7 +54,7 @@ export function TaskCard({ task, agents }: TaskCardProps) {
       title: "Task Result",
       className: "w-[95vw] md:w-3xl h-[60vh] flex flex-col",
     });
-  };
+  }, [showDialog, task.id, task.taskResult]);
 
   /** Resolve an agent ID to display name, falling back to truncated ID */
   const resolveAgentName = (agentId: string): string => {

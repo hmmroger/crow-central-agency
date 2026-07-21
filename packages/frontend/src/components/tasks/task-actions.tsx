@@ -3,10 +3,11 @@ import { AGENT_TASK_STATE, type AgentTaskItem } from "@crow-central-agency/share
 import { Pencil, UserPlus, XCircle, CheckCircle, Trash2, Loader } from "lucide-react";
 import { useModalDialog } from "../../providers/modal-dialog-provider.js";
 import { useDeleteTask } from "../../hooks/queries/use-task-mutations.js";
+import { useOpenTaskDetail } from "../../hooks/dialogs/use-open-task-detail.js";
 import { canEditTask, canAssignTask, canCloseTask, canCompleteTask, canDeleteTask } from "../../utils/task-utils.js";
 import { ConfirmationDialog } from "../common/dialogs/confirmation-dialog.js";
 import { TaskResultDialog } from "./task-result-dialog.js";
-import { TaskDetailDialog, TASK_DETAIL_MODE } from "./task-detail-dialog.js";
+import { TASK_DETAIL_MODE } from "./task-detail-dialog.js";
 import { EditTaskDialog } from "./edit-task-dialog.js";
 import { AssignTaskDialog } from "./assign-task-dialog.js";
 import { cn } from "../../utils/cn.js";
@@ -44,6 +45,7 @@ interface TaskActionsProps {
 export function TaskActions({ task }: TaskActionsProps) {
   const { showDialog } = useModalDialog();
   const deleteTask = useDeleteTask();
+  const handleComplete = useOpenTaskDetail(task, TASK_DETAIL_MODE.RESPOND);
 
   const isActive = task.state === AGENT_TASK_STATE.ACTIVE;
 
@@ -74,16 +76,6 @@ export function TaskActions({ task }: TaskActionsProps) {
       title: "Assign Task",
       className: "w-[95vw] md:w-md",
       listNavigation: true,
-    });
-  };
-
-  const handleComplete = () => {
-    showDialog({
-      id: `task-detail-${task.id}`,
-      component: TaskDetailDialog,
-      componentProps: { task, initialMode: TASK_DETAIL_MODE.RESPOND },
-      title: "Task Detail",
-      className: "w-[95vw] md:w-3xl h-[60vh] flex flex-col",
     });
   };
 
