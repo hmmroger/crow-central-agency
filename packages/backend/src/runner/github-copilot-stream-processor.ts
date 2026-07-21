@@ -127,6 +127,8 @@ function mapAssistantEvent(context: CopilotEventContext, event: AssistantEvent):
     case "assistant.streaming_delta":
     case "assistant.message_start":
     case "assistant.turn_end":
+    case "assistant.tool_call_delta":
+    case "assistant.idle":
       return [];
   }
 }
@@ -250,6 +252,11 @@ async function mapSessionEvent(
     case "session.title_changed":
     case "session.schedule_created":
     case "session.schedule_cancelled":
+    case "session.schedule_rearmed":
+    case "session.session_limits_changed":
+    case "session.todos_changed":
+    case "session.usage_checkpoint":
+    case "session.binary_asset":
     case "session.info":
     case "session.warning":
     case "session.model_change":
@@ -273,6 +280,10 @@ async function mapSessionEvent(
     case "session.extensions.attachments_pushed":
     case "session.canvas.opened":
     case "session.canvas.registry_changed":
+    case "session.canvas.closed":
+    case "session.canvas.unavailable":
+    case "session.canvas.recorded":
+    case "session.canvas.removed":
       return [];
   }
 }
@@ -299,6 +310,8 @@ function mapMcpControlEvent(context: CopilotEventContext, event: McpControlEvent
       return [];
 
     case "mcp.oauth_completed":
+    case "mcp.headers_refresh_required":
+    case "mcp.headers_refresh_completed":
       return [];
   }
 }
