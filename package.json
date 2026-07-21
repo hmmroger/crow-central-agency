@@ -99,7 +99,7 @@
   "devDependencies": {
     "@stylistic/eslint-plugin": "^5.9.0",
     "@types/node": "^24.13.2",
-    "concurrently": "^10.0.3",
+    "concurrently": "^9.2.4",
     "cross-env": "^10.1.0",
     "dotenv-cli": "^11.0.0",
     "eslint": "^9.39.3",
