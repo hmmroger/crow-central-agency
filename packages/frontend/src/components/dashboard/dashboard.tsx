@@ -14,7 +14,6 @@ import { TaskStatsPanel } from "./task-stats-panel.js";
 import { CircleSection } from "./circle/circle-section.js";
 import { PinnedSection } from "./pinned-section.js";
 import { DashboardActions } from "./dashboard-actions.js";
-import { MiniGraph } from "./mini-graph.js";
 import { TasksWidget } from "./tasks-widget.js";
 import { useAppStore } from "../../stores/app-store.js";
 
@@ -228,7 +227,6 @@ function renderTopSection(layout: TopLayout, tasks: AgentTaskItem[]): ReactNode 
       return (
         <>
           <TaskStatsPanel tasks={tasks} className="min-w-xs max-w-md" />
-          <MiniGraph className="min-w-xs" />
           <DashboardActions className="shrink-0 ml-auto" />
         </>
       );
@@ -237,7 +235,6 @@ function renderTopSection(layout: TopLayout, tasks: AgentTaskItem[]): ReactNode 
         <>
           <TaskStatsPanel tasks={tasks} className="min-w-xs max-w-md" />
           <TasksWidget tasks={tasks} className="min-w-xs max-w-lg" />
-          <MiniGraph className="min-w-xs" />
           <DashboardActions className="shrink-0 ml-auto" />
         </>
       );

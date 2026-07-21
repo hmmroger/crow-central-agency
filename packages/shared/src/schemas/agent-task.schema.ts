@@ -92,12 +92,22 @@ export const UpdateTaskInputSchema = z.object({
 export type UpdateTaskInput = z.infer<typeof UpdateTaskInputSchema>;
 
 /**
+ * Input for saving a draft result on an OPEN task without changing its state.
+ * Empty string is a legitimate value (clears the draft).
+ */
+export const UpdateTaskResultInputSchema = z.object({
+  taskResult: z.string(),
+});
+export type UpdateTaskResultInput = z.infer<typeof UpdateTaskResultInputSchema>;
+
+/**
  * Input for transitioning a task to a new state via REST.
  * Only includes states reachable by user action. OPEN is the initial
  * state (not a valid target), and ACTIVE is system-driven by the runtime manager.
  */
 export const UpdateTaskStateInputSchema = z.object({
   state: z.enum([AGENT_TASK_STATE.INCOMPLETE, AGENT_TASK_STATE.COMPLETED, AGENT_TASK_STATE.CLOSED]),
+  taskResult: z.string().optional(),
 });
 export type UpdateTaskStateInput = z.infer<typeof UpdateTaskStateInputSchema>;
 

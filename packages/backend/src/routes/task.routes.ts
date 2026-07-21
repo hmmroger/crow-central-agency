@@ -3,6 +3,7 @@ import {
   AGENT_TASK_SOURCE_TYPE,
   CreateTaskInputSchema,
   UpdateTaskInputSchema,
+  UpdateTaskResultInputSchema,
   UpdateTaskStateInputSchema,
   AssignTaskInputSchema,
 } from "@crow-central-agency/shared";
@@ -74,11 +75,23 @@ export async function registerTaskRoutes(
     }
   });
 
+  /** Save a draft result on an OPEN task (no state change) */
+  server.patch<{ Params: { id: string }; Body: unknown }>("/api/tasks/:id/result", async (request) => {
+    try {
+      const input = UpdateTaskResultInputSchema.parse(request.body);
+      const task = await taskManager.updateTaskResult(request.params.id, input.taskResult);
+
+      return { success: true, data: task };
+    } catch (error) {
+      return wrapZodError(error);
+    }
+  });
+
   /** Transition task state */
   server.patch<{ Params: { id: string }; Body: unknown }>("/api/tasks/:id/state", async (request) => {
     try {
       const input = UpdateTaskStateInputSchema.parse(request.body);
-      const task = await taskManager.updateTaskState(request.params.id, input.state);
+      const task = await taskManager.updateTaskState(request.params.id, input.state, input.taskResult);
 
       return { success: true, data: task };
     } catch (error) {

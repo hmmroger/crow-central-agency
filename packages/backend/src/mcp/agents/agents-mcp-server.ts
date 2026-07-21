@@ -8,6 +8,7 @@ import { defineMcpTool } from "../crow-mcp-manager-utils.js";
 import type { McpServerDefinition } from "../crow-mcp-manager.types.js";
 import { getListAgentsToolConfig } from "./list-agents.js";
 import { getInvokeAgentToolConfig } from "./invoke-agent.js";
+import { getNotifyUserToolConfig } from "./notify-user.js";
 import { getSearchWorkspaceToolConfig } from "./search-workspace.js";
 import {
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
@@ -31,6 +32,7 @@ export function getAgentsMcpServerDefinition(
     getTools: (agentId) => [
       defineMcpTool(getListAgentsToolConfig(agentId, registry)),
       defineMcpTool(getInvokeAgentToolConfig(agentId, registry, runtimeManager, taskManager)),
+      defineMcpTool(getNotifyUserToolConfig(agentId, taskManager)),
       defineMcpTool(
         getSearchWorkspaceToolConfig(agentId, documentSearchService, taskManager, circleManager, fragmentManager)
       ),
