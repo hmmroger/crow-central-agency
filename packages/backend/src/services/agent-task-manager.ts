@@ -178,6 +178,37 @@ export class AgentTaskManager extends EventBus<AgentTaskManagerEvents> {
   }
 
   /**
+   * Save a draft result on an OPEN task without changing its state.
+   * Empty string clears the draft.
+   * @param taskId - The task to update
+   * @param taskResult - The draft result text
+   * @throws AppError if task not found or not in OPEN state
+   */
+  public async updateTaskResult(taskId: string, taskResult: string): Promise<AgentTaskItem> {
+    const found = this.getTaskOrThrow(taskId);
+    if (found.state !== AGENT_TASK_STATE.OPEN) {
+      throw new AppError(
+        `Cannot update result of task in state ${found.state}`,
+        APP_ERROR_CODES.INVALID_STATE_TRANSITION
+      );
+    }
+
+    const task: AgentTaskItem = {
+      ...found,
+      taskResult,
+      updatedTimestamp: Date.now(),
+    };
+    this.tasks.set(taskId, task);
+    await this.store.set(TASK_STORE_TABLE, taskId, task);
+
+    log.info({ taskId }, "Task result updated");
+    this.emit("taskUpdated", { task });
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.TASK_UPDATED, task });
+
+    return task;
+  }
+
+  /**
    * Delete a task by ID.
    * If the task has sub-tasks, validates none are ACTIVE, then cascade-deletes them all.
    * @throws AppError if task not found, task is ACTIVE, or any sub-task is ACTIVE

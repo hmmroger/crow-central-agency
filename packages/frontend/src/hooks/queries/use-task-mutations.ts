@@ -3,6 +3,7 @@ import type {
   AgentTaskItem,
   CreateTaskInput,
   UpdateTaskInput,
+  UpdateTaskResultInput,
   UpdateTaskStateInput,
   AssignTaskInput,
 } from "@crow-central-agency/shared";
@@ -38,6 +39,24 @@ export function useUpdateTask() {
   return useMutation<AgentTaskItem, ApiError, { taskId: string; input: UpdateTaskInput }>({
     mutationFn: async ({ taskId, input }) => {
       const response = await apiClient.patch<AgentTaskItem>(`/tasks/${taskId}`, input);
+      return unwrapResponse(response);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: taskKeys.list() });
+    },
+  });
+}
+
+/**
+ * Save a draft result on an OPEN task without changing its state.
+ * Invalidates task list on success.
+ */
+export function useUpdateTaskResult() {
+  const queryClient = useQueryClient();
+
+  return useMutation<AgentTaskItem, ApiError, { taskId: string; input: UpdateTaskResultInput }>({
+    mutationFn: async ({ taskId, input }) => {
+      const response = await apiClient.patch<AgentTaskItem>(`/tasks/${taskId}/result`, input);
       return unwrapResponse(response);
     },
     onSuccess: () => {

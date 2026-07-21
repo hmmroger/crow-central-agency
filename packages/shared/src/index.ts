@@ -219,6 +219,7 @@ export {
   AgentTaskDatabaseSchema,
   CreateTaskInputSchema,
   UpdateTaskInputSchema,
+  UpdateTaskResultInputSchema,
   UpdateTaskStateInputSchema,
   AssignTaskInputSchema,
   type AgentTaskState,
@@ -228,6 +229,7 @@ export {
   type AgentTaskDatabase,
   type CreateTaskInput,
   type UpdateTaskInput,
+  type UpdateTaskResultInput,
   type UpdateTaskStateInput,
   type AssignTaskInput,
 } from "./schemas/agent-task.schema.js";
