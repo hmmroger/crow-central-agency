@@ -112,6 +112,7 @@
   },
   "overrides": {
     "@github/copilot": "1.0.70",
+    "@hono/node-server": "2.0.10",
     "mermaid": {
       "uuid": "^14.0.0"
     }
