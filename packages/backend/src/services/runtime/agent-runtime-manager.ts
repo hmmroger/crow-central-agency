@@ -195,7 +195,14 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   /** Stop an active agent */
   public async stopAgent(agentId: string): Promise<void> {
     this.permissionHandler.cancelAllForAgent(agentId);
+
+    // Abort BEFORE settling any parked question: cancelQuestionsForAgent resolves the canUseTool
+    // promise synchronously, so it must run only once the query is aborted and no longer consuming
+    // the settle value — otherwise the still-live SDK query would receive fabricated empty answers.
+    const agentRunner = this.getAgentRunner(agentId);
+    await agentRunner.abort();
     this.questionHandler.cancelQuestionsForAgent(agentId);
+
     const state = this.getState(agentId);
     if (state?.pendingQuestion) {
       state.pendingQuestion = undefined;
@@ -205,9 +212,6 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
         log.error({ agentId, error }, "Failed to persist state after clearing pending question on stop");
       }
     }
-
-    const agentRunner = this.getAgentRunner(agentId);
-    await agentRunner.abort();
   }
 
   /** Start a new session for an agent (clears current session, message queue, and injected messages) */
@@ -670,10 +674,11 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   /** Cleanup when an agent is deleted - triggered by registry agentDeleted event */
   private async cleanup(agentId: string): Promise<void> {
     this.permissionHandler.cancelAllForAgent(agentId);
-    this.questionHandler.cancelQuestionsForAgent(agentId);
 
+    // Abort before settling parked questions so the synchronous resolve never reaches a live query.
     const agentRunner = this.getAgentRunner(agentId);
     await agentRunner.abort();
+    this.questionHandler.cancelQuestionsForAgent(agentId);
     await agentRunner.dispose();
     this.agentRunners.delete(agentId);
 
