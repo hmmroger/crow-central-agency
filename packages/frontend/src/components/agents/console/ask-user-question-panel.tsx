@@ -4,9 +4,7 @@ import type { AskUserQuestionItem, QuestionAnswer } from "@crow-central-agency/s
 import { cn } from "../../../utils/cn";
 import { QuestionStepper } from "./question-stepper.js";
 import { QuestionItem } from "./question-item.js";
-
-type QuestionValue = string | string[];
-type AnswerDraft = Record<number, QuestionValue>;
+import type { AnswerDraft, QuestionDraftValue } from "./ask-user-question-panel.types.js";
 
 interface AskUserQuestionPanelProps {
   toolUseId: string;
@@ -15,18 +13,25 @@ interface AskUserQuestionPanelProps {
   onRespond: (toolUseId: string, response: string) => void;
 }
 
-/** A draft value counts as answered when it is a non-empty string or a non-empty array. */
-function isValueAnswered(value: QuestionValue | undefined): boolean {
+const EMPTY_DRAFT_VALUE: QuestionDraftValue = { labels: [], freeText: "" };
+
+/** A draft value counts as answered when it has a selected label or non-empty free-text. */
+function isValueAnswered(value: QuestionDraftValue | undefined): boolean {
   if (value === undefined) {
     return false;
   }
 
-  return Array.isArray(value) ? value.length > 0 : value.trim().length > 0;
+  return value.labels.length > 0 || value.freeText.trim().length > 0;
 }
 
-/** The empty draft value for a question, shaped to its select mode. */
-function emptyValue(multiSelect: boolean): QuestionValue {
-  return multiSelect ? [] : "";
+/** Flatten a structured draft value to the wire QuestionAnswer value for its select mode. */
+function toAnswerValue(value: QuestionDraftValue, multiSelect: boolean): string | string[] {
+  const freeText = value.freeText.trim();
+  if (!multiSelect) {
+    return freeText ? freeText : (value.labels[0] ?? "");
+  }
+
+  return [...value.labels, ...(freeText ? [freeText] : [])];
 }
 
 /**
@@ -56,7 +61,7 @@ export function AskUserQuestionPanel({ toolUseId, questions, onSubmit, onRespond
 
   const allAnswered = answeredIndices.size === total;
 
-  const handleValueChange = useCallback((index: number, value: QuestionValue) => {
+  const handleValueChange = useCallback((index: number, value: QuestionDraftValue) => {
     setDraft((prev) => ({ ...prev, [index]: value }));
   }, []);
 
@@ -89,7 +94,7 @@ export function AskUserQuestionPanel({ toolUseId, questions, onSubmit, onRespond
   const handleSubmit = useCallback(() => {
     const answers: QuestionAnswer[] = questions.map((question, index) => ({
       questionIndex: index,
-      value: draft[index] ?? emptyValue(question.multiSelect),
+      value: toAnswerValue(draft[index] ?? EMPTY_DRAFT_VALUE, question.multiSelect),
     }));
     onSubmit(toolUseId, answers);
   }, [questions, draft, onSubmit, toolUseId]);
@@ -145,7 +150,7 @@ export function AskUserQuestionPanel({ toolUseId, questions, onSubmit, onRespond
         <QuestionItem
           question={currentQuestion}
           index={currentIndex}
-          value={draft[currentIndex] ?? emptyValue(currentQuestion.multiSelect)}
+          value={draft[currentIndex] ?? EMPTY_DRAFT_VALUE}
           onChange={handleValueChange}
         />
       </div>

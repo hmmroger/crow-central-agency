@@ -1,70 +1,54 @@
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import type { AskUserQuestionItem } from "@crow-central-agency/shared";
 import { QuestionOption } from "./question-option.js";
-
-type QuestionValue = string | string[];
+import type { QuestionDraftValue } from "./ask-user-question-panel.types.js";
 
 interface QuestionItemProps {
   question: AskUserQuestionItem;
   index: number;
-  value: QuestionValue;
-  onChange: (index: number, value: QuestionValue) => void;
+  value: QuestionDraftValue;
+  onChange: (index: number, value: QuestionDraftValue) => void;
 }
 
 /**
  * Renders a single question: its text, its options (radio-style for single-select, toggleable chips
- * for multi-select), and an always-available free-text "Other" entry. Single-select free-text
- * overrides the label selection; multi-select free-text joins the selected labels in the value array.
+ * for multi-select), and an always-available free-text "Other" entry. Labels and free-text are
+ * tracked separately, so typing a label-matching string never collapses into an option selection.
+ * Single-select free-text is mutually exclusive with a label; multi-select free-text coexists.
  */
 export function QuestionItem({ question, index, value, onChange }: QuestionItemProps) {
   const { multiSelect, options } = question;
-
-  const labelSet = useMemo(() => new Set(options.map((option) => option.label)), [options]);
-
-  const valueArray = useMemo(() => (Array.isArray(value) ? value : []), [value]);
-  const valueString = typeof value === "string" ? value : "";
-
-  const freeText = multiSelect
-    ? (valueArray.find((entry) => !labelSet.has(entry)) ?? "")
-    : labelSet.has(valueString)
-      ? ""
-      : valueString;
+  const { labels, freeText } = value;
 
   const isOptionActive = useCallback(
-    (label: string): boolean => (multiSelect ? valueArray.includes(label) : valueString === label),
-    [multiSelect, valueArray, valueString]
+    (label: string): boolean => (multiSelect ? labels.includes(label) : labels[0] === label),
+    [multiSelect, labels]
   );
 
   const handleSelect = useCallback(
     (label: string) => {
       if (!multiSelect) {
-        onChange(index, label);
+        onChange(index, { labels: [label], freeText: "" });
         return;
       }
 
-      const nonLabelEntries = valueArray.filter((entry) => !labelSet.has(entry));
-      const selectedLabels = valueArray.filter((entry) => labelSet.has(entry));
-      const nextLabels = selectedLabels.includes(label)
-        ? selectedLabels.filter((entry) => entry !== label)
-        : [...selectedLabels, label];
-
-      onChange(index, [...nextLabels, ...nonLabelEntries]);
+      const nextLabels = labels.includes(label) ? labels.filter((entry) => entry !== label) : [...labels, label];
+      onChange(index, { labels: nextLabels, freeText });
     },
-    [multiSelect, valueArray, labelSet, onChange, index]
+    [multiSelect, labels, freeText, onChange, index]
   );
 
   const handleFreeTextChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const text = event.target.value;
       if (!multiSelect) {
-        onChange(index, text);
+        onChange(index, { labels: [], freeText: text });
         return;
       }
 
-      const selectedLabels = valueArray.filter((entry) => labelSet.has(entry));
-      onChange(index, text.length > 0 ? [...selectedLabels, text] : selectedLabels);
+      onChange(index, { labels, freeText: text });
     },
-    [multiSelect, valueArray, labelSet, onChange, index]
+    [multiSelect, labels, onChange, index]
   );
 
   return (
