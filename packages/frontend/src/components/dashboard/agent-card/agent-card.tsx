@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { AGENT_STATUS, type AgentConfig } from "@crow-central-agency/shared";
 import { useAgentMessagesQuery } from "../../../hooks/queries/use-agent-messages-query.js";
 import { useAgentStateQuery } from "../../../hooks/queries/use-agent-state-query.js";
 import { useAgentStreamState } from "../../../hooks/queries/use-agent-stream-state.js";
 import { useAgentActions } from "../../../hooks/queries/use-agent-actions.js";
+import { useAppStore } from "../../../stores/app-store.js";
 import { AgentCardHeader } from "./agent-card-header.js";
 import { AgentCardMessages } from "./agent-card-messages.js";
 import { AgentComposer } from "../../common/agent-composer.js";
 import { AgentCardPermission } from "./agent-card-permission.js";
+import { AgentCardQuestion } from "./agent-card-question.js";
 
 interface AgentCardProps {
   agent: AgentConfig;
@@ -26,7 +28,10 @@ export function AgentCard({ agent }: AgentCardProps) {
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
   const { streamingText, activeToolUse } = useAgentStreamState(agent.id);
   const pendingPermissions = agentState?.pendingPermissions ?? [];
+  const pendingQuestion = agentState?.pendingQuestion;
   const { allowPermission, allowAlwaysPermission, denyPermission } = useAgentActions(agent.id);
+  const goToAgentConsole = useAppStore((state) => state.goToAgentConsole);
+  const openConsole = useCallback(() => goToAgentConsole(agent.id), [goToAgentConsole, agent.id]);
 
   return (
     <div
@@ -58,6 +63,12 @@ export function AgentCard({ agent }: AgentCardProps) {
             onAllowAlways={allowAlwaysPermission}
             onDeny={denyPermission}
           />
+        </div>
+      )}
+
+      {pendingQuestion && (
+        <div className="shrink-0 px-2.5 py-2 animate-fade-in">
+          <AgentCardQuestion questionCount={pendingQuestion.questions.length} onOpen={openConsole} />
         </div>
       )}
 

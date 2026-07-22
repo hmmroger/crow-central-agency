@@ -7,6 +7,7 @@ import { useAgentActions } from "../../../hooks/queries/use-agent-actions.js";
 import { MessageList } from "./message-list.js";
 import { AgentComposer } from "../../common/agent-composer.js";
 import { PermissionQueue } from "./permission-queue.js";
+import { AskUserQuestionPanel } from "./ask-user-question-panel.js";
 
 interface AgentConsoleProps {
   agentId: string;
@@ -25,7 +26,9 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
   const { streamingText, activeToolUse } = useAgentStreamState(agentId);
   const pendingPermissions = agentState?.pendingPermissions ?? [];
-  const { allowPermission, allowAlwaysPermission, denyPermission } = useAgentActions(agentId);
+  const pendingQuestion = agentState?.pendingQuestion;
+  const { allowPermission, allowAlwaysPermission, denyPermission, submitQuestionAnswers, dismissQuestion } =
+    useAgentActions(agentId);
   const isStreaming = status === AGENT_STATUS.STREAMING;
 
   if (isLoading || !agent) {
@@ -55,6 +58,18 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
             onAllowAlways={allowAlwaysPermission}
             onDeny={denyPermission}
           />
+
+          {pendingQuestion && (
+            <div className="py-2">
+              <AskUserQuestionPanel
+                key={pendingQuestion.toolUseId}
+                toolUseId={pendingQuestion.toolUseId}
+                questions={pendingQuestion.questions}
+                onSubmit={submitQuestionAnswers}
+                onRespond={dismissQuestion}
+              />
+            </div>
+          )}
         </div>
 
         <AgentComposer agentId={agent.id} variant="full" />
