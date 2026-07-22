@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MessageSourceSchema } from "./message-source.schema.js";
+import { PendingQuestionInfoSchema } from "./ask-user-question.schema.js";
 
 /** Maximum number of recent user inputs retained per agent for compose-box recall. */
 export const MAX_INPUT_HISTORY = 30;
@@ -103,6 +104,7 @@ export const AgentRuntimeStateSchema = z.object({
   lastGmailCheckTimestamp: z.number().optional(),
   lastError: z.string().optional(),
   pendingPermissions: z.array(PendingPermissionInfoSchema).optional(),
+  pendingQuestion: PendingQuestionInfoSchema.optional(),
   pendingInstructionReminder: PendingInstructionReminderSchema.optional(),
   inputHistory: z.array(z.string()).optional(),
 });
