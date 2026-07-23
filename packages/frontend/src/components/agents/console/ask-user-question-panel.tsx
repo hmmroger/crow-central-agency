@@ -178,13 +178,16 @@ export function AskUserQuestionPanel({ toolUseId, questions, onSubmit, onRespond
 
         <div className="flex-1" />
 
-        <button
-          type="button"
-          onClick={toggleRespond}
-          className="px-3 py-1 rounded-md bg-surface-inset text-text-muted text-xs font-medium hover:text-text-neutral transition-colors"
-        >
-          Respond
-        </button>
+        {total > 1 && (
+          <button
+            type="button"
+            onClick={toggleRespond}
+            title="Skip all questions and reply instead"
+            className="px-3 py-1 rounded-md bg-surface-inset text-text-muted text-xs font-medium hover:text-text-neutral transition-colors"
+          >
+            Reply instead
+          </button>
+        )}
         <button
           type="button"
           onClick={handleSubmit}
@@ -200,8 +203,8 @@ export function AskUserQuestionPanel({ toolUseId, questions, onSubmit, onRespond
         </button>
       </div>
 
-      {/* Freeform response */}
-      {showRespond && (
+      {/* Freeform response - only offered when there are multiple questions to skip */}
+      {total > 1 && showRespond && (
         <div className="flex gap-2">
           <input
             type="text"
