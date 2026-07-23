@@ -232,7 +232,7 @@ function derivePrefixTokens(tokens: string[], depth: number): string[] | undefin
  * {@link MAX_DERIVED_RULES}. A subcommand with no non-flag token (e.g. a lone `--flag`) contributes
  * nothing. User config is the only auto-approve authority — there is no read-only skip.
  */
-export function deriveRules(command: string, depth = DEFAULT_PREFIX_DEPTH): string[] {
+export function deriveCommandRules(command: string, depth = DEFAULT_PREFIX_DEPTH): string[] {
   const specifiers: string[] = [];
 
   for (const subcommand of splitSubcommands(command)) {
@@ -256,11 +256,15 @@ export function deriveRules(command: string, depth = DEFAULT_PREFIX_DEPTH): stri
 
 /**
  * Diff-aware capture: derive prefix specifiers only for subcommands not already covered by
- * `existingSpecifiers`, composing the untouched {@link deriveRules} (capture) and
+ * `existingSpecifiers`, composing the untouched {@link deriveCommandRules} (capture) and
  * {@link matchesSpecifier} (match) primitives. A subcommand matched by an existing specifier is
  * skipped; the rest derive one specifier each, deduped and capped at {@link MAX_DERIVED_RULES}.
  */
-export function deriveNewRules(command: string, existingSpecifiers: string[], depth = DEFAULT_PREFIX_DEPTH): string[] {
+export function deriveNewCommandRules(
+  command: string,
+  existingSpecifiers: string[],
+  depth = DEFAULT_PREFIX_DEPTH
+): string[] {
   const specifiers: string[] = [];
 
   for (const subcommand of splitSubcommands(command)) {
@@ -272,7 +276,7 @@ export function deriveNewRules(command: string, existingSpecifiers: string[], de
       continue;
     }
 
-    for (const specifier of deriveRules(subcommand, depth)) {
+    for (const specifier of deriveCommandRules(subcommand, depth)) {
       if (!specifiers.includes(specifier)) {
         specifiers.push(specifier);
       }
@@ -288,7 +292,7 @@ export function deriveNewRules(command: string, existingSpecifiers: string[], de
  * match; `ANY` (deny) fires when a single subcommand matches. Empty/unparseable input yields `false`
  * in both modes.
  */
-export function matchesRules(
+export function matchesCommandRules(
   command: string,
   specifiers: string[],
   mode: SubcommandMatchMode = SUBCOMMAND_MATCH_MODE.ALL
