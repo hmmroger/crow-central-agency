@@ -1,4 +1,3 @@
-import { Check } from "lucide-react";
 import type { AskUserQuestionItem } from "@crow-central-agency/shared";
 import { cn } from "../../../utils/cn";
 
@@ -34,7 +33,12 @@ export function QuestionStepper({ questions, currentIndex, answeredIndices, onSe
                   : "bg-surface-inset text-text-muted hover:text-text-neutral"
             )}
           >
-            {isAnswered && <Check className="h-3 w-3 shrink-0" />}
+            <span
+              className={cn(
+                "h-3 w-3 shrink-0 rounded-full border",
+                isAnswered ? "bg-success border-success" : "bg-transparent border-border-subtle"
+              )}
+            />
             <span className="truncate">{question.header}</span>
           </button>
         );

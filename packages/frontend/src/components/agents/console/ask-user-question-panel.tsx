@@ -34,6 +34,23 @@ function toAnswerValue(value: QuestionDraftValue, multiSelect: boolean): string 
   return [...value.labels, ...(freeText ? [freeText] : [])];
 }
 
+/** Scan forward from fromIndex (wrapping) for the next still-unanswered question in the draft. */
+function findNextUnanswered(
+  questions: AskUserQuestionItem[],
+  draft: AnswerDraft,
+  fromIndex: number
+): number | undefined {
+  const total = questions.length;
+  for (let step = 1; step <= total; step += 1) {
+    const index = (fromIndex + step) % total;
+    if (!isValueAnswered(draft[index])) {
+      return index;
+    }
+  }
+
+  return undefined;
+}
+
 /**
  * Inline, paginated AskUserQuestion card — one question per page with free back/forth navigation.
  * Backend is source of truth; this holds only the transient answer draft and the current page.
@@ -62,9 +79,20 @@ export function AskUserQuestionPanel({ toolUseId, questions, onSubmit, onRespond
 
   const allAnswered = answeredIndices.size === total;
 
-  const handleValueChange = useCallback((index: number, value: QuestionDraftValue) => {
-    setDraft((prev) => ({ ...prev, [index]: value }));
-  }, []);
+  const handleValueChange = useCallback(
+    (index: number, value: QuestionDraftValue) => {
+      const nextDraft = { ...draft, [index]: value };
+      setDraft(nextDraft);
+
+      if (!questions[index].multiSelect && value.labels.length > 0) {
+        const nextIndex = findNextUnanswered(questions, nextDraft, index);
+        if (nextIndex !== undefined) {
+          setCurrentIndex(nextIndex);
+        }
+      }
+    },
+    [draft, questions]
+  );
 
   const goToIndex = useCallback(
     (index: number) => {
