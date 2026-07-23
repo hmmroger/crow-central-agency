@@ -89,7 +89,7 @@
     "minisearch": "^7.2.0",
     "node-html-markdown": "^2.0.0",
     "oceanic.js": "^1.14.0",
-    "openai": "^6.37.0",
+    "openai": "^6.48.0",
     "opening_hours": "^3.13.0",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",
