@@ -162,15 +162,13 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         abortController,
         includePartialMessages: true,
         permissionMode: agentConfig.permissionMode,
-        allowedTools: [
-          ...(agentConfig.toolConfig.autoApprovedTools || []),
-          ...internalMcpPrefixes.map((prefix) => `${prefix}*`),
-        ],
         tools: toolsOption,
         disallowedTools: agentConfig.toolConfig.disallowedTools,
         canUseTool: this.buildCanUseTool(
-          new PermissionRuleSet(),
-          new PermissionRuleSet(agentConfig.toolConfig.autoApprovedTools ?? []),
+          new PermissionRuleSet([
+            ...(agentConfig.toolConfig.autoApprovedTools ?? []),
+            ...internalMcpPrefixes.map((prefix) => `${prefix}*`),
+          ]),
           sessionId ?? ""
         ),
         settingSources: agentConfig.settingSources,
@@ -204,11 +202,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
     this.query?.close();
   }
 
-  private buildCanUseTool(
-    autoApproved: PermissionRuleSet,
-    derivationRules: PermissionRuleSet,
-    sessionId: string
-  ): CanUseTool {
+  private buildCanUseTool(permissionRules: PermissionRuleSet, sessionId: string): CanUseTool {
     return async (toolName, input, options) => {
       // AskUserQuestion is a clarification pause, not a permission gate: park the query on the user
       // and resume with the assembled answer. Branch before the auto-approve/permission path.
@@ -218,17 +212,17 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         return { behavior: "allow" as const, updatedInput, toolUseID: options.toolUseID };
       }
 
-      // The SDK matches configured rules natively via `allowedTools`; this in-session set holds only
-      // allow_always approvals from this run, matched via the registry so command tools match on their
-      // command while other tools keep the whole-name behavior.
-      if (autoApproved.matches(toolName, input)) {
+      // Our set is the sole approve authority (config approvals + internal-MCP prefixes seeded at
+      // construction, plus this run's allow_always additions), matched via the registry so command
+      // tools match on their command while other tools keep the whole-name behavior.
+      if (permissionRules.matches(toolName, input)) {
         log.info({ agentId: this.agentId, toolName, input }, "tool use auto-approved");
         return { behavior: "allow" as const, updatedInput: input, toolUseID: options.toolUseID };
       }
 
-      // Compute the diff-aware rule(s) once against the config-seeded derivation set: shipped for the
-      // preview and reused verbatim on allow_always, so what's shown equals what's persisted.
-      const rulesToPersist = derivationRules.deriveNewRules(toolName, input);
+      // Compute the diff-aware rule(s) once against the set: shipped for the preview and reused
+      // verbatim on allow_always, so what's shown equals what's persisted.
+      const rulesToPersist = permissionRules.deriveNewRules(toolName, input);
 
       const result = await this.permissionRequestHandler(
         this.agentId,
@@ -240,10 +234,9 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
       );
 
       if (result.behavior === "allow_always" && rulesToPersist.length > 0) {
-        // Add to the matching set so later same-session calls auto-approve, and to the derivation set
-        // so later previews diff these out. A read-only/unparseable/fully-covered command yields none.
-        autoApproved.add(rulesToPersist);
-        derivationRules.add(rulesToPersist);
+        // Add to the set so later same-session calls auto-approve and later previews diff these out.
+        // A read-only/unparseable/fully-covered command yields none.
+        permissionRules.add(rulesToPersist);
         this.oobEventCallback({
           type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
           agentId: this.agentId,

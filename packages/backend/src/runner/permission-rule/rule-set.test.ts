@@ -39,6 +39,40 @@ describe("PermissionRuleSet", () => {
     expect(ruleSet.matches("Bash", { command: "git commit -m x" })).toBe(false);
   });
 
+  // The Claude runner now routes every config approval through this set (no SDK `allowedTools`), so
+  // the set is the sole approve authority — matching how the Copilot runner already works.
+  describe("unified approve authority (Claude parity)", () => {
+    it("auto-approves a config command rule with no native allowedTools", () => {
+      const ruleSet = new PermissionRuleSet(["Bash(git commit *)"]);
+      expect(ruleSet.matches("Bash", { command: "git commit -m x" })).toBe(true);
+    });
+
+    it("auto-approves an internal-MCP tool via the seeded ${prefix}* rule", () => {
+      const internalMcpPrefix = "mcp__crow-artifacts__";
+      const ruleSet = new PermissionRuleSet([`${internalMcpPrefix}*`]);
+      expect(ruleSet.matches(`${internalMcpPrefix}read`, {})).toBe(true);
+      expect(ruleSet.matches("mcp__other__read", {})).toBe(false);
+    });
+
+    it("auto-approves a whole-tool rule but prompts a specifier-bearing rule (D5 interim gap)", () => {
+      // Whole-tool `Read` still matches via wholeToolMatches; `Read(src/**)` prompts until a
+      // path-glob strategy lands, so it does not yet auto-approve on Claude.
+      expect(new PermissionRuleSet(["Read"]).matches("Read", { file_path: "src/index.ts" })).toBe(true);
+      expect(new PermissionRuleSet(["Read(src/**)"]).matches("Read", { file_path: "src/index.ts" })).toBe(false);
+    });
+
+    it("accumulates an allow_always derived rule into the single set for later same-session calls", () => {
+      const ruleSet = new PermissionRuleSet(["Bash(git commit *)"]);
+      expect(ruleSet.matches("Bash", { command: "npm run build" })).toBe(false);
+
+      const rulesToPersist = ruleSet.deriveNewRules("Bash", { command: "npm run build" });
+      expect(rulesToPersist).toEqual(["Bash(npm run build *)"]);
+
+      ruleSet.add(rulesToPersist);
+      expect(ruleSet.matches("Bash", { command: "npm run build --watch" })).toBe(true);
+    });
+  });
+
   describe("deriveNewRules", () => {
     it("omits subcommands already covered by the set's own rules", () => {
       const ruleSet = new PermissionRuleSet(["Bash(cd /tmp *)"]);
