@@ -14,12 +14,14 @@ import {
   type AgentActivity,
   AGENT_ACTIVITY_TYPE,
   type PermissionDecision,
+  type QuestionSubmission,
   type AgentMessage,
   AGENT_TASK_SOURCE_TYPE,
 } from "@crow-central-agency/shared";
 import type { AgentRegistry } from "../agent-registry.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
 import { PermissionHandler } from "./permission-handler.js";
+import { QuestionHandler } from "./question-handler.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
 import { MESSAGE_SOURCE_TYPE, type MessageSource, type QueuedMessage } from "../message-queue-manager.types.js";
@@ -36,6 +38,7 @@ import {
   type AgentStreamToolAutoApprovedEvent,
   type AgentStreamToolUseEvent,
   type PermissionRequestCallback,
+  type QuestionRequestCallback,
 } from "../../runner/agent-runner.types.js";
 import type { CrowMcpManager } from "../../mcp/crow-mcp-manager.js";
 import type { AgentTaskManager } from "../agent-task-manager.js";
@@ -71,6 +74,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   private runtimeStates = new Map<string, AgentRuntimeState>();
   private activeQuerySpans = new Map<string, AgentQuerySpan>();
   private readonly permissionHandler: PermissionHandler;
+  private readonly questionHandler: QuestionHandler;
 
   constructor(
     private readonly store: ObjectStoreProvider,
@@ -86,6 +90,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   ) {
     super();
     this.permissionHandler = new PermissionHandler(broadcaster);
+    this.questionHandler = new QuestionHandler(broadcaster);
     this.registry.on("agentCreated", async ({ agent }) => this.onAgentCreated(agent));
     this.registry.on("agentDeleted", async ({ agentId }) => this.onAgentDeleted(agentId));
     this.registry.on("agentUpdated", async ({ agent, previousAgent, agentMdChanged }) =>
@@ -190,8 +195,23 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   /** Stop an active agent */
   public async stopAgent(agentId: string): Promise<void> {
     this.permissionHandler.cancelAllForAgent(agentId);
+
+    // Abort BEFORE settling any parked question: cancelQuestionsForAgent resolves the canUseTool
+    // promise synchronously, so it must run only once the query is aborted and no longer consuming
+    // the settle value — otherwise the still-live SDK query would receive fabricated empty answers.
     const agentRunner = this.getAgentRunner(agentId);
     await agentRunner.abort();
+    this.questionHandler.cancelQuestionsForAgent(agentId);
+
+    const state = this.getState(agentId);
+    if (state?.pendingQuestion) {
+      state.pendingQuestion = undefined;
+      try {
+        await this.persistAgentState(agentId);
+      } catch (error) {
+        log.error({ agentId, error }, "Failed to persist state after clearing pending question on stop");
+      }
+    }
   }
 
   /** Start a new session for an agent (clears current session, message queue, and injected messages) */
@@ -290,6 +310,11 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   /** Resolve a pending permission request with the user's decision. */
   public resolvePermission(toolUseId: string, decision: PermissionDecision, message?: string): void {
     this.permissionHandler.resolvePermission(toolUseId, decision, message);
+  }
+
+  /** Resolve a parked AskUserQuestion with the user's submission. */
+  public resolveQuestion(toolUseId: string, submission: QuestionSubmission): void {
+    this.questionHandler.resolveQuestion(toolUseId, submission);
   }
 
   /**
@@ -650,8 +675,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   private async cleanup(agentId: string): Promise<void> {
     this.permissionHandler.cancelAllForAgent(agentId);
 
+    // Abort before settling parked questions so the synchronous resolve never reaches a live query.
     const agentRunner = this.getAgentRunner(agentId);
     await agentRunner.abort();
+    this.questionHandler.cancelQuestionsForAgent(agentId);
     await agentRunner.dispose();
     this.agentRunners.delete(agentId);
 
@@ -810,6 +837,12 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       if (state.pendingPermissions?.length) {
         log.info({ agentId, count: state.pendingPermissions.length }, "Clearing stale pending permissions");
         state.pendingPermissions = undefined;
+      }
+
+      // Clear a stale pending question - the parked query and its promise died with the process
+      if (state.pendingQuestion) {
+        log.info({ agentId }, "Clearing stale pending question");
+        state.pendingQuestion = undefined;
       }
 
       state.discordDmChannelId = undefined;
@@ -1031,6 +1064,29 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       }
     };
 
+    const questionRequestCallback: QuestionRequestCallback = async (questionAgentId, toolUseId, questions) => {
+      const state = this.ensureState(questionAgentId);
+      state.pendingQuestion = { toolUseId, questions };
+      try {
+        await this.persistAgentState(questionAgentId);
+      } catch (error) {
+        log.error({ agentId: questionAgentId, error }, "Failed to persist state before parking question");
+      }
+
+      try {
+        return await this.questionHandler.requestQuestion(questionAgentId, toolUseId, questions);
+      } finally {
+        if (state.pendingQuestion?.toolUseId === toolUseId) {
+          state.pendingQuestion = undefined;
+          try {
+            await this.persistAgentState(questionAgentId);
+          } catch (error) {
+            log.error({ agentId: questionAgentId, error }, "Failed to persist state after clearing pending question");
+          }
+        }
+      }
+    };
+
     const agentRunner = buildAgentRunner(
       agentId,
       this.registry,
@@ -1039,6 +1095,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       this.circleManager,
       this.fragmentManager,
       permissionRequestCallback,
+      questionRequestCallback,
       (streamEvent) => this.handleOobStreamEvent(streamEvent)
     );
     agentRunner.on("agentStatusChanged", ({ agentId: runnerId, status, messageSource }) =>

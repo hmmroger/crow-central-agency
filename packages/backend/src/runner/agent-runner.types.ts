@@ -1,6 +1,12 @@
 import type { EventMap } from "../core/event-bus/event-bus.types.js";
 import type { PermissionResult } from "../services/runtime/permission-handler.types.js";
-import type { AgentConfig, AgentStatus, DiscoveredSkill } from "@crow-central-agency/shared";
+import type {
+  AgentConfig,
+  AgentStatus,
+  AskUserQuestionItem,
+  AskUserQuestionResolvedInput,
+  DiscoveredSkill,
+} from "@crow-central-agency/shared";
 import type { MessageSource } from "../services/message-queue-manager.types.js";
 import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 
@@ -33,6 +39,12 @@ export type PermissionRequestCallback = (
   toolUseId: string,
   decisionReason?: string
 ) => Promise<PermissionResult>;
+
+export type QuestionRequestCallback = (
+  agentId: string,
+  toolUseId: string,
+  questions: AskUserQuestionItem[]
+) => Promise<AskUserQuestionResolvedInput>;
 
 export const AGENT_STREAM_EVENT_TYPE = {
   INIT: "INIT",

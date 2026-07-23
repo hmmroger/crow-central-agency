@@ -11,6 +11,8 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_COMMAND,
+  ASK_USER_QUESTION_TOOL_NAME,
+  AskUserQuestionSchema,
   AutoApproveRuleSet,
   getRuleStrategy,
   MESSAGE_SOURCE_TYPE,
@@ -33,6 +35,7 @@ import {
   type AgentStreamEvent,
   type OOBStreamEventCallback,
   type PermissionRequestCallback,
+  type QuestionRequestCallback,
 } from "./agent-runner.types.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
@@ -96,6 +99,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
     circleManager: AgentCircleManager,
     fragmentManager: FragmentManager,
     private readonly permissionRequestHandler: PermissionRequestCallback,
+    private readonly questionRequestHandler: QuestionRequestCallback,
     private readonly oobEventCallback: OOBStreamEventCallback
   ) {
     super(agentId, registry, mcpManager, sensorManager, circleManager, fragmentManager);
@@ -199,6 +203,14 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
 
   private buildCanUseTool(autoApproved: AutoApproveRuleSet, sessionId: string): CanUseTool {
     return async (toolName, input, options) => {
+      // AskUserQuestion is a clarification pause, not a permission gate: park the query on the user
+      // and resume with the assembled answer. Branch before the auto-approve/permission path.
+      if (toolName === ASK_USER_QUESTION_TOOL_NAME) {
+        const { questions } = AskUserQuestionSchema.parse(input);
+        const updatedInput = await this.questionRequestHandler(this.agentId, options.toolUseID, questions);
+        return { behavior: "allow" as const, updatedInput, toolUseID: options.toolUseID };
+      }
+
       // The SDK matches configured rules natively via `allowedTools`; this in-session set holds only
       // allow_always approvals from this run, matched via the registry so command tools match on their
       // command while other tools keep the whole-name behavior.

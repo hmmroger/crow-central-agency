@@ -47,6 +47,7 @@ import {
   type AgentStreamEvent,
   type OOBStreamEventCallback,
   type PermissionRequestCallback,
+  type QuestionRequestCallback,
 } from "./agent-runner.types.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
@@ -134,6 +135,9 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     circleManager: AgentCircleManager,
     fragmentManager: FragmentManager,
     private readonly permissionRequestHandler: PermissionRequestCallback,
+    // AskUserQuestion parks via the Claude SDK's canUseTool; Copilot has no equivalent, so the runner
+    // accepts the shared callback for a uniform factory signature but does not use it.
+    _questionRequestHandler: QuestionRequestCallback,
     private readonly oobEventCallback: OOBStreamEventCallback
   ) {
     super(agentId, registry, mcpManager, sensorManager, circleManager, fragmentManager);

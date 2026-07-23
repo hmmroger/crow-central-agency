@@ -4,7 +4,9 @@ import {
   CLIENT_MESSAGE_TYPE,
   MAX_INPUT_HISTORY,
   PERMISSION_DECISION,
+  QUESTION_SUBMISSION_KIND,
   type AgentRuntimeState,
+  type QuestionAnswer,
 } from "@crow-central-agency/shared";
 import { useWs } from "../use-ws.js";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
@@ -25,6 +27,10 @@ export interface AgentActions {
   allowAlwaysPermission: (toolUseId: string) => void;
   /** Deny a pending permission request (optionally with a text message for the agent) */
   denyPermission: (toolUseId: string, message?: string) => void;
+  /** Submit per-question answers for a parked AskUserQuestion */
+  submitQuestionAnswers: (toolUseId: string, answers: QuestionAnswer[]) => void;
+  /** Dismiss a parked AskUserQuestion with a freeform response */
+  dismissQuestion: (toolUseId: string, response: string) => void;
 }
 
 /**
@@ -140,6 +146,48 @@ export function useAgentActions(agentId: string): AgentActions {
     [send, agentId, removePendingPermission]
   );
 
+  /** Optimistically clear the pending question from the query cache */
+  const clearPendingQuestion = useCallback(
+    (toolUseId: string) => {
+      queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
+        if (!prev || prev.pendingQuestion?.toolUseId !== toolUseId) {
+          return prev;
+        }
+
+        return { ...prev, pendingQuestion: undefined };
+      });
+    },
+    [queryClient, agentId]
+  );
+
+  /** Submit per-question answers for a parked AskUserQuestion */
+  const submitQuestionAnswers = useCallback(
+    (toolUseId: string, answers: QuestionAnswer[]) => {
+      send({
+        type: CLIENT_MESSAGE_TYPE.RESOLVE_QUESTION,
+        toolUseId,
+        kind: QUESTION_SUBMISSION_KIND.ANSWERS,
+        answers,
+      });
+      clearPendingQuestion(toolUseId);
+    },
+    [send, clearPendingQuestion]
+  );
+
+  /** Dismiss a parked AskUserQuestion with a freeform response */
+  const dismissQuestion = useCallback(
+    (toolUseId: string, response: string) => {
+      send({
+        type: CLIENT_MESSAGE_TYPE.RESOLVE_QUESTION,
+        toolUseId,
+        kind: QUESTION_SUBMISSION_KIND.RESPONSE,
+        response,
+      });
+      clearPendingQuestion(toolUseId);
+    },
+    [send, clearPendingQuestion]
+  );
+
   const { mutate: abortMutate } = abortMutation;
 
   const abort = useCallback(() => abortMutate(), [abortMutate]);
@@ -151,5 +199,7 @@ export function useAgentActions(agentId: string): AgentActions {
     allowPermission,
     allowAlwaysPermission,
     denyPermission,
+    submitQuestionAnswers,
+    dismissQuestion,
   };
 }

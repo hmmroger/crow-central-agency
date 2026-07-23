@@ -8,6 +8,11 @@ import { AGENT_STATUS, AgentActivitySchema } from "./agent-runtime-state.schema.
 import { MessageSourceSchema } from "./message-source.schema.js";
 import { AgentCommandSchema } from "./agent-command.schema.js";
 import { AgentBuilderDraftViewSchema } from "./agent-builder.schema.js";
+import {
+  AskUserQuestionItemSchema,
+  QUESTION_SUBMISSION_KIND,
+  QuestionAnswerSchema,
+} from "./ask-user-question.schema.js";
 
 /**
  * WebSocket message types - Client -> Server
@@ -16,6 +21,7 @@ export const CLIENT_MESSAGE_TYPE = {
   SEND_MESSAGE: "send_message",
   INJECT_MESSAGE: "inject_message",
   PERMISSION_RESPONSE: "permission_response",
+  RESOLVE_QUESTION: "resolve_question",
   COMMAND: "command",
 } as const;
 
@@ -35,6 +41,8 @@ export const SERVER_MESSAGE_TYPE = {
   AGENT_USAGE: "agent_usage",
   PERMISSION_REQUEST: "permission_request",
   PERMISSION_CANCELLED: "permission_cancelled",
+  QUESTION_REQUEST: "question_request",
+  QUESTION_RESOLVED: "question_resolved",
   ERROR: "error",
   AGENT_MESSAGE: "agent_message",
   AGENT_TOOL_PROGRESS: "agent_tool_progress",
@@ -76,6 +84,18 @@ export const PermissionResponseWsSchema = z.object({
   message: z.string().optional(),
 });
 
+/**
+ * Resolve a parked AskUserQuestion. `answers`/`response` are loosely optional here; the strict xor is
+ * enforced by re-parsing into the question submission union at the routing boundary.
+ */
+export const ResolveQuestionWsSchema = z.object({
+  type: z.literal(CLIENT_MESSAGE_TYPE.RESOLVE_QUESTION),
+  toolUseId: z.string(),
+  kind: z.enum([QUESTION_SUBMISSION_KIND.ANSWERS, QUESTION_SUBMISSION_KIND.RESPONSE]),
+  answers: z.array(QuestionAnswerSchema).optional(),
+  response: z.string().optional(),
+});
+
 export const CommandMessageSchema = z.object({
   type: z.literal(CLIENT_MESSAGE_TYPE.COMMAND),
   agentId: z.string(),
@@ -87,6 +107,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   SendMessageSchema,
   InjectMessageSchema,
   PermissionResponseWsSchema,
+  ResolveQuestionWsSchema,
   CommandMessageSchema,
 ]);
 
@@ -94,6 +115,7 @@ export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 export type SendMessage = z.infer<typeof SendMessageSchema>;
 export type InjectMessage = z.infer<typeof InjectMessageSchema>;
 export type PermissionResponseWs = z.infer<typeof PermissionResponseWsSchema>;
+export type ResolveQuestionWs = z.infer<typeof ResolveQuestionWsSchema>;
 export type CommandMessage = z.infer<typeof CommandMessageSchema>;
 
 export const AgentTextWsMessageSchema = z.object({
@@ -161,6 +183,19 @@ export const PermissionRequestWsMessageSchema = z.object({
 
 export const PermissionCancelledWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.PERMISSION_CANCELLED),
+  agentId: z.string(),
+  toolUseId: z.string(),
+});
+
+export const QuestionRequestWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.QUESTION_REQUEST),
+  agentId: z.string(),
+  toolUseId: z.string(),
+  questions: z.array(AskUserQuestionItemSchema),
+});
+
+export const QuestionResolvedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.QUESTION_RESOLVED),
   agentId: z.string(),
   toolUseId: z.string(),
 });
@@ -269,6 +304,8 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   AgentUsageWsMessageSchema,
   PermissionRequestWsMessageSchema,
   PermissionCancelledWsMessageSchema,
+  QuestionRequestWsMessageSchema,
+  QuestionResolvedWsMessageSchema,
   ErrorWsMessageSchema,
   AgentMessageWsMessageSchema,
   AgentToolProgressWsMessageSchema,
@@ -298,6 +335,8 @@ export type AgentDeletedWsMessage = z.infer<typeof AgentDeletedWsMessageSchema>;
 export type AgentUsageWsMessage = z.infer<typeof AgentUsageWsMessageSchema>;
 export type PermissionRequestWsMessage = z.infer<typeof PermissionRequestWsMessageSchema>;
 export type PermissionCancelledWsMessage = z.infer<typeof PermissionCancelledWsMessageSchema>;
+export type QuestionRequestWsMessage = z.infer<typeof QuestionRequestWsMessageSchema>;
+export type QuestionResolvedWsMessage = z.infer<typeof QuestionResolvedWsMessageSchema>;
 export type ErrorWsMessage = z.infer<typeof ErrorWsMessageSchema>;
 export type AgentMessageWsMessage = z.infer<typeof AgentMessageWsMessageSchema>;
 export type AgentToolProgressWsMessage = z.infer<typeof AgentToolProgressWsMessageSchema>;

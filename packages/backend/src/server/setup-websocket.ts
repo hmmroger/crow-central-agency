@@ -1,5 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { CLIENT_MESSAGE_TYPE, ClientMessageSchema, MESSAGE_SOURCE_TYPE } from "@crow-central-agency/shared";
+import {
+  CLIENT_MESSAGE_TYPE,
+  ClientMessageSchema,
+  MESSAGE_SOURCE_TYPE,
+  QuestionSubmissionSchema,
+} from "@crow-central-agency/shared";
 import type { WsBroadcaster } from "../services/ws-broadcaster.js";
 import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
 import { AppError } from "../core/error/app-error.js";
@@ -104,6 +109,14 @@ export async function setupWebSocket(
             runtimeManager.resolvePermission(message.toolUseId, message.decision, message.message);
 
             break;
+
+          case "resolve_question": {
+            // Re-parse into the strict submission union to enforce the answers/response xor.
+            const submission = QuestionSubmissionSchema.parse(message);
+            runtimeManager.resolveQuestion(submission.toolUseId, submission);
+
+            break;
+          }
 
           default: {
             const _exhaustive: never = message;

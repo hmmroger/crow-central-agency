@@ -5,6 +5,7 @@ import {
   type AgentRuntimeState,
   type SessionUsage,
   type PendingPermissionInfo,
+  type PendingQuestionInfo,
 } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { agentKeys } from "../../services/query-keys.js";
@@ -111,6 +112,33 @@ export function useAgentStateQuery(agentId: string) {
           ...prev,
           pendingPermissions: prev.pendingPermissions?.filter((perm) => perm.toolUseId !== toolUseId),
         };
+      });
+
+      return;
+    }
+
+    if (message.type === SERVER_MESSAGE_TYPE.QUESTION_REQUEST) {
+      const questionInfo: PendingQuestionInfo = {
+        toolUseId: message.toolUseId,
+        questions: message.questions,
+      };
+
+      queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => ({
+        ...(prev ?? { ...DEFAULT_STATE, agentId }),
+        pendingQuestion: questionInfo,
+      }));
+
+      return;
+    }
+
+    if (message.type === SERVER_MESSAGE_TYPE.QUESTION_RESOLVED) {
+      const { toolUseId } = message;
+      queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
+        if (!prev || prev.pendingQuestion?.toolUseId !== toolUseId) {
+          return prev;
+        }
+
+        return { ...prev, pendingQuestion: undefined };
       });
     }
   });

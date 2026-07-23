@@ -7,7 +7,11 @@ import type { FragmentManager } from "../services/fragment/fragment-manager.js";
 import type { AgentRunner } from "./agent-runner.js";
 import { ClaudeCodeAgentRunner } from "./claude-code-agent-runner.js";
 import { GithubCopilotAgentRunner } from "./github-copilot-agent-runner.js";
-import type { OOBStreamEventCallback, PermissionRequestCallback } from "./agent-runner.types.js";
+import type {
+  OOBStreamEventCallback,
+  PermissionRequestCallback,
+  QuestionRequestCallback,
+} from "./agent-runner.types.js";
 
 export function createAgentRunner(
   agentId: string,
@@ -17,6 +21,7 @@ export function createAgentRunner(
   circleManager: AgentCircleManager,
   fragmentManager: FragmentManager,
   permissionRequestHandler: PermissionRequestCallback,
+  questionRequestHandler: QuestionRequestCallback,
   oobEventCallback: OOBStreamEventCallback
 ): AgentRunner {
   const agent = registry.getAgent(agentId);
@@ -30,6 +35,7 @@ export function createAgentRunner(
         circleManager,
         fragmentManager,
         permissionRequestHandler,
+        questionRequestHandler,
         oobEventCallback
       );
 
@@ -42,6 +48,7 @@ export function createAgentRunner(
         circleManager,
         fragmentManager,
         permissionRequestHandler,
+        questionRequestHandler,
         oobEventCallback
       );
   }
