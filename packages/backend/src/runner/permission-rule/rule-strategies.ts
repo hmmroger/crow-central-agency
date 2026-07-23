@@ -1,11 +1,10 @@
-import { CLAUDE_CODE_TOOL } from "../schemas/agent.schema.js";
-import type { AutoApproveRuleStrategy, ParsedRule } from "./auto-approve-rule.types.js";
+import { CLAUDE_CODE_TOOL, formatRule, GLOB_STAR, type ParsedRule } from "@crow-central-agency/shared";
+import type { PermissionRuleStrategy } from "./permission-rule-strategy.types.js";
 import {
   deriveRules as deriveCommandRules,
   deriveNewRules as deriveNewCommandRules,
   matchesRules as matchesCommandRules,
 } from "./command-decomposition.js";
-import { formatRule, GLOB_STAR } from "./rule-format.js";
 
 /** Input field carrying the shell command for Bash/PowerShell tools. */
 const COMMAND_INPUT_KEY = "command";
@@ -51,7 +50,7 @@ function extractCommand(input: Record<string, unknown>): string | undefined {
 }
 
 /** Default strategy: today's whole-tool behavior, used for any tool without a specialization. */
-export const defaultRuleStrategy: AutoApproveRuleStrategy = {
+export const defaultRuleStrategy: PermissionRuleStrategy = {
   appliesTo: () => true,
   deriveRules: (toolName) => [toolName],
   deriveNewRules: (toolName) => [toolName],
@@ -72,7 +71,7 @@ function specifiersForTool(toolName: string, rules: ParsedRule[]): string[] {
 }
 
 /** Command strategy: Bash/PowerShell decomposition on top of the whole-tool behavior. */
-export const commandRuleStrategy: AutoApproveRuleStrategy = {
+export const commandRuleStrategy: PermissionRuleStrategy = {
   appliesTo: (toolName) => COMMAND_TOOL_BASE_NAMES.has(toolName.toLowerCase()),
 
   deriveRules: (toolName, input) => {

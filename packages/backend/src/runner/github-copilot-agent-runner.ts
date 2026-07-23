@@ -7,7 +7,6 @@ import {
   REASONING_EFFORT,
   SETTING_SOURCE,
   TOOL_MODE,
-  AutoApproveRuleSet,
   resolveModel,
   type AgentCommand,
   type AgentConfig,
@@ -24,6 +23,7 @@ import type {
   Tool,
 } from "@github/copilot-sdk";
 import { AgentRunner } from "./agent-runner.js";
+import { PermissionRuleSet } from "./permission-rule/rule-set.js";
 import {
   mapCopilotSessionEvents,
   type CopilotEventContext,
@@ -164,8 +164,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     const client = await this.getClient(cwd);
     const inProcessTools = this.buildInProcessTools(serverConfigs);
     const availableTools = this.buildAvailableTools(agentConfig.toolConfig);
-    const autoApproved = new AutoApproveRuleSet(agentConfig.toolConfig.autoApprovedTools ?? []);
-    const disallowed = new AutoApproveRuleSet(agentConfig.toolConfig.disallowedTools ?? []);
+    const autoApproved = new PermissionRuleSet(agentConfig.toolConfig.autoApprovedTools ?? []);
+    const disallowed = new PermissionRuleSet(agentConfig.toolConfig.disallowedTools ?? []);
     const { agentMode, policy } = resolvePermissionMode(agentConfig.permissionMode);
     // replace mode drops the SDK's foundation prompt (and guardrails); append layers onto it.
     const systemMessage: SessionConfig["systemMessage"] = systemPrompt
@@ -563,8 +563,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     toolName: string,
     toolArgs: unknown,
     serverConfigs: CrowMcpServerConfig[],
-    autoApproved: AutoApproveRuleSet,
-    disallowed: AutoApproveRuleSet,
+    autoApproved: PermissionRuleSet,
+    disallowed: PermissionRuleSet,
     policy: PermissionPolicy
   ): Promise<{ permissionDecision: "allow" | "deny"; permissionDecisionReason?: string } | undefined> {
     const isExternalMcpTool = serverConfigs.some(
@@ -621,7 +621,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
    * persisted equals what was shown. An empty list (read-only/unparseable/fully-covered) remembers
    * nothing.
    */
-  private rememberAutoApproval(rules: string[], autoApproved: AutoApproveRuleSet): void {
+  private rememberAutoApproval(rules: string[], autoApproved: PermissionRuleSet): void {
     if (rules.length === 0) {
       return;
     }
@@ -645,8 +645,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     session: CopilotSession,
     event: Extract<SessionEvent, { type: "permission.requested" }>,
     toolCalls: Map<string, CopilotToolCall>,
-    autoApproved: AutoApproveRuleSet,
-    disallowed: AutoApproveRuleSet,
+    autoApproved: PermissionRuleSet,
+    disallowed: PermissionRuleSet,
     policy: PermissionPolicy
   ): Promise<void> {
     const { requestId, permissionRequest, resolvedByHook } = event.data;

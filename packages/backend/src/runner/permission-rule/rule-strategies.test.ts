@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRules } from "./rule-format.js";
+import { parseRules } from "@crow-central-agency/shared";
 import { commandRuleStrategy, defaultRuleStrategy } from "./rule-strategies.js";
 import { getRuleStrategy } from "./rule-strategy-registry.js";
 

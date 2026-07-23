@@ -1,4 +1,4 @@
-import { matchesSpecifier, WORD_BOUNDARY_SUFFIX } from "./rule-format.js";
+import { matchesSpecifier, WORD_BOUNDARY_SUFFIX } from "@crow-central-agency/shared";
 
 /** Number of non-flag tokens a derived prefix keeps before wildcarding the rest. */
 export const DEFAULT_PREFIX_DEPTH = 3;

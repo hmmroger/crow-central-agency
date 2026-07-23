@@ -1,4 +1,4 @@
-import type { ParsedRule } from "./auto-approve-rule.types.js";
+import type { ParsedRule } from "./permission-rule.types.js";
 
 /** Glob wildcard used in rule specifiers. */
 export const GLOB_STAR = "*";

@@ -13,7 +13,6 @@ import {
   AGENT_COMMAND,
   ASK_USER_QUESTION_TOOL_NAME,
   AskUserQuestionSchema,
-  AutoApproveRuleSet,
   MESSAGE_SOURCE_TYPE,
   modelSupportsAdaptiveThinking,
   resolveModel,
@@ -22,6 +21,7 @@ import {
   type AgentThinkingConfig,
 } from "@crow-central-agency/shared";
 import { AgentRunner } from "./agent-runner.js";
+import { PermissionRuleSet } from "./permission-rule/rule-set.js";
 import { processStream } from "./stream-processor.js";
 import { parseToolActivity } from "./tool-activity-parser.js";
 import { env } from "../config/env.js";
@@ -169,8 +169,8 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         tools: toolsOption,
         disallowedTools: agentConfig.toolConfig.disallowedTools,
         canUseTool: this.buildCanUseTool(
-          new AutoApproveRuleSet(),
-          new AutoApproveRuleSet(agentConfig.toolConfig.autoApprovedTools ?? []),
+          new PermissionRuleSet(),
+          new PermissionRuleSet(agentConfig.toolConfig.autoApprovedTools ?? []),
           sessionId ?? ""
         ),
         settingSources: agentConfig.settingSources,
@@ -205,8 +205,8 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
   }
 
   private buildCanUseTool(
-    autoApproved: AutoApproveRuleSet,
-    derivationRules: AutoApproveRuleSet,
+    autoApproved: PermissionRuleSet,
+    derivationRules: PermissionRuleSet,
     sessionId: string
   ): CanUseTool {
     return async (toolName, input, options) => {

@@ -432,7 +432,7 @@ export {
   type ConnectConnectorResponse,
 } from "./schemas/connector.schema.js";
 
-export type { ParsedRule, AutoApproveRuleStrategy } from "./auto-approve/auto-approve-rule.types.js";
+export type { ParsedRule } from "./utils/permission-rule/permission-rule.types.js";
 export {
   parseRule,
   parseRules,
@@ -441,19 +441,6 @@ export {
   GLOB_STAR,
   WORD_BOUNDARY_SUFFIX,
   PREFIX_STAR_SUFFIX,
-} from "./auto-approve/rule-format.js";
-export {
-  splitSubcommands,
-  deriveRules,
-  matchesRules,
-  DEFAULT_PREFIX_DEPTH,
-  MAX_DERIVED_RULES,
-  PROCESS_WRAPPERS,
-  SUBCOMMAND_MATCH_MODE,
-} from "./auto-approve/command-decomposition.js";
-export type { SubcommandMatchMode } from "./auto-approve/command-decomposition.js";
-export { defaultRuleStrategy, commandRuleStrategy } from "./auto-approve/rule-strategies.js";
-export { getRuleStrategy } from "./auto-approve/rule-strategy-registry.js";
-export { AutoApproveRuleSet } from "./auto-approve/auto-approve-rule-set.js";
+} from "./utils/permission-rule/rule-format.js";
 
 export { normalizeMcpName } from "./utils/mcp-utils.js";

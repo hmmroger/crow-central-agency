@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import pino from "pino";
-import { AutoApproveRuleSet } from "@crow-central-agency/shared";
 import {
   COPILOT_PERMISSION_DECISION,
   resolveConfiguredPermission,
   wholeToolDenyRules,
   type PermissionPolicy,
 } from "./github-copilot-permission.js";
+import { PermissionRuleSet } from "./permission-rule/rule-set.js";
 
 const POWERSHELL_TOOL = "powershell";
 
@@ -20,8 +20,8 @@ function resolve(
 ): string {
   return resolveConfiguredPermission({
     logger,
-    disallowed: new AutoApproveRuleSet(disallowedRules),
-    autoApproved: new AutoApproveRuleSet(autoApprovedRules),
+    disallowed: new PermissionRuleSet(disallowedRules),
+    autoApproved: new PermissionRuleSet(autoApprovedRules),
     policy,
     toolName: POWERSHELL_TOOL,
     input: { command },

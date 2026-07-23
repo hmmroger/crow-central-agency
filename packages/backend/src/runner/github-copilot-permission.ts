@@ -1,5 +1,7 @@
-import { parseRule, SUBCOMMAND_MATCH_MODE, type AutoApproveRuleSet } from "@crow-central-agency/shared";
+import { parseRule } from "@crow-central-agency/shared";
 import type { Logger } from "pino";
+import { SUBCOMMAND_MATCH_MODE } from "./permission-rule/command-decomposition.js";
+import type { PermissionRuleSet } from "./permission-rule/rule-set.js";
 
 /** How the current turn resolves permission requests: prompt the user, deny outright, or allow all. */
 export type PermissionPolicy = "prompt" | "deny" | "allow";
@@ -20,8 +22,8 @@ export type CopilotPermissionDecision = (typeof COPILOT_PERMISSION_DECISION)[key
 
 export interface CopilotPermissionQuery {
   logger: Logger;
-  disallowed: AutoApproveRuleSet;
-  autoApproved: AutoApproveRuleSet;
+  disallowed: PermissionRuleSet;
+  autoApproved: PermissionRuleSet;
   policy: PermissionPolicy;
   toolName: string;
   input: Record<string, unknown>;
