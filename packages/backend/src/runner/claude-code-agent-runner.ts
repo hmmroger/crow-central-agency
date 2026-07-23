@@ -14,7 +14,6 @@ import {
   ASK_USER_QUESTION_TOOL_NAME,
   AskUserQuestionSchema,
   AutoApproveRuleSet,
-  getRuleStrategy,
   MESSAGE_SOURCE_TYPE,
   modelSupportsAdaptiveThinking,
   resolveModel,
@@ -169,7 +168,11 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         ],
         tools: toolsOption,
         disallowedTools: agentConfig.toolConfig.disallowedTools,
-        canUseTool: this.buildCanUseTool(new AutoApproveRuleSet(), sessionId ?? ""),
+        canUseTool: this.buildCanUseTool(
+          new AutoApproveRuleSet(),
+          new AutoApproveRuleSet(agentConfig.toolConfig.autoApprovedTools ?? []),
+          sessionId ?? ""
+        ),
         settingSources: agentConfig.settingSources,
         mcpServers,
         persistSession,
@@ -201,7 +204,11 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
     this.query?.close();
   }
 
-  private buildCanUseTool(autoApproved: AutoApproveRuleSet, sessionId: string): CanUseTool {
+  private buildCanUseTool(
+    autoApproved: AutoApproveRuleSet,
+    derivationRules: AutoApproveRuleSet,
+    sessionId: string
+  ): CanUseTool {
     return async (toolName, input, options) => {
       // AskUserQuestion is a clarification pause, not a permission gate: park the query on the user
       // and resume with the assembled answer. Branch before the auto-approve/permission path.
@@ -219,27 +226,30 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         return { behavior: "allow" as const, updatedInput: input, toolUseID: options.toolUseID };
       }
 
+      // Compute the diff-aware rule(s) once against the config-seeded derivation set: shipped for the
+      // preview and reused verbatim on allow_always, so what's shown equals what's persisted.
+      const rulesToPersist = derivationRules.deriveNewRules(toolName, input);
+
       const result = await this.permissionRequestHandler(
         this.agentId,
         toolName,
         input,
         options.toolUseID,
+        rulesToPersist,
         options.decisionReason
       );
 
-      if (result.behavior === "allow_always") {
-        // Derive granular rule(s) from the input; a read-only/unparseable command yields none, and
-        // the call is still allowed once via the allow path below.
-        const rules = getRuleStrategy(toolName).deriveRules(toolName, input);
-        if (rules.length > 0) {
-          autoApproved.add(rules);
-          this.oobEventCallback({
-            type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
-            agentId: this.agentId,
-            sessionId,
-            rules,
-          });
-        }
+      if (result.behavior === "allow_always" && rulesToPersist.length > 0) {
+        // Add to the matching set so later same-session calls auto-approve, and to the derivation set
+        // so later previews diff these out. A read-only/unparseable/fully-covered command yields none.
+        autoApproved.add(rulesToPersist);
+        derivationRules.add(rulesToPersist);
+        this.oobEventCallback({
+          type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
+          agentId: this.agentId,
+          sessionId,
+          rules: rulesToPersist,
+        });
       }
 
       if (result.behavior === "allow" || result.behavior === "allow_always") {

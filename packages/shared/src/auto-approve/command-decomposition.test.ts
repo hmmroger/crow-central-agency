@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { deriveRules, matchesRules, splitSubcommands, SUBCOMMAND_MATCH_MODE } from "./command-decomposition.js";
+import {
+  deriveNewRules,
+  deriveRules,
+  matchesRules,
+  splitSubcommands,
+  SUBCOMMAND_MATCH_MODE,
+} from "./command-decomposition.js";
 
 describe("splitSubcommands", () => {
   it("splits on every shell separator", () => {
@@ -71,6 +77,34 @@ describe("deriveRules", () => {
 
   it("returns empty for empty input", () => {
     expect(deriveRules("")).toEqual([]);
+  });
+});
+
+describe("deriveNewRules", () => {
+  it("skips subcommands already covered by an existing specifier", () => {
+    expect(deriveNewRules("cd /tmp && npm run build", ["cd /tmp *"])).toEqual(["npm run build *"]);
+    expect(deriveNewRules("cd /tmp && npm run build", ["cd *"])).toEqual(["npm run build *"]);
+  });
+
+  it("still derives every subcommand when none are covered", () => {
+    expect(deriveNewRules("cd /tmp && npm run build", [])).toEqual(["cd /tmp *", "npm run build *"]);
+    expect(deriveNewRules("git add . && git commit -m x", ["npm *"])).toEqual(["git add . *", "git commit -m x *"]);
+  });
+
+  it("returns empty when every subcommand is already covered", () => {
+    expect(deriveNewRules("cd /tmp && npm run build", ["cd /tmp *", "npm run build *"])).toEqual([]);
+    expect(deriveNewRules("git status", ["git status *"])).toEqual([]);
+  });
+
+  it("dedupes newly derived specifiers and caps at five", () => {
+    expect(deriveNewRules("npm run build one && npm run build two", [])).toEqual(["npm run build *"]);
+
+    const command = "c1 x && c2 x && c3 x && c4 x && c5 x && c6 x";
+    expect(deriveNewRules(command, [])).toEqual(["c1 x *", "c2 x *", "c3 x *", "c4 x *", "c5 x *"]);
+  });
+
+  it("returns empty for empty input", () => {
+    expect(deriveNewRules("", ["cd /tmp *"])).toEqual([]);
   });
 });
 

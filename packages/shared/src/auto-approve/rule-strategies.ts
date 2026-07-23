@@ -1,6 +1,10 @@
 import { CLAUDE_CODE_TOOL } from "../schemas/agent.schema.js";
 import type { AutoApproveRuleStrategy, ParsedRule } from "./auto-approve-rule.types.js";
-import { deriveRules as deriveCommandRules, matchesRules as matchesCommandRules } from "./command-decomposition.js";
+import {
+  deriveRules as deriveCommandRules,
+  deriveNewRules as deriveNewCommandRules,
+  matchesRules as matchesCommandRules,
+} from "./command-decomposition.js";
 import { formatRule, GLOB_STAR } from "./rule-format.js";
 
 /** Input field carrying the shell command for Bash/PowerShell tools. */
@@ -50,8 +54,22 @@ function extractCommand(input: Record<string, unknown>): string | undefined {
 export const defaultRuleStrategy: AutoApproveRuleStrategy = {
   appliesTo: () => true,
   deriveRules: (toolName) => [toolName],
+  deriveNewRules: (toolName) => [toolName],
   matches: (toolName, _input, rules) => wholeToolMatches(toolName, rules),
 };
+
+/** Collect the specifiers of `rules` scoped to a single tool (case-insensitive), ignoring whole-tool rules. */
+function specifiersForTool(toolName: string, rules: ParsedRule[]): string[] {
+  const targetTool = toolName.toLowerCase();
+  const specifiers: string[] = [];
+  for (const rule of rules) {
+    if (rule.specifier !== undefined && rule.tool.toLowerCase() === targetTool) {
+      specifiers.push(rule.specifier);
+    }
+  }
+
+  return specifiers;
+}
 
 /** Command strategy: Bash/PowerShell decomposition on top of the whole-tool behavior. */
 export const commandRuleStrategy: AutoApproveRuleStrategy = {
@@ -66,6 +84,18 @@ export const commandRuleStrategy: AutoApproveRuleStrategy = {
     return deriveCommandRules(command).map((specifier) => formatRule({ tool: toolName, specifier }));
   },
 
+  deriveNewRules: (toolName, input, existingRules) => {
+    const command = extractCommand(input);
+    if (command === undefined) {
+      return [];
+    }
+
+    const existingSpecifiers = specifiersForTool(toolName, existingRules);
+    return deriveNewCommandRules(command, existingSpecifiers).map((specifier) =>
+      formatRule({ tool: toolName, specifier })
+    );
+  },
+
   matches: (toolName, input, rules, mode) => {
     if (wholeToolMatches(toolName, rules)) {
       return true;
@@ -76,14 +106,6 @@ export const commandRuleStrategy: AutoApproveRuleStrategy = {
       return false;
     }
 
-    const targetTool = toolName.toLowerCase();
-    const specifiers: string[] = [];
-    for (const rule of rules) {
-      if (rule.specifier !== undefined && rule.tool.toLowerCase() === targetTool) {
-        specifiers.push(rule.specifier);
-      }
-    }
-
-    return matchesCommandRules(command, specifiers, mode);
+    return matchesCommandRules(command, specifiersForTool(toolName, rules), mode);
   },
 };

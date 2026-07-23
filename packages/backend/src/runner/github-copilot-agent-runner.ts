@@ -8,7 +8,6 @@ import {
   SETTING_SOURCE,
   TOOL_MODE,
   AutoApproveRuleSet,
-  getRuleStrategy,
   resolveModel,
   type AgentCommand,
   type AgentConfig,
@@ -596,9 +595,16 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       return { permissionDecision: "deny", permissionDecisionReason: PERMISSION_USER_UNAVAILABLE_MESSAGE };
     }
 
-    const promptDecision = await this.permissionRequestHandler(this.agentId, toolName, toolArgsRecord, generateId());
+    const rulesToPersist = autoApproved.deriveNewRules(toolName, toolArgsRecord);
+    const promptDecision = await this.permissionRequestHandler(
+      this.agentId,
+      toolName,
+      toolArgsRecord,
+      generateId(),
+      rulesToPersist
+    );
     if (promptDecision.behavior === "allow_always") {
-      this.rememberAutoApproval(toolName, toolArgsRecord, autoApproved);
+      this.rememberAutoApproval(rulesToPersist, autoApproved);
     }
 
     return promptDecision.behavior === "deny"
@@ -611,16 +617,11 @@ export class GithubCopilotAgentRunner extends AgentRunner {
 
   /**
    * Remember an "allow always" decision for this query and emit the event so the runtime persists it.
-   * Only the rule(s) derived from this approval's input are added/emitted — never the whole
-   * `autoApproved` Set, which also holds the agent's configured rules. A read-only/unparseable command
-   * derives none, so nothing is remembered.
+   * `rules` is the diff-aware list already computed for (and shown in) the preview, so what's
+   * persisted equals what was shown. An empty list (read-only/unparseable/fully-covered) remembers
+   * nothing.
    */
-  private rememberAutoApproval(
-    toolName: string,
-    input: Record<string, unknown>,
-    autoApproved: AutoApproveRuleSet
-  ): void {
-    const rules = getRuleStrategy(toolName).deriveRules(toolName, input);
+  private rememberAutoApproval(rules: string[], autoApproved: AutoApproveRuleSet): void {
     if (rules.length === 0) {
       return;
     }
@@ -672,14 +673,16 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     } else if (decision === COPILOT_PERMISSION_DECISION.UNAVAILABLE) {
       result = { kind: "reject", feedback: PERMISSION_USER_UNAVAILABLE_MESSAGE };
     } else {
+      const rulesToPersist = autoApproved.deriveNewRules(toolName, input);
       const promptDecision = await this.permissionRequestHandler(
         this.agentId,
         toolName,
         input,
-        toolCallId ?? generateId()
+        toolCallId ?? generateId(),
+        rulesToPersist
       );
       if (promptDecision.behavior === "allow_always") {
-        this.rememberAutoApproval(toolName, input, autoApproved);
+        this.rememberAutoApproval(rulesToPersist, autoApproved);
       }
 
       result =

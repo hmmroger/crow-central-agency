@@ -25,6 +25,7 @@ export function PermissionQueue({ permissions, onAllow, onAllowAlways, onDeny }:
             toolName={permission.toolName}
             toolUseId={permission.toolUseId}
             input={permission.input}
+            autoApproveRules={permission.autoApproveRules}
             decisionReason={permission.decisionReason}
             onAllow={onAllow}
             onAllowAlways={onAllowAlways}

@@ -75,6 +75,7 @@ export const PendingPermissionInfoSchema = z.object({
   toolUseId: z.string(),
   toolName: z.string(),
   input: z.record(z.string(), z.unknown()).optional(),
+  autoApproveRules: z.array(z.string()).optional(),
   decisionReason: z.string().optional(),
 });
 

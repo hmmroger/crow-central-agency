@@ -37,4 +37,12 @@ export class AutoApproveRuleSet {
   ): boolean {
     return getRuleStrategy(toolName).matches(toolName, input, this.parsed, mode);
   }
+
+  /**
+   * Derive the rule string(s) to persist on "always allow", diffed against this set's own rules so
+   * subcommands already covered by an existing rule are omitted. Empty when everything is covered.
+   */
+  public deriveNewRules(toolName: string, input: Record<string, unknown>): string[] {
+    return getRuleStrategy(toolName).deriveNewRules(toolName, input, this.parsed);
+  }
 }

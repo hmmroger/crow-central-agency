@@ -24,6 +24,7 @@ export class PermissionHandler {
     toolName: string,
     input: Record<string, unknown>,
     toolUseId: string,
+    autoApproveRules: string[],
     decisionReason?: string
   ): Promise<PermissionResult> {
     return new Promise<PermissionResult>((resolve) => {
@@ -50,6 +51,7 @@ export class PermissionHandler {
         toolUseId,
         toolName,
         input,
+        autoApproveRules,
         decisionReason,
       });
 

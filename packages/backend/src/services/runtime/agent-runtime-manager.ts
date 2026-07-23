@@ -1044,10 +1044,11 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       toolName,
       input,
       toolUseId,
+      autoApproveRules,
       decisionReason
     ) => {
       const state = this.ensureState(permAgentId);
-      const permissionInfo = { toolUseId, toolName, input, decisionReason };
+      const permissionInfo = { toolUseId, toolName, input, autoApproveRules, decisionReason };
 
       if (!state.pendingPermissions) {
         state.pendingPermissions = [];
@@ -1056,7 +1057,14 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       state.pendingPermissions.push(permissionInfo);
 
       try {
-        return await this.permissionHandler.requestPermission(permAgentId, toolName, input, toolUseId, decisionReason);
+        return await this.permissionHandler.requestPermission(
+          permAgentId,
+          toolName,
+          input,
+          toolUseId,
+          autoApproveRules,
+          decisionReason
+        );
       } finally {
         if (state.pendingPermissions) {
           state.pendingPermissions = state.pendingPermissions.filter((perm) => perm.toolUseId !== toolUseId);

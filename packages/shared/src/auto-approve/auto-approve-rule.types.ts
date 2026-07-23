@@ -20,6 +20,12 @@ export interface AutoApproveRuleStrategy {
   /** Capture side: derive the rule string(s) to persist when the user picks "always allow". */
   deriveRules(toolName: string, input: Record<string, unknown>): string[];
   /**
+   * Diff-aware capture: like {@link deriveRules} but returns only the rule string(s) not already
+   * covered by `existingRules` (the rule set's own parsed rules), so a compound command surfaces
+   * nothing for subcommands an existing rule already approves.
+   */
+  deriveNewRules(toolName: string, input: Record<string, unknown>, existingRules: ParsedRule[]): string[];
+  /**
    * Match side: whether the pending invocation matches the configured rules. `mode` governs how a
    * compound command aggregates its subcommands (`ALL` for approve, `ANY` for deny).
    */

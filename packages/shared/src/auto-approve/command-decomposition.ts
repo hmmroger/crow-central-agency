@@ -255,6 +255,34 @@ export function deriveRules(command: string, depth = DEFAULT_PREFIX_DEPTH): stri
 }
 
 /**
+ * Diff-aware capture: derive prefix specifiers only for subcommands not already covered by
+ * `existingSpecifiers`, composing the untouched {@link deriveRules} (capture) and
+ * {@link matchesSpecifier} (match) primitives. A subcommand matched by an existing specifier is
+ * skipped; the rest derive one specifier each, deduped and capped at {@link MAX_DERIVED_RULES}.
+ */
+export function deriveNewRules(command: string, existingSpecifiers: string[], depth = DEFAULT_PREFIX_DEPTH): string[] {
+  const specifiers: string[] = [];
+
+  for (const subcommand of splitSubcommands(command)) {
+    if (specifiers.length >= MAX_DERIVED_RULES) {
+      break;
+    }
+
+    if (existingSpecifiers.some((specifier) => matchesSpecifier(subcommand, specifier))) {
+      continue;
+    }
+
+    for (const specifier of deriveRules(subcommand, depth)) {
+      if (!specifiers.includes(specifier)) {
+        specifiers.push(specifier);
+      }
+    }
+  }
+
+  return specifiers.slice(0, MAX_DERIVED_RULES);
+}
+
+/**
  * Match side: fails closed. Each raw subcommand is matched against the specifiers via literal-prefix
  * `matchesSpecifier` (no flag logic on this side). `ALL` (approve) requires every subcommand to
  * match; `ANY` (deny) fires when a single subcommand matches. Empty/unparseable input yields `false`

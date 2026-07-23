@@ -22,6 +22,10 @@ describe("defaultRuleStrategy", () => {
     expect(defaultRuleStrategy.deriveRules("Write", {})).toEqual(["Write"]);
   });
 
+  it("derives the whole tool name regardless of existing rules (diff-aware path)", () => {
+    expect(defaultRuleStrategy.deriveNewRules("Write", {}, parseRules(["Write"]))).toEqual(["Write"]);
+  });
+
   it("preserves legacy whole-tool matching (exact, wildcard, MCP prefix)", () => {
     expect(defaultRuleStrategy.matches("Write", {}, parseRules(["Write"]))).toBe(true);
     expect(defaultRuleStrategy.matches("Write", {}, parseRules(["*"]))).toBe(true);
@@ -56,6 +60,17 @@ describe("commandRuleStrategy", () => {
 
   it("returns no derived rules when the command input is missing", () => {
     expect(commandRuleStrategy.deriveRules("Bash", {})).toEqual([]);
+  });
+
+  it("derives only the uncovered subcommands via deriveNewRules", () => {
+    const existing = parseRules(["Bash(cd /tmp *)"]);
+    expect(commandRuleStrategy.deriveNewRules("Bash", { command: "cd /tmp && npm run build" }, existing)).toEqual([
+      "Bash(npm run build *)",
+    ]);
+  });
+
+  it("returns no new rules when the command input is missing", () => {
+    expect(commandRuleStrategy.deriveNewRules("Bash", {}, parseRules(["Bash(cd /tmp *)"]))).toEqual([]);
   });
 
   it("matches via command specifiers scoped to the tool", () => {
