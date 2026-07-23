@@ -37,7 +37,8 @@ function toAnswerValue(value: QuestionDraftValue, multiSelect: boolean): string 
 /**
  * Inline, paginated AskUserQuestion card — one question per page with free back/forth navigation.
  * Backend is source of truth; this holds only the transient answer draft and the current page.
- * Submit is gated on all questions being answered; Respond sends a freeform reply at any point.
+ * Submit is gated on all questions being answered; "Reply instead" (a freeform reply that skips the
+ * questions) is offered only for multi-question panels.
  */
 export function AskUserQuestionPanel({ toolUseId, questions, onSubmit, onRespond }: AskUserQuestionPanelProps) {
   const [draft, setDraft] = useState<AnswerDraft>({});
