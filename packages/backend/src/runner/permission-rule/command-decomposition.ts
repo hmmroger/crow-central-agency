@@ -32,6 +32,8 @@ const OPTION_PREFIX = "-";
 const SINGLE_QUOTE = "'";
 const DOUBLE_QUOTE = '"';
 const REDIRECT_CHAR = ">";
+const BLOCK_OPEN = "{";
+const BLOCK_CLOSE = "}";
 
 interface ShellSyntax {
   /** Escapes the next char outside quotes and inside double quotes (Bash `\`, PowerShell backtick). */
@@ -40,6 +42,12 @@ interface ShellSyntax {
   readonly singleQuoteEmbedded: boolean;
   /** Whether a doubled double quote (`""`) is an embedded quote that keeps the string open. */
   readonly doubleQuoteEmbedded: boolean;
+  /**
+   * Whether `{ … }` is an opaque script block whose inner separators are internal, not top-level
+   * (PowerShell `Where-Object { … }`, `if (…) { … }`). Off for Bash, where `{ …; …; }` is a brace
+   * group whose `;` separates real commands — grouping there would hide a subcommand.
+   */
+  readonly scriptBlock: boolean;
   readonly twoCharSeparators: readonly string[];
   readonly singleCharSeparators: readonly string[];
 }
@@ -59,6 +67,7 @@ const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     escapeChar: "\\",
     singleQuoteEmbedded: false,
     doubleQuoteEmbedded: false,
+    scriptBlock: false,
     twoCharSeparators: ["&&", "||", "|&"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -66,6 +75,7 @@ const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     escapeChar: "`",
     singleQuoteEmbedded: true,
     doubleQuoteEmbedded: true,
+    scriptBlock: true,
     twoCharSeparators: ["&&", "||"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -98,6 +108,52 @@ function findQuoteEnd(command: string, openIndex: number, syntax: ShellSyntax): 
       }
 
       return index + 1;
+    }
+
+    index += 1;
+  }
+
+  return undefined;
+}
+
+/**
+ * Given a script block opening `{` at `openIndex`, return the index just past its matching `}` under
+ * the shell's grammar, tracking nesting and skipping quoted/escaped regions (so a `}` inside a quote
+ * does not close the block). Returns `undefined` when the block is never closed, so the caller falls
+ * back to scanning through the `{` and any inner separator still splits (fail toward splitting).
+ */
+function findBlockEnd(command: string, openIndex: number, syntax: ShellSyntax): number | undefined {
+  let depth = 0;
+  let index = openIndex;
+
+  while (index < command.length) {
+    const char = command[index];
+
+    if (char === syntax.escapeChar && index + 1 < command.length) {
+      index += 2;
+      continue;
+    }
+
+    if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
+      const end = findQuoteEnd(command, index, syntax);
+      index = end ?? index + 1;
+      continue;
+    }
+
+    if (char === BLOCK_OPEN) {
+      depth += 1;
+      index += 1;
+      continue;
+    }
+
+    if (char === BLOCK_CLOSE) {
+      depth -= 1;
+      index += 1;
+      if (depth === 0) {
+        return index;
+      }
+
+      continue;
     }
 
     index += 1;
@@ -149,6 +205,13 @@ function findSeparatorPositions(command: string, syntax: ShellSyntax): Separator
       const end = findQuoteEnd(command, index, syntax);
       // Unterminated quote: treat the opening quote as a literal char and keep scanning so a later
       // separator is still found (fail toward splitting, never toward hiding a command).
+      index = end ?? index + 1;
+      continue;
+    }
+
+    if (syntax.scriptBlock && char === BLOCK_OPEN) {
+      const end = findBlockEnd(command, index, syntax);
+      // Unbalanced block: fall through the `{` so an inner separator still splits (fail toward split).
       index = end ?? index + 1;
       continue;
     }
@@ -220,6 +283,14 @@ function tokenSpans(subcommand: string, syntax: ShellSyntax): TokenSpan[] {
 
       if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
         const end = findQuoteEnd(subcommand, index, syntax);
+        index = end ?? index + 1;
+        continue;
+      }
+
+      if (syntax.scriptBlock && char === BLOCK_OPEN) {
+        // Keep a whole `{ … }` block as one token so its inner whitespace does not fragment it and a
+        // derived prefix covers the entire script block rather than cutting into it.
+        const end = findBlockEnd(subcommand, index, syntax);
         index = end ?? index + 1;
         continue;
       }

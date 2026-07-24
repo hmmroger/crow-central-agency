@@ -92,6 +92,60 @@ describe("splitSubcommands (powershell)", () => {
   it("fails toward splitting on an unterminated quote", () => {
     expect(splitSubcommands('echo "x ; rm y', SHELL.POWERSHELL)).toEqual(['echo "x', "rm y"]);
   });
+
+  it("splits a realistic multi-line pipeline into one subcommand per cmdlet", () => {
+    const command = [
+      "Get-Service |",
+      "Where-Object { $_.Status -eq 'Running' } |",
+      "Select-Object -Property DisplayName, Status",
+    ].join("\n");
+    expect(splitSubcommands(command, SHELL.POWERSHELL)).toEqual([
+      "Get-Service",
+      "Where-Object { $_.Status -eq 'Running' }",
+      "Select-Object -Property DisplayName, Status",
+    ]);
+  });
+
+  it("splits a variable assignment then statement on the top-level semicolon", () => {
+    expect(splitSubcommands("$files = Get-ChildItem -Recurse; Remove-Item $files", SHELL.POWERSHELL)).toEqual([
+      "$files = Get-ChildItem -Recurse",
+      "Remove-Item $files",
+    ]);
+  });
+
+  it("keeps separators inside a script block internal, not top-level", () => {
+    expect(splitSubcommands("Get-ChildItem | ForEach-Object { $x = $_; Remove-Item $x }", SHELL.POWERSHELL)).toEqual([
+      "Get-ChildItem",
+      "ForEach-Object { $x = $_; Remove-Item $x }",
+    ]);
+    expect(splitSubcommands("Get-Content log | ForEach-Object { $_ | Out-Host }", SHELL.POWERSHELL)).toEqual([
+      "Get-Content log",
+      "ForEach-Object { $_ | Out-Host }",
+    ]);
+  });
+
+  it("respects nested script blocks and quotes inside a block", () => {
+    expect(
+      splitSubcommands("Get-Process | ForEach-Object { if ($_.CPU -gt 10) { Stop-Process $_ } }", SHELL.POWERSHELL)
+    ).toEqual(["Get-Process", "ForEach-Object { if ($_.CPU -gt 10) { Stop-Process $_ } }"]);
+    expect(splitSubcommands("Get-ChildItem | Where-Object { $_.Name -eq '}' }", SHELL.POWERSHELL)).toEqual([
+      "Get-ChildItem",
+      "Where-Object { $_.Name -eq '}' }",
+    ]);
+  });
+
+  it("fails toward splitting when a script block is never closed", () => {
+    // Unbalanced `{`: the inner `;` must still split so `rm -rf ~` cannot hide inside the block.
+    expect(splitSubcommands("ForEach-Object { Remove-Item $_ ; rm -rf ~", SHELL.POWERSHELL)).toEqual([
+      "ForEach-Object { Remove-Item $_",
+      "rm -rf ~",
+    ]);
+  });
+
+  it("does not treat `{ }` as a block under Bash (brace group separators stay top-level)", () => {
+    // Bash `{ …; …; }` is a command group whose `;` separates real commands — must NOT be grouped.
+    expect(splitSubcommands("{ echo hi ; rm -rf / ; }", SHELL.BASH)).toEqual(["{ echo hi", "rm -rf /", "}"]);
+  });
 });
 
 describe("deriveCommandRules", () => {
@@ -111,6 +165,23 @@ describe("deriveCommandRules", () => {
     expect(deriveCommandRules("git commit -m 'fix: a; b'", SHELL.BASH)).toEqual(["git commit -m 'fix: a; b' *"]);
     expect(deriveCommandRules(String.raw`sed -i 's/a; b/c/' file`, SHELL.BASH)).toEqual([
       String.raw`sed -i 's/a; b/c/' file *`,
+    ]);
+  });
+
+  it("derives one rule per cmdlet for a realistic PowerShell pipeline, keeping the whole script block", () => {
+    const command = "Get-Service | Where-Object { $_.Status -eq 'Running' } | Select-Object -Property DisplayName";
+    expect(deriveCommandRules(command, SHELL.POWERSHELL)).toEqual([
+      "Get-Service *",
+      "Where-Object { $_.Status -eq 'Running' } *",
+      "Select-Object -Property DisplayName *",
+    ]);
+  });
+
+  it("keeps a PowerShell assignment prefix literal rather than broadening to the right-hand command", () => {
+    // Stripping `$files =` to derive `Get-ChildItem *` would broaden the grant; the specific rule is
+    // safer and still self-matches when the same assignment recurs.
+    expect(deriveCommandRules("$files = Get-ChildItem -Recurse", SHELL.POWERSHELL)).toEqual([
+      "$files = Get-ChildItem *",
     ]);
   });
 
@@ -211,6 +282,19 @@ describe("matchesCommandRules", () => {
     // `echo "x\" && rm -rf ~` splits into `echo "x\"` and `rm -rf ~`. Under a `Bash(echo *)` grant
     // the first matches but `rm -rf ~` does not, so ALL mode fails closed — no auto-approve.
     expect(matchesCommandRules(String.raw`echo "x\" && rm -rf ~`, ["echo *"], SHELL.BASH)).toBe(false);
+  });
+
+  it("approves a PowerShell pipeline with a script block against its own derived rules", () => {
+    const command = "Get-Service | Where-Object { $_.Status -eq 'Running' } | Select-Object -Property Name";
+    expect(matchesCommandRules(command, deriveCommandRules(command, SHELL.POWERSHELL), SHELL.POWERSHELL)).toBe(true);
+  });
+
+  it("does not auto-approve a command hidden inside an unbalanced PowerShell block", () => {
+    // The block never closes, so `rm -rf ~` splits out as its own subcommand; a grant covering only
+    // the ForEach-Object cmdlet leaves it unmatched and ALL mode fails closed.
+    expect(
+      matchesCommandRules("ForEach-Object { Remove-Item $_ ; rm -rf ~", ["ForEach-Object *"], SHELL.POWERSHELL)
+    ).toBe(false);
   });
 
   it("fails closed on empty or unparseable input", () => {
