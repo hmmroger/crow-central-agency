@@ -225,21 +225,10 @@ export class CrowMcpManager {
     const existing = this.getMcpConfig(configId);
     const validated = UpdateMcpConfigInputSchema.parse(input);
 
-    // When the type changes (e.g. stdio -> sse), only carry over common base fields
-    // to avoid leaking type-specific fields from the old config into the new shape.
-    // NOTE: when adding new common fields to the schema, add them here too.
-    const isTypeChange = validated.type !== existing.type;
-    const base = isTypeChange
-      ? {
-          id: existing.id,
-          name: existing.name,
-          description: existing.description,
-          isDisabled: existing.isDisabled,
-          enableForCrow: existing.enableForCrow,
-        }
-      : existing;
-
-    const updated = McpServerConfigSchema.parse({ ...base, ...validated, id: existing.id });
+    // The editor submits every editable field, so update is a full replace: take all
+    // editable fields from the payload and preserve only the server-owned id. This lets
+    // emptied fields (env, headers, args, description) clear instead of surviving a stale merge.
+    const updated = McpServerConfigSchema.parse({ ...validated, id: existing.id });
 
     this.mcpConfigs.set(configId, updated);
     await this.store.set(MCP_CONFIG_STORE_TABLE, configId, updated);
