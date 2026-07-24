@@ -21,6 +21,7 @@ import {
   type AgentThinkingConfig,
 } from "@crow-central-agency/shared";
 import { AgentRunner } from "./agent-runner.js";
+import { partitionAllowRules } from "./claude-code-allow-partition.js";
 import { PermissionRuleSet } from "./permission-rule/rule-set.js";
 import { processStream } from "./stream-processor.js";
 import { parseToolActivity } from "./tool-activity-parser.js";
@@ -146,6 +147,11 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         ? { autoCompactEnabled: true, autoCompactWindow: autoCompactTokensThreshold }
         : undefined;
 
+    // Specifier rules our matcher can't yet evaluate (path/domain globs on non-command tools) go
+    // back to Claude-native allowedTools — the reference matcher — while everything else stays in
+    // our set. Interim bridge for the D5 gap; empties once the real strategies land.
+    const { ownedByMatcher, delegatedToNative } = partitionAllowRules(agentConfig.toolConfig.autoApprovedTools ?? []);
+
     const queryInstance = sdkQuery({
       prompt:
         messageSource.sourceType === MESSAGE_SOURCE_TYPE.COMMAND
@@ -163,12 +169,10 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         includePartialMessages: true,
         permissionMode: agentConfig.permissionMode,
         tools: toolsOption,
+        allowedTools: delegatedToNative.length > 0 ? delegatedToNative : undefined,
         disallowedTools: agentConfig.toolConfig.disallowedTools,
         canUseTool: this.buildCanUseTool(
-          new PermissionRuleSet([
-            ...(agentConfig.toolConfig.autoApprovedTools ?? []),
-            ...internalMcpPrefixes.map((prefix) => `${prefix}*`),
-          ]),
+          new PermissionRuleSet([...ownedByMatcher, ...internalMcpPrefixes.map((prefix) => `${prefix}*`)]),
           sessionId ?? ""
         ),
         settingSources: agentConfig.settingSources,
