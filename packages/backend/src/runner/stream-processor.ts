@@ -47,6 +47,7 @@ function handleMessage(agentId: string, message: SDKMessage, internalMcpPrefixes
     case "auth_status":
     case "tool_use_summary":
     case "prompt_suggestion":
+    case "conversation_reset":
     default:
       log.debug({ agentId, type: message.type, sessionId: message.session_id }, "Unhandled SDK message received");
       return [];
@@ -148,6 +149,8 @@ function handleSystemMessage(
     case "session_state_changed":
     case "thinking_tokens":
     case "worker_shutting_down":
+    case "control_request_progress":
+    case "background_tasks_changed":
       break;
   }
 
