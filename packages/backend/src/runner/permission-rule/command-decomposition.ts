@@ -1,7 +1,7 @@
 import { matchesSpecifier, WORD_BOUNDARY_SUFFIX } from "@crow-central-agency/shared";
 
 /** Number of non-flag tokens a derived prefix keeps before wildcarding the rest. */
-export const DEFAULT_PREFIX_DEPTH = 2;
+export const DEFAULT_PREFIX_DEPTH = 3;
 
 /**
  * How a compound command aggregates per-subcommand matches. `ALL` (approve) requires every
