@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
-import { getRuleStrategy } from "@crow-central-agency/shared";
 import { formatJSONString } from "../../../utils/format-utils";
 
 interface PermissionDialogProps {
   toolName: string;
   toolUseId: string;
   input?: Record<string, unknown>;
+  /** Backend-computed, diff-aware rule(s) that "Always allow" will persist. */
+  autoApproveRules?: string[];
   decisionReason?: string;
   onAllow: (toolUseId: string) => void;
   onAllowAlways: (toolUseId: string) => void;
@@ -20,6 +21,7 @@ export function PermissionDialog({
   toolName,
   toolUseId,
   input,
+  autoApproveRules,
   decisionReason,
   onAllow,
   onAllowAlways,
@@ -49,11 +51,6 @@ export function PermissionDialog({
   const inputPreview = useMemo(() => {
     return input && Object.keys(input).length > 0 ? formatJSONString(input) : undefined;
   }, [input]);
-
-  // Same shared derivation the backend persists on "Always allow", so the preview matches exactly.
-  const autoApproveRules = useMemo(() => {
-    return getRuleStrategy(toolName).deriveRules(toolName, input ?? {});
-  }, [toolName, input]);
 
   return (
     <div className="border border-warning/30 rounded-lg bg-surface-elevated p-3 space-y-2">
@@ -109,7 +106,7 @@ export function PermissionDialog({
       </div>
 
       {/* Rules that "Always allow" will persist */}
-      {autoApproveRules.length > 0 && (
+      {autoApproveRules !== undefined && autoApproveRules.length > 0 && (
         <div className="text-xs text-text-muted">
           <span>Always allow will remember:</span>
           <div className="mt-1 flex flex-wrap gap-1">

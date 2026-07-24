@@ -1,7 +1,12 @@
-import { CLAUDE_CODE_TOOL } from "../schemas/agent.schema.js";
-import type { AutoApproveRuleStrategy, ParsedRule } from "./auto-approve-rule.types.js";
-import { deriveRules as deriveCommandRules, matchesRules as matchesCommandRules } from "./command-decomposition.js";
-import { formatRule, GLOB_STAR } from "./rule-format.js";
+import { CLAUDE_CODE_TOOL, formatRule, GLOB_STAR, type ParsedRule } from "@crow-central-agency/shared";
+import type { PermissionRuleStrategy } from "./permission-rule-strategy.types.js";
+import {
+  deriveCommandRules,
+  deriveNewCommandRules,
+  matchesCommandRules,
+  SHELL,
+  type ShellDialect,
+} from "./command-decomposition.js";
 
 /** Input field carrying the shell command for Bash/PowerShell tools. */
 const COMMAND_INPUT_KEY = "command";
@@ -14,6 +19,15 @@ const COMMAND_TOOL_BASE_NAMES = new Set([
   CLAUDE_CODE_TOOL.BASH.toLowerCase(),
   CLAUDE_CODE_TOOL.POWER_SHELL.toLowerCase(),
 ]);
+
+/**
+ * Resolve the shell grammar governing decomposition from the command tool name (case-insensitive),
+ * so a `\"` is read as a literal quote under Bash but a path char under PowerShell. Non-PowerShell
+ * command tools default to Bash.
+ */
+function resolveShell(toolName: string): ShellDialect {
+  return toolName.toLowerCase() === CLAUDE_CODE_TOOL.POWER_SHELL.toLowerCase() ? SHELL.POWERSHELL : SHELL.BASH;
+}
 
 /**
  * Whole-tool matching: case-insensitive exact tool-name match, plus a trailing `*` (including a bare
@@ -47,14 +61,28 @@ function extractCommand(input: Record<string, unknown>): string | undefined {
 }
 
 /** Default strategy: today's whole-tool behavior, used for any tool without a specialization. */
-export const defaultRuleStrategy: AutoApproveRuleStrategy = {
+export const defaultRuleStrategy: PermissionRuleStrategy = {
   appliesTo: () => true,
   deriveRules: (toolName) => [toolName],
+  deriveNewRules: (toolName) => [toolName],
   matches: (toolName, _input, rules) => wholeToolMatches(toolName, rules),
 };
 
+/** Collect the specifiers of `rules` scoped to a single tool (case-insensitive), ignoring whole-tool rules. */
+function specifiersForTool(toolName: string, rules: ParsedRule[]): string[] {
+  const targetTool = toolName.toLowerCase();
+  const specifiers: string[] = [];
+  for (const rule of rules) {
+    if (rule.specifier !== undefined && rule.tool.toLowerCase() === targetTool) {
+      specifiers.push(rule.specifier);
+    }
+  }
+
+  return specifiers;
+}
+
 /** Command strategy: Bash/PowerShell decomposition on top of the whole-tool behavior. */
-export const commandRuleStrategy: AutoApproveRuleStrategy = {
+export const commandRuleStrategy: PermissionRuleStrategy = {
   appliesTo: (toolName) => COMMAND_TOOL_BASE_NAMES.has(toolName.toLowerCase()),
 
   deriveRules: (toolName, input) => {
@@ -63,7 +91,21 @@ export const commandRuleStrategy: AutoApproveRuleStrategy = {
       return [];
     }
 
-    return deriveCommandRules(command).map((specifier) => formatRule({ tool: toolName, specifier }));
+    return deriveCommandRules(command, resolveShell(toolName)).map((specifier) =>
+      formatRule({ tool: toolName, specifier })
+    );
+  },
+
+  deriveNewRules: (toolName, input, existingRules) => {
+    const command = extractCommand(input);
+    if (command === undefined) {
+      return [];
+    }
+
+    const existingSpecifiers = specifiersForTool(toolName, existingRules);
+    return deriveNewCommandRules(command, existingSpecifiers, resolveShell(toolName)).map((specifier) =>
+      formatRule({ tool: toolName, specifier })
+    );
   },
 
   matches: (toolName, input, rules, mode) => {
@@ -76,14 +118,6 @@ export const commandRuleStrategy: AutoApproveRuleStrategy = {
       return false;
     }
 
-    const targetTool = toolName.toLowerCase();
-    const specifiers: string[] = [];
-    for (const rule of rules) {
-      if (rule.specifier !== undefined && rule.tool.toLowerCase() === targetTool) {
-        specifiers.push(rule.specifier);
-      }
-    }
-
-    return matchesCommandRules(command, specifiers, mode);
+    return matchesCommandRules(command, specifiersForTool(toolName, rules), resolveShell(toolName), mode);
   },
 };

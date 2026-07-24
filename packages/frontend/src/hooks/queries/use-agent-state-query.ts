@@ -81,6 +81,7 @@ export function useAgentStateQuery(agentId: string) {
         toolUseId: message.toolUseId,
         toolName: message.toolName,
         input: message.input,
+        autoApproveRules: message.autoApproveRules,
         decisionReason: message.decisionReason,
       };
 

@@ -37,6 +37,7 @@ export type PermissionRequestCallback = (
   toolName: string,
   input: Record<string, unknown>,
   toolUseId: string,
+  autoApproveRules: string[],
   decisionReason?: string
 ) => Promise<PermissionResult>;
 
