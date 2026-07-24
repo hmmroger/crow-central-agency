@@ -18,77 +18,90 @@ export type SubcommandMatchMode = (typeof SUBCOMMAND_MATCH_MODE)[keyof typeof SU
 export const MAX_DERIVED_RULES = 5;
 
 /**
- * Shell separators that decompose a compound command. Two-character separators are matched before
- * the single-character ones so `&&`/`||`/`|&` win over `&`/`|`.
+ * The shell whose quote/escape grammar governs decomposition. Resolved from the command tool name
+ * (Bash vs PowerShell) so a `\"` is read as a literal quote in Bash but a path char in PowerShell.
  */
-export const TWO_CHAR_SEPARATORS = ["&&", "||", "|&"] as const;
-export const SINGLE_CHAR_SEPARATORS = [";", "|", "&", "\n", "\r"] as const;
+export const SHELL = {
+  BASH: "bash",
+  POWERSHELL: "powershell",
+} as const;
 
-/**
- * Process wrappers stripped from the front of a subcommand before matching. `timeout`/`nice` also
- * consume a leading numeric argument (duration / priority).
- */
-export const PROCESS_WRAPPERS = new Set(["timeout", "time", "nice", "nohup", "stdbuf"]);
-const WRAPPERS_WITH_NUMERIC_ARG = new Set(["timeout", "nice"]);
-const XARGS_WRAPPER = "xargs";
+export type ShellDialect = (typeof SHELL)[keyof typeof SHELL];
 
 const OPTION_PREFIX = "-";
-
 const SINGLE_QUOTE = "'";
 const DOUBLE_QUOTE = '"';
 const REDIRECT_CHAR = ">";
 
-/** Split a command string into whitespace-delimited tokens, respecting single/double quotes. */
-function tokenize(command: string): string[] {
-  const tokens: string[] = [];
-  let current = "";
-  let hasToken = false;
-  let quote: string | undefined;
-
-  for (const char of command) {
-    if (quote !== undefined) {
-      if (char === quote) {
-        quote = undefined;
-      } else {
-        current += char;
-      }
-
-      continue;
-    }
-
-    if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
-      quote = char;
-      hasToken = true;
-      continue;
-    }
-
-    if (char === " " || char === "\t") {
-      if (hasToken) {
-        tokens.push(current);
-        current = "";
-        hasToken = false;
-      }
-
-      continue;
-    }
-
-    current += char;
-    hasToken = true;
-  }
-
-  if (hasToken) {
-    tokens.push(current);
-  }
-
-  return tokens;
+interface ShellSyntax {
+  /** Escapes the next char outside quotes and inside double quotes (Bash `\`, PowerShell backtick). */
+  readonly escapeChar: string;
+  /** Whether a doubled single quote (`''`) is an embedded quote that keeps the string open. */
+  readonly singleQuoteEmbedded: boolean;
+  /** Whether a doubled double quote (`""`) is an embedded quote that keeps the string open. */
+  readonly doubleQuoteEmbedded: boolean;
+  readonly twoCharSeparators: readonly string[];
+  readonly singleCharSeparators: readonly string[];
 }
 
-/** Return the shell separator starting at `index`, or `undefined` if none. */
-function separatorAt(command: string, index: number): string | undefined {
+const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
+  [SHELL.BASH]: {
+    escapeChar: "\\",
+    singleQuoteEmbedded: false,
+    doubleQuoteEmbedded: false,
+    twoCharSeparators: ["&&", "||", "|&"],
+    singleCharSeparators: [";", "|", "&", "\n", "\r"],
+  },
+  [SHELL.POWERSHELL]: {
+    escapeChar: "`",
+    singleQuoteEmbedded: true,
+    doubleQuoteEmbedded: true,
+    twoCharSeparators: ["&&", "||"],
+    singleCharSeparators: [";", "|", "&", "\n", "\r"],
+  },
+};
+
+/**
+ * Given a quote opening at `openIndex`, return the index just past its close under the shell's
+ * grammar, or `undefined` when the quote is never closed. Escapes and embedded-quote doublings are
+ * consumed but never rewritten — this only locates the boundary. An unterminated quote returns
+ * `undefined` so the caller can fall back to scanning through it (never hide a later separator).
+ */
+function findQuoteEnd(command: string, openIndex: number, syntax: ShellSyntax): number | undefined {
+  const quoteChar = command[openIndex];
+  const isDouble = quoteChar === DOUBLE_QUOTE;
+  const embedded = isDouble ? syntax.doubleQuoteEmbedded : syntax.singleQuoteEmbedded;
+  let index = openIndex + 1;
+
+  while (index < command.length) {
+    const char = command[index];
+
+    if (isDouble && char === syntax.escapeChar && index + 1 < command.length) {
+      index += 2;
+      continue;
+    }
+
+    if (char === quoteChar) {
+      if (embedded && command[index + 1] === quoteChar) {
+        index += 2;
+        continue;
+      }
+
+      return index + 1;
+    }
+
+    index += 1;
+  }
+
+  return undefined;
+}
+
+/** Return the length of the shell separator starting at `index`, or `undefined` if none. */
+function separatorLengthAt(command: string, index: number, syntax: ShellSyntax): number | undefined {
   const twoChar = command.slice(index, index + 2);
-  for (const separator of TWO_CHAR_SEPARATORS) {
+  for (const separator of syntax.twoCharSeparators) {
     if (twoChar === separator) {
-      return separator;
+      return separator.length;
     }
   }
 
@@ -100,153 +113,177 @@ function separatorAt(command: string, index: number): string | undefined {
     }
   }
 
-  for (const separator of SINGLE_CHAR_SEPARATORS) {
+  for (const separator of syntax.singleCharSeparators) {
     if (char === separator) {
-      return separator;
+      return separator.length;
     }
   }
 
   return undefined;
 }
 
-/** Strip leading process wrappers (and their option/numeric args) from a token list. */
-function stripWrappers(tokens: string[]): string[] {
-  let remaining = tokens;
-
-  while (remaining.length > 0) {
-    const head = remaining[0];
-
-    if (head === XARGS_WRAPPER) {
-      // Only bare `xargs` (no flags) is transparent; flagged xargs stays and simply won't match.
-      const next = remaining[1];
-      if (next !== undefined && next.startsWith(OPTION_PREFIX)) {
-        break;
-      }
-
-      remaining = remaining.slice(1);
-      continue;
-    }
-
-    if (!PROCESS_WRAPPERS.has(head)) {
-      break;
-    }
-
-    remaining = remaining.slice(1);
-    while (remaining.length > 0 && remaining[0].startsWith(OPTION_PREFIX)) {
-      remaining = remaining.slice(1);
-    }
-
-    if (WRAPPERS_WITH_NUMERIC_ARG.has(head) && remaining.length > 0 && /^[0-9]/.test(remaining[0])) {
-      remaining = remaining.slice(1);
-    }
-  }
-
-  return remaining;
+interface SeparatorPosition {
+  readonly index: number;
+  readonly length: number;
 }
 
-/**
- * Split a compound command into its normalized subcommands. Splits on shell separators outside
- * quotes, strips process wrappers, and drops empty segments. The returned strings are re-joined
- * from parsed tokens (quotes removed, whitespace collapsed) for stable matching.
- */
-export function splitSubcommands(command: string): string[] {
-  const rawSegments: string[] = [];
-  let current = "";
-  let quote: string | undefined;
+/** Scan the command for top-level separators, skipping quoted regions and escaped characters. */
+function findSeparatorPositions(command: string, syntax: ShellSyntax): SeparatorPosition[] {
+  const positions: SeparatorPosition[] = [];
   let index = 0;
 
   while (index < command.length) {
     const char = command[index];
 
-    if (quote !== undefined) {
-      current += char;
-      if (char === quote) {
-        quote = undefined;
-      }
-
-      index += 1;
+    if (char === syntax.escapeChar && index + 1 < command.length) {
+      index += 2;
       continue;
     }
 
     if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
-      quote = char;
-      current += char;
-      index += 1;
+      const end = findQuoteEnd(command, index, syntax);
+      // Unterminated quote: treat the opening quote as a literal char and keep scanning so a later
+      // separator is still found (fail toward splitting, never toward hiding a command).
+      index = end ?? index + 1;
       continue;
     }
 
-    const separator = separatorAt(command, index);
-    if (separator !== undefined) {
-      rawSegments.push(current);
-      current = "";
-      index += separator.length;
+    const length = separatorLengthAt(command, index, syntax);
+    if (length !== undefined) {
+      positions.push({ index, length });
+      index += length;
       continue;
     }
 
-    current += char;
     index += 1;
   }
 
-  rawSegments.push(current);
+  return positions;
+}
 
+/**
+ * Split a compound command into its top-level subcommands, preserving each as a literal slice of
+ * the original (outer whitespace trimmed, empties dropped). Boundaries respect the shell's quote
+ * and escape grammar, so separators inside quotes or escaped are not split on.
+ */
+export function splitSubcommands(command: string, shell: ShellDialect): string[] {
+  const syntax = SHELL_SYNTAX[shell];
   const subcommands: string[] = [];
-  for (const segment of rawSegments) {
-    const tokens = stripWrappers(tokenize(segment));
-    if (tokens.length > 0) {
-      subcommands.push(tokens.join(" "));
+  let start = 0;
+
+  const pushSegment = (end: number): void => {
+    const trimmed = command.slice(start, end).trim();
+    if (trimmed.length > 0) {
+      subcommands.push(trimmed);
     }
+  };
+
+  for (const position of findSeparatorPositions(command, syntax)) {
+    pushSegment(position.index);
+    start = position.index + position.length;
   }
 
+  pushSegment(command.length);
   return subcommands;
 }
 
-function derivePrefixTokens(tokens: string[], depth: number): string[] | undefined {
-  const prefix: string[] = [];
-  let counted = 0;
+interface TokenSpan {
+  readonly start: number;
+  readonly end: number;
+}
+
+/** Locate whitespace-delimited token spans in a single subcommand, skipping quoted regions. */
+function tokenSpans(subcommand: string, syntax: ShellSyntax): TokenSpan[] {
+  const spans: TokenSpan[] = [];
   let index = 0;
 
-  while (index < tokens.length && counted < depth) {
-    const token = tokens[index];
-
-    if (token.startsWith(OPTION_PREFIX)) {
-      prefix.push(token);
+  while (index < subcommand.length) {
+    while (index < subcommand.length && (subcommand[index] === " " || subcommand[index] === "\t")) {
       index += 1;
-      if (index < tokens.length && !tokens[index].startsWith(OPTION_PREFIX)) {
-        prefix.push(tokens[index]);
+    }
+
+    if (index >= subcommand.length) {
+      break;
+    }
+
+    const start = index;
+    while (index < subcommand.length) {
+      const char = subcommand[index];
+      if (char === " " || char === "\t") {
+        break;
+      }
+
+      if (char === syntax.escapeChar && index + 1 < subcommand.length) {
+        index += 2;
+        continue;
+      }
+
+      if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
+        const end = findQuoteEnd(subcommand, index, syntax);
+        index = end ?? index + 1;
+        continue;
+      }
+
+      index += 1;
+    }
+
+    spans.push({ start, end: index });
+  }
+
+  return spans;
+}
+
+/**
+ * Derive one flag-aware prefix specifier for a single already-decomposed subcommand: keep the first
+ * {@link DEFAULT_PREFIX_DEPTH} non-flag tokens (a `-`/`--` flag and its following value are kept but
+ * not counted), then take that literal prefix of the source plus {@link WORD_BOUNDARY_SUFFIX}.
+ * `undefined` when there is no non-flag token (e.g. a lone `--flag`). Never re-splits the subcommand.
+ */
+function derivePrefixSpecifier(subcommand: string, syntax: ShellSyntax, depth: number): string | undefined {
+  const spans = tokenSpans(subcommand, syntax);
+  let counted = 0;
+  let lastKeptEnd = -1;
+  let index = 0;
+
+  while (index < spans.length && counted < depth) {
+    const text = subcommand.slice(spans[index].start, spans[index].end);
+
+    if (text.startsWith(OPTION_PREFIX)) {
+      lastKeptEnd = spans[index].end;
+      index += 1;
+      const next = spans[index];
+      if (next !== undefined && !subcommand.slice(next.start, next.end).startsWith(OPTION_PREFIX)) {
+        lastKeptEnd = next.end;
         index += 1;
       }
 
       continue;
     }
 
-    prefix.push(token);
+    lastKeptEnd = spans[index].end;
     counted += 1;
     index += 1;
   }
 
-  return counted === 0 ? undefined : prefix;
+  return counted === 0 ? undefined : `${subcommand.slice(0, lastKeptEnd)}${WORD_BOUNDARY_SUFFIX}`;
 }
 
 /**
- * Capture side: derive one flag-aware prefix specifier per subcommand, deduped and capped at
- * {@link MAX_DERIVED_RULES}. A subcommand with no non-flag token (e.g. a lone `--flag`) contributes
- * nothing. User config is the only auto-approve authority — there is no read-only skip.
+ * Capture side: derive one literal-prefix specifier per subcommand, deduped and capped at
+ * {@link MAX_DERIVED_RULES}. A subcommand with no non-flag token contributes nothing. User config is
+ * the only auto-approve authority — there is no read-only skip.
  */
-export function deriveCommandRules(command: string, depth = DEFAULT_PREFIX_DEPTH): string[] {
+export function deriveCommandRules(command: string, shell: ShellDialect, depth = DEFAULT_PREFIX_DEPTH): string[] {
+  const syntax = SHELL_SYNTAX[shell];
   const specifiers: string[] = [];
 
-  for (const subcommand of splitSubcommands(command)) {
+  for (const subcommand of splitSubcommands(command, shell)) {
     if (specifiers.length >= MAX_DERIVED_RULES) {
       break;
     }
 
-    const prefixTokens = derivePrefixTokens(tokenize(subcommand), depth);
-    if (prefixTokens === undefined) {
-      continue;
-    }
-
-    const specifier = `${prefixTokens.join(" ")}${WORD_BOUNDARY_SUFFIX}`;
-    if (!specifiers.includes(specifier)) {
+    const specifier = derivePrefixSpecifier(subcommand, syntax, depth);
+    if (specifier !== undefined && !specifiers.includes(specifier)) {
       specifiers.push(specifier);
     }
   }
@@ -255,19 +292,21 @@ export function deriveCommandRules(command: string, depth = DEFAULT_PREFIX_DEPTH
 }
 
 /**
- * Diff-aware capture: derive prefix specifiers only for subcommands not already covered by
- * `existingSpecifiers`, composing the untouched {@link deriveCommandRules} (capture) and
- * {@link matchesSpecifier} (match) primitives. A subcommand matched by an existing specifier is
- * skipped; the rest derive one specifier each, deduped and capped at {@link MAX_DERIVED_RULES}.
+ * Diff-aware capture: split once, then derive one specifier per subcommand not already covered by
+ * `existingSpecifiers` (matched via {@link matchesSpecifier}), deduped and capped at
+ * {@link MAX_DERIVED_RULES}. Shares {@link derivePrefixSpecifier} with {@link deriveCommandRules}
+ * rather than re-invoking the whole-command capture, which would decompose a subcommand twice.
  */
 export function deriveNewCommandRules(
   command: string,
   existingSpecifiers: string[],
+  shell: ShellDialect,
   depth = DEFAULT_PREFIX_DEPTH
 ): string[] {
+  const syntax = SHELL_SYNTAX[shell];
   const specifiers: string[] = [];
 
-  for (const subcommand of splitSubcommands(command)) {
+  for (const subcommand of splitSubcommands(command, shell)) {
     if (specifiers.length >= MAX_DERIVED_RULES) {
       break;
     }
@@ -276,28 +315,27 @@ export function deriveNewCommandRules(
       continue;
     }
 
-    for (const specifier of deriveCommandRules(subcommand, depth)) {
-      if (!specifiers.includes(specifier)) {
-        specifiers.push(specifier);
-      }
+    const specifier = derivePrefixSpecifier(subcommand, syntax, depth);
+    if (specifier !== undefined && !specifiers.includes(specifier)) {
+      specifiers.push(specifier);
     }
   }
 
-  return specifiers.slice(0, MAX_DERIVED_RULES);
+  return specifiers;
 }
 
 /**
- * Match side: fails closed. Each raw subcommand is matched against the specifiers via literal-prefix
- * `matchesSpecifier` (no flag logic on this side). `ALL` (approve) requires every subcommand to
- * match; `ANY` (deny) fires when a single subcommand matches. Empty/unparseable input yields `false`
- * in both modes.
+ * Match side: fails closed. Each literal subcommand is matched against the specifiers via
+ * {@link matchesSpecifier}. `ALL` (approve) requires every subcommand to match; `ANY` (deny) fires
+ * when a single subcommand matches. Empty/unparseable input yields `false` in both modes.
  */
 export function matchesCommandRules(
   command: string,
   specifiers: string[],
+  shell: ShellDialect,
   mode: SubcommandMatchMode = SUBCOMMAND_MATCH_MODE.ALL
 ): boolean {
-  const subcommands = splitSubcommands(command);
+  const subcommands = splitSubcommands(command, shell);
   if (subcommands.length === 0) {
     return false;
   }

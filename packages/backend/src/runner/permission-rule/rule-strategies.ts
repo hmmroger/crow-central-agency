@@ -1,6 +1,12 @@
 import { CLAUDE_CODE_TOOL, formatRule, GLOB_STAR, type ParsedRule } from "@crow-central-agency/shared";
 import type { PermissionRuleStrategy } from "./permission-rule-strategy.types.js";
-import { deriveCommandRules, deriveNewCommandRules, matchesCommandRules } from "./command-decomposition.js";
+import {
+  deriveCommandRules,
+  deriveNewCommandRules,
+  matchesCommandRules,
+  SHELL,
+  type ShellDialect,
+} from "./command-decomposition.js";
 
 /** Input field carrying the shell command for Bash/PowerShell tools. */
 const COMMAND_INPUT_KEY = "command";
@@ -13,6 +19,15 @@ const COMMAND_TOOL_BASE_NAMES = new Set([
   CLAUDE_CODE_TOOL.BASH.toLowerCase(),
   CLAUDE_CODE_TOOL.POWER_SHELL.toLowerCase(),
 ]);
+
+/**
+ * Resolve the shell grammar governing decomposition from the command tool name (case-insensitive),
+ * so a `\"` is read as a literal quote under Bash but a path char under PowerShell. Non-PowerShell
+ * command tools default to Bash.
+ */
+function resolveShell(toolName: string): ShellDialect {
+  return toolName.toLowerCase() === CLAUDE_CODE_TOOL.POWER_SHELL.toLowerCase() ? SHELL.POWERSHELL : SHELL.BASH;
+}
 
 /**
  * Whole-tool matching: case-insensitive exact tool-name match, plus a trailing `*` (including a bare
@@ -76,7 +91,9 @@ export const commandRuleStrategy: PermissionRuleStrategy = {
       return [];
     }
 
-    return deriveCommandRules(command).map((specifier) => formatRule({ tool: toolName, specifier }));
+    return deriveCommandRules(command, resolveShell(toolName)).map((specifier) =>
+      formatRule({ tool: toolName, specifier })
+    );
   },
 
   deriveNewRules: (toolName, input, existingRules) => {
@@ -86,7 +103,7 @@ export const commandRuleStrategy: PermissionRuleStrategy = {
     }
 
     const existingSpecifiers = specifiersForTool(toolName, existingRules);
-    return deriveNewCommandRules(command, existingSpecifiers).map((specifier) =>
+    return deriveNewCommandRules(command, existingSpecifiers, resolveShell(toolName)).map((specifier) =>
       formatRule({ tool: toolName, specifier })
     );
   },
@@ -101,6 +118,6 @@ export const commandRuleStrategy: PermissionRuleStrategy = {
       return false;
     }
 
-    return matchesCommandRules(command, specifiersForTool(toolName, rules), mode);
+    return matchesCommandRules(command, specifiersForTool(toolName, rules), resolveShell(toolName), mode);
   },
 };
