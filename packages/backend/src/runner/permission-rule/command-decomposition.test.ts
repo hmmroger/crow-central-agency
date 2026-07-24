@@ -64,6 +64,12 @@ describe("splitSubcommands (bash)", () => {
   it("honors a backslash-escaped separator outside quotes", () => {
     expect(splitSubcommands(String.raw`echo a\&\& b`, SHELL.BASH)).toEqual([String.raw`echo a\&\& b`]);
   });
+
+  it("fails toward splitting on an unterminated single quote", () => {
+    // An unterminated quote must never hide a later separator: the scanner rescans past the opening
+    // quote so the top-level `&&` still splits, keeping `rm -rf ~` out of the first subcommand.
+    expect(splitSubcommands("echo 'x && rm -rf ~", SHELL.BASH)).toEqual(["echo 'x", "rm -rf ~"]);
+  });
 });
 
 describe("splitSubcommands (powershell)", () => {
@@ -81,6 +87,10 @@ describe("splitSubcommands (powershell)", () => {
   it("treats a doubled quote as an embedded quote keeping the string open", () => {
     expect(splitSubcommands('echo "a ; ""b"" c" ; rm x', SHELL.POWERSHELL)).toEqual(['echo "a ; ""b"" c"', "rm x"]);
     expect(splitSubcommands("echo 'a ; ''b'' c' ; rm x", SHELL.POWERSHELL)).toEqual(["echo 'a ; ''b'' c'", "rm x"]);
+  });
+
+  it("fails toward splitting on an unterminated quote", () => {
+    expect(splitSubcommands('echo "x ; rm y', SHELL.POWERSHELL)).toEqual(['echo "x', "rm y"]);
   });
 });
 

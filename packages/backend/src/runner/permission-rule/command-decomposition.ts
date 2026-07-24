@@ -44,6 +44,16 @@ interface ShellSyntax {
   readonly singleCharSeparators: readonly string[];
 }
 
+interface SeparatorPosition {
+  readonly index: number;
+  readonly length: number;
+}
+
+interface TokenSpan {
+  readonly start: number;
+  readonly end: number;
+}
+
 const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
   [SHELL.BASH]: {
     escapeChar: "\\",
@@ -122,11 +132,6 @@ function separatorLengthAt(command: string, index: number, syntax: ShellSyntax):
   return undefined;
 }
 
-interface SeparatorPosition {
-  readonly index: number;
-  readonly length: number;
-}
-
 /** Scan the command for top-level separators, skipping quoted regions and escaped characters. */
 function findSeparatorPositions(command: string, syntax: ShellSyntax): SeparatorPosition[] {
   const positions: SeparatorPosition[] = [];
@@ -185,11 +190,6 @@ export function splitSubcommands(command: string, shell: ShellDialect): string[]
 
   pushSegment(command.length);
   return subcommands;
-}
-
-interface TokenSpan {
-  readonly start: number;
-  readonly end: number;
 }
 
 /** Locate whitespace-delimited token spans in a single subcommand, skipping quoted regions. */
