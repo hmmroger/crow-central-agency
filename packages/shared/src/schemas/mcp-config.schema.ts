@@ -67,12 +67,8 @@ export const CreateMcpConfigInputSchema = z.discriminatedUnion("type", [
 ]);
 export type CreateMcpConfigInput = z.infer<typeof CreateMcpConfigInputSchema>;
 
-/** Input for updating an existing MCP config - partial fields, type required for discrimination */
-const UpdateLocalMcpConfigInputSchema = CreateLocalMcpConfigInputSchema.partial().required({ type: true });
-const UpdateRemoteMcpConfigInputSchema = CreateRemoteMcpConfigInputSchema.partial().required({ type: true });
-
-export const UpdateMcpConfigInputSchema = z.discriminatedUnion("type", [
-  UpdateLocalMcpConfigInputSchema,
-  UpdateRemoteMcpConfigInputSchema,
-]);
-export type UpdateMcpConfigInput = z.infer<typeof UpdateMcpConfigInputSchema>;
+// Update carries the same editable fields as create; the id comes from the URL param.
+// Treating update as a full replace lets emptied fields (env, headers, args, description)
+// clear instead of surviving a stale partial-merge on the backend.
+export const UpdateMcpConfigInputSchema = CreateMcpConfigInputSchema;
+export type UpdateMcpConfigInput = CreateMcpConfigInput;
