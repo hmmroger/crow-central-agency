@@ -5,7 +5,7 @@ import { sanitizeHtml } from "../../../utils/html-sanitizer";
 
 interface QuestionOptionProps {
   label: string;
-  description: string;
+  description?: string;
   preview?: string;
   active: boolean;
   onSelect: (label: string) => void;

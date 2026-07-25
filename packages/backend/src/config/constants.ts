@@ -66,3 +66,6 @@ export const COPILOT_DEFAULT_HOME_DIR_NAME = ".copilot";
 
 /** Subdirectory under the Copilot home holding user-level skills. */
 export const COPILOT_SKILLS_DIR_NAME = "skills";
+
+/** Header shown for a Copilot ask_user question. */
+export const COPILOT_QUESTION_HEADER = "Question";

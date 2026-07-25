@@ -9,7 +9,7 @@ export const ASK_USER_QUESTION_TOOL_NAME = "AskUserQuestion";
  */
 export const AskUserQuestionOptionSchema = z.object({
   label: z.string(),
-  description: z.string(),
+  description: z.string().optional(),
   preview: z.string().optional(),
 });
 
@@ -19,6 +19,7 @@ export const AskUserQuestionItemSchema = z.object({
   header: z.string(),
   multiSelect: z.boolean(),
   options: z.array(AskUserQuestionOptionSchema),
+  allowFreeformResponse: z.boolean().optional(),
 });
 
 /** The validated `canUseTool` input for the AskUserQuestion tool (SDK input is advisory; we parse it). */

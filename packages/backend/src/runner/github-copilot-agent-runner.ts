@@ -10,6 +10,7 @@ import {
   resolveModel,
   type AgentCommand,
   type AgentConfig,
+  type AskUserQuestionItem,
   type PermissionMode,
   type ReasoningEffort,
 } from "@crow-central-agency/shared";
@@ -34,6 +35,7 @@ import { generateId } from "../utils/id-utils.js";
 import {
   COPILOT_DEFAULT_HOME_DIR_NAME,
   COPILOT_HOME_ENV,
+  COPILOT_QUESTION_HEADER,
   COPILOT_SKILLS_DIR_NAME,
   DEFAULT_PERMISSION_DENY_MESSAGE,
   PERMISSION_USER_UNAVAILABLE_MESSAGE,
@@ -74,10 +76,12 @@ type CopilotAgentMode = "interactive" | "plan" | "autopilot";
 /** Copilot's reasoning effort levels, derived from the SDK's session config (no `max`; not exported by name). */
 type CopilotReasoningEffort = NonNullable<SessionConfig["reasoningEffort"]>;
 
-/**
- * Map a shared reasoning effort to Copilot's narrower set. `max` is Claude-only, so it collapses to
- * Copilot's deepest level (`xhigh`) to preserve the "deepest" intent; undefined keeps the model default.
- */
+/** ask_user handler shape, derived from the session config (the SDK does not re-export these by name). */
+type CopilotUserInputHandler = NonNullable<SessionConfig["onUserInputRequest"]>;
+type UserInputRequest = Parameters<CopilotUserInputHandler>[0];
+type UserInputResponse = Awaited<ReturnType<CopilotUserInputHandler>>;
+
+/** Map a shared reasoning effort to Copilot's narrower set; `max` (Claude-only) collapses to `xhigh`. */
 function toCopilotReasoningEffort(effort: ReasoningEffort | undefined): CopilotReasoningEffort | undefined {
   if (!effort) {
     return undefined;
@@ -87,11 +91,9 @@ function toCopilotReasoningEffort(effort: ReasoningEffort | undefined): CopilotR
 }
 
 /**
- * Map the agent's permission mode to a Copilot send mode plus how we resolve permission requests.
- * `dontAsk` stays interactive but denies every request since no user is reachable; `bypassPermissions`
- * runs autopilot and allows everything, including our external-MCP gate. Copilot has no preset
- * accept-edits equivalent, and its plan-mode exit isn't wired yet (the exit request would never be
- * answered and the turn would stall), so both fall back to the default interactive + prompt behavior.
+ * Map the agent's permission mode to a Copilot send mode and permission policy. Copilot has no
+ * accept-edits preset and no wired plan-mode exit (its exit request would stall the turn), so both
+ * fall back to interactive + prompt.
  */
 function resolvePermissionMode(permissionMode: PermissionMode): {
   agentMode: CopilotAgentMode;
@@ -109,9 +111,7 @@ function resolvePermissionMode(permissionMode: PermissionMode): {
   }
 }
 
-/**
- * User-level skills live under the Copilot home (`COPILOT_HOME`, else `~/.copilot`).
- */
+/** User-level skills live under the Copilot home (`COPILOT_HOME`, else `~/.copilot`). */
 function userSkillDirectory(): string {
   const copilotHome = expandPath(process.env[COPILOT_HOME_ENV] ?? `~/${COPILOT_DEFAULT_HOME_DIR_NAME}`);
   return path.join(copilotHome, COPILOT_SKILLS_DIR_NAME);
@@ -134,9 +134,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     circleManager: AgentCircleManager,
     fragmentManager: FragmentManager,
     private readonly permissionRequestHandler: PermissionRequestCallback,
-    // AskUserQuestion parks via the Claude SDK's canUseTool; Copilot has no equivalent, so the runner
-    // accepts the shared callback for a uniform factory signature but does not use it.
-    _questionRequestHandler: QuestionRequestCallback,
+    private readonly questionRequestHandler: QuestionRequestCallback,
     private readonly oobEventCallback: OOBStreamEventCallback
   ) {
     super(agentId, registry, mcpManager, sensorManager, circleManager, fragmentManager);
@@ -232,6 +230,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         },
       },
       onPermissionRequest: undefined,
+      onUserInputRequest: (request) => this.resolveUserInput(request),
     };
 
     const session =
@@ -333,10 +332,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   }
 
   /**
-   * Run an operator command against the existing session. Compaction resumes the session and drives
-   * `rpc.history.compact()` directly — no `send()` turn — bracketing it with INIT/COMPACTING/DONE so
-   * the runtime broadcasts status the same way as a normal turn. A USAGE event resets the token
-   * display to the context retained after compaction.
+   * Run an operator command.
    */
   private async *runCommand(
     request: AgentRunQueryRequest,
@@ -412,10 +408,6 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     });
   }
 
-  /**
-   * Disable the instruction sources the agent has opted out of, intersected with this run's live
-   * source set. Skips the RPC entirely when nothing resolves to disable.
-   */
   private async applyDisabledInstructionSources(
     session: CopilotSession,
     agentConfig: AgentConfig,
@@ -438,9 +430,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   }
 
   /**
-   * Restricted mode: allow only the selected builtins, keeping our in-process (custom) and MCP tools,
-   * since Copilot's availableTools allowlist filters every source. Unrestricted mode leaves it unset so
-   * all builtins remain available.
+   * Restricted mode allowlists the selected builtins plus all custom/MCP tools (Copilot's
+   * availableTools filters every source); unrestricted leaves it unset so all builtins remain.
    */
   private buildAvailableTools(toolConfig: AgentConfig["toolConfig"]): ToolSet | undefined {
     if (toolConfig.mode !== TOOL_MODE.RESTRICTED) {
@@ -466,11 +457,9 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   }
 
   /**
-   * Bridge the SDK's callback events into an async generator: subscribe, send, then yield events as
-   * they arrive. The callback stays a dumb pump (enqueue + signal only); the consumer stops the
-   * generator once the dispatcher emits DONE, and abort or a send failure end it early. `send()` runs
-   * without awaiting it before the loop — it may not settle until the turn ends, and awaiting it would
-   * buffer every streamed delta until then.
+   * Bridge the SDK's callback events into an async generator: subscribe, send, yield as they arrive.
+   * `send()` isn't awaited before the loop — it may not settle until the turn ends, and awaiting it
+   * would buffer every streamed delta until then.
    */
   private async *iterateSessionEvents(
     session: CopilotSession,
@@ -544,9 +533,8 @@ export class GithubCopilotAgentRunner extends AgentRunner {
   }
 
   /**
-   * Drain buffered injected messages as model-facing additionalContext at a tool boundary.
-   * Main agent only — sub-agent tool calls carry a different runtime sessionId than the
-   * session the hook is registered on, and main-thread guidance must not leak into them.
+   * Drain buffered injected messages as additionalContext at a tool boundary. Main agent only: a
+   * sub-agent's tool call carries a different sessionId, and main-thread guidance must not leak in.
    */
   private drainInjectedContextForHook(
     input: { sessionId: string },
@@ -615,12 +603,6 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       : { permissionDecision: "allow" };
   }
 
-  /**
-   * Remember an "allow always" decision for this query and emit the event so the runtime persists it.
-   * `rules` is the diff-aware list already computed for (and shown in) the preview, so what's
-   * persisted equals what was shown. An empty list (read-only/unparseable/fully-covered) remembers
-   * nothing.
-   */
   private rememberAutoApproval(rules: string[], autoApproved: PermissionRuleSet): void {
     if (rules.length === 0) {
       return;
@@ -635,12 +617,6 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     });
   }
 
-  /**
-   * Resolve a permission request from the event stream. Copilot requests permission by category
-   * (shell/write/...) carrying only a toolCallId, so we resolve that to a tool name via `toolCalls`,
-   * evaluate the configured rules deny-first (disallowed beats auto-approve and bypass), otherwise
-   * route through the shared permission handler, then answer the runtime over RPC.
-   */
   private async resolvePermission(
     session: CopilotSession,
     event: Extract<SessionEvent, { type: "permission.requested" }>,
@@ -694,6 +670,26 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     await session.rpc.permissions.handlePendingPermissionRequest({ requestId, result });
   }
 
+  private async resolveUserInput(request: UserInputRequest): Promise<UserInputResponse> {
+    const choices = request.choices ?? [];
+    const item: AskUserQuestionItem = {
+      question: request.question,
+      header: COPILOT_QUESTION_HEADER,
+      multiSelect: false,
+      options: choices.map((choice) => ({ label: choice })),
+      allowFreeformResponse: choices.length === 0 ? true : (request.allowFreeform ?? true),
+    };
+    const toolUseId = generateId();
+    const resolved = await this.questionRequestHandler(this.agentId, toolUseId, [item]);
+    if ("response" in resolved) {
+      return { answer: resolved.response, wasFreeform: true };
+    }
+
+    const rawValue = resolved.answers[request.question];
+    const answer = (Array.isArray(rawValue) ? rawValue[0] : rawValue) ?? "";
+    return { answer, wasFreeform: !choices.includes(answer) };
+  }
+
   /** Lazily start this agent's own Copilot client (one per agent keeps team agents isolated). */
   private getClient(cwd: string): Promise<CopilotClient> {
     if (!this.clientPromise) {
@@ -712,13 +708,6 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     return client;
   }
 
-  /**
-   * Resume a persisted session, falling back to a fresh one when the stored session no longer
-   * exists. The SDK reports a missing session and a dropped connection as the same generic error,
-   * so we disambiguate by outcome: if the resume fails but createSession then succeeds, the
-   * connection is alive and the session is simply gone. If createSession also fails, the connection
-   * is genuinely down and we surface the original resume error instead of masking it.
-   */
   private async resumeOrCreateSession(
     client: CopilotClient,
     sessionId: string,
