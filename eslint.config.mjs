@@ -3,7 +3,7 @@ import eslint from "@eslint/js";
 import stylistic from "@stylistic/eslint-plugin";
 import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
-import importPlugin from "eslint-plugin-import";
+import importPlugin from "eslint-plugin-import-x";
 
 export default defineConfig(
   {
@@ -17,7 +17,7 @@ export default defineConfig(
       "@typescript-eslint": tseslint.plugin,
       "react-hooks": reactHooks,
       "@stylistic": stylistic,
-      import: importPlugin,
+      "import-x": importPlugin,
     },
     languageOptions: {
       parser: tseslint.parser,
@@ -76,9 +76,9 @@ export default defineConfig(
       "react-hooks/refs": ["off"],
       "react-hooks/exhaustive-deps": "error",
       "@stylistic/multiline-comment-style": ["error", "separate-lines"],
-      "import/first": "error",
-      "import/newline-after-import": "error",
-      "import/no-duplicates": "error",
+      "import-x/first": "error",
+      "import-x/newline-after-import": "error",
+      "import-x/no-duplicates": "error",
     },
   },
   {
