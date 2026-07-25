@@ -7,7 +7,8 @@ export const CLAUDE_MODELS = {
   SONNET: "claude-sonnet-5",
   SONNET_4_6: "claude-sonnet-4-6",
   SONNET_4_5: "claude-sonnet-4-5",
-  OPUS: "claude-opus-4-8",
+  OPUS: "claude-opus-5",
+  OPUS_4_8: "claude-opus-4-8",
   OPUS_4_7: "claude-opus-4-7",
   OPUS_4_6: "claude-opus-4-6",
   OPUS_4_5: "claude-opus-4-5",
@@ -92,6 +93,18 @@ export const CLAUDE_CODE_MODEL_OPTIONS: readonly ModelOption[] = [
   },
   {
     value: CLAUDE_MODELS.OPUS,
+    label: "Claude Opus 5",
+    supportedEfforts: [
+      REASONING_EFFORT.LOW,
+      REASONING_EFFORT.MEDIUM,
+      REASONING_EFFORT.HIGH,
+      REASONING_EFFORT.XHIGH,
+      REASONING_EFFORT.MAX,
+    ],
+    supportsAdaptiveThinking: true,
+  },
+  {
+    value: CLAUDE_MODELS.OPUS_4_8,
     label: "Claude Opus 4.8",
     supportedEfforts: [
       REASONING_EFFORT.LOW,
