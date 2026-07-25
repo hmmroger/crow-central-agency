@@ -17,8 +17,9 @@ interface QuestionItemProps {
  * Single-select free-text is mutually exclusive with a label; multi-select free-text coexists.
  */
 export function QuestionItem({ question, index, value, onChange }: QuestionItemProps) {
-  const { multiSelect, options } = question;
+  const { multiSelect, options, allowFreeformResponse } = question;
   const { labels, freeText } = value;
+  const showFreeform = allowFreeformResponse !== false;
 
   const isOptionActive = useCallback(
     (label: string): boolean => (multiSelect ? labels.includes(label) : labels[0] === label),
@@ -68,16 +69,18 @@ export function QuestionItem({ question, index, value, onChange }: QuestionItemP
         ))}
       </div>
 
-      <label className="block">
-        <span className="text-xs text-text-muted">Other</span>
-        <input
-          type="text"
-          value={freeText}
-          onChange={handleFreeTextChange}
-          placeholder="Type your own answer…"
-          className="mt-1 w-full rounded bg-surface-inset border border-border-subtle px-2 py-1 text-sm text-text-base placeholder:text-text-muted focus:outline-none focus:border-border-focus"
-        />
-      </label>
+      {showFreeform && (
+        <label className="block">
+          <span className="text-xs text-text-muted">Other</span>
+          <input
+            type="text"
+            value={freeText}
+            onChange={handleFreeTextChange}
+            placeholder="Type your own answer…"
+            className="mt-1 w-full rounded bg-surface-inset border border-border-subtle px-2 py-1 text-sm text-text-base placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+          />
+        </label>
+      )}
     </div>
   );
 }
