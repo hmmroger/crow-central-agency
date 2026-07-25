@@ -153,6 +153,14 @@
     outline: 1px solid var(--color-primary);
   }
 
+  input,
+  textarea {
+    font-variant-ligatures: none;
+    font-feature-settings:
+      "liga" 0,
+      "calt" 0;
+  }
+
   /* Scrollbar - thin, translucent, matches the void */
   ::-webkit-scrollbar {
     width: 6px;
