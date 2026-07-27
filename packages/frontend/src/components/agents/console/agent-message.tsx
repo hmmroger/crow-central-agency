@@ -23,7 +23,7 @@ export const AgentMessageView = memo(({ agentId, message }: AgentMessageProps) =
         <div className="group">
           <div className="flex justify-end">
             <div className="max-w-bubble bg-secondary/15 rounded-md px-3">
-              <pre className="text-sm text-text-base whitespace-pre-wrap font-mono wrap-break-word leading-relaxed">
+              <pre className="text-sm text-text-base whitespace-pre-wrap font-sans wrap-break-word leading-relaxed">
                 {message.content}
               </pre>
             </div>

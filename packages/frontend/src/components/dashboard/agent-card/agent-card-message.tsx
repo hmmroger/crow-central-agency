@@ -14,7 +14,7 @@ interface AgentCardMessageProps {
 export const AgentCardMessage = memo(({ message }: AgentCardMessageProps) => {
   if (message.role === AGENT_MESSAGE_ROLE.USER) {
     return (
-      <div className="text-xs font-mono leading-relaxed">
+      <div className="text-xs font-sans leading-relaxed">
         <span className="text-accent">{"> "}</span>
         <span className="text-text-neutral">
           <span>{message.content}</span>
