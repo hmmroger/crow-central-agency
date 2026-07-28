@@ -1,27 +1,9 @@
-import {
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type FocusEvent as ReactFocusEvent,
-  type KeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
-} from "react";
-import {
-  autoUpdate,
-  flip,
-  FloatingPortal,
-  offset,
-  shift,
-  size,
-  useDismiss,
-  useFloating,
-  useInteractions,
-  useRole,
-} from "@floating-ui/react";
+import { useCallback, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { ChevronDown, Plus, Tag } from "lucide-react";
 import { cn } from "../../../utils/cn.js";
+import { ComboboxDropdown } from "../../common/combobox-dropdown.js";
+import { ComboboxOption } from "../../common/combobox-option.js";
+import { useComboboxDropdown } from "../../common/use-combobox-dropdown.js";
 import { TagChip } from "./tag-chip.js";
 
 interface TagComboboxProps {
@@ -66,34 +48,7 @@ export function TagCombobox({
   placeholder = "Filter by tag...",
 }: TagComboboxProps) {
   const [inputValue, setInputValue] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const { refs, floatingStyles, context } = useFloating({
-    open: isOpen,
-    onOpenChange: setIsOpen,
-    whileElementsMounted: autoUpdate,
-    placement: "bottom-start",
-    middleware: [
-      offset(4),
-      flip({ padding: 8 }),
-      shift({ padding: 8 }),
-      size({
-        padding: 8,
-        apply: ({ rects, availableHeight, elements }) => {
-          Object.assign(elements.floating.style, {
-            width: `${rects.reference.width}px`,
-            maxHeight: `${Math.min(availableHeight, 240)}px`,
-          });
-        },
-      }),
-    ],
-  });
-
-  const dismiss = useDismiss(context);
-  const role = useRole(context, { role: "listbox" });
-  const { getReferenceProps, getFloatingProps } = useInteractions([dismiss, role]);
 
   const candidate = canonicalizeTag(inputValue);
 
@@ -108,103 +63,66 @@ export function TagCombobox({
     return canCreate ? [...matches, { tag: candidate, isNew: true }] : matches;
   }, [availableTags, selectedTags, candidate, allowCreate]);
 
-  const safeActiveIndex = Math.min(activeIndex, Math.max(options.length - 1, 0));
-
   const selectOption = useCallback(
-    (tag: string) => {
-      onToggle(tag);
+    (index: number) => {
+      const option = options[index];
+      if (!option) {
+        return;
+      }
+
+      onToggle(option.tag);
       setInputValue("");
-      setActiveIndex(0);
-      setIsOpen(true);
       inputRef.current?.focus();
     },
-    [onToggle]
+    [options, onToggle]
   );
 
-  const handleInputChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    setInputValue(event.target.value);
-    setActiveIndex(0);
-    setIsOpen(true);
-  }, []);
+  const {
+    isOpen,
+    activeIndex,
+    setActiveIndex,
+    commitOption,
+    open,
+    toggle,
+    handleKeyDown: handleDropdownKeyDown,
+    handleContainerBlur,
+    referenceRef,
+    referenceProps,
+    floatingRef,
+    floatingProps,
+    floatingStyles,
+  } = useComboboxDropdown({ optionCount: options.length, onCommitOption: selectOption });
+
+  const handleInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setInputValue(event.target.value);
+      setActiveIndex(0);
+      open();
+    },
+    [setActiveIndex, open]
+  );
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLInputElement>) => {
-      switch (event.key) {
-        case "ArrowDown":
-          event.preventDefault();
-          setIsOpen(true);
-          setActiveIndex((current) => (options.length === 0 ? 0 : Math.min(current + 1, options.length - 1)));
-          break;
+      if (event.key === "Backspace") {
+        if (inputValue === "" && selectedTags.length > 0) {
+          onToggle(selectedTags[selectedTags.length - 1]);
+        }
 
-        case "ArrowUp":
-          event.preventDefault();
-          setActiveIndex((current) => Math.max(current - 1, 0));
-          break;
-
-        case "Enter":
-          if (isOpen && options[safeActiveIndex]) {
-            event.preventDefault();
-            selectOption(options[safeActiveIndex].tag);
-          }
-
-          break;
-
-        case "Tab":
-          if (isOpen && options[safeActiveIndex]) {
-            event.preventDefault();
-            selectOption(options[safeActiveIndex].tag);
-          } else if (isOpen) {
-            // Nothing to complete — close so Tab advances focus normally
-            setIsOpen(false);
-          }
-
-          break;
-
-        case "Escape":
-          setIsOpen(false);
-          break;
-
-        case "Backspace":
-          if (inputValue === "" && selectedTags.length > 0) {
-            onToggle(selectedTags[selectedTags.length - 1]);
-          }
-
-          break;
+        return;
       }
+
+      handleDropdownKeyDown(event);
     },
-    [isOpen, options, safeActiveIndex, selectOption, inputValue, selectedTags, onToggle]
+    [inputValue, selectedTags, onToggle, handleDropdownKeyDown]
   );
 
   const handleToggleOpen = useCallback(() => {
-    if (isOpen) {
-      setIsOpen(false);
-      return;
+    toggle();
+    if (!isOpen) {
+      inputRef.current?.focus();
     }
-
-    setIsOpen(true);
-    inputRef.current?.focus();
-  }, [isOpen]);
-
-  const handleFocus = useCallback(() => setIsOpen(true), []);
-
-  // Close when focus leaves the whole combobox. Options preventDefault their
-  // mousedown (focus stays in the input) and the chevron lives inside the
-  // container, so neither selecting an option nor toggling falsely closes it.
-  // This covers clicks elsewhere inside a modal dialog, where floating-ui's
-  // outside-press dismissal does not fire. The portaled dropdown is not a DOM
-  // descendant of the container, but it never takes focus, so containment on the
-  // container is sufficient — keep dropdown content non-focusable.
-  const handleBlur = useCallback((event: ReactFocusEvent<HTMLDivElement>) => {
-    const nextFocus = event.relatedTarget;
-    if (nextFocus instanceof Node && event.currentTarget.contains(nextFocus)) {
-      return;
-    }
-
-    setIsOpen(false);
-  }, []);
-
-  // Keep focus in the input when clicking an option so typing can continue
-  const handleOptionMouseDown = useCallback((event: ReactMouseEvent) => event.preventDefault(), []);
+  }, [isOpen, toggle]);
 
   const emptyMessage =
     candidate.length > 0
@@ -218,9 +136,9 @@ export function TagCombobox({
   return (
     <div className="space-y-1.5">
       <div
-        ref={refs.setReference}
-        {...getReferenceProps()}
-        onBlur={handleBlur}
+        ref={referenceRef}
+        {...referenceProps}
+        onBlur={handleContainerBlur}
         className={cn(
           "flex items-center gap-1.5 rounded border bg-surface-inset px-2 py-1 transition-colors",
           isOpen ? "border-border-focus" : "border-border-subtle"
@@ -233,7 +151,7 @@ export function TagCombobox({
           value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onFocus={handleFocus}
+          onFocus={open}
           placeholder={placeholder}
           aria-label={placeholder}
           className="min-w-0 flex-1 bg-transparent text-xs text-text-base placeholder:text-text-muted focus:outline-none"
@@ -249,45 +167,34 @@ export function TagCombobox({
       </div>
 
       {isOpen && (
-        <FloatingPortal>
-          <div
-            ref={refs.setFloating}
-            style={floatingStyles}
-            {...getFloatingProps()}
-            className="z-50 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-elevated"
-          >
-            {options.length === 0 ? (
-              <div className="px-2 py-1.5 text-2xs text-text-muted">{emptyMessage}</div>
-            ) : (
-              options.map((option, index) => (
-                <button
-                  key={option.isNew ? `create:${option.tag}` : `existing:${option.tag}`}
-                  type="button"
-                  role="option"
-                  aria-selected={index === safeActiveIndex}
-                  onMouseDown={handleOptionMouseDown}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onClick={() => selectOption(option.tag)}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left font-mono text-xs transition-colors",
-                    index === safeActiveIndex ? "bg-surface-hover text-text-base" : "text-text-neutral"
-                  )}
-                >
-                  {option.isNew ? (
-                    <>
-                      <Plus className="h-3 w-3 shrink-0 text-text-muted" />
-                      <span className="truncate">
-                        Create <span className="text-text-base">{option.tag}</span>
-                      </span>
-                    </>
-                  ) : (
-                    <span className="truncate">{option.tag}</span>
-                  )}
-                </button>
-              ))
-            )}
-          </div>
-        </FloatingPortal>
+        <ComboboxDropdown
+          floatingRef={floatingRef}
+          floatingStyles={floatingStyles}
+          floatingProps={floatingProps}
+          isEmpty={options.length === 0}
+          emptyMessage={emptyMessage}
+        >
+          {options.map((option, index) => (
+            <ComboboxOption
+              key={option.isNew ? `create:${option.tag}` : `existing:${option.tag}`}
+              index={index}
+              isActive={index === activeIndex}
+              onActivate={setActiveIndex}
+              onCommit={commitOption}
+            >
+              {option.isNew ? (
+                <>
+                  <Plus className="h-3 w-3 shrink-0 text-text-muted" />
+                  <span className="truncate font-mono">
+                    Create <span className="text-text-base">{option.tag}</span>
+                  </span>
+                </>
+              ) : (
+                <span className="truncate font-mono">{option.tag}</span>
+              )}
+            </ComboboxOption>
+          ))}
+        </ComboboxDropdown>
       )}
 
       {selectedTags.length > 0 && (
