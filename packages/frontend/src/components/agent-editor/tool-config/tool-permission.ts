@@ -7,6 +7,12 @@ export const TOOL_DISPOSITION = {
 
 export type ToolDisposition = (typeof TOOL_DISPOSITION)[keyof typeof TOOL_DISPOSITION];
 
+/**
+ * Disposition a custom rule can hold. Ask is unrepresentable: a custom row exists only by virtue of
+ * being in one of the two arrays, so a rule at Ask is simply not there.
+ */
+export type CustomRuleDisposition = typeof TOOL_DISPOSITION.APPROVE | typeof TOOL_DISPOSITION.DENY;
+
 /** The paired auto-approved / disallowed rule arrays backing the permission model. */
 export interface ToolPermissions {
   autoApprovedTools: string[];
@@ -60,16 +66,21 @@ export function applyPermission(
 }
 
 /**
- * Add a custom rule defaulting to Approve. A rule already present under either disposition is left
- * untouched (the original arrays are returned) so re-adding never silently re-dispositions it.
+ * Add a custom rule under the given disposition. A rule already present under either disposition is
+ * left untouched (the original arrays are returned) so re-adding never silently re-dispositions it.
  */
 export function addCustomPermission(
   autoApprovedTools: string[],
   disallowedTools: string[],
-  rule: string
+  rule: string,
+  disposition: CustomRuleDisposition
 ): ToolPermissions {
   if (!rule || autoApprovedTools.includes(rule) || disallowedTools.includes(rule)) {
     return { autoApprovedTools, disallowedTools };
+  }
+
+  if (disposition === TOOL_DISPOSITION.DENY) {
+    return { autoApprovedTools, disallowedTools: [...disallowedTools, rule] };
   }
 
   return { autoApprovedTools: [...autoApprovedTools, rule], disallowedTools };

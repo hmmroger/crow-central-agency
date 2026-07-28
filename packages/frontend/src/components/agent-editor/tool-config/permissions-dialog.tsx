@@ -2,7 +2,13 @@ import { useCallback, useMemo, useRef, useState, type ChangeEvent, type Keyboard
 import { formatRule, parseRule } from "@crow-central-agency/shared";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../../common/action-button.js";
 import { PermissionList } from "./permission-list.js";
-import { addCustomPermission, applyPermission, type ToolDisposition, type ToolPermissions } from "./tool-permission.js";
+import {
+  addCustomPermission,
+  applyPermission,
+  TOOL_DISPOSITION,
+  type ToolDisposition,
+  type ToolPermissions,
+} from "./tool-permission.js";
 
 interface PermissionsDialogProps {
   effectiveTools: string[];
@@ -57,7 +63,9 @@ export function PermissionsDialog({
       return;
     }
 
-    setPermissions((prev) => addCustomPermission(prev.autoApprovedTools, prev.disallowedTools, canonicalCustomRule));
+    setPermissions((prev) =>
+      addCustomPermission(prev.autoApprovedTools, prev.disallowedTools, canonicalCustomRule, TOOL_DISPOSITION.APPROVE)
+    );
     setCustomRuleInput("");
     customRuleInputRef.current?.focus();
   }, [canonicalCustomRule]);
