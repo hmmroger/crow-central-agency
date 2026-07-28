@@ -24,6 +24,8 @@ interface ToolConfigSectionProps {
   availableTools: string[];
   /** Normalized external MCP server names, for grouping Copilot external tools in the permissions dialog. */
   mcpServerNames: string[];
+  /** Internal configurable MCP server names, excluded from the permissions dialog's rule autocomplete. */
+  internalMcpServerNames: string[];
   onToolModeChange: (mode: ToolMode) => void;
   onToggleTool: (tool: string) => void;
   onSetPermissions: (autoApprovedTools: string[], disallowedTools: string[]) => void;
@@ -41,6 +43,7 @@ export function ToolConfigSection({
   disallowedTools,
   availableTools,
   mcpServerNames,
+  internalMcpServerNames,
   onToolModeChange,
   onToggleTool,
   onSetPermissions,
@@ -70,9 +73,18 @@ export function ToolConfigSection({
       autoApprovedTools,
       disallowedTools,
       mcpServerNames,
+      internalMcpServerNames,
       onSave: onSetPermissions,
     });
-  }, [openPermissionsDialog, effectiveTools, autoApprovedTools, disallowedTools, mcpServerNames, onSetPermissions]);
+  }, [
+    openPermissionsDialog,
+    effectiveTools,
+    autoApprovedTools,
+    disallowedTools,
+    mcpServerNames,
+    internalMcpServerNames,
+    onSetPermissions,
+  ]);
 
   return (
     <>

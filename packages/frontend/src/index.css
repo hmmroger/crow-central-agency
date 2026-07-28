@@ -79,6 +79,7 @@
   --z-full-panel: 40;
   --z-modal-base: 50;
   --z-modal-step: 10;
+  --z-popover: 200;
 
   --duration-fast: 150ms;
   --duration-normal: 250ms;

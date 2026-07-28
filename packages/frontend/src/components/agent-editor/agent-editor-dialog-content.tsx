@@ -108,6 +108,11 @@ export function AgentEditorDialogContent({
     [mcpConfigs]
   );
 
+  const internalMcpServerNames = useMemo(
+    () => mcpConfigs.filter((config) => config.type === MCP_CONFIG_TYPE.INTERNAL).map((config) => config.name),
+    [mcpConfigs]
+  );
+
   // An existing agent's saved type wins; the prop only seeds new agents.
   const effectiveAgentType = agentQuery.data?.type ?? agentType;
 
@@ -466,6 +471,7 @@ export function AgentEditorDialogContent({
               disallowedTools={form.disallowedTools}
               availableTools={form.availableTools}
               mcpServerNames={mcpServerNames}
+              internalMcpServerNames={internalMcpServerNames}
               onToolModeChange={editorForm.setToolMode}
               onToggleTool={editorForm.toggleTool}
               onSetPermissions={editorForm.setPermissions}

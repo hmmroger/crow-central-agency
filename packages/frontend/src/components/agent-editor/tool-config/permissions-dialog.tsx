@@ -1,14 +1,24 @@
-import { useCallback, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useCallback, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { formatRule, parseRule } from "@crow-central-agency/shared";
+import { useAgentsContext } from "../../../providers/agents-provider.js";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../../common/action-button.js";
 import { PermissionList } from "./permission-list.js";
-import { addCustomPermission, applyPermission, type ToolDisposition, type ToolPermissions } from "./tool-permission.js";
+import { PermissionRuleCombobox } from "./permission-rule-combobox.js";
+import { collectPermissionRuleUsage, dispositionForUsage, type PermissionRuleUsage } from "./permission-rule-usage.js";
+import {
+  addCustomPermission,
+  applyPermission,
+  TOOL_DISPOSITION,
+  type ToolDisposition,
+  type ToolPermissions,
+} from "./tool-permission.js";
 
 interface PermissionsDialogProps {
   effectiveTools: string[];
   autoApprovedTools: string[];
   disallowedTools: string[];
   mcpServerNames: string[];
+  internalMcpServerNames: string[];
   onSave: (autoApprovedTools: string[], disallowedTools: string[]) => void;
   onClose: () => void;
 }
@@ -22,13 +32,27 @@ export function PermissionsDialog({
   autoApprovedTools,
   disallowedTools,
   mcpServerNames,
+  internalMcpServerNames,
   onSave,
   onClose,
 }: PermissionsDialogProps) {
+  const { agents } = useAgentsContext();
   const [permissions, setPermissions] = useState<ToolPermissions>(() => ({ autoApprovedTools, disallowedTools }));
   const [filter, setFilter] = useState("");
   const [customRuleInput, setCustomRuleInput] = useState("");
   const customRuleInputRef = useRef<HTMLInputElement>(null);
+
+  const ruleUsage = useMemo(
+    () => collectPermissionRuleUsage(agents, internalMcpServerNames),
+    [agents, internalMcpServerNames]
+  );
+
+  const currentRules = useMemo(() => [...permissions.autoApprovedTools, ...permissions.disallowedTools], [permissions]);
+
+  const ruleOptions = useMemo(
+    () => ruleUsage.filter((usage) => !currentRules.includes(usage.rule)),
+    [ruleUsage, currentRules]
+  );
 
   const handleFilterChange = useCallback((event: ChangeEvent<HTMLInputElement>) => setFilter(event.target.value), []);
 
@@ -50,31 +74,26 @@ export function PermissionsDialog({
   }, [customRuleInput]);
 
   const showCustomRuleError = customRuleInput.trim().length > 0 && canonicalCustomRule === undefined;
+  const showCanonicalHint = canonicalCustomRule !== undefined && canonicalCustomRule !== customRuleInput.trim();
 
   const handleAddCustom = useCallback(() => {
     if (canonicalCustomRule === undefined) {
       return;
     }
 
-    setPermissions((prev) => addCustomPermission(prev.autoApprovedTools, prev.disallowedTools, canonicalCustomRule));
+    setPermissions((prev) =>
+      addCustomPermission(prev.autoApprovedTools, prev.disallowedTools, canonicalCustomRule, TOOL_DISPOSITION.APPROVE)
+    );
     setCustomRuleInput("");
     customRuleInputRef.current?.focus();
   }, [canonicalCustomRule]);
 
-  const handleCustomInputChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => setCustomRuleInput(event.target.value),
-    []
-  );
-
-  const handleCustomInputKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        handleAddCustom();
-      }
-    },
-    [handleAddCustom]
-  );
+  const handleSelectRule = useCallback((usage: PermissionRuleUsage) => {
+    setPermissions((prev) =>
+      addCustomPermission(prev.autoApprovedTools, prev.disallowedTools, usage.rule, dispositionForUsage(usage))
+    );
+    setCustomRuleInput("");
+  }, []);
 
   const handleSave = useCallback(() => {
     onSave(permissions.autoApprovedTools, permissions.disallowedTools);
@@ -97,7 +116,7 @@ export function PermissionsDialog({
           className="w-full px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
         />
 
-        <div className="max-h-96 overflow-y-auto">
+        <div className="h-96 overflow-y-auto">
           <PermissionList
             effectiveTools={effectiveTools}
             autoApprovedTools={permissions.autoApprovedTools}
@@ -110,14 +129,13 @@ export function PermissionsDialog({
 
         <div>
           <div className="flex gap-2">
-            <input
-              ref={customRuleInputRef}
-              type="text"
+            <PermissionRuleCombobox
               value={customRuleInput}
-              onChange={handleCustomInputChange}
-              onKeyDown={handleCustomInputKeyDown}
-              placeholder="e.g. mcp__server__tool or Bash(git commit *)"
-              className="flex-1 px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+              options={ruleOptions}
+              inputRef={customRuleInputRef}
+              onValueChange={setCustomRuleInput}
+              onSubmit={handleAddCustom}
+              onSelectRule={handleSelectRule}
             />
             <button
               type="button"
@@ -129,15 +147,17 @@ export function PermissionsDialog({
             </button>
           </div>
 
-          {showCustomRuleError && (
-            <p className="text-xs text-error mt-1">Enter a valid rule, e.g. Bash(git commit *).</p>
-          )}
-
-          {canonicalCustomRule !== undefined && canonicalCustomRule !== customRuleInput.trim() && (
-            <p className="text-xs text-text-muted mt-1">
-              Will add: <code className="font-mono text-text-neutral">{canonicalCustomRule}</code>
-            </p>
-          )}
+          <div className="h-4 mt-1 text-xs truncate">
+            {showCustomRuleError ? (
+              <span className="text-error">Enter a valid rule, e.g. Bash(git commit *).</span>
+            ) : (
+              showCanonicalHint && (
+                <span className="text-text-muted">
+                  Will add: <code className="font-mono text-text-neutral">{canonicalCustomRule}</code>
+                </span>
+              )
+            )}
+          </div>
         </div>
       </div>
 

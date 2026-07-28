@@ -54,38 +54,41 @@ export function PermissionList({
   );
 
   if (groups.length === 0) {
-    return undefined;
+    return <p className="text-xs text-text-muted text-center py-4">No tools or rules configured</p>;
   }
 
   const normalizedFilter = filter.trim().toLowerCase();
   const hasFilter = normalizedFilter.length > 0;
 
+  const visibleGroups = groups
+    .map((group) => ({
+      group,
+      entries: hasFilter
+        ? group.entries.filter((entry) => entry.rule.toLowerCase().includes(normalizedFilter))
+        : group.entries,
+    }))
+    .filter(({ entries }) => entries.length > 0);
+
+  if (visibleGroups.length === 0) {
+    return <p className="text-xs text-text-muted text-center py-4">No rules match</p>;
+  }
+
   return (
     <div className="space-y-3">
-      {groups.map((group) => {
-        const visibleEntries = hasFilter
-          ? group.entries.filter((entry) => entry.rule.toLowerCase().includes(normalizedFilter))
-          : group.entries;
-
-        if (visibleEntries.length === 0) {
-          return undefined;
-        }
-
-        return (
-          <PermissionGroup
-            key={group.key}
-            groupKey={group.key}
-            label={group.label}
-            entries={visibleEntries}
-            collapsed={collapsedGroups.has(group.key) && !hasFilter}
-            autoApprovedTools={autoApprovedTools}
-            disallowedTools={disallowedTools}
-            onToggleCollapsed={handleToggleCollapsed}
-            onSetToolPermission={onSetToolPermission}
-            onRemove={handleRemove}
-          />
-        );
-      })}
+      {visibleGroups.map(({ group, entries }) => (
+        <PermissionGroup
+          key={group.key}
+          groupKey={group.key}
+          label={group.label}
+          entries={entries}
+          collapsed={collapsedGroups.has(group.key) && !hasFilter}
+          autoApprovedTools={autoApprovedTools}
+          disallowedTools={disallowedTools}
+          onToggleCollapsed={handleToggleCollapsed}
+          onSetToolPermission={onSetToolPermission}
+          onRemove={handleRemove}
+        />
+      ))}
     </div>
   );
 }
