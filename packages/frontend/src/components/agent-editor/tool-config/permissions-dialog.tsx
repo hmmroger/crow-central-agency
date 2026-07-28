@@ -50,6 +50,7 @@ export function PermissionsDialog({
   }, [customRuleInput]);
 
   const showCustomRuleError = customRuleInput.trim().length > 0 && canonicalCustomRule === undefined;
+  const showCanonicalHint = canonicalCustomRule !== undefined && canonicalCustomRule !== customRuleInput.trim();
 
   const handleAddCustom = useCallback(() => {
     if (canonicalCustomRule === undefined) {
@@ -97,7 +98,9 @@ export function PermissionsDialog({
           className="w-full px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
         />
 
-        <div className="max-h-96 overflow-y-auto">
+        {/* Fixed height, not a cap: the dialog is sized by its content, so a shrinking list would
+            resize the whole dialog on every filter keystroke. */}
+        <div className="h-96 overflow-y-auto">
           <PermissionList
             effectiveTools={effectiveTools}
             autoApprovedTools={permissions.autoApprovedTools}
@@ -129,15 +132,18 @@ export function PermissionsDialog({
             </button>
           </div>
 
-          {showCustomRuleError && (
-            <p className="text-xs text-error mt-1">Enter a valid rule, e.g. Bash(git commit *).</p>
-          )}
-
-          {canonicalCustomRule !== undefined && canonicalCustomRule !== customRuleInput.trim() && (
-            <p className="text-xs text-text-muted mt-1">
-              Will add: <code className="font-mono text-text-neutral">{canonicalCustomRule}</code>
-            </p>
-          )}
+          {/* One reserved line so toggling between empty / hint / error never resizes the dialog. */}
+          <div className="h-4 mt-1 text-xs truncate">
+            {showCustomRuleError ? (
+              <span className="text-error">Enter a valid rule, e.g. Bash(git commit *).</span>
+            ) : (
+              showCanonicalHint && (
+                <span className="text-text-muted">
+                  Will add: <code className="font-mono text-text-neutral">{canonicalCustomRule}</code>
+                </span>
+              )
+            )}
+          </div>
         </div>
       </div>
 
