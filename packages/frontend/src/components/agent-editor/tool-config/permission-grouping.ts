@@ -1,4 +1,5 @@
 import { parseRule } from "@crow-central-agency/shared";
+import { MCP_PREFIX, MCP_SEGMENT_SEPARATOR } from "./tool-constants.js";
 
 /**
  * A single permission rule as rendered within a group. `rule` is the canonical string that keys the
@@ -21,8 +22,6 @@ export interface PermissionGroup {
 const BUILTIN_GROUP_KEY = "builtin";
 const BUILTIN_GROUP_LABEL = "Built-in";
 const MCP_GROUP_KEY_PREFIX = "mcp:";
-const MCP_PREFIX = "mcp__";
-const MCP_SEGMENT_SEPARATOR = "__";
 const WILDCARD_DISPLAY = "*";
 
 /**

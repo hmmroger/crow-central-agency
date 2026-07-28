@@ -18,6 +18,7 @@ interface PermissionsDialogProps {
   autoApprovedTools: string[];
   disallowedTools: string[];
   mcpServerNames: string[];
+  internalMcpServerNames: string[];
   onSave: (autoApprovedTools: string[], disallowedTools: string[]) => void;
   onClose: () => void;
 }
@@ -31,6 +32,7 @@ export function PermissionsDialog({
   autoApprovedTools,
   disallowedTools,
   mcpServerNames,
+  internalMcpServerNames,
   onSave,
   onClose,
 }: PermissionsDialogProps) {
@@ -40,7 +42,10 @@ export function PermissionsDialog({
   const [customRuleInput, setCustomRuleInput] = useState("");
   const customRuleInputRef = useRef<HTMLInputElement>(null);
 
-  const ruleUsage = useMemo(() => collectPermissionRuleUsage(agents), [agents]);
+  const ruleUsage = useMemo(
+    () => collectPermissionRuleUsage(agents, internalMcpServerNames),
+    [agents, internalMcpServerNames]
+  );
 
   const currentRules = useMemo(() => [...permissions.autoApprovedTools, ...permissions.disallowedTools], [permissions]);
 
