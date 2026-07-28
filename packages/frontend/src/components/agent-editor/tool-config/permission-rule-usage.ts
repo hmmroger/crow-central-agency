@@ -10,9 +10,7 @@ export interface PermissionRuleUsage {
 
 /**
  * A rule the permission list already renders as its own row once the agent has run, so offering it
- * here would only duplicate a chip the user can click. Covers both providers' builtins and the tools
- * of internal configurable MCP servers. Patterns are never catalog rows, so `Bash(git commit *)` and
- * `mcp__crow-places__*` stay in the list even though their tool is a builtin or internal.
+ * here would only duplicate a chip the user can click.
  */
 function isCatalogTool(rule: string, internalMcpPrefixes: string[]): boolean {
   const parsed = parseRule(rule);

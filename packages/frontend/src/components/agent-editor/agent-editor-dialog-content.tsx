@@ -108,8 +108,6 @@ export function AgentEditorDialogContent({
     [mcpConfigs]
   );
 
-  // Internal configurable MCP servers, whose tools reach the permission list as rows of their own
-  // and so are not offered by the rule autocomplete. Names are used verbatim in `mcp__<server>__`.
   const internalMcpServerNames = useMemo(
     () => mcpConfigs.filter((config) => config.type === MCP_CONFIG_TYPE.INTERNAL).map((config) => config.name),
     [mcpConfigs]
