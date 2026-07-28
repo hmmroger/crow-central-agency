@@ -30,7 +30,7 @@ export interface ComboboxFloatingBindings {
   floatingStyles: CSSProperties;
 }
 
-export interface ComboboxDropdown extends ComboboxFloatingBindings {
+export interface ComboboxDropdownControls extends ComboboxFloatingBindings {
   isOpen: boolean;
   /** Clamped against optionCount. */
   activeIndex: number;
@@ -61,7 +61,7 @@ export function useComboboxDropdown({
   optionCount,
   onCommitOption,
   onCompleteOption,
-}: UseComboboxDropdownParams): ComboboxDropdown {
+}: UseComboboxDropdownParams): ComboboxDropdownControls {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
