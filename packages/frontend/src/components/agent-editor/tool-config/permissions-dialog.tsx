@@ -1,7 +1,10 @@
-import { useCallback, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useCallback, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { formatRule, parseRule } from "@crow-central-agency/shared";
+import { useAgentsContext } from "../../../providers/agents-provider.js";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../../common/action-button.js";
 import { PermissionList } from "./permission-list.js";
+import { PermissionRuleCombobox } from "./permission-rule-combobox.js";
+import { collectPermissionRuleUsage, dispositionForUsage, type PermissionRuleUsage } from "./permission-rule-usage.js";
 import {
   addCustomPermission,
   applyPermission,
@@ -31,10 +34,21 @@ export function PermissionsDialog({
   onSave,
   onClose,
 }: PermissionsDialogProps) {
+  const { agents } = useAgentsContext();
   const [permissions, setPermissions] = useState<ToolPermissions>(() => ({ autoApprovedTools, disallowedTools }));
   const [filter, setFilter] = useState("");
   const [customRuleInput, setCustomRuleInput] = useState("");
   const customRuleInputRef = useRef<HTMLInputElement>(null);
+
+  const ruleUsage = useMemo(() => collectPermissionRuleUsage(agents), [agents]);
+
+  /** Local, not saved, state: a rule leaves the dropdown the moment it is added here. */
+  const currentRules = useMemo(() => [...permissions.autoApprovedTools, ...permissions.disallowedTools], [permissions]);
+
+  const ruleOptions = useMemo(
+    () => ruleUsage.filter((usage) => !currentRules.includes(usage.rule)),
+    [ruleUsage, currentRules]
+  );
 
   const handleFilterChange = useCallback((event: ChangeEvent<HTMLInputElement>) => setFilter(event.target.value), []);
 
@@ -70,20 +84,13 @@ export function PermissionsDialog({
     customRuleInputRef.current?.focus();
   }, [canonicalCustomRule]);
 
-  const handleCustomInputChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => setCustomRuleInput(event.target.value),
-    []
-  );
-
-  const handleCustomInputKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        handleAddCustom();
-      }
-    },
-    [handleAddCustom]
-  );
+  /** Dropdown options are already canonical rule strings, so they bypass re-validation. */
+  const handleSelectRule = useCallback((usage: PermissionRuleUsage) => {
+    setPermissions((prev) =>
+      addCustomPermission(prev.autoApprovedTools, prev.disallowedTools, usage.rule, dispositionForUsage(usage))
+    );
+    setCustomRuleInput("");
+  }, []);
 
   const handleSave = useCallback(() => {
     onSave(permissions.autoApprovedTools, permissions.disallowedTools);
@@ -121,14 +128,13 @@ export function PermissionsDialog({
 
         <div>
           <div className="flex gap-2">
-            <input
-              ref={customRuleInputRef}
-              type="text"
+            <PermissionRuleCombobox
               value={customRuleInput}
-              onChange={handleCustomInputChange}
-              onKeyDown={handleCustomInputKeyDown}
-              placeholder="e.g. mcp__server__tool or Bash(git commit *)"
-              className="flex-1 px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
+              options={ruleOptions}
+              inputRef={customRuleInputRef}
+              onValueChange={setCustomRuleInput}
+              onSubmit={handleAddCustom}
+              onSelectRule={handleSelectRule}
             />
             <button
               type="button"
