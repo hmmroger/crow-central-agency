@@ -27,9 +27,9 @@ export function ComboboxDropdown({
     <FloatingPortal>
       <div
         ref={floatingRef}
-        style={floatingStyles}
+        style={{ ...floatingStyles, zIndex: "var(--z-popover)" }}
         {...floatingProps}
-        className="z-50 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-elevated"
+        className="overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-elevated"
       >
         {isEmpty ? <div className="px-2 py-1.5 text-2xs text-text-muted">{emptyMessage}</div> : children}
       </div>
