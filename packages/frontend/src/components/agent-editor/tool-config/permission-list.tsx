@@ -53,8 +53,10 @@ export function PermissionList({
     [onSetToolPermission]
   );
 
+  // Reachable in Restricted mode with every builtin deselected and no custom rules. The scroll
+  // region has a fixed height, so returning nothing would render a tall blank box.
   if (groups.length === 0) {
-    return undefined;
+    return <p className="text-xs text-text-muted text-center py-4">No tools or rules configured</p>;
   }
 
   const normalizedFilter = filter.trim().toLowerCase();
@@ -69,7 +71,6 @@ export function PermissionList({
     }))
     .filter(({ entries }) => entries.length > 0);
 
-  // The scroll region has a fixed height, so an empty result would otherwise read as a broken box.
   if (visibleGroups.length === 0) {
     return <p className="text-xs text-text-muted text-center py-4">No rules match</p>;
   }
