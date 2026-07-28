@@ -5,7 +5,7 @@ interface UseInputHistoryNavigationParams {
   history: string[];
   /** Apply a recalled value (or the restored draft) to the controlled input. */
   setText: (value: string) => void;
-  /** Whether the field is multi-line (textarea) and needs first/last-line caret guards. */
+  /** Whether the field is multi-line (textarea) and needs start/end caret guards. */
   multiline: boolean;
 }
 
@@ -16,16 +16,6 @@ interface InputHistoryNavigation {
   reset: () => void;
   /** Cancel recall, restoring the live draft. Returns false when not in recall. */
   exitRecall: () => boolean;
-}
-
-/** Caret sits on the first visual line when no newline precedes it. */
-function isCaretOnFirstLine(value: string, caret: number): boolean {
-  return !value.slice(0, caret).includes("\n");
-}
-
-/** Caret sits on the last visual line when no newline follows it. */
-function isCaretOnLastLine(value: string, caret: number): boolean {
-  return !value.slice(caret).includes("\n");
 }
 
 function moveCaretToEnd(element: HTMLTextAreaElement | HTMLInputElement): void {
@@ -70,11 +60,20 @@ export function useInputHistoryNavigation({
         return;
       }
 
+      if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
+        return;
+      }
+
       const element = event.currentTarget;
+
+      if (element.selectionStart !== element.selectionEnd) {
+        return;
+      }
+
       const caret = element.selectionStart ?? element.value.length;
 
       if (event.key === "ArrowUp") {
-        if (multiline && !isCaretOnFirstLine(element.value, caret)) {
+        if (multiline && caret !== 0) {
           return;
         }
 
@@ -96,7 +95,7 @@ export function useInputHistoryNavigation({
           return;
         }
 
-        if (multiline && !isCaretOnLastLine(element.value, caret)) {
+        if (multiline && caret !== element.value.length) {
           return;
         }
 
