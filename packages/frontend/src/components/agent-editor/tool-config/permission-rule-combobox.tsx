@@ -9,20 +9,15 @@ import { TOOL_DISPOSITION } from "./tool-permission.js";
 
 interface PermissionRuleComboboxProps {
   value: string;
-  /** Rules configured on other agents, already filtered to exclude this agent's own. */
   options: PermissionRuleUsage[];
-  /** Owned by the parent so it can restore focus after its own Add control. */
   inputRef: RefObject<HTMLInputElement | null>;
   onValueChange: (value: string) => void;
-  /** Free-text add: Enter with no active option. */
   onSubmit: () => void;
-  /** Dropdown pick — the consumer applies dispositionForUsage. */
   onSelectRule: (usage: PermissionRuleUsage) => void;
 }
 
 const RULE_INPUT_PLACEHOLDER = "e.g. mcp__server__tool or Bash(git commit *)";
 
-/** How many agents hold the rule, split by disposition only when the fleet disagrees. */
 function formatUsageCounts(usage: PermissionRuleUsage): string {
   if (usage.approvedCount > 0 && usage.deniedCount > 0) {
     return `${usage.approvedCount} approve · ${usage.deniedCount} deny`;
@@ -33,11 +28,8 @@ function formatUsageCounts(usage: PermissionRuleUsage): string {
 }
 
 /**
- * Type-ahead over the permission rules already configured across the fleet, so a rule can be reused
- * on another agent without retyping it. Enter adds the highlighted rule; Tab completes it into the
- * input instead, leaving a near-match editable before it is added.
- *
- * Input and dropdown only — the Add control, validation and canonical-form hint stay with the parent.
+ * Type-ahead over the permission rules already configured across the fleet. Enter adds the
+ * highlighted rule; Tab completes it into the input instead, leaving a near-match editable.
  */
 export function PermissionRuleCombobox({
   value,

@@ -2,7 +2,6 @@ import { useCallback, type MouseEvent, type ReactNode } from "react";
 import { cn } from "../../utils/cn.js";
 
 interface ComboboxOptionProps {
-  /** Position in the option list; passed back on hover and click. */
   index: number;
   isActive: boolean;
   onActivate: (index: number) => void;
@@ -10,10 +9,7 @@ interface ComboboxOptionProps {
   children: ReactNode;
 }
 
-/**
- * One row in a ComboboxDropdown. Its mousedown is prevented so clicking an option never moves focus
- * out of the input, which is what keeps the dropdown open and typing uninterrupted.
- */
+/** One row in a ComboboxDropdown. Its mousedown is prevented so clicking never moves focus out of the input. */
 export function ComboboxOption({ index, isActive, onActivate, onCommit, children }: ComboboxOptionProps) {
   const handleMouseDown = useCallback((event: MouseEvent) => event.preventDefault(), []);
   const handleMouseEnter = useCallback(() => onActivate(index), [index, onActivate]);

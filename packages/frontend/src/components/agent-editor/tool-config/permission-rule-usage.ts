@@ -1,12 +1,9 @@
 import type { AgentConfig } from "@crow-central-agency/shared";
 import { TOOL_DISPOSITION, type CustomRuleDisposition } from "./tool-permission.js";
 
-/** How many agents in the fleet hold one permission rule, under each disposition. */
 export interface PermissionRuleUsage {
   rule: string;
-  /** Agents that currently auto-approve this rule. */
   approvedCount: number;
-  /** Agents that currently deny it. */
   deniedCount: number;
 }
 
@@ -28,14 +25,6 @@ function tallyRules(
   }
 }
 
-/**
- * Union of every permission rule configured across the given agents, deduped by exact string.
- * Rules are case-sensitive and are never canonicalized — the runtime matches them literally, so two
- * spellings of an equivalent rule stay distinct entries. The same rule can be approved by one agent
- * and denied by another, in which case both counts are non-zero.
- *
- * Ordered by total agents descending, then rule ascending, so widely shared rules surface first.
- */
 export function collectPermissionRuleUsage(agents: AgentConfig[]): PermissionRuleUsage[] {
   const usageByRule = new Map<string, PermissionRuleUsage>();
 
@@ -50,17 +39,11 @@ export function collectPermissionRuleUsage(agents: AgentConfig[]): PermissionRul
       return totalDifference;
     }
 
-    // Codepoint order, not locale: rules are case-sensitive, so "Bash(ls)" and "bash(ls)" need a
-    // stable relative position rather than one that depends on the runtime's collation.
+    // Codepoint, not locale: rules are case-sensitive and must not depend on runtime collation.
     return left.rule < right.rule ? -1 : 1;
   });
 }
 
-/**
- * Disposition to install when this rule is copied onto another agent. Denied-only rules carry their
- * Deny across: copying another agent's `Bash(rm -rf *)` deny as an auto-approve would invert its
- * intent without the user seeing it.
- */
 export function dispositionForUsage(usage: PermissionRuleUsage): CustomRuleDisposition {
   return usage.deniedCount > 0 && usage.approvedCount === 0 ? TOOL_DISPOSITION.DENY : TOOL_DISPOSITION.APPROVE;
 }

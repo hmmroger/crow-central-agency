@@ -7,7 +7,6 @@ const TIMESTAMP = "2026-07-27T00:00:00.000Z";
 
 let agentCounter = 0;
 
-/** Parsed rather than cast so the fixture stays a real AgentConfig as the schema evolves. */
 function buildAgent(toolConfig: Partial<ToolConfig>): AgentConfig {
   agentCounter += 1;
 

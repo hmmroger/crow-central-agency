@@ -6,16 +6,14 @@ interface ComboboxDropdownProps {
   floatingRef: ComboboxFloatingBindings["floatingRef"];
   floatingStyles: ComboboxFloatingBindings["floatingStyles"];
   floatingProps: ComboboxFloatingBindings["floatingProps"];
-  /** Renders `emptyMessage` in place of `children`. */
   isEmpty: boolean;
   emptyMessage: string;
   children: ReactNode;
 }
 
 /**
- * Portaled, positioned shell for a combobox option list. Rendering it outside the reference's DOM
- * subtree keeps the dropdown from resizing whatever contains the input. Keep `children`
- * non-focusable — the open state is driven by focus containment on the reference container.
+ * Portaled, positioned shell for a combobox option list. Keep `children` non-focusable — the open
+ * state is driven by focus containment on the reference container.
  */
 export function ComboboxDropdown({
   floatingRef,

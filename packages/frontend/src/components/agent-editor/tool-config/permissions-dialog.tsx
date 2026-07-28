@@ -42,7 +42,6 @@ export function PermissionsDialog({
 
   const ruleUsage = useMemo(() => collectPermissionRuleUsage(agents), [agents]);
 
-  /** Local, not saved, state: a rule leaves the dropdown the moment it is added here. */
   const currentRules = useMemo(() => [...permissions.autoApprovedTools, ...permissions.disallowedTools], [permissions]);
 
   const ruleOptions = useMemo(
@@ -84,7 +83,6 @@ export function PermissionsDialog({
     customRuleInputRef.current?.focus();
   }, [canonicalCustomRule]);
 
-  /** Dropdown options are already canonical rule strings, so they bypass re-validation. */
   const handleSelectRule = useCallback((usage: PermissionRuleUsage) => {
     setPermissions((prev) =>
       addCustomPermission(prev.autoApprovedTools, prev.disallowedTools, usage.rule, dispositionForUsage(usage))
@@ -113,8 +111,6 @@ export function PermissionsDialog({
           className="w-full px-3 py-1.5 rounded-md bg-surface-inset border border-border-subtle text-text-base text-xs font-mono placeholder:text-text-muted focus:outline-none focus:border-border-focus"
         />
 
-        {/* Fixed height, not a cap: the dialog is sized by its content, so a shrinking list would
-            resize the whole dialog on every filter keystroke. */}
         <div className="h-96 overflow-y-auto">
           <PermissionList
             effectiveTools={effectiveTools}
@@ -146,7 +142,6 @@ export function PermissionsDialog({
             </button>
           </div>
 
-          {/* One reserved line so toggling between empty / hint / error never resizes the dialog. */}
           <div className="h-4 mt-1 text-xs truncate">
             {showCustomRuleError ? (
               <span className="text-error">Enter a valid rule, e.g. Bash(git commit *).</span>

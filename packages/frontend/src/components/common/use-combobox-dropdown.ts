@@ -13,15 +13,12 @@ import {
 } from "@floating-ui/react";
 
 interface UseComboboxDropdownParams {
-  /** Number of options currently rendered; the active index is clamped against it. */
   optionCount: number;
-  /** Enter, or an option click. */
   onCommitOption: (index: number) => void;
   /** Tab. Defaults to onCommitOption when omitted. */
   onCompleteOption?: (index: number) => void;
 }
 
-/** Floating-ui bindings to spread onto the reference container and the portaled dropdown. */
 export interface ComboboxFloatingBindings {
   referenceRef: (node: ReferenceType | null) => void;
   referenceProps: Record<string, unknown>;
@@ -32,17 +29,14 @@ export interface ComboboxFloatingBindings {
 
 export interface ComboboxDropdownControls extends ComboboxFloatingBindings {
   isOpen: boolean;
-  /** Clamped against optionCount. */
   activeIndex: number;
   setActiveIndex: (index: number) => void;
-  /** Wire to an option click; Enter routes through this same path. */
   commitOption: (index: number) => void;
   open: () => void;
   close: () => void;
   toggle: () => void;
   /** ArrowUp/ArrowDown/Enter/Tab/Escape only; consumers handle other keys themselves. */
   handleKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
-  /** Closes when focus leaves the reference container. */
   handleContainerBlur: (event: FocusEvent<HTMLDivElement>) => void;
 }
 
@@ -51,11 +45,8 @@ const DROPDOWN_VIEWPORT_PADDING_PX = 8;
 const DROPDOWN_MAX_HEIGHT_PX = 240;
 
 /**
- * Headless type-ahead dropdown mechanics: open state, clamped active index, arrow/commit/complete
- * keyboard handling, blur containment, and floating-ui positioning matched to the reference width.
- *
- * Option content, filtering and selection semantics stay with the consumer — this hook only knows
- * how many options exist and which one is highlighted.
+ * Headless type-ahead dropdown mechanics: open state, clamped active index, keyboard handling, blur
+ * containment and floating-ui positioning. Option content and filtering stay with the consumer.
  */
 export function useComboboxDropdown({
   optionCount,
@@ -96,8 +87,8 @@ export function useComboboxDropdown({
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen((current) => !current), []);
 
-  // Both paths mutate whatever the consumer filters on, so the surviving options are a different
-  // list — the highlight returns to the top rather than landing on an unrelated neighbour.
+  // Both paths change what the consumer filters on, so the highlight returns to the top rather
+  // than landing on an unrelated neighbour in the surviving list.
   const commitOption = useCallback(
     (index: number) => {
       setActiveIndex(0);
