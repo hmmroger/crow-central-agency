@@ -13,4 +13,6 @@ export interface PermissionResult {
   message?: string;
   updatedInput?: Record<string, unknown>;
   toolUseID: string;
+  /** Client-edited rules for an allow_always, preferred over the derived rules when present. */
+  rules?: string[];
 }

@@ -23,6 +23,7 @@ import {
 import { AgentRunner } from "./agent-runner.js";
 import { partitionAllowRules } from "./claude-code-allow-partition.js";
 import { PermissionRuleSet } from "./permission-rule/rule-set.js";
+import { resolveRulesToPersist } from "../services/runtime/permission-rule-override.js";
 import { processStream } from "./stream-processor.js";
 import { parseToolActivity } from "./tool-activity-parser.js";
 import { env } from "../config/env.js";
@@ -237,15 +238,16 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         options.decisionReason
       );
 
-      if (result.behavior === "allow_always" && rulesToPersist.length > 0) {
+      const rulesToApply = resolveRulesToPersist(result.rules, rulesToPersist);
+      if (result.behavior === "allow_always" && rulesToApply.length > 0) {
         // Add to the set so later same-session calls auto-approve and later previews diff these out.
         // A read-only/unparseable/fully-covered command yields none.
-        permissionRules.add(rulesToPersist);
+        permissionRules.add(rulesToApply);
         this.oobEventCallback({
           type: AGENT_STREAM_EVENT_TYPE.TOOL_AUTO_APPROVED,
           agentId: this.agentId,
           sessionId,
-          rules: rulesToPersist,
+          rules: rulesToApply,
         });
       }
 

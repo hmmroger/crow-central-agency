@@ -32,6 +32,11 @@ export function AgentCard({ agent }: AgentCardProps) {
   const { allowPermission, allowAlwaysPermission, denyPermission } = useAgentActions(agent.id);
   const goToAgentConsole = useAppStore((state) => state.goToAgentConsole);
   const openConsole = useCallback(() => goToAgentConsole(agent.id), [goToAgentConsole, agent.id]);
+  // Compact card has no rule editor, so it always falls back to the backend-derived rules.
+  const handleAllowAlways = useCallback(
+    (toolUseId: string) => allowAlwaysPermission(toolUseId),
+    [allowAlwaysPermission]
+  );
 
   return (
     <div
@@ -60,7 +65,7 @@ export function AgentCard({ agent }: AgentCardProps) {
           <AgentCardPermission
             permissions={pendingPermissions}
             onAllow={allowPermission}
-            onAllowAlways={allowAlwaysPermission}
+            onAllowAlways={handleAllowAlways}
             onDeny={denyPermission}
           />
         </div>

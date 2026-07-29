@@ -308,8 +308,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   }
 
   /** Resolve a pending permission request with the user's decision. */
-  public resolvePermission(toolUseId: string, decision: PermissionDecision, message?: string): void {
-    this.permissionHandler.resolvePermission(toolUseId, decision, message);
+  public resolvePermission(toolUseId: string, decision: PermissionDecision, message?: string, rules?: string[]): void {
+    this.permissionHandler.resolvePermission(toolUseId, decision, message, rules);
   }
 
   /** Resolve a parked AskUserQuestion with the user's submission. */

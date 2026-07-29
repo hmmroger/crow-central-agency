@@ -82,6 +82,8 @@ export const PermissionResponseWsSchema = z.object({
   toolUseId: z.string(),
   decision: z.enum([PERMISSION_DECISION.ALLOW, PERMISSION_DECISION.DENY, PERMISSION_DECISION.ALLOW_ALWAYS]),
   message: z.string().optional(),
+  /** Client-edited rules an allow_always should persist. Absent means use what the backend derived. */
+  rules: z.array(z.string()).optional(),
 });
 
 /**
