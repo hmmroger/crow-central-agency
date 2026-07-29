@@ -121,7 +121,13 @@ export function PermissionDialog({
           <span>Always allow will remember:</span>
           <div className="mt-1 flex flex-wrap gap-1">
             {editedRules.map((rule, index) => (
-              <EditableRuleChip key={index} index={index} value={rule} onCommit={handleCommitRule} />
+              <EditableRuleChip
+                key={index}
+                index={index}
+                value={rule}
+                derivedValue={autoApproveRules[index]}
+                onCommit={handleCommitRule}
+              />
             ))}
           </div>
         </div>

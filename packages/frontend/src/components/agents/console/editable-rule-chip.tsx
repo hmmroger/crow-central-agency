@@ -3,8 +3,10 @@ import { useCallback, useEffect, useState } from "react";
 interface EditableRuleChipProps {
   /** Position of this rule in the owner's fixed-length array. */
   index: number;
-  /** The committed rule text this chip edits. */
+  /** The current/edited rule text this chip edits. */
   value: string;
+  /** The original backend-derived rule, restored on Escape. */
+  derivedValue: string;
   /** Commit the edited text back to the owner. */
   onCommit: (index: number, value: string) => void;
 }
@@ -14,9 +16,9 @@ const MIN_CHIP_SIZE = 8;
 
 /**
  * A single rule under "Always allow will remember:" as an inline editable chip. Holds its own draft:
- * Enter and blur commit, Escape reverts to the last committed value.
+ * Enter and blur commit, Escape restores the original backend-derived rule.
  */
-export function EditableRuleChip({ index, value, onCommit }: EditableRuleChipProps) {
+export function EditableRuleChip({ index, value, derivedValue, onCommit }: EditableRuleChipProps) {
   const [draft, setDraft] = useState(value);
 
   useEffect(() => {
@@ -39,10 +41,11 @@ export function EditableRuleChip({ index, value, onCommit }: EditableRuleChipPro
         event.currentTarget.blur();
       } else if (event.key === "Escape") {
         event.preventDefault();
-        setDraft(value);
+        setDraft(derivedValue);
+        onCommit(index, derivedValue);
       }
     },
-    [onCommit, index, draft, value]
+    [onCommit, index, draft, derivedValue]
   );
 
   return (
