@@ -63,7 +63,7 @@ export class PermissionHandler {
    * Resolve a pending permission request with a user decision.
    * Called when a permission_response WS message is received.
    */
-  public resolvePermission(toolUseId: string, decision: PermissionDecision, message?: string): void {
+  public resolvePermission(toolUseId: string, decision: PermissionDecision, message?: string, rules?: string[]): void {
     const pendingRequest = this.pending.get(toolUseId);
 
     if (!pendingRequest) {
@@ -79,6 +79,7 @@ export class PermissionHandler {
       behavior: decision,
       message,
       toolUseID: toolUseId,
+      rules,
     });
 
     log.info({ toolUseId, decision, agentId: pendingRequest.agentId }, "Permission resolved");

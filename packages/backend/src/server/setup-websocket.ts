@@ -7,6 +7,7 @@ import {
 } from "@crow-central-agency/shared";
 import type { WsBroadcaster } from "../services/ws-broadcaster.js";
 import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
+import { trimParseableRules } from "../services/runtime/permission-rule-override.js";
 import { AppError } from "../core/error/app-error.js";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
@@ -105,10 +106,12 @@ export async function setupWebSocket(
 
             break;
 
-          case "permission_response":
-            runtimeManager.resolvePermission(message.toolUseId, message.decision, message.message);
+          case "permission_response": {
+            const rules = message.rules ? trimParseableRules(message.rules) : undefined;
+            runtimeManager.resolvePermission(message.toolUseId, message.decision, message.message, rules);
 
             break;
+          }
 
           case "resolve_question": {
             // Re-parse into the strict submission union to enforce the answers/response xor.

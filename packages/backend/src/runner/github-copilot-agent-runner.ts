@@ -25,6 +25,7 @@ import type {
 } from "@github/copilot-sdk";
 import { AgentRunner } from "./agent-runner.js";
 import { PermissionRuleSet } from "./permission-rule/rule-set.js";
+import { resolveRulesToPersist } from "../services/runtime/permission-rule-override.js";
 import {
   mapCopilotSessionEvents,
   type CopilotEventContext,
@@ -592,7 +593,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       rulesToPersist
     );
     if (promptDecision.behavior === "allow_always") {
-      this.rememberAutoApproval(rulesToPersist, autoApproved);
+      this.rememberAutoApproval(resolveRulesToPersist(promptDecision.rules, rulesToPersist), autoApproved);
     }
 
     return promptDecision.behavior === "deny"
@@ -658,7 +659,7 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         rulesToPersist
       );
       if (promptDecision.behavior === "allow_always") {
-        this.rememberAutoApproval(rulesToPersist, autoApproved);
+        this.rememberAutoApproval(resolveRulesToPersist(promptDecision.rules, rulesToPersist), autoApproved);
       }
 
       result =

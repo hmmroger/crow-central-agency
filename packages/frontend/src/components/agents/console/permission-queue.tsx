@@ -4,7 +4,7 @@ import { PermissionDialog } from "./permission-dialog.js";
 interface PermissionQueueProps {
   permissions: PendingPermissionInfo[];
   onAllow: (toolUseId: string) => void;
-  onAllowAlways: (toolUseId: string) => void;
+  onAllowAlways: (toolUseId: string, rules?: string[]) => void;
   onDeny: (toolUseId: string, message?: string) => void;
 }
 

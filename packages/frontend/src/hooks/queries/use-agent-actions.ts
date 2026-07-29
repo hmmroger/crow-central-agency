@@ -24,7 +24,7 @@ export interface AgentActions {
   /** Allow a pending permission request */
   allowPermission: (toolUseId: string) => void;
   /** Allow a pending permission request and remember the tool in the agent's auto-approved list */
-  allowAlwaysPermission: (toolUseId: string) => void;
+  allowAlwaysPermission: (toolUseId: string, rules?: string[]) => void;
   /** Deny a pending permission request (optionally with a text message for the agent) */
   denyPermission: (toolUseId: string, message?: string) => void;
   /** Submit per-question answers for a parked AskUserQuestion */
@@ -119,12 +119,13 @@ export function useAgentActions(agentId: string): AgentActions {
 
   /** Allow a pending permission request and remember the tool in the agent's auto-approved list */
   const allowAlwaysPermission = useCallback(
-    (toolUseId: string) => {
+    (toolUseId: string, rules?: string[]) => {
       send({
         type: CLIENT_MESSAGE_TYPE.PERMISSION_RESPONSE,
         agentId,
         toolUseId,
         decision: PERMISSION_DECISION.ALLOW_ALWAYS,
+        rules,
       });
       removePendingPermission(toolUseId);
     },

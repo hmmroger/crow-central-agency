@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatJSONString } from "../../../utils/format-utils";
+import { EditableRuleChip } from "./editable-rule-chip.js";
 
 interface PermissionDialogProps {
   toolName: string;
@@ -9,7 +10,7 @@ interface PermissionDialogProps {
   autoApproveRules?: string[];
   decisionReason?: string;
   onAllow: (toolUseId: string) => void;
-  onAllowAlways: (toolUseId: string) => void;
+  onAllowAlways: (toolUseId: string, rules?: string[]) => void;
   onDeny: (toolUseId: string, message?: string) => void;
 }
 
@@ -29,14 +30,23 @@ export function PermissionDialog({
 }: PermissionDialogProps) {
   const [responseText, setResponseText] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
+  const [editedRules, setEditedRules] = useState<string[]>(autoApproveRules ?? []);
+
+  useEffect(() => {
+    setEditedRules(autoApproveRules ?? []);
+  }, [autoApproveRules]);
+
+  const handleCommitRule = useCallback((index: number, rule: string) => {
+    setEditedRules((prev) => prev.map((existing, existingIndex) => (existingIndex === index ? rule : existing)));
+  }, []);
 
   const handleAllow = useCallback(() => {
     onAllow(toolUseId);
   }, [onAllow, toolUseId]);
 
   const handleAllowAlways = useCallback(() => {
-    onAllowAlways(toolUseId);
-  }, [onAllowAlways, toolUseId]);
+    onAllowAlways(toolUseId, editedRules);
+  }, [onAllowAlways, toolUseId, editedRules]);
 
   const handleDeny = useCallback(() => {
     onDeny(toolUseId);
@@ -105,19 +115,19 @@ export function PermissionDialog({
         </button>
       </div>
 
-      {/* Rules that "Always allow" will persist */}
+      {/* Rules that "Always allow" will persist — editable, fixed count */}
       {autoApproveRules !== undefined && autoApproveRules.length > 0 && (
         <div className="text-xs text-text-muted">
           <span>Always allow will remember:</span>
           <div className="mt-1 flex flex-wrap gap-1">
-            {autoApproveRules.map((rule) => (
-              <code
-                key={rule}
-                title={rule}
-                className="max-w-full truncate font-mono text-text-neutral bg-surface-inset rounded px-1.5 py-0.5"
-              >
-                {rule}
-              </code>
+            {editedRules.map((rule, index) => (
+              <EditableRuleChip
+                key={index}
+                index={index}
+                value={rule}
+                derivedValue={autoApproveRules[index]}
+                onCommit={handleCommitRule}
+              />
             ))}
           </div>
         </div>
