@@ -117,6 +117,8 @@ export function FragmentRelationshipsDialog({ fragmentId, cue, kind, onClose }: 
         )}
       </div>
 
+      {deleteRelationship.error && <p className="px-4 pb-2 text-xs text-error">{deleteRelationship.error.message}</p>}
+
       <div className="flex items-center justify-end px-3 py-2 bg-surface-elevated">
         <ActionButton label="Close" onClick={onClose} />
       </div>
