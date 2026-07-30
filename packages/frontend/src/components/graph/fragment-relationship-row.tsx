@@ -1,9 +1,14 @@
+import { useCallback } from "react";
+import { Trash2 } from "lucide-react";
 import { ENTITY_TYPE, RELATIONSHIP_DIRECTION, type RelationshipDirection } from "@crow-central-agency/shared";
+import { ActionButton, ACTION_BUTTON_VARIANT } from "../common/action-button.js";
 import { KIND_LABEL } from "./fragment-kind-label.js";
 import type { FragmentRelationshipRow } from "./fragment-relationships-dialog.types.js";
 
 interface FragmentRelationshipRowItemProps {
   row: FragmentRelationshipRow;
+  onRemove: (row: FragmentRelationshipRow) => void;
+  disabled?: boolean;
 }
 
 /** Counterpart of the open fragment's role: a TARGET edge's counterpart is the parent, a SOURCE edge's is the child */
@@ -16,10 +21,12 @@ const DIRECTION_LABEL: Record<RelationshipDirection, string> = {
 const UNRESOLVED_COUNTERPART_LABEL = "Background agent";
 
 /** One direct edge of the open fragment: counterpart label with an optional kind badge, and its role. */
-export function FragmentRelationshipRowItem({ row }: FragmentRelationshipRowItemProps) {
+export function FragmentRelationshipRowItem({ row, onRemove, disabled = false }: FragmentRelationshipRowItemProps) {
   const { node } = row;
   const isFragment = node?.entityType === ENTITY_TYPE.FRAGMENT;
   const label = node?.name ?? UNRESOLVED_COUNTERPART_LABEL;
+
+  const handleRemove = useCallback(() => onRemove(row), [onRemove, row]);
 
   return (
     <div className="flex items-center justify-between gap-2 rounded-md border border-border-subtle bg-surface-inset px-3 py-2">
@@ -31,9 +38,17 @@ export function FragmentRelationshipRowItem({ row }: FragmentRelationshipRowItem
         )}
         <span className="truncate text-xs text-text-base">{label}</span>
       </div>
-      <span className="shrink-0 text-3xs uppercase tracking-wider text-text-muted">
-        {DIRECTION_LABEL[row.direction]}
-      </span>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="text-3xs uppercase tracking-wider text-text-muted">{DIRECTION_LABEL[row.direction]}</span>
+        <ActionButton
+          icon={Trash2}
+          label="Remove relationship"
+          iconOnly
+          variant={ACTION_BUTTON_VARIANT.DESTRUCTIVE}
+          disabled={disabled}
+          onClick={handleRemove}
+        />
+      </div>
     </div>
   );
 }
