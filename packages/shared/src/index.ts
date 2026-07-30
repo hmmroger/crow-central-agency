@@ -386,10 +386,13 @@ export {
   FRAGMENT_KIND,
   FRAGMENT_FIRST_LEVEL_TARGET,
   FRAGMENT_MAX_WORDS,
+  RELATIONSHIP_DIRECTION,
   FragmentKindSchema,
   FragmentSchema,
+  RelationshipDirectionSchema,
   type FragmentKind,
   type Fragment,
+  type RelationshipDirection,
 } from "./schemas/fragment.schema.js";
 
 export {

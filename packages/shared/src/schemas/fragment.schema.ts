@@ -49,3 +49,18 @@ export const FragmentSchema = z.object({
 });
 
 export type Fragment = z.infer<typeof FragmentSchema>;
+
+/**
+ * The open fragment's role in an edge, from the viewer's perspective.
+ * TARGET: the open fragment is the child and the counterpart is its parent.
+ * SOURCE: the open fragment is the parent and the counterpart is its child.
+ * Crosses the wire only as the relationship-candidates query parameter.
+ */
+export const RELATIONSHIP_DIRECTION = {
+  SOURCE: "source",
+  TARGET: "target",
+} as const;
+
+export type RelationshipDirection = (typeof RELATIONSHIP_DIRECTION)[keyof typeof RELATIONSHIP_DIRECTION];
+
+export const RelationshipDirectionSchema = z.enum([RELATIONSHIP_DIRECTION.SOURCE, RELATIONSHIP_DIRECTION.TARGET]);
