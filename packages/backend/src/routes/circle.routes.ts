@@ -9,6 +9,7 @@ import {
 } from "@crow-central-agency/shared";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
+import type { FragmentManager } from "../services/fragment/fragment-manager.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { validateAgentIdParam, validateCircleIdParam, validateUuidParam } from "../utils/validation.js";
@@ -16,12 +17,14 @@ import { wrapZodError } from "./route-utils.js";
 
 /**
  * Register circle and relationship CRUD routes.
- * Circles group agents; relationships define membership between entities.
+ * Circles group agents; relationships define membership between entities and,
+ * for fragments, the ASSOCIATION/LINK edges that anchor and connect them.
  */
 export async function registerCircleRoutes(
   server: FastifyInstance,
   circleManager: AgentCircleManager,
-  registry: AgentRegistry
+  registry: AgentRegistry,
+  fragmentManager: FragmentManager
 ) {
   const validateEntity = (entityId: string, entityType: EntityType): void => {
     switch (entityType) {
@@ -109,34 +112,81 @@ export async function registerCircleRoutes(
     return { success: true, data: relationships };
   });
 
-  /** Create a relationship */
+  /** Create a relationship of any type, dispatching kind rules to the owning manager */
   server.post<{ Body: unknown }>("/api/relationships", async (request) => {
     try {
       const input = CreateRelationshipInputSchema.parse(request.body);
-      // Fragment ASSOCIATION/LINK edges get their own validated routes; this route is memberships only
-      if (input.relationshipType !== RELATIONSHIP_TYPE.MEMBERSHIP) {
-        throw new AppError(
-          `Only ${RELATIONSHIP_TYPE.MEMBERSHIP} relationships can be created via this route`,
-          APP_ERROR_CODES.VALIDATION
-        );
+
+      switch (input.relationshipType) {
+        case RELATIONSHIP_TYPE.MEMBERSHIP: {
+          validateEntity(input.sourceEntityId, input.sourceEntityType);
+          validateEntity(input.targetEntityId, input.targetEntityType);
+          const relationship = await circleManager.createRelationship(input);
+
+          return { success: true, data: relationship };
+        }
+
+        case RELATIONSHIP_TYPE.ASSOCIATION: {
+          if (input.sourceEntityType !== ENTITY_TYPE.AGENT || input.targetEntityType !== ENTITY_TYPE.FRAGMENT) {
+            throw new AppError(
+              "ASSOCIATION requires an AGENT source and a FRAGMENT target",
+              APP_ERROR_CODES.VALIDATION
+            );
+          }
+
+          validateEntity(input.sourceEntityId, input.sourceEntityType);
+          const relationship = await fragmentManager.createAssociation(input.sourceEntityId, input.targetEntityId);
+
+          return { success: true, data: relationship };
+        }
+
+        case RELATIONSHIP_TYPE.LINK: {
+          if (input.sourceEntityType !== ENTITY_TYPE.FRAGMENT || input.targetEntityType !== ENTITY_TYPE.FRAGMENT) {
+            throw new AppError("LINK requires a FRAGMENT on both ends", APP_ERROR_CODES.VALIDATION);
+          }
+
+          const relationship = await fragmentManager.createLink(input.sourceEntityId, input.targetEntityId);
+
+          return { success: true, data: relationship };
+        }
       }
-
-      validateEntity(input.sourceEntityId, input.sourceEntityType);
-      validateEntity(input.targetEntityId, input.targetEntityType);
-
-      const relationship = await circleManager.createRelationship(input);
-
-      return { success: true, data: relationship };
     } catch (error) {
       return wrapZodError(error);
     }
   });
 
-  /** Delete a relationship */
+  /**
+   * Delete a relationship. Fragment ASSOCIATION/LINK edges are unlinked so the
+   * orphan cascade runs; the collected fragment ids are returned (empty for MEMBERSHIP).
+   */
   server.delete<{ Params: { id: string } }>("/api/relationships/:id", async (request) => {
     const relationshipId = validateUuidParam(request.params.id, "relationship");
-    await circleManager.deleteRelationship(relationshipId);
+    const relationship = circleManager.getRelationship(relationshipId);
 
-    return { success: true, data: { deleted: true } };
+    switch (relationship.relationshipType) {
+      case RELATIONSHIP_TYPE.ASSOCIATION: {
+        const collectedFragmentIds = await fragmentManager.unlinkFragment(
+          { entityType: ENTITY_TYPE.AGENT, entityId: relationship.sourceEntityId },
+          relationship.targetEntityId
+        );
+
+        return { success: true, data: { collectedFragmentIds } };
+      }
+
+      case RELATIONSHIP_TYPE.LINK: {
+        const collectedFragmentIds = await fragmentManager.unlinkFragment(
+          { entityType: ENTITY_TYPE.FRAGMENT, entityId: relationship.sourceEntityId },
+          relationship.targetEntityId
+        );
+
+        return { success: true, data: { collectedFragmentIds } };
+      }
+
+      case RELATIONSHIP_TYPE.MEMBERSHIP: {
+        await circleManager.deleteRelationship(relationshipId);
+
+        return { success: true, data: { collectedFragmentIds: [] } };
+      }
+    }
   });
 }

@@ -361,12 +361,14 @@ export {
   RelationshipTypeSchema,
   RelationshipSchema,
   CreateRelationshipInputSchema,
+  DeleteRelationshipResultSchema,
   CircleMemberSchema,
   type AgentCircle,
   type CreateAgentCircleInput,
   type UpdateAgentCircleInput,
   type Relationship,
   type CreateRelationshipInput,
+  type DeleteRelationshipResult,
   type CircleMember,
   type EntityType,
   type RelationshipType,
@@ -381,13 +383,11 @@ export {
 } from "./constants/system-agent.js";
 
 export {
-  CreateFragmentAssociationInputSchema,
   FRAGMENT_KIND,
   FRAGMENT_FIRST_LEVEL_TARGET,
   FRAGMENT_MAX_WORDS,
   FragmentKindSchema,
   FragmentSchema,
-  type CreateFragmentAssociationInput,
   type FragmentKind,
   type Fragment,
 } from "./schemas/fragment.schema.js";

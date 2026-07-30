@@ -89,6 +89,13 @@ export const CreateRelationshipInputSchema = z.object({
 
 export type CreateRelationshipInput = z.infer<typeof CreateRelationshipInputSchema>;
 
+export const DeleteRelationshipResultSchema = z.object({
+  /** Fragment ids removed by the delete cascade; empty for MEMBERSHIP deletes */
+  collectedFragmentIds: z.array(z.string()),
+});
+
+export type DeleteRelationshipResult = z.infer<typeof DeleteRelationshipResultSchema>;
+
 export const CircleMemberSchema = z.object({
   relationshipId: z.string(),
   entityId: z.string(),
