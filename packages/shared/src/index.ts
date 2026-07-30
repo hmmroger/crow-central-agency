@@ -390,9 +390,11 @@ export {
   FragmentKindSchema,
   FragmentSchema,
   RelationshipDirectionSchema,
+  FragmentRelationshipEntitySchema,
   type FragmentKind,
   type Fragment,
   type RelationshipDirection,
+  type FragmentRelationshipEntity,
 } from "./schemas/fragment.schema.js";
 
 export {

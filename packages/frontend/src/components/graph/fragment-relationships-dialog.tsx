@@ -7,6 +7,7 @@ import { useConfirmDialog } from "../../hooks/dialogs/use-confirm-dialog.js";
 import { ActionButton } from "../common/action-button.js";
 import { KIND_LABEL } from "./fragment-kind-label.js";
 import { FragmentRelationshipRowItem } from "./fragment-relationship-row.js";
+import { FragmentRelationshipAdd } from "./fragment-relationship-add.js";
 import { fragmentViewerDialogId } from "./use-open-fragment-viewer.js";
 import type { FragmentRelationshipRow } from "./fragment-relationships-dialog.types.js";
 
@@ -116,6 +117,8 @@ export function FragmentRelationshipsDialog({ fragmentId, cue, kind, onClose }: 
           ))
         )}
       </div>
+
+      <FragmentRelationshipAdd fragmentId={fragmentId} kind={kind} />
 
       {deleteRelationship.error && <p className="px-4 pb-2 text-xs text-error">{deleteRelationship.error.message}</p>}
 

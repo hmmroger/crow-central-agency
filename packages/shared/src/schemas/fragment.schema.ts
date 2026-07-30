@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ENTITY_TYPE } from "./agent-circle.schema.js";
 
 /**
  * Fragment kinds.
@@ -64,3 +65,24 @@ export const RELATIONSHIP_DIRECTION = {
 export type RelationshipDirection = (typeof RELATIONSHIP_DIRECTION)[keyof typeof RELATIONSHIP_DIRECTION];
 
 export const RelationshipDirectionSchema = z.enum([RELATIONSHIP_DIRECTION.SOURCE, RELATIONSHIP_DIRECTION.TARGET]);
+
+/**
+ * A pickable counterpart for a new fragment relationship, returned by the
+ * candidates route. Discriminated on entityType: an AGENT carries its display
+ * name; a FRAGMENT carries its cue and kind so the picker can group and label.
+ */
+export const FragmentRelationshipEntitySchema = z.discriminatedUnion("entityType", [
+  z.object({
+    entityType: z.literal(ENTITY_TYPE.AGENT),
+    id: z.string().min(1),
+    name: z.string(),
+  }),
+  z.object({
+    entityType: z.literal(ENTITY_TYPE.FRAGMENT),
+    id: z.string().min(1),
+    cue: z.string(),
+    kind: FragmentKindSchema,
+  }),
+]);
+
+export type FragmentRelationshipEntity = z.infer<typeof FragmentRelationshipEntitySchema>;

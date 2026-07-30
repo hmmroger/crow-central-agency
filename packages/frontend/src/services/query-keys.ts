@@ -1,3 +1,5 @@
+import type { RelationshipDirection } from "@crow-central-agency/shared";
+
 /**
  * Query key factory for consistent key management.
  * Hierarchical structure enables scoped invalidation:
@@ -102,6 +104,9 @@ export const fragmentKeys = {
   all: ["fragments"] as const,
   /** Single fragment detail */
   detail: (fragmentId: string) => [...fragmentKeys.all, "detail", fragmentId] as const,
+  /** Relationship candidates for a fragment, cached per direction */
+  relationshipCandidates: (fragmentId: string, direction: RelationshipDirection) =>
+    [...fragmentKeys.all, "detail", fragmentId, "relationship-candidates", direction] as const,
 };
 
 /**
