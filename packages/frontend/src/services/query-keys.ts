@@ -104,9 +104,11 @@ export const fragmentKeys = {
   all: ["fragments"] as const,
   /** Single fragment detail */
   detail: (fragmentId: string) => [...fragmentKeys.all, "detail", fragmentId] as const,
+  /** Prefix over every fragment's relationship-candidate queries, for broad invalidation on mutate */
+  relationshipCandidatesRoot: () => [...fragmentKeys.all, "relationship-candidates"] as const,
   /** Relationship candidates for a fragment, cached per direction */
   relationshipCandidates: (fragmentId: string, direction: RelationshipDirection) =>
-    [...fragmentKeys.all, "detail", fragmentId, "relationship-candidates", direction] as const,
+    [...fragmentKeys.relationshipCandidatesRoot(), fragmentId, direction] as const,
 };
 
 /**

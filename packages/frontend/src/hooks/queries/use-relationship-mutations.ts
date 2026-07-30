@@ -6,18 +6,24 @@ import type {
   GraphData,
 } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
-import { graphKeys } from "../../services/query-keys.js";
+import { fragmentKeys, graphKeys } from "../../services/query-keys.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
 /**
- * Create a relationship.
- * Cache is updated via the WS relationship_created event in useRelationshipsQuery.
+ * Create a relationship. The relationships list and graph caches refresh via the
+ * WS relationship_created event; the relationship-candidate caches are invalidated
+ * here so an open picker immediately drops the option that was just linked.
  */
 export function useCreateRelationship() {
+  const queryClient = useQueryClient();
+
   return useMutation<Relationship, ApiError, CreateRelationshipInput>({
     mutationFn: async (input) => {
       const response = await apiClient.post<Relationship>("/relationships", input);
       return unwrapResponse(response);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: fragmentKeys.relationshipCandidatesRoot() });
     },
   });
 }
@@ -51,6 +57,8 @@ export function useDeleteRelationship() {
           ),
         };
       });
+
+      void queryClient.invalidateQueries({ queryKey: fragmentKeys.relationshipCandidatesRoot() });
     },
   });
 }
