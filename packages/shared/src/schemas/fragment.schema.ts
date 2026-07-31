@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ENTITY_TYPE } from "./agent-circle.schema.js";
 
 /**
  * Fragment kinds.
@@ -50,9 +51,38 @@ export const FragmentSchema = z.object({
 
 export type Fragment = z.infer<typeof FragmentSchema>;
 
-/** Input for the user-facing sharing route: associate an agent to a fragment */
-export const CreateFragmentAssociationInputSchema = z.object({
-  agentId: z.string().min(1),
-});
+/**
+ * The open fragment's role in an edge, from the viewer's perspective.
+ * TARGET: the open fragment is the child and the counterpart is its parent.
+ * SOURCE: the open fragment is the parent and the counterpart is its child.
+ * Crosses the wire only as the relationship-candidates query parameter.
+ */
+export const RELATIONSHIP_DIRECTION = {
+  SOURCE: "source",
+  TARGET: "target",
+} as const;
 
-export type CreateFragmentAssociationInput = z.infer<typeof CreateFragmentAssociationInputSchema>;
+export type RelationshipDirection = (typeof RELATIONSHIP_DIRECTION)[keyof typeof RELATIONSHIP_DIRECTION];
+
+export const RelationshipDirectionSchema = z.enum([RELATIONSHIP_DIRECTION.SOURCE, RELATIONSHIP_DIRECTION.TARGET]);
+
+/**
+ * A pickable counterpart for a new fragment relationship, returned by the
+ * candidates route. Discriminated on entityType: an AGENT carries its display
+ * name; a FRAGMENT carries its cue and kind so the picker can group and label.
+ */
+export const FragmentRelationshipEntitySchema = z.discriminatedUnion("entityType", [
+  z.object({
+    entityType: z.literal(ENTITY_TYPE.AGENT),
+    id: z.string().min(1),
+    name: z.string(),
+  }),
+  z.object({
+    entityType: z.literal(ENTITY_TYPE.FRAGMENT),
+    id: z.string().min(1),
+    cue: z.string(),
+    kind: FragmentKindSchema,
+  }),
+]);
+
+export type FragmentRelationshipEntity = z.infer<typeof FragmentRelationshipEntitySchema>;

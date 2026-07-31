@@ -1,3 +1,5 @@
+import { useCallback } from "react";
+import { Waypoints } from "lucide-react";
 import type { FragmentKind } from "@crow-central-agency/shared";
 import { useFragmentQuery } from "../../hooks/queries/use-fragment-query.js";
 import { formatRelativeTime } from "../../utils/format-utils.js";
@@ -5,6 +7,7 @@ import { MarkdownRenderer } from "../common/markdown-renderer.js";
 import { CopyButton } from "../common/copy-button.js";
 import { ActionButton } from "../common/action-button.js";
 import { KIND_LABEL } from "./fragment-kind-label.js";
+import { useOpenFragmentRelationships } from "./use-open-fragment-relationships.js";
 
 interface FragmentViewerDialogProps {
   fragmentId: string;
@@ -22,6 +25,12 @@ interface FragmentViewerDialogProps {
  */
 export function FragmentViewerDialog({ fragmentId, cue, kind, onClose }: FragmentViewerDialogProps) {
   const { data: fragment, isLoading, isError } = useFragmentQuery(fragmentId);
+  const openRelationships = useOpenFragmentRelationships();
+
+  const handleOpenRelationships = useCallback(
+    () => openRelationships(fragmentId, cue, kind),
+    [openRelationships, fragmentId, cue, kind]
+  );
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -57,7 +66,10 @@ export function FragmentViewerDialog({ fragmentId, cue, kind, onClose }: Fragmen
       {/* Footer */}
       <div className="flex items-center justify-between px-3 py-2 bg-surface-elevated">
         {fragment ? <CopyButton text={fragment.body} /> : <span />}
-        <ActionButton label="Close" onClick={onClose} />
+        <div className="flex items-center gap-2">
+          <ActionButton icon={Waypoints} label="Relationships" onClick={handleOpenRelationships} />
+          <ActionButton label="Close" onClick={onClose} />
+        </div>
       </div>
     </div>
   );
