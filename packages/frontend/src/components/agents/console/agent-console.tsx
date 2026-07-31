@@ -51,7 +51,7 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
           activeToolUse={activeToolUse}
         />
 
-        <div className="max-w-3xl mx-auto px-5 shrink-0">
+        <div className="max-w-3xl mx-auto px-5 shrink-0 max-h-console-interrupt overflow-y-auto">
           <PermissionQueue
             permissions={pendingPermissions}
             onAllow={allowPermission}

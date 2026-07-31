@@ -175,7 +175,7 @@ export function AskUserQuestionPanel({ toolUseId, questions, onSubmit, onRespond
       />
 
       {/* Question body - re-keyed per page so the page transition animates */}
-      <div key={currentIndex} className="animate-fade-slide-up">
+      <div key={currentIndex} className="animate-fade-slide-up max-h-question-body overflow-y-auto">
         <QuestionItem
           question={currentQuestion}
           index={currentIndex}
