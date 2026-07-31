@@ -38,18 +38,19 @@ export function FragmentRelationshipsDialog({ fragmentId, cue, kind, onClose }: 
     }
 
     const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
-
     return graph.edges
-      .filter((edge) => edge.source === fragmentId || edge.target === fragmentId)
+      .filter((edge) => edge.target === fragmentId)
       .map((edge) => {
-        const isTarget = edge.target === fragmentId;
-
-        return {
-          relationshipId: edge.id,
-          direction: isTarget ? RELATIONSHIP_DIRECTION.TARGET : RELATIONSHIP_DIRECTION.SOURCE,
-          node: nodeById.get(isTarget ? edge.source : edge.target),
-        };
-      });
+        const node = nodeById.get(edge.source);
+        return node
+          ? {
+              relationshipId: edge.id,
+              direction: RELATIONSHIP_DIRECTION.TARGET,
+              node,
+            }
+          : undefined;
+      })
+      .filter((row) => !!row);
   }, [graph, fragmentId]);
 
   const parentRowCount = useMemo(
@@ -76,14 +77,14 @@ export function FragmentRelationshipsDialog({ fragmentId, cue, kind, onClose }: 
   const handleRemove = useCallback(
     (row: FragmentRelationshipRow) => {
       const isLastParent = row.direction === RELATIONSHIP_DIRECTION.TARGET && parentRowCount === 1;
-      if (!isLastParent) {
-        void performRemove(row.relationshipId);
-        return;
-      }
+      const title = isLastParent ? "Remove last parent?" : "Remove parent";
+      const message = isLastParent
+        ? `This is the only relationship keeping [${cue}] reachable. Removing it permanently deletes this memory and any children left with no other parent.`
+        : `Remove relationship between [${cue}] and [${row.node.name}]?`;
 
       confirm({
-        title: "Remove last parent?",
-        message: `This is the only relationship keeping “${cue}” reachable. Removing it permanently deletes this memory and any children left with no other parent.`,
+        title,
+        message,
         confirmLabel: "Remove and delete",
         destructive: true,
         onConfirm: () => performRemove(row.relationshipId),
@@ -105,7 +106,7 @@ export function FragmentRelationshipsDialog({ fragmentId, cue, kind, onClose }: 
 
       <div className="flex-1 min-h-0 overflow-y-auto m-4 flex flex-col gap-2">
         {rows.length === 0 ? (
-          <p className="text-xs text-text-muted">This fragment has no direct relationships.</p>
+          <p className="text-xs text-text-muted">This fragment has no parent.</p>
         ) : (
           rows.map((row) => (
             <FragmentRelationshipRowItem

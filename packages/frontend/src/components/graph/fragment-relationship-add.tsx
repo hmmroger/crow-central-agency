@@ -80,7 +80,7 @@ export function FragmentRelationshipAdd({ fragmentId, kind }: FragmentRelationsh
 
   const childDisabled = kind === FRAGMENT_KIND.KNOWLEDGE;
   const createRelationship = useCreateRelationship();
-  const { data: candidates = [] } = useFragmentRelationshipCandidatesQuery(fragmentId, direction, true);
+  const { data: candidates = [] } = useFragmentRelationshipCandidatesQuery(fragmentId, direction);
 
   const options = useMemo(() => {
     const needle = inputValue.trim().toLowerCase();

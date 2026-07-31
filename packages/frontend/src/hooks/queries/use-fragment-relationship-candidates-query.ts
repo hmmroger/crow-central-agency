@@ -7,14 +7,9 @@ import type { ApiError } from "../../services/api-client.types.js";
 /**
  * Fetch the entities a fragment may form a new relationship with in the given
  * direction. Each direction caches under its own key so toggling back is
- * instant. Disable while the direction is unavailable (e.g. a child picker on a
- * KNOWLEDGE fragment) to skip the round trip.
+ * instant.
  */
-export function useFragmentRelationshipCandidatesQuery(
-  fragmentId: string,
-  direction: RelationshipDirection,
-  enabled: boolean
-) {
+export function useFragmentRelationshipCandidatesQuery(fragmentId: string, direction: RelationshipDirection) {
   return useQuery<FragmentRelationshipEntity[], ApiError>({
     queryKey: fragmentKeys.relationshipCandidates(fragmentId, direction),
     queryFn: async () => {
@@ -25,6 +20,6 @@ export function useFragmentRelationshipCandidatesQuery(
 
       return unwrapResponse(response);
     },
-    enabled: enabled && Boolean(fragmentId),
+    enabled: Boolean(fragmentId),
   });
 }
