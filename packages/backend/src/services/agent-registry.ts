@@ -31,7 +31,7 @@ import { AGENTS_DIR_NAME, AGENT_MD_FILENAME, DEFAULT_PROJECT_DIR_NAME } from "..
 import { logger } from "../utils/logger.js";
 import { generateId, SYSTEM_AGENT_IDS } from "../utils/id-utils.js";
 import { REDACTED_BOT_TOKEN, sanitizeAgentConfig } from "../utils/agent-config-sanitizer.js";
-import { readTextFile, writeTextFile, ensureDir, removeDir, assertWithinBase } from "../utils/fs-utils.js";
+import { readTextFile, writeTextFile, ensureDir, removeDir, assertWithinBase, expandPath } from "../utils/fs-utils.js";
 import { arraysEqualUnordered } from "../utils/array-utils.js";
 import { getCrowAgent } from "../agents/crow-agent.js";
 import { getTaskDispatcherAgent } from "../agents/crow-task-dispatcher-agent.js";
@@ -129,7 +129,9 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
   /** Resolve agent workspace, falling back to the default project directory */
   public resolveWorkspace(agent: AgentConfig): string {
-    return agent.workspace ?? path.join(env.CROW_SYSTEM_PATH, DEFAULT_PROJECT_DIR_NAME);
+    return agent.workspace
+      ? expandPath(agent.workspace)
+      : path.join(env.CROW_SYSTEM_PATH, DEFAULT_PROJECT_DIR_NAME);
   }
 
   /**
