@@ -266,13 +266,14 @@ export async function bootstrap(options: BootstrapOptions) {
 
   await worldBuilderService.recoverInterruptedBuild();
 
-  // Graceful shutdown — websocket-clients must precede http-server so server.close()
-  // does not block on a stale upgraded socket.
+  // Graceful shutdown — websocket-clients must be the step immediately before http-server:
+  // the listener keeps accepting upgrades until server.close() runs, so any socket
+  // terminated earlier could be replaced by a new one that then blocks server.close().
   registerShutdownHandlers([
     { name: "scheduler", run: () => crowScheduler.stop() },
-    { name: "websocket-clients", run: () => broadcaster.closeAll() },
     { name: "feed", run: () => feedManager.dispose() },
     { name: "discord", run: () => discordBotManager.destroy() },
+    { name: "websocket-clients", run: () => broadcaster.closeAll() },
     { name: "http-server", run: () => server.close() },
     { name: "copilot", run: () => copilotClientManager.dispose() },
     { name: "telemetry", run: () => shutdownTelemetry() },
