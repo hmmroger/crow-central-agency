@@ -69,3 +69,9 @@ export const COPILOT_SKILLS_DIR_NAME = "skills";
 
 /** Header shown for a Copilot ask_user question. */
 export const COPILOT_QUESTION_HEADER = "Question";
+
+/** Max time a single graceful-shutdown step may run before it is abandoned. */
+export const SHUTDOWN_STEP_TIMEOUT_MS = 5 * 1000;
+
+/** Max total time for the whole graceful-shutdown sequence before forcing exit. */
+export const SHUTDOWN_TOTAL_TIMEOUT_MS = 15 * 1000;

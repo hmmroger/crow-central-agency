@@ -42,6 +42,7 @@ import path from "path";
 import { SYSTEM_AGENTS_PROJECT_DIR_NAME, DEFAULT_PROJECT_DIR_NAME } from "./config/constants.js";
 import { RoutineManager } from "./routines/routine-manager.js";
 import { shutdownTelemetry } from "./telemetry/setup.js";
+import { registerShutdownHandlers } from "./server/graceful-shutdown.js";
 import { createInterAgentTaskRoutine } from "./routines/inter-agent-task-routine.js";
 import { createTaskDispatchRoutine } from "./routines/task-dispatch-routine.js";
 import { createAgentLoopRoutine } from "./routines/agent-loop-routine.js";
@@ -265,21 +266,17 @@ export async function bootstrap(options: BootstrapOptions) {
 
   await worldBuilderService.recoverInterruptedBuild();
 
-  // Graceful shutdown
-  const shutdown = async () => {
-    logger.info("Shutting down...");
-    crowScheduler.stop();
-    broadcaster.closeAll();
-    await feedManager.dispose();
-    await discordBotManager.destroy();
-    await server.close();
-    await copilotClientManager.dispose();
-    await shutdownTelemetry();
-    process.exit(0);
-  };
-
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  // Graceful shutdown — websocket-clients must precede http-server so server.close()
+  // does not block on a stale upgraded socket.
+  registerShutdownHandlers([
+    { name: "scheduler", run: () => crowScheduler.stop() },
+    { name: "websocket-clients", run: () => broadcaster.closeAll() },
+    { name: "feed", run: () => feedManager.dispose() },
+    { name: "discord", run: () => discordBotManager.destroy() },
+    { name: "http-server", run: () => server.close() },
+    { name: "copilot", run: () => copilotClientManager.dispose() },
+    { name: "telemetry", run: () => shutdownTelemetry() },
+  ]);
 
   return server;
 }
