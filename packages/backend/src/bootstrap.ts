@@ -269,6 +269,7 @@ export async function bootstrap(options: BootstrapOptions) {
   const shutdown = async () => {
     logger.info("Shutting down...");
     crowScheduler.stop();
+    broadcaster.closeAll();
     await feedManager.dispose();
     await discordBotManager.destroy();
     await server.close();
