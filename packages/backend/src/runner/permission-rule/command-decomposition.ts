@@ -377,18 +377,19 @@ function findHereDocBodyEnd(command: string, bodyStart: number, openers: readonl
   return undefined;
 }
 
-/** A here-string opener `@'`/`@"` that is the last token on its line (its body starts on the next). */
-function isHereStringOpener(text: string, index: number): boolean {
+/** An `@` immediately followed by a quote — the shape of a here-string opener `@'`/`@"`. */
+function isHereStringQuotePair(text: string, index: number): boolean {
   if (text[index] !== HERE_STRING_MARKER) {
     return false;
   }
 
   const quoteChar = text[index + 1];
-  if (quoteChar !== SINGLE_QUOTE && quoteChar !== DOUBLE_QUOTE) {
-    return false;
-  }
+  return quoteChar === SINGLE_QUOTE || quoteChar === DOUBLE_QUOTE;
+}
 
-  return isLineTerminator(text[index + 2]);
+/** A here-string opener `@'`/`@"` that is the last token on its line (its body starts on the next). */
+function isHereStringOpener(text: string, index: number): boolean {
+  return isHereStringQuotePair(text, index) && isLineTerminator(text[index + 2]);
 }
 
 /**
@@ -451,10 +452,12 @@ function findSeparatorPositions(command: string, syntax: ShellSyntax): Separator
       continue;
     }
 
-    if (syntax.hereString && isHereStringOpener(command, index)) {
-      const end = findHereStringEnd(command, index);
-      // Unterminated here-string: fall through the opener so a later separator still splits.
-      index = end ?? index + 1;
+    if (syntax.hereString && isHereStringQuotePair(command, index)) {
+      // Skip a terminated here-string as an opaque region. Otherwise (not at end-of-line, or never
+      // closed) skip both the `@` and the quote as inert so the quote cannot open a multi-line scan
+      // that swallows a following separator — fail toward splitting.
+      const end = isHereStringOpener(command, index) ? findHereStringEnd(command, index) : undefined;
+      index = end ?? index + 2;
       continue;
     }
 
@@ -569,11 +572,12 @@ function tokenSpans(subcommand: string, syntax: ShellSyntax): TokenSpan[] {
         continue;
       }
 
-      if (syntax.hereString && isHereStringOpener(subcommand, index)) {
+      if (syntax.hereString && isHereStringQuotePair(subcommand, index)) {
         // Keep the whole here-string as one token so a lone apostrophe in its body cannot fragment it
-        // and a derived prefix covers the entire region rather than cutting into it.
-        const end = findHereStringEnd(subcommand, index);
-        index = end ?? index + 1;
+        // and a derived prefix covers the entire region rather than cutting into it. A rejected pair
+        // skips both chars inert so the quote cannot open a token-spanning scan.
+        const end = isHereStringOpener(subcommand, index) ? findHereStringEnd(subcommand, index) : undefined;
+        index = end ?? index + 2;
         continue;
       }
 

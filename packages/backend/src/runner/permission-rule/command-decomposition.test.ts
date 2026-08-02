@@ -301,6 +301,32 @@ describe("splitSubcommands (powershell here-string)", () => {
       "no terminator",
     ]);
   });
+
+  it("does not let an `@\"`/`@'` that is not a real opener hide a following command", () => {
+    // `@"` not at end-of-line is not a here-string opener; the quote must not open a multi-line scan
+    // that pairs with a later `"@` and swallows the `rm`. Both quote forms must split it out.
+    const doubleForm = ["echo @\"; rm -rf /", "\"@"].join("\n");
+    expect(splitSubcommands(doubleForm, SHELL.POWERSHELL)).toEqual(["echo @\"", "rm -rf /", "\"@"]);
+    expect(matchesCommandRules(doubleForm, ["echo *"], SHELL.POWERSHELL)).toBe(false);
+
+    const singleForm = ["echo @'; rm -rf /", "'@"].join("\n");
+    expect(splitSubcommands(singleForm, SHELL.POWERSHELL)).toEqual(["echo @'", "rm -rf /", "'@"]);
+  });
+
+  it("does not misread `@(` array, `@{` hashtable, or `@var` splat as a here-string opener", () => {
+    expect(splitSubcommands("Write-Output @(1, 2) ; Remove-Item x", SHELL.POWERSHELL)).toEqual([
+      "Write-Output @(1, 2)",
+      "Remove-Item x",
+    ]);
+    expect(splitSubcommands("@{ Name = 1 } ; Remove-Item y", SHELL.POWERSHELL)).toEqual([
+      "@{ Name = 1 }",
+      "Remove-Item y",
+    ]);
+    expect(splitSubcommands("$x = @args ; Remove-Item z", SHELL.POWERSHELL)).toEqual([
+      "$x = @args",
+      "Remove-Item z",
+    ]);
+  });
 });
 
 describe("deriveCommandRules (powershell here-string)", () => {
