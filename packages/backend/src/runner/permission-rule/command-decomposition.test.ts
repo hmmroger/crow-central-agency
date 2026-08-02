@@ -134,6 +134,49 @@ describe("splitSubcommands (bash heredoc)", () => {
   });
 });
 
+describe("splitSubcommands (bash heredoc — redirect-position gate & arithmetic)", () => {
+  it("does not hide a subcommand behind a multi-line arithmetic left-shift false positive", () => {
+    // Reviewer Critical: `0<<0` inside `$(( … ))` must not be read as a heredoc opener whose bogus
+    // delimiter a later line matches, or the intervening `rm -rf ~` would be swallowed.
+    const command = ["echo $((0<<0))", "rm -rf ~", "0"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["echo $((0<<0))", "rm -rf ~", "0"]);
+  });
+
+  it("does not treat a left shift inside `(( … ))` as a heredoc", () => {
+    const command = ["((x = 1<<2))", "rm -rf ~", "2"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["((x = 1<<2))", "rm -rf ~", "2"]);
+  });
+
+  it("does not treat a glued left shift in a `let` expression as a heredoc", () => {
+    const command = ["let y=1<<4", "rm -rf ~", "4"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["let y=1<<4", "rm -rf ~", "4"]);
+  });
+
+  it("suppresses opener detection for a spaced left shift inside arithmetic", () => {
+    // Whitespace before `<<` passes the redirect-position gate, so arithmetic depth is what suppresses it.
+    const command = ["echo $(( 1 << 2 ))", "rm -rf ~", "2"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["echo $(( 1 << 2 ))", "rm -rf ~", "2"]);
+  });
+
+  it("keeps arithmetic non-opaque to separators (a real command inside still splits)", () => {
+    expect(splitSubcommands("$((cd x && rm -rf /))", SHELL.BASH)).toEqual(["$((cd x", "rm -rf /))"]);
+  });
+
+  it("over-splits rather than hides a glued or fd-numbered heredoc opener", () => {
+    expect(splitSubcommands(["cat<<EOF", "body", "EOF"].join("\n"), SHELL.BASH)).toEqual(["cat<<EOF", "body", "EOF"]);
+    expect(splitSubcommands(["cat 2<<EOF", "body", "EOF"].join("\n"), SHELL.BASH)).toEqual([
+      "cat 2<<EOF",
+      "body",
+      "EOF",
+    ]);
+  });
+
+  it("fails closed rather than auto-approving a command hidden by an arithmetic false positive", () => {
+    const command = ["echo $((0<<0))", "rm -rf ~", "0"].join("\n");
+    expect(matchesCommandRules(command, ["echo *"], SHELL.BASH)).toBe(false);
+  });
+});
+
 describe("deriveCommandRules (bash heredoc)", () => {
   it("derives exactly the four rules for the reported command, under the cap", () => {
     expect(deriveCommandRules(REPORTED_HEREDOC_COMMAND, SHELL.BASH)).toEqual([

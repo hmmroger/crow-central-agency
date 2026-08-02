@@ -37,10 +37,14 @@ const BLOCK_CLOSE = "}";
 const LINE_FEED = "\n";
 const CARRIAGE_RETURN = "\r";
 const TAB = "\t";
+const PAREN_OPEN = "(";
+const PAREN_CLOSE = ")";
 const HEREDOC_CHAR = "<";
 const HEREDOC_OPERATOR = "<<";
 const HEREDOC_TAB_STRIP = "-";
 const HEREDOC_WORD_TERMINATORS = " \t\n\r;|&<>()";
+/** Characters a `<<` may follow to be a heredoc redirect rather than a glued arithmetic left shift. */
+const HEREDOC_OPENER_PRECEDERS = " \t\n\r;|&";
 
 interface ShellSyntax {
   /** Escapes the next char outside quotes and inside double quotes (Bash `\`, PowerShell backtick). */
@@ -60,6 +64,12 @@ interface ShellSyntax {
    * shell text. Bash only — a heredoc body would otherwise decompose as one subcommand per prose line.
    */
   readonly hereDoc: boolean;
+  /**
+   * Whether `((`/`$((` … `))` is an arithmetic context. Tracked as a nesting depth only to suppress
+   * heredoc-operator detection inside it (a `1 << 2` left shift is not a redirect); separators inside
+   * are still top-level, so the region is never opaque and cannot hide a command. Bash only.
+   */
+  readonly arithmetic: boolean;
   readonly twoCharSeparators: readonly string[];
   readonly singleCharSeparators: readonly string[];
 }
@@ -91,6 +101,7 @@ const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     doubleQuoteEmbedded: false,
     scriptBlock: false,
     hereDoc: true,
+    arithmetic: true,
     twoCharSeparators: ["&&", "||", "|&"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -100,6 +111,7 @@ const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     doubleQuoteEmbedded: true,
     scriptBlock: true,
     hereDoc: false,
+    arithmetic: false,
     twoCharSeparators: ["&&", "||"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -244,13 +256,21 @@ function stripLeadingTabs(line: string): string {
   return line.slice(index);
 }
 
-/** A `<<`/`<<-` heredoc operator, not a `<<<` here-string and not the tail of a longer `<` run. */
+/**
+ * A `<<`/`<<-` heredoc operator in redirect position: at start-of-input or following whitespace or a
+ * separator. A `<<` glued to a preceding token is an arithmetic left shift (`1<<3`, `let y=1<<4`), not
+ * a redirect; a `<<<` here-string and a longer `<` run are excluded by the same preceder/next checks.
+ */
 function isHereDocOperator(command: string, index: number): boolean {
   if (command.slice(index, index + HEREDOC_OPERATOR.length) !== HEREDOC_OPERATOR) {
     return false;
   }
 
-  return command[index - 1] !== HEREDOC_CHAR && command[index + HEREDOC_OPERATOR.length] !== HEREDOC_CHAR;
+  if (index !== 0 && !HEREDOC_OPENER_PRECEDERS.includes(command[index - 1])) {
+    return false;
+  }
+
+  return command[index + HEREDOC_OPERATOR.length] !== HEREDOC_CHAR;
 }
 
 /**
@@ -356,6 +376,7 @@ function findHereDocBodyEnd(command: string, bodyStart: number, openers: readonl
 function findSeparatorPositions(command: string, syntax: ShellSyntax): SeparatorPosition[] {
   const positions: SeparatorPosition[] = [];
   let pendingHereDocs: HereDocOpener[] = [];
+  let arithmeticDepth = 0;
   let index = 0;
 
   while (index < command.length) {
@@ -381,7 +402,19 @@ function findSeparatorPositions(command: string, syntax: ShellSyntax): Separator
       continue;
     }
 
-    if (syntax.hereDoc && isHereDocOperator(command, index)) {
+    if (syntax.arithmetic && char === PAREN_OPEN && command[index + 1] === PAREN_OPEN) {
+      arithmeticDepth += 1;
+      index += 2;
+      continue;
+    }
+
+    if (syntax.arithmetic && arithmeticDepth > 0 && char === PAREN_CLOSE && command[index + 1] === PAREN_CLOSE) {
+      arithmeticDepth -= 1;
+      index += 2;
+      continue;
+    }
+
+    if (syntax.hereDoc && arithmeticDepth === 0 && isHereDocOperator(command, index)) {
       const match = parseHereDocOpener(command, index, syntax);
       if (match !== undefined) {
         pendingHereDocs.push(match.opener);
