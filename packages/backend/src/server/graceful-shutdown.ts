@@ -24,9 +24,10 @@ async function runStep(step: ShutdownStep): Promise<void> {
   });
 
   try {
+    log.info({ step: step.name }, "Shutting down step...");
     await Promise.race([Promise.resolve().then(() => step.run()), timeout]);
   } catch (error) {
-    log.warn({ err: error, step: step.name }, "Shutdown step failed; continuing");
+    log.warn({ err: error, step: step.name }, "Shutdown step failed");
   } finally {
     if (timer) {
       clearTimeout(timer);
@@ -50,8 +51,7 @@ export function registerShutdownHandlers(steps: ShutdownStep[]): void {
 
   const handleSignal = async (signal: NodeJS.Signals): Promise<void> => {
     if (shuttingDown) {
-      log.warn({ signal }, "Second shutdown signal received; forcing exit");
-      process.exit(1);
+      return;
     }
 
     shuttingDown = true;

@@ -74,4 +74,4 @@ export const COPILOT_QUESTION_HEADER = "Question";
 export const SHUTDOWN_STEP_TIMEOUT_MS = 5 * 1000;
 
 /** Max total time for the whole graceful-shutdown sequence before forcing exit. */
-export const SHUTDOWN_TOTAL_TIMEOUT_MS = 15 * 1000;
+export const SHUTDOWN_TOTAL_TIMEOUT_MS = 30 * 1000;
