@@ -162,6 +162,12 @@ describe("splitSubcommands (bash heredoc — redirect-position gate & arithmetic
     expect(splitSubcommands("$((cd x && rm -rf /))", SHELL.BASH)).toEqual(["$((cd x", "rm -rf /))"]);
   });
 
+  it("does not hide a subcommand behind redundant grouping parens inside arithmetic", () => {
+    // The depth counter only moves on adjacent paren pairs; a single grouping `(` must not perturb it.
+    const command = ["echo $(( (1<<2) + 3 ))", "rm -rf ~", "3"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["echo $(( (1<<2) + 3 ))", "rm -rf ~", "3"]);
+  });
+
   it("over-splits rather than hides a glued or fd-numbered heredoc opener", () => {
     expect(splitSubcommands(["cat<<EOF", "body", "EOF"].join("\n"), SHELL.BASH)).toEqual(["cat<<EOF", "body", "EOF"]);
     expect(splitSubcommands(["cat 2<<EOF", "body", "EOF"].join("\n"), SHELL.BASH)).toEqual([
