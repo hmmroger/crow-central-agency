@@ -58,4 +58,19 @@ export class WsBroadcaster {
   public getClientCount(): number {
     return this.clients.size;
   }
+
+  /** Terminate every tracked client. Used during shutdown to unblock server.close(). */
+  public closeAll(): void {
+    // Snapshot before clearing: terminate() fires 'close', which re-enters removeClient.
+    const sockets = [...this.clients];
+    this.clients.clear();
+
+    // terminate(), not close(): close() waits for the peer's close frame with no timeout,
+    // and an upgraded socket that never replies keeps net.Server.close() from resolving.
+    for (const ws of sockets) {
+      ws.terminate();
+    }
+
+    log.debug({ count: sockets.length }, "All clients terminated");
+  }
 }

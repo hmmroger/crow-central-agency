@@ -8,6 +8,7 @@ import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { logger } from "../../utils/logger.js";
 
 const log = logger.child({ context: "copilot-client-manager" });
+const COPILOT_CLIENT_CLEANUP_MAX_MS = 3 * 1000;
 
 /**
  * Process-wide owner of the shared Copilot SDK client. Provides the read interface SessionManager
@@ -105,10 +106,25 @@ export class CopilotClientManager {
   }
 
   private async stopQuietly(client: CopilotClient): Promise<void> {
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new AppError("Timeout", APP_ERROR_CODES.TIMEOUT)), COPILOT_CLIENT_CLEANUP_MAX_MS);
+    });
+
     try {
-      await client.stop();
+      const stopPromise = client.stop();
+      await Promise.race([stopPromise, timeout]);
     } catch (error) {
-      log.warn({ error }, "Failed to stop Copilot client");
+      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.TIMEOUT) {
+        log.warn({ error }, "Force stop Copilot client");
+        await client.forceStop();
+      } else {
+        log.warn({ error }, "Failed to stop Copilot client");
+      }
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
     }
   }
 
