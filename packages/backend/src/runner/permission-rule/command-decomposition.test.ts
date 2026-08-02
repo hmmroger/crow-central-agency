@@ -8,6 +8,18 @@ import {
   SUBCOMMAND_MATCH_MODE,
 } from "./command-decomposition.js";
 
+const REPORTED_HEREDOC_COMMAND = [
+  "git add -A && git commit -q -F - <<'EOF'",
+  "fix: expand ~ and relative paths in agent workspace resolution",
+  "",
+  "An agent workspace path like ~/foo or ./bar wasn't expanded, so Node's fs",
+  "calls resolved it against the process's cwd rather than the workspace root.",
+  "",
+  "Claude Agent SDK now receives an absolute path.",
+  "EOF",
+  'echo "---"; git --no-pager log --oneline -1',
+].join("\n");
+
 describe("splitSubcommands (bash)", () => {
   it("splits on every shell separator", () => {
     expect(splitSubcommands("a && b || c ; d | e", SHELL.BASH)).toEqual(["a", "b", "c", "d", "e"]);
@@ -69,6 +81,124 @@ describe("splitSubcommands (bash)", () => {
     // An unterminated quote must never hide a later separator: the scanner rescans past the opening
     // quote so the top-level `&&` still splits, keeping `rm -rf ~` out of the first subcommand.
     expect(splitSubcommands("echo 'x && rm -rf ~", SHELL.BASH)).toEqual(["echo 'x", "rm -rf ~"]);
+  });
+});
+
+describe("splitSubcommands (bash heredoc)", () => {
+  it("treats a heredoc body as a skipped region, not one subcommand per prose line (reported bug)", () => {
+    expect(splitSubcommands(REPORTED_HEREDOC_COMMAND, SHELL.BASH)).toEqual([
+      "git add -A",
+      "git commit -q -F - <<'EOF'",
+      'echo "---"',
+      "git --no-pager log --oneline -1",
+    ]);
+  });
+
+  it("keeps a real separator on the opener line splitting (cat <<EOF && rm -rf /)", () => {
+    const command = ["cat <<EOF && rm -rf /", "file contents", "EOF"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["cat <<EOF", "rm -rf /"]);
+  });
+
+  it("treats CRLF as a single line terminator around a heredoc", () => {
+    const command = ["cat <<EOF && rm -rf /", "body", "EOF"].join("\r\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["cat <<EOF", "rm -rf /"]);
+  });
+
+  it("does not treat an arithmetic left shift as a heredoc (echo $((1<<3)))", () => {
+    expect(splitSubcommands("echo $((1<<3)) && rm -rf /", SHELL.BASH)).toEqual(["echo $((1<<3))", "rm -rf /"]);
+  });
+
+  it("does not treat a `<<<` here-string as a heredoc", () => {
+    expect(splitSubcommands("cat <<< 'hello' ; rm -rf ~", SHELL.BASH)).toEqual(["cat <<< 'hello'", "rm -rf ~"]);
+  });
+
+  it("matches a `<<-` terminator line after stripping leading tabs", () => {
+    const command = ["cat <<-EOF && rm -rf /", "\tbody", "\tEOF", "echo done"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["cat <<-EOF", "rm -rf /", "echo done"]);
+  });
+
+  it("consumes multiple heredoc bodies on one line in order", () => {
+    const command = ["diff <<A <<B", "alpha", "A", "beta", "B", "echo done"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["diff <<A <<B", "echo done"]);
+  });
+
+  it("falls back to normal splitting when a heredoc is never terminated", () => {
+    // No terminator line: the body scans as ordinary text so `rm -rf /` still splits out (never hidden).
+    const command = ["cat <<EOF", "line one && rm -rf /", "line two"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["cat <<EOF", "line one", "rm -rf /", "line two"]);
+  });
+
+  it("ignores shell metacharacters and apostrophes inside the heredoc body", () => {
+    const command = ["git commit -F - <<'EOF'", "a && b ; c | d -- it's fine", "EOF"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["git commit -F - <<'EOF'"]);
+  });
+});
+
+describe("splitSubcommands (bash heredoc — redirect-position gate & arithmetic)", () => {
+  it("does not hide a subcommand behind a multi-line arithmetic left-shift false positive", () => {
+    // Reviewer Critical: `0<<0` inside `$(( … ))` must not be read as a heredoc opener whose bogus
+    // delimiter a later line matches, or the intervening `rm -rf ~` would be swallowed.
+    const command = ["echo $((0<<0))", "rm -rf ~", "0"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["echo $((0<<0))", "rm -rf ~", "0"]);
+  });
+
+  it("does not treat a left shift inside `(( … ))` as a heredoc", () => {
+    const command = ["((x = 1<<2))", "rm -rf ~", "2"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["((x = 1<<2))", "rm -rf ~", "2"]);
+  });
+
+  it("does not treat a glued left shift in a `let` expression as a heredoc", () => {
+    const command = ["let y=1<<4", "rm -rf ~", "4"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["let y=1<<4", "rm -rf ~", "4"]);
+  });
+
+  it("suppresses opener detection for a spaced left shift inside arithmetic", () => {
+    // Whitespace before `<<` passes the redirect-position gate, so arithmetic depth is what suppresses it.
+    const command = ["echo $(( 1 << 2 ))", "rm -rf ~", "2"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["echo $(( 1 << 2 ))", "rm -rf ~", "2"]);
+  });
+
+  it("keeps arithmetic non-opaque to separators (a real command inside still splits)", () => {
+    expect(splitSubcommands("$((cd x && rm -rf /))", SHELL.BASH)).toEqual(["$((cd x", "rm -rf /))"]);
+  });
+
+  it("does not hide a subcommand behind redundant grouping parens inside arithmetic", () => {
+    // The depth counter only moves on adjacent paren pairs; a single grouping `(` must not perturb it.
+    const command = ["echo $(( (1<<2) + 3 ))", "rm -rf ~", "3"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["echo $(( (1<<2) + 3 ))", "rm -rf ~", "3"]);
+  });
+
+  it("over-splits rather than hides a glued or fd-numbered heredoc opener", () => {
+    expect(splitSubcommands(["cat<<EOF", "body", "EOF"].join("\n"), SHELL.BASH)).toEqual(["cat<<EOF", "body", "EOF"]);
+    expect(splitSubcommands(["cat 2<<EOF", "body", "EOF"].join("\n"), SHELL.BASH)).toEqual([
+      "cat 2<<EOF",
+      "body",
+      "EOF",
+    ]);
+  });
+
+  it("fails closed rather than auto-approving a command hidden by an arithmetic false positive", () => {
+    const command = ["echo $((0<<0))", "rm -rf ~", "0"].join("\n");
+    expect(matchesCommandRules(command, ["echo *"], SHELL.BASH)).toBe(false);
+  });
+});
+
+describe("deriveCommandRules (bash heredoc)", () => {
+  it("derives exactly the four rules for the reported command, under the cap", () => {
+    expect(deriveCommandRules(REPORTED_HEREDOC_COMMAND, SHELL.BASH)).toEqual([
+      "git add -A *",
+      "git commit -q -F - <<'EOF' *",
+      'echo "---" *',
+      "git --no-pager log --oneline -1 *",
+    ]);
+  });
+});
+
+describe("matchesCommandRules (bash heredoc)", () => {
+  it("auto-approves the reported heredoc commit against its own derived rules", () => {
+    expect(
+      matchesCommandRules(REPORTED_HEREDOC_COMMAND, deriveCommandRules(REPORTED_HEREDOC_COMMAND, SHELL.BASH), SHELL.BASH)
+    ).toBe(true);
   });
 });
 
@@ -145,6 +275,65 @@ describe("splitSubcommands (powershell)", () => {
   it("does not treat `{ }` as a block under Bash (brace group separators stay top-level)", () => {
     // Bash `{ …; …; }` is a command group whose `;` separates real commands — must NOT be grouped.
     expect(splitSubcommands("{ echo hi ; rm -rf / ; }", SHELL.BASH)).toEqual(["{ echo hi", "rm -rf /", "}"]);
+  });
+});
+
+describe("splitSubcommands (powershell here-string)", () => {
+  it("treats a here-string body with a lone apostrophe as one opaque region", () => {
+    const hereString = ["$msg = @'", "Node's process is running", "'@"].join("\n");
+    const command = [hereString, "Remove-Item x"].join("\n");
+    expect(splitSubcommands(command, SHELL.POWERSHELL)).toEqual([hereString, "Remove-Item x"]);
+  });
+
+  it("does not split on a separator inside a double-quoted here-string body", () => {
+    const hereString = ['$msg = @"', "value ; danger", '"@'].join("\n");
+    const command = [hereString, "Remove-Item x"].join("\n");
+    expect(splitSubcommands(command, SHELL.POWERSHELL)).toEqual([hereString, "Remove-Item x"]);
+  });
+
+  it("falls back to splitting when a here-string is never closed", () => {
+    // No `'@` line: the body scans as ordinary text so `Remove-Item y` still splits out (never hidden).
+    const command = ["$msg = @'", "line ; Remove-Item y", "no terminator"].join("\n");
+    expect(splitSubcommands(command, SHELL.POWERSHELL)).toEqual([
+      "$msg = @'",
+      "line",
+      "Remove-Item y",
+      "no terminator",
+    ]);
+  });
+
+  it("does not let an `@\"`/`@'` that is not a real opener hide a following command", () => {
+    // `@"` not at end-of-line is not a here-string opener; the quote must not open a multi-line scan
+    // that pairs with a later `"@` and swallows the `rm`. Both quote forms must split it out.
+    const doubleForm = ["echo @\"; rm -rf /", "\"@"].join("\n");
+    expect(splitSubcommands(doubleForm, SHELL.POWERSHELL)).toEqual(["echo @\"", "rm -rf /", "\"@"]);
+    expect(matchesCommandRules(doubleForm, ["echo *"], SHELL.POWERSHELL)).toBe(false);
+
+    const singleForm = ["echo @'; rm -rf /", "'@"].join("\n");
+    expect(splitSubcommands(singleForm, SHELL.POWERSHELL)).toEqual(["echo @'", "rm -rf /", "'@"]);
+  });
+
+  it("does not misread `@(` array, `@{` hashtable, or `@var` splat as a here-string opener", () => {
+    expect(splitSubcommands("Write-Output @(1, 2) ; Remove-Item x", SHELL.POWERSHELL)).toEqual([
+      "Write-Output @(1, 2)",
+      "Remove-Item x",
+    ]);
+    expect(splitSubcommands("@{ Name = 1 } ; Remove-Item y", SHELL.POWERSHELL)).toEqual([
+      "@{ Name = 1 }",
+      "Remove-Item y",
+    ]);
+    expect(splitSubcommands("$x = @args ; Remove-Item z", SHELL.POWERSHELL)).toEqual([
+      "$x = @args",
+      "Remove-Item z",
+    ]);
+  });
+});
+
+describe("deriveCommandRules (powershell here-string)", () => {
+  it("derives a prefix covering the whole here-string rather than cutting into it", () => {
+    const command = ["$msg = @'", "it's ; risky", "'@"].join("\n");
+    expect(deriveCommandRules(command, SHELL.POWERSHELL)).toEqual([`${command} *`]);
+    expect(matchesCommandRules(command, deriveCommandRules(command, SHELL.POWERSHELL), SHELL.POWERSHELL)).toBe(true);
   });
 });
 
