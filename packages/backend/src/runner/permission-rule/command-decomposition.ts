@@ -45,6 +45,7 @@ const HEREDOC_TAB_STRIP = "-";
 const HEREDOC_WORD_TERMINATORS = " \t\n\r;|&<>()";
 /** Characters a `<<` may follow to be a heredoc redirect rather than a glued arithmetic left shift. */
 const HEREDOC_OPENER_PRECEDERS = " \t\n\r;|&";
+const HERE_STRING_MARKER = "@";
 
 interface ShellSyntax {
   /** Escapes the next char outside quotes and inside double quotes (Bash `\`, PowerShell backtick). */
@@ -70,6 +71,12 @@ interface ShellSyntax {
    * are still top-level, so the region is never opaque and cannot hide a command. Bash only.
    */
   readonly arithmetic: boolean;
+  /**
+   * Whether `@' … '@` / `@" … "@` is a here-string: an inline opaque region from the opener (last
+   * token on its line) to a closing `'@`/`"@` that begins a line. Skipped like a quote in both the
+   * separator scan and token scan so a lone apostrophe in the body cannot fragment it. PowerShell only.
+   */
+  readonly hereString: boolean;
   readonly twoCharSeparators: readonly string[];
   readonly singleCharSeparators: readonly string[];
 }
@@ -102,6 +109,7 @@ const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     scriptBlock: false,
     hereDoc: true,
     arithmetic: true,
+    hereString: false,
     twoCharSeparators: ["&&", "||", "|&"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -112,6 +120,7 @@ const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     scriptBlock: true,
     hereDoc: false,
     arithmetic: false,
+    hereString: true,
     twoCharSeparators: ["&&", "||"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -368,6 +377,46 @@ function findHereDocBodyEnd(command: string, bodyStart: number, openers: readonl
   return undefined;
 }
 
+/** A here-string opener `@'`/`@"` that is the last token on its line (its body starts on the next). */
+function isHereStringOpener(text: string, index: number): boolean {
+  if (text[index] !== HERE_STRING_MARKER) {
+    return false;
+  }
+
+  const quoteChar = text[index + 1];
+  if (quoteChar !== SINGLE_QUOTE && quoteChar !== DOUBLE_QUOTE) {
+    return false;
+  }
+
+  return isLineTerminator(text[index + 2]);
+}
+
+/**
+ * Given a here-string opener at `openIndex`, return the index just past the closing `'@`/`"@` that
+ * begins a line, or `undefined` when it is never closed (caller falls back to scanning through the
+ * opener so a later separator still splits — same fail-toward-splitting convention as findQuoteEnd).
+ */
+function findHereStringEnd(text: string, openIndex: number): number | undefined {
+  const closer = text[openIndex + 1] + HERE_STRING_MARKER;
+  const openerTerminator = openIndex + 2;
+  let lineStart = openerTerminator + lineTerminatorLength(text, openerTerminator);
+
+  while (lineStart <= text.length) {
+    if (text.slice(lineStart, lineStart + closer.length) === closer) {
+      return lineStart + closer.length;
+    }
+
+    const contentEnd = lineContentEnd(text, lineStart);
+    if (contentEnd >= text.length) {
+      return undefined;
+    }
+
+    lineStart = contentEnd + lineTerminatorLength(text, contentEnd);
+  }
+
+  return undefined;
+}
+
 /**
  * Scan the command for top-level separators, skipping quoted regions and escaped characters. A Bash
  * heredoc body is skipped by emitting its opener line's terminator separator with a `length` extended
@@ -398,6 +447,13 @@ function findSeparatorPositions(command: string, syntax: ShellSyntax): Separator
     if (syntax.scriptBlock && char === BLOCK_OPEN) {
       const end = findBlockEnd(command, index, syntax);
       // Unbalanced block: fall through the `{` so an inner separator still splits (fail toward split).
+      index = end ?? index + 1;
+      continue;
+    }
+
+    if (syntax.hereString && isHereStringOpener(command, index)) {
+      const end = findHereStringEnd(command, index);
+      // Unterminated here-string: fall through the opener so a later separator still splits.
       index = end ?? index + 1;
       continue;
     }
@@ -509,6 +565,14 @@ function tokenSpans(subcommand: string, syntax: ShellSyntax): TokenSpan[] {
         // Keep a whole `{ … }` block as one token so its inner whitespace does not fragment it and a
         // derived prefix covers the entire script block rather than cutting into it.
         const end = findBlockEnd(subcommand, index, syntax);
+        index = end ?? index + 1;
+        continue;
+      }
+
+      if (syntax.hereString && isHereStringOpener(subcommand, index)) {
+        // Keep the whole here-string as one token so a lone apostrophe in its body cannot fragment it
+        // and a derived prefix covers the entire region rather than cutting into it.
+        const end = findHereStringEnd(subcommand, index);
         index = end ?? index + 1;
         continue;
       }

@@ -278,6 +278,39 @@ describe("splitSubcommands (powershell)", () => {
   });
 });
 
+describe("splitSubcommands (powershell here-string)", () => {
+  it("treats a here-string body with a lone apostrophe as one opaque region", () => {
+    const hereString = ["$msg = @'", "Node's process is running", "'@"].join("\n");
+    const command = [hereString, "Remove-Item x"].join("\n");
+    expect(splitSubcommands(command, SHELL.POWERSHELL)).toEqual([hereString, "Remove-Item x"]);
+  });
+
+  it("does not split on a separator inside a double-quoted here-string body", () => {
+    const hereString = ['$msg = @"', "value ; danger", '"@'].join("\n");
+    const command = [hereString, "Remove-Item x"].join("\n");
+    expect(splitSubcommands(command, SHELL.POWERSHELL)).toEqual([hereString, "Remove-Item x"]);
+  });
+
+  it("falls back to splitting when a here-string is never closed", () => {
+    // No `'@` line: the body scans as ordinary text so `Remove-Item y` still splits out (never hidden).
+    const command = ["$msg = @'", "line ; Remove-Item y", "no terminator"].join("\n");
+    expect(splitSubcommands(command, SHELL.POWERSHELL)).toEqual([
+      "$msg = @'",
+      "line",
+      "Remove-Item y",
+      "no terminator",
+    ]);
+  });
+});
+
+describe("deriveCommandRules (powershell here-string)", () => {
+  it("derives a prefix covering the whole here-string rather than cutting into it", () => {
+    const command = ["$msg = @'", "it's ; risky", "'@"].join("\n");
+    expect(deriveCommandRules(command, SHELL.POWERSHELL)).toEqual([`${command} *`]);
+    expect(matchesCommandRules(command, deriveCommandRules(command, SHELL.POWERSHELL), SHELL.POWERSHELL)).toBe(true);
+  });
+});
+
 describe("deriveCommandRules", () => {
   it("derives a flag-aware prefix specifier per subcommand (depth counts non-flag tokens only)", () => {
     expect(deriveCommandRules("npm run build", SHELL.BASH)).toEqual(["npm run build *"]);
