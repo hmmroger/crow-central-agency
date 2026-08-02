@@ -8,6 +8,18 @@ import {
   SUBCOMMAND_MATCH_MODE,
 } from "./command-decomposition.js";
 
+const REPORTED_HEREDOC_COMMAND = [
+  "git add -A && git commit -q -F - <<'EOF'",
+  "fix: expand ~ and relative paths in agent workspace resolution",
+  "",
+  "An agent workspace path like ~/foo or ./bar wasn't expanded, so Node's fs",
+  "calls resolved it against the process's cwd rather than the workspace root.",
+  "",
+  "Claude Agent SDK now receives an absolute path.",
+  "EOF",
+  'echo "---"; git --no-pager log --oneline -1',
+].join("\n");
+
 describe("splitSubcommands (bash)", () => {
   it("splits on every shell separator", () => {
     expect(splitSubcommands("a && b || c ; d | e", SHELL.BASH)).toEqual(["a", "b", "c", "d", "e"]);
@@ -69,6 +81,75 @@ describe("splitSubcommands (bash)", () => {
     // An unterminated quote must never hide a later separator: the scanner rescans past the opening
     // quote so the top-level `&&` still splits, keeping `rm -rf ~` out of the first subcommand.
     expect(splitSubcommands("echo 'x && rm -rf ~", SHELL.BASH)).toEqual(["echo 'x", "rm -rf ~"]);
+  });
+});
+
+describe("splitSubcommands (bash heredoc)", () => {
+  it("treats a heredoc body as a skipped region, not one subcommand per prose line (reported bug)", () => {
+    expect(splitSubcommands(REPORTED_HEREDOC_COMMAND, SHELL.BASH)).toEqual([
+      "git add -A",
+      "git commit -q -F - <<'EOF'",
+      'echo "---"',
+      "git --no-pager log --oneline -1",
+    ]);
+  });
+
+  it("keeps a real separator on the opener line splitting (cat <<EOF && rm -rf /)", () => {
+    const command = ["cat <<EOF && rm -rf /", "file contents", "EOF"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["cat <<EOF", "rm -rf /"]);
+  });
+
+  it("treats CRLF as a single line terminator around a heredoc", () => {
+    const command = ["cat <<EOF && rm -rf /", "body", "EOF"].join("\r\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["cat <<EOF", "rm -rf /"]);
+  });
+
+  it("does not treat an arithmetic left shift as a heredoc (echo $((1<<3)))", () => {
+    expect(splitSubcommands("echo $((1<<3)) && rm -rf /", SHELL.BASH)).toEqual(["echo $((1<<3))", "rm -rf /"]);
+  });
+
+  it("does not treat a `<<<` here-string as a heredoc", () => {
+    expect(splitSubcommands("cat <<< 'hello' ; rm -rf ~", SHELL.BASH)).toEqual(["cat <<< 'hello'", "rm -rf ~"]);
+  });
+
+  it("matches a `<<-` terminator line after stripping leading tabs", () => {
+    const command = ["cat <<-EOF && rm -rf /", "\tbody", "\tEOF", "echo done"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["cat <<-EOF", "rm -rf /", "echo done"]);
+  });
+
+  it("consumes multiple heredoc bodies on one line in order", () => {
+    const command = ["diff <<A <<B", "alpha", "A", "beta", "B", "echo done"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["diff <<A <<B", "echo done"]);
+  });
+
+  it("falls back to normal splitting when a heredoc is never terminated", () => {
+    // No terminator line: the body scans as ordinary text so `rm -rf /` still splits out (never hidden).
+    const command = ["cat <<EOF", "line one && rm -rf /", "line two"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["cat <<EOF", "line one", "rm -rf /", "line two"]);
+  });
+
+  it("ignores shell metacharacters and apostrophes inside the heredoc body", () => {
+    const command = ["git commit -F - <<'EOF'", "a && b ; c | d -- it's fine", "EOF"].join("\n");
+    expect(splitSubcommands(command, SHELL.BASH)).toEqual(["git commit -F - <<'EOF'"]);
+  });
+});
+
+describe("deriveCommandRules (bash heredoc)", () => {
+  it("derives exactly the four rules for the reported command, under the cap", () => {
+    expect(deriveCommandRules(REPORTED_HEREDOC_COMMAND, SHELL.BASH)).toEqual([
+      "git add -A *",
+      "git commit -q -F - <<'EOF' *",
+      'echo "---" *',
+      "git --no-pager log --oneline -1 *",
+    ]);
+  });
+});
+
+describe("matchesCommandRules (bash heredoc)", () => {
+  it("auto-approves the reported heredoc commit against its own derived rules", () => {
+    expect(
+      matchesCommandRules(REPORTED_HEREDOC_COMMAND, deriveCommandRules(REPORTED_HEREDOC_COMMAND, SHELL.BASH), SHELL.BASH)
+    ).toBe(true);
   });
 });
 

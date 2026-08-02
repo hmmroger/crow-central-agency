@@ -34,6 +34,13 @@ const DOUBLE_QUOTE = '"';
 const REDIRECT_CHAR = ">";
 const BLOCK_OPEN = "{";
 const BLOCK_CLOSE = "}";
+const LINE_FEED = "\n";
+const CARRIAGE_RETURN = "\r";
+const TAB = "\t";
+const HEREDOC_CHAR = "<";
+const HEREDOC_OPERATOR = "<<";
+const HEREDOC_TAB_STRIP = "-";
+const HEREDOC_WORD_TERMINATORS = " \t\n\r;|&<>()";
 
 interface ShellSyntax {
   /** Escapes the next char outside quotes and inside double quotes (Bash `\`, PowerShell backtick). */
@@ -48,6 +55,11 @@ interface ShellSyntax {
    * group whose `;` separates real commands — grouping there would hide a subcommand.
    */
   readonly scriptBlock: boolean;
+  /**
+   * Whether `<<`/`<<-` opens a heredoc whose body (up to a terminator line) is a skipped region, not
+   * shell text. Bash only — a heredoc body would otherwise decompose as one subcommand per prose line.
+   */
+  readonly hereDoc: boolean;
   readonly twoCharSeparators: readonly string[];
   readonly singleCharSeparators: readonly string[];
 }
@@ -55,6 +67,16 @@ interface ShellSyntax {
 interface SeparatorPosition {
   readonly index: number;
   readonly length: number;
+}
+
+interface HereDocOpener {
+  readonly delimiter: string;
+  readonly stripTabs: boolean;
+}
+
+interface HereDocOpenerMatch {
+  readonly opener: HereDocOpener;
+  readonly nextIndex: number;
 }
 
 interface TokenSpan {
@@ -68,6 +90,7 @@ const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     singleQuoteEmbedded: false,
     doubleQuoteEmbedded: false,
     scriptBlock: false,
+    hereDoc: true,
     twoCharSeparators: ["&&", "||", "|&"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -76,6 +99,7 @@ const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     singleQuoteEmbedded: true,
     doubleQuoteEmbedded: true,
     scriptBlock: true,
+    hereDoc: false,
     twoCharSeparators: ["&&", "||"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -188,9 +212,150 @@ function separatorLengthAt(command: string, index: number, syntax: ShellSyntax):
   return undefined;
 }
 
-/** Scan the command for top-level separators, skipping quoted regions and escaped characters. */
+function isLineTerminator(char: string): boolean {
+  return char === LINE_FEED || char === CARRIAGE_RETURN;
+}
+
+/** Length of the line terminator at `index` (`\r\n` counts as one), or 0 if there is none. */
+function lineTerminatorLength(command: string, index: number): number {
+  if (command[index] === CARRIAGE_RETURN && command[index + 1] === LINE_FEED) {
+    return 2;
+  }
+
+  return isLineTerminator(command[index]) ? 1 : 0;
+}
+
+/** Index where the line starting at `from` ends (first line terminator, or end of input). */
+function lineContentEnd(command: string, from: number): number {
+  let index = from;
+  while (index < command.length && !isLineTerminator(command[index])) {
+    index += 1;
+  }
+
+  return index;
+}
+
+function stripLeadingTabs(line: string): string {
+  let index = 0;
+  while (line[index] === TAB) {
+    index += 1;
+  }
+
+  return line.slice(index);
+}
+
+/** A `<<`/`<<-` heredoc operator, not a `<<<` here-string and not the tail of a longer `<` run. */
+function isHereDocOperator(command: string, index: number): boolean {
+  if (command.slice(index, index + HEREDOC_OPERATOR.length) !== HEREDOC_OPERATOR) {
+    return false;
+  }
+
+  return command[index - 1] !== HEREDOC_CHAR && command[index + HEREDOC_OPERATOR.length] !== HEREDOC_CHAR;
+}
+
+/**
+ * Parse a heredoc opener at `operatorIndex`, returning its unquoted delimiter and the index just past
+ * the delimiter word. `undefined` when there is no delimiter, so `<<` falls back to ordinary chars.
+ */
+function parseHereDocOpener(command: string, operatorIndex: number, syntax: ShellSyntax): HereDocOpenerMatch | undefined {
+  let cursor = operatorIndex + HEREDOC_OPERATOR.length;
+
+  const stripTabs = command[cursor] === HEREDOC_TAB_STRIP;
+  if (stripTabs) {
+    cursor += 1;
+  }
+
+  while (command[cursor] === " " || command[cursor] === TAB) {
+    cursor += 1;
+  }
+
+  let delimiter = "";
+  while (cursor < command.length) {
+    const char = command[cursor];
+    if (HEREDOC_WORD_TERMINATORS.includes(char)) {
+      break;
+    }
+
+    if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
+      const end = findQuoteEnd(command, cursor, syntax);
+      if (end === undefined) {
+        return undefined;
+      }
+
+      delimiter += command.slice(cursor + 1, end - 1);
+      cursor = end;
+      continue;
+    }
+
+    if (char === syntax.escapeChar && cursor + 1 < command.length) {
+      delimiter += command[cursor + 1];
+      cursor += 2;
+      continue;
+    }
+
+    delimiter += char;
+    cursor += 1;
+  }
+
+  if (delimiter.length === 0) {
+    return undefined;
+  }
+
+  return { opener: { delimiter, stripTabs }, nextIndex: cursor };
+}
+
+/**
+ * Given the heredoc openers pending after an opener line, return the index at the end of the last
+ * terminator line's content, consuming each opener's body in order. `undefined` when any terminator
+ * is missing, so the caller falls back to normal scanning (an unterminated heredoc over-splits its
+ * body rather than hiding a later command).
+ */
+function findHereDocBodyEnd(command: string, bodyStart: number, openers: readonly HereDocOpener[]): number | undefined {
+  let cursor = bodyStart;
+
+  for (let openerIndex = 0; openerIndex < openers.length; openerIndex += 1) {
+    const opener = openers[openerIndex];
+    const isLastOpener = openerIndex === openers.length - 1;
+    let terminated = false;
+
+    while (cursor <= command.length) {
+      const contentEnd = lineContentEnd(command, cursor);
+      const line = command.slice(cursor, contentEnd);
+      const compared = opener.stripTabs ? stripLeadingTabs(line) : line;
+
+      if (compared === opener.delimiter) {
+        if (isLastOpener) {
+          return contentEnd;
+        }
+
+        cursor = contentEnd + lineTerminatorLength(command, contentEnd);
+        terminated = true;
+        break;
+      }
+
+      if (contentEnd >= command.length) {
+        return undefined;
+      }
+
+      cursor = contentEnd + lineTerminatorLength(command, contentEnd);
+    }
+
+    if (!terminated) {
+      return undefined;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Scan the command for top-level separators, skipping quoted regions and escaped characters. A Bash
+ * heredoc body is skipped by emitting its opener line's terminator separator with a `length` extended
+ * through the terminator line, so scanning resumes past the body without touching `splitSubcommands`.
+ */
 function findSeparatorPositions(command: string, syntax: ShellSyntax): SeparatorPosition[] {
   const positions: SeparatorPosition[] = [];
+  let pendingHereDocs: HereDocOpener[] = [];
   let index = 0;
 
   while (index < command.length) {
@@ -216,8 +381,28 @@ function findSeparatorPositions(command: string, syntax: ShellSyntax): Separator
       continue;
     }
 
+    if (syntax.hereDoc && isHereDocOperator(command, index)) {
+      const match = parseHereDocOpener(command, index, syntax);
+      if (match !== undefined) {
+        pendingHereDocs.push(match.opener);
+        index = match.nextIndex;
+        continue;
+      }
+    }
+
     const length = separatorLengthAt(command, index, syntax);
     if (length !== undefined) {
+      if (pendingHereDocs.length > 0 && isLineTerminator(char)) {
+        const bodyStart = index + lineTerminatorLength(command, index);
+        const bodyEnd = findHereDocBodyEnd(command, bodyStart, pendingHereDocs);
+        pendingHereDocs = [];
+        if (bodyEnd !== undefined) {
+          positions.push({ index, length: bodyEnd - index });
+          index = bodyEnd;
+          continue;
+        }
+      }
+
       positions.push({ index, length });
       index += length;
       continue;
