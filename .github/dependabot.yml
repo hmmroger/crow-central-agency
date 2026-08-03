@@ -9,6 +9,8 @@ updates:
       - "automated"
     open-pull-requests-limit: 10
     versioning-strategy: increase
+    cooldown:
+      default-days: 7
     groups:
       anthropic:
         patterns:
