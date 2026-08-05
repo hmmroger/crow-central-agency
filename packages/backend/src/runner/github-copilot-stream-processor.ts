@@ -129,6 +129,7 @@ function mapAssistantEvent(context: CopilotEventContext, event: AssistantEvent):
     case "assistant.turn_end":
     case "assistant.tool_call_delta":
     case "assistant.idle":
+    case "assistant.server_tool_progress":
       return [];
   }
 }
@@ -284,6 +285,8 @@ async function mapSessionEvent(
     case "session.canvas.unavailable":
     case "session.canvas.recorded":
     case "session.canvas.removed":
+    case "session.managed_settings_resolved":
+    case "session.auto_mode_resolved":
       return [];
   }
 }
@@ -312,6 +315,9 @@ function mapMcpControlEvent(context: CopilotEventContext, event: McpControlEvent
     case "mcp.oauth_completed":
     case "mcp.headers_refresh_required":
     case "mcp.headers_refresh_completed":
+    case "mcp.prompts.list_changed":
+    case "mcp.resources.list_changed":
+    case "mcp.tools.list_changed":
       return [];
   }
 }
