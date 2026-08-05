@@ -6,6 +6,7 @@ import { SystemSettingsManager } from "../services/system-settings-manager.js";
 import { AgentRegistry } from "../services/agent-registry.js";
 import { AgentCircleManager } from "../services/agent-circle-manager.js";
 import { RelationshipManager } from "../services/relationship-manager.js";
+import { FragmentManager } from "../services/fragment/fragment-manager.js";
 import { WsBroadcaster } from "../services/ws-broadcaster.js";
 
 function createManager(): CrowMcpManager {
@@ -14,7 +15,13 @@ function createManager(): CrowMcpManager {
   const broadcaster = new WsBroadcaster();
   const relationshipManager = new RelationshipManager(store);
   const circleManager = new AgentCircleManager(store, relationshipManager, broadcaster);
-  const registry = new AgentRegistry(store, templateStore, broadcaster, circleManager);
+  const fragmentManager = new FragmentManager(
+    new InMemoryObjectStore(),
+    new InMemoryObjectStore(),
+    relationshipManager,
+    broadcaster
+  );
+  const registry = new AgentRegistry(store, templateStore, broadcaster, circleManager, fragmentManager);
   const systemSettingsManager = new SystemSettingsManager(store);
 
   return new CrowMcpManager(store, systemSettingsManager, registry);

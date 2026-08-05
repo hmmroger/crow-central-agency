@@ -25,15 +25,21 @@ async function createHarness(): Promise<Harness> {
   const broadcaster = new WsBroadcaster();
   const relationshipManager = new RelationshipManager(new InMemoryObjectStore());
   const circleManager = new AgentCircleManager(new InMemoryObjectStore(), relationshipManager, broadcaster);
-  const registry = new AgentRegistry(new InMemoryObjectStore(), new InMemoryObjectStore(), broadcaster, circleManager);
-  const taskManager = new AgentTaskManager(new InMemoryObjectStore(), broadcaster, circleManager);
-  const artifactManager = new ArtifactManager(new InMemoryObjectStore(), registry, circleManager);
   const fragmentManager = new FragmentManager(
     new InMemoryObjectStore(),
     new InMemoryObjectStore(),
     relationshipManager,
     broadcaster
   );
+  const registry = new AgentRegistry(
+    new InMemoryObjectStore(),
+    new InMemoryObjectStore(),
+    broadcaster,
+    circleManager,
+    fragmentManager
+  );
+  const taskManager = new AgentTaskManager(new InMemoryObjectStore(), broadcaster, circleManager);
+  const artifactManager = new ArtifactManager(new InMemoryObjectStore(), registry, circleManager);
   const documentSearchService = new DocumentSearchService(
     artifactManager,
     taskManager,
