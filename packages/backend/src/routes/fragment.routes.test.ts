@@ -49,8 +49,8 @@ async function createHarness(agentIds: string[]): Promise<Harness> {
   const broadcaster = new WsBroadcaster();
   const relationshipManager = new RelationshipManager(store);
   const circleManager = new AgentCircleManager(store, relationshipManager, broadcaster);
-  const registry = new AgentRegistry(store, templateStore, broadcaster, circleManager);
   const fragmentManager = new FragmentManager(fragmentStore, indexStore, relationshipManager, broadcaster);
+  const registry = new AgentRegistry(store, templateStore, broadcaster, circleManager, fragmentManager);
 
   for (const [index, agentId] of agentIds.entries()) {
     await store.set(AGENT_STORE_TABLE, agentId, persistedAgent(agentId, `Agent ${index}`));

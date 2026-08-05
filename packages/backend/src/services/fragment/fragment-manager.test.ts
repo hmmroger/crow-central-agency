@@ -400,6 +400,56 @@ describe("FragmentManager.unlinkFragment cascade-GC", () => {
   });
 });
 
+describe("FragmentManager.removeFragmentsForAgent", () => {
+  it("purges a sole-anchored root and its LINK subtree, returning collected ids parents-first", async () => {
+    const harness = await createHarness();
+    const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const subDomain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, fragmentParent(domain.id));
+    const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(subDomain.id));
+
+    const collected = await harness.fragmentManager.removeFragmentsForAgent(AGENT_ID_A);
+
+    expect(collected).toEqual([domain.id, subDomain.id, knowledge.id]);
+    for (const fragmentId of collected) {
+      await expectAppErrorCode(harness.fragmentManager.readFragment(fragmentId), APP_ERROR_CODES.FRAGMENT_NOT_FOUND);
+    }
+  });
+
+  it("keeps a co-anchored fragment and a descendant still reachable from another agent's tree", async () => {
+    const harness = await createHarness();
+    const domainA = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const shared = await createFragment(harness, FRAGMENT_KIND.DOMAIN, fragmentParent(domainA.id));
+    await harness.fragmentManager.createAssociation(AGENT_ID_B, shared.id);
+    const subDomain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, fragmentParent(domainA.id));
+    const domainB = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_B));
+    await harness.fragmentManager.createLink(domainB.id, subDomain.id);
+
+    const collected = await harness.fragmentManager.removeFragmentsForAgent(AGENT_ID_A);
+
+    expect(collected).toEqual([domainA.id]);
+    await expect(harness.fragmentManager.readFragment(shared.id)).resolves.toBeDefined();
+    await expect(harness.fragmentManager.readFragment(subDomain.id)).resolves.toBeDefined();
+  });
+
+  it("keeps a fragment that is both agent-anchored and LINKed under another anchored fragment until its own iteration", async () => {
+    const harness = await createHarness();
+    const domainParent = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    const both = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
+    await harness.fragmentManager.createLink(domainParent.id, both.id);
+
+    const collected = await harness.fragmentManager.removeFragmentsForAgent(AGENT_ID_A);
+
+    expect(collected).toEqual([domainParent.id, both.id]);
+    await expectAppErrorCode(harness.fragmentManager.readFragment(both.id), APP_ERROR_CODES.FRAGMENT_NOT_FOUND);
+  });
+
+  it("returns an empty array for an agent with no associations", async () => {
+    const harness = await createHarness();
+
+    expect(await harness.fragmentManager.removeFragmentsForAgent(AGENT_ID_B)).toEqual([]);
+  });
+});
+
 describe("FragmentManager relationship broadcasts", () => {
   it("broadcasts relationship_created for named edge writes and relationship_deleted for their removals", async () => {
     const harness = await createHarness();

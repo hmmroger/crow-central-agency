@@ -323,6 +323,32 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
   }
 
   /**
+   * Remove every fragment an agent solely anchors, for use at the agent-delete
+   * site before its edges are stripped generically. Snapshots the agent's
+   * ASSOCIATION targets up front, then unlinks each — inheriting the shared-node
+   * survival semantics of the cascade: a fragment co-anchored by another agent,
+   * or still reachable through another parent, survives.
+   * @returns ids of every fragment collected across all unlinks.
+   */
+  public async removeFragmentsForAgent(agentId: string): Promise<string[]> {
+    const targetIds = this.relationshipManager
+      .queryRelationships({
+        sourceEntityId: agentId,
+        sourceEntityType: ENTITY_TYPE.AGENT,
+        relationshipType: RELATIONSHIP_TYPE.ASSOCIATION,
+      })
+      .map((association) => association.targetEntityId);
+
+    const collected: string[] = [];
+    for (const targetId of targetIds) {
+      const purged = await this.unlinkFragment({ entityType: ENTITY_TYPE.AGENT, entityId: agentId }, targetId);
+      collected.push(...purged);
+    }
+
+    return collected;
+  }
+
+  /**
    * Resolve an agent's fragment scope: every fragment reachable from any of
    * its ASSOCIATION edges, following LINKs parent → child.
    */
