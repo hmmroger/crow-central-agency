@@ -101,7 +101,9 @@ export async function bootstrap(options: BootstrapOptions) {
   await relationshipManager.initialize();
   const circleManager = new AgentCircleManager(storeProvider, relationshipManager, broadcaster);
   await circleManager.initialize();
-  const registry = new AgentRegistry(storeProvider, folderFileProvider, broadcaster, circleManager);
+  const fragmentManager = new FragmentManager(folderFileProvider, storeProvider, relationshipManager, broadcaster);
+  await fragmentManager.initialize();
+  const registry = new AgentRegistry(storeProvider, folderFileProvider, broadcaster, circleManager, fragmentManager);
   await registry.initialize();
   const crowScheduler = new CrowScheduler(storeProvider, registry);
   await crowScheduler.initialize();
@@ -111,8 +113,6 @@ export async function bootstrap(options: BootstrapOptions) {
   await feedManager.initialize();
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
-  const fragmentManager = new FragmentManager(folderFileProvider, storeProvider, relationshipManager, broadcaster);
-  await fragmentManager.initialize();
   const documentSearchService = new DocumentSearchService(
     artifactManager,
     taskManager,

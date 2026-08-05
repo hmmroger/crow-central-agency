@@ -11,11 +11,14 @@ import {
   CROW_TASK_DISPATCHER_AGENT_ID,
   CROW_WORLD_BUILDER_AGENT_ID,
   ENTITY_TYPE,
+  FRAGMENT_KIND,
+  RELATIONSHIP_TYPE,
   type AgentConfig,
 } from "@crow-central-agency/shared";
 import { AgentRegistry, AGENT_STORE_TABLE } from "./agent-registry.js";
 import { AgentCircleManager } from "./agent-circle-manager.js";
 import { RelationshipManager } from "./relationship-manager.js";
+import { FRAGMENT_STORE_TABLE, FRAGMENT_INDEX_STORE_TABLE, FragmentManager } from "./fragment/fragment-manager.js";
 import { WsBroadcaster } from "./ws-broadcaster.js";
 import { InMemoryObjectStore } from "../core/store/in-memory-object-store.mock.js";
 import { AppError } from "../core/error/app-error.js";
@@ -34,20 +37,26 @@ const SYSTEM_AGENT_IDS = [
 
 interface Harness {
   store: InMemoryObjectStore;
+  fragmentStore: InMemoryObjectStore;
+  indexStore: InMemoryObjectStore;
   relationshipManager: RelationshipManager;
   circleManager: AgentCircleManager;
+  fragmentManager: FragmentManager;
   registry: AgentRegistry;
 }
 
 function createHarness(): Harness {
   const store = new InMemoryObjectStore();
   const templateStore = new InMemoryObjectStore();
+  const fragmentStore = new InMemoryObjectStore();
+  const indexStore = new InMemoryObjectStore();
   const broadcaster = new WsBroadcaster();
   const relationshipManager = new RelationshipManager(store);
   const circleManager = new AgentCircleManager(store, relationshipManager, broadcaster);
-  const registry = new AgentRegistry(store, templateStore, broadcaster, circleManager);
+  const fragmentManager = new FragmentManager(fragmentStore, indexStore, relationshipManager, broadcaster);
+  const registry = new AgentRegistry(store, templateStore, broadcaster, circleManager, fragmentManager);
 
-  return { store, relationshipManager, circleManager, registry };
+  return { store, fragmentStore, indexStore, relationshipManager, circleManager, fragmentManager, registry };
 }
 
 function makePersistedAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
@@ -64,6 +73,7 @@ function makePersistedAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
 async function initialize(harness: Harness): Promise<void> {
   await harness.relationshipManager.initialize();
   await harness.circleManager.initialize();
+  await harness.fragmentManager.initialize();
   await harness.registry.initialize();
 }
 
@@ -195,6 +205,38 @@ describe("AgentRegistry CRUD", () => {
 
     expect(() => harness.registry.getAgent(created.id)).toThrow(AppError);
     expect(await harness.store.get(AGENT_STORE_TABLE, created.id)).toBeUndefined();
+  });
+
+  it("cascades the agent's fragments from both tiers with no association edges left on delete", async () => {
+    const harness = createHarness();
+    await initialize(harness);
+    const created = await harness.registry.createAgent({ name: "Anchor", type: AGENT_TYPE.CLAUDE_CODE });
+    const domain = await harness.fragmentManager.createFragment({
+      kind: FRAGMENT_KIND.DOMAIN,
+      cue: "domain cue",
+      body: "domain body",
+      parent: { entityType: ENTITY_TYPE.AGENT, entityId: created.id },
+    });
+    const knowledge = await harness.fragmentManager.createFragment({
+      kind: FRAGMENT_KIND.KNOWLEDGE,
+      cue: "knowledge cue",
+      body: "knowledge body",
+      parent: { entityType: ENTITY_TYPE.FRAGMENT, entityId: domain.id },
+    });
+
+    await harness.registry.deleteAgent(created.id);
+
+    for (const fragmentId of [domain.id, knowledge.id]) {
+      expect(await harness.fragmentStore.get(FRAGMENT_STORE_TABLE, fragmentId)).toBeUndefined();
+      expect(await harness.indexStore.get(FRAGMENT_INDEX_STORE_TABLE, fragmentId)).toBeUndefined();
+    }
+
+    expect(
+      harness.relationshipManager.queryRelationships({
+        sourceEntityId: created.id,
+        relationshipType: RELATIONSHIP_TYPE.ASSOCIATION,
+      })
+    ).toHaveLength(0);
   });
 
   it("refuses to delete a system agent", async () => {

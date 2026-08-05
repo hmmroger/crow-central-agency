@@ -24,6 +24,7 @@ import { EventBus } from "../core/event-bus/event-bus.js";
 import type { AgentRegistryEvents, AgentDetails } from "./agent-registry.types.js";
 import type { WsBroadcaster } from "./ws-broadcaster.js";
 import type { AgentCircleManager } from "./agent-circle-manager.js";
+import type { FragmentManager } from "./fragment/fragment-manager.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { env } from "../config/env.js";
@@ -62,7 +63,8 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     private readonly store: ObjectStoreProvider,
     private readonly templateStore: ObjectStoreProvider,
     private readonly broadcaster: WsBroadcaster,
-    private readonly circleManager: AgentCircleManager
+    private readonly circleManager: AgentCircleManager,
+    private readonly fragmentManager: FragmentManager
   ) {
     super();
     this.agentsBaseDir = path.join(env.CROW_SYSTEM_PATH, AGENTS_DIR_NAME);
@@ -389,6 +391,10 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
   public async deleteAgent(agentId: string): Promise<void> {
     const existing = this.getAgent(agentId);
     this.assertMutable(existing);
+
+    // Cascade the fragment orphan-GC before the generic edge strip below deletes the
+    // ASSOCIATION edges the cascade reads to find this agent's anchored fragments.
+    await this.fragmentManager.removeFragmentsForAgent(agentId);
 
     // Remove circle relationships first
     await this.circleManager.removeRelationshipsForEntity(agentId);
