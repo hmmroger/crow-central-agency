@@ -39,6 +39,12 @@ const CARRIAGE_RETURN = "\r";
 const TAB = "\t";
 const PAREN_OPEN = "(";
 const PAREN_CLOSE = ")";
+const DOLLAR = "$";
+const SUBSTITUTION_MARKER = "$";
+const ARRAY_SUBEXPRESSION_MARKER = "@";
+const ASSIGNMENT_OPERATORS = ["=", "+="] as const;
+/** A leading Bash `NAME=value` assignment token: an identifier immediately followed by `=`. */
+const BASH_ASSIGNMENT_TOKEN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const HEREDOC_CHAR = "<";
 const HEREDOC_OPERATOR = "<<";
 const HEREDOC_TAB_STRIP = "-";
@@ -77,6 +83,18 @@ interface ShellSyntax {
    * separator scan and token scan so a lone apostrophe in the body cannot fragment it. PowerShell only.
    */
   readonly hereString: boolean;
+  /**
+   * Whether `$( … )` is a command substitution to recurse into: the enclosing leaf's prefix ends
+   * before the `$(`, and the contents decompose as their own command list. Both shells. In Bash a
+   * `$((` is arithmetic (guarded by {@link arithmetic}), not a substitution, so it is left literal.
+   */
+  readonly commandSubstitution: boolean;
+  /** Whether `@( … )` is an array subexpression to recurse into like a command substitution. PowerShell only. */
+  readonly arraySubexpression: boolean;
+  /** Whether consecutive leading `NAME=value` tokens are assignment prefixes to skip (D4). Bash only. */
+  readonly bashAssignmentPrefix: boolean;
+  /** Whether a leading `$var`/`$env:NAME` followed by `=`/`+=` is an assignment prefix to skip (D4). PowerShell only. */
+  readonly variableAssignmentPrefix: boolean;
   readonly twoCharSeparators: readonly string[];
   readonly singleCharSeparators: readonly string[];
 }
@@ -110,6 +128,10 @@ const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     hereDoc: true,
     arithmetic: true,
     hereString: false,
+    commandSubstitution: true,
+    arraySubexpression: false,
+    bashAssignmentPrefix: true,
+    variableAssignmentPrefix: false,
     twoCharSeparators: ["&&", "||", "|&"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -121,6 +143,10 @@ const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     hereDoc: false,
     arithmetic: false,
     hereString: true,
+    commandSubstitution: true,
+    arraySubexpression: true,
+    bashAssignmentPrefix: false,
+    variableAssignmentPrefix: true,
     twoCharSeparators: ["&&", "||"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -192,6 +218,53 @@ function findBlockEnd(command: string, openIndex: number, syntax: ShellSyntax): 
     }
 
     if (char === BLOCK_CLOSE) {
+      depth -= 1;
+      index += 1;
+      if (depth === 0) {
+        return index;
+      }
+
+      continue;
+    }
+
+    index += 1;
+  }
+
+  return undefined;
+}
+
+/**
+ * Given a command substitution's opening `(` at `openIndex` (the `(` of `$(` or `@(`), return the
+ * index just past its matching `)` under the shell's grammar, tracking paren nesting and skipping
+ * quoted/escaped regions. Mirrors {@link findBlockEnd}. Returns `undefined` when the substitution is
+ * never closed, so the caller leaves the `$(`/`@(` literal in the enclosing leaf (never recurse into
+ * an unresolvable boundary — fail toward keeping text literal).
+ */
+function findSubstitutionEnd(command: string, openIndex: number, syntax: ShellSyntax): number | undefined {
+  let depth = 0;
+  let index = openIndex;
+
+  while (index < command.length) {
+    const char = command[index];
+
+    if (char === syntax.escapeChar && index + 1 < command.length) {
+      index += 2;
+      continue;
+    }
+
+    if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
+      const end = findQuoteEnd(command, index, syntax);
+      index = end ?? index + 1;
+      continue;
+    }
+
+    if (char === PAREN_OPEN) {
+      depth += 1;
+      index += 1;
+      continue;
+    }
+
+    if (char === PAREN_CLOSE) {
       depth -= 1;
       index += 1;
       if (depth === 0) {
@@ -506,13 +579,7 @@ function findSeparatorPositions(command: string, syntax: ShellSyntax): Separator
   return positions;
 }
 
-/**
- * Split a compound command into its top-level subcommands, preserving each as a literal slice of
- * the original (outer whitespace trimmed, empties dropped). Boundaries respect the shell's quote
- * and escape grammar, so separators inside quotes or escaped are not split on.
- */
-export function splitSubcommands(command: string, shell: ShellDialect): string[] {
-  const syntax = SHELL_SYNTAX[shell];
+function splitSubcommandsBySyntax(command: string, syntax: ShellSyntax): string[] {
   const subcommands: string[] = [];
   let start = 0;
 
@@ -530,6 +597,194 @@ export function splitSubcommands(command: string, shell: ShellDialect): string[]
 
   pushSegment(command.length);
   return subcommands;
+}
+
+/**
+ * Split a compound command into its top-level subcommands, preserving each as a literal slice of
+ * the original (outer whitespace trimmed, empties dropped). Boundaries respect the shell's quote
+ * and escape grammar, so separators inside quotes or escaped are not split on.
+ */
+export function splitSubcommands(command: string, shell: ShellDialect): string[] {
+  return splitSubcommandsBySyntax(command, SHELL_SYNTAX[shell]);
+}
+
+/**
+ * Strip leading assignment prefixes from a subcommand slice under the shell's grammar (D4), returning
+ * the remaining literal suffix (a slice of the input). An assignment target can't run anything, so
+ * keeping it makes the derived rule key on a variable name. Returns an empty string when the whole
+ * slice is assignments (the caller falls back to the whole literal command so the leaf is never lost).
+ */
+function stripAssignmentPrefix(text: string, syntax: ShellSyntax): string {
+  if (syntax.bashAssignmentPrefix) {
+    let remaining = text;
+    while (true) {
+      const spans = tokenSpans(remaining, syntax);
+      if (spans.length === 0) {
+        return remaining;
+      }
+
+      const firstToken = remaining.slice(spans[0].start, spans[0].end);
+      if (!BASH_ASSIGNMENT_TOKEN.test(firstToken)) {
+        return remaining;
+      }
+
+      remaining = remaining.slice(spans[0].end).trimStart();
+    }
+  }
+
+  if (syntax.variableAssignmentPrefix) {
+    const spans = tokenSpans(text, syntax);
+    if (spans.length < 3) {
+      return text;
+    }
+
+    const target = text.slice(spans[0].start, spans[0].end);
+    const operator = text.slice(spans[1].start, spans[1].end);
+    const isAssignment =
+      target.startsWith(DOLLAR) && (ASSIGNMENT_OPERATORS as readonly string[]).includes(operator);
+    return isAssignment ? text.slice(spans[2].start) : text;
+  }
+
+  return text;
+}
+
+/**
+ * The start of a command substitution to recurse into at `index`, or `undefined` if none. `$(` in both
+ * shells; PowerShell `@(` as well. A Bash `$((` is arithmetic (not a substitution) and is excluded so
+ * it stays literal in the enclosing leaf; PowerShell has no arithmetic context, so its `$((` is a
+ * substitution wrapping a grouping paren. Returns the index of the opening `(`.
+ */
+function substitutionOpenParen(command: string, index: number, syntax: ShellSyntax): number | undefined {
+  const char = command[index];
+  const next = command[index + 1];
+
+  if (syntax.commandSubstitution && char === SUBSTITUTION_MARKER && next === PAREN_OPEN) {
+    if (syntax.arithmetic && command[index + 2] === PAREN_OPEN) {
+      return undefined;
+    }
+
+    return index + 1;
+  }
+
+  if (syntax.arraySubexpression && char === ARRAY_SUBEXPRESSION_MARKER && next === PAREN_OPEN) {
+    return index + 1;
+  }
+
+  return undefined;
+}
+
+/**
+ * Decompose one already-split subcommand into the commands actually being run, appending each as a
+ * literal slice to `leaves`. The enclosing prefix (up to the first script block or command
+ * substitution) is one leaf; a script block's or substitution's contents recurse as their own command
+ * list. An unresolvable boundary (unbalanced `$(`/`{`, a backtick, `$((`) is left literal in the
+ * enclosing leaf — never recursed. If the subcommand yields no leaf (e.g. it is entirely assignments),
+ * the whole literal subcommand is kept so every position carries a match obligation.
+ */
+function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves: string[]): void {
+  const startCount = leaves.length;
+  let prefixStart = 0;
+  let index = 0;
+
+  const emitPrefix = (end: number): void => {
+    const slice = subcommand.slice(prefixStart, end).trim();
+    if (slice.length === 0) {
+      return;
+    }
+
+    const stripped = stripAssignmentPrefix(slice, syntax);
+    if (stripped.length > 0) {
+      leaves.push(stripped);
+    }
+  };
+
+  while (index < subcommand.length) {
+    const char = subcommand[index];
+
+    if (char === syntax.escapeChar && index + 1 < subcommand.length) {
+      index += 2;
+      continue;
+    }
+
+    if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
+      const end = findQuoteEnd(subcommand, index, syntax);
+      index = end ?? index + 1;
+      continue;
+    }
+
+    if (syntax.hereString && isHereStringQuotePair(subcommand, index)) {
+      const end = isHereStringOpener(subcommand, index) ? findHereStringEnd(subcommand, index) : undefined;
+      index = end ?? index + 2;
+      continue;
+    }
+
+    if (syntax.scriptBlock && char === BLOCK_OPEN) {
+      const end = findBlockEnd(subcommand, index, syntax);
+      // Unbalanced block: leave the `{` literal in the enclosing leaf (do not recurse — D6).
+      if (end === undefined) {
+        index += 1;
+        continue;
+      }
+
+      emitPrefix(index);
+      collectLeaves(subcommand.slice(index + 1, end - 1), syntax, leaves);
+      prefixStart = end;
+      index = end;
+      continue;
+    }
+
+    const parenIndex = substitutionOpenParen(subcommand, index, syntax);
+    if (parenIndex !== undefined) {
+      const end = findSubstitutionEnd(subcommand, parenIndex, syntax);
+      // Unresolvable substitution: leave the `$(`/`@(` literal in the enclosing leaf (do not recurse).
+      if (end === undefined) {
+        index = parenIndex + 1;
+        continue;
+      }
+
+      emitPrefix(index);
+      collectLeaves(subcommand.slice(parenIndex + 1, end - 1), syntax, leaves);
+      prefixStart = end;
+      index = end;
+      continue;
+    }
+
+    // A Bash `$((` left literal by substitutionOpenParen: skip past the marker so its inner parens are
+    // not mistaken for a substitution, keeping the arithmetic region inside the enclosing leaf.
+    if (syntax.arithmetic && char === SUBSTITUTION_MARKER && subcommand[index + 1] === PAREN_OPEN) {
+      index += 2;
+      continue;
+    }
+
+    index += 1;
+  }
+
+  emitPrefix(subcommand.length);
+
+  if (leaves.length === startCount) {
+    const whole = subcommand.trim();
+    if (whole.length > 0) {
+      leaves.push(whole);
+    }
+  }
+}
+
+function collectLeaves(command: string, syntax: ShellSyntax, leaves: string[]): void {
+  for (const subcommand of splitSubcommandsBySyntax(command, syntax)) {
+    collectSubcommandLeaves(subcommand, syntax, leaves);
+  }
+}
+
+/**
+ * Decompose a command into the commands actually being run, as literal slices of the original: split
+ * top-level subcommands ({@link splitSubcommands}), then recurse into each subcommand's script blocks
+ * and command substitutions and skip assignment prefixes (D1–D6). Both derivation and matching consume
+ * this, so they cannot disagree on where the commands are. Never empty for a non-empty command.
+ */
+export function splitCommandPositions(command: string, shell: ShellDialect): string[] {
+  const leaves: string[] = [];
+  collectLeaves(command, SHELL_SYNTAX[shell], leaves);
+  return leaves;
 }
 
 /** Locate whitespace-delimited token spans in a single subcommand, skipping quoted regions. */
@@ -591,13 +846,22 @@ function tokenSpans(subcommand: string, syntax: ShellSyntax): TokenSpan[] {
 }
 
 /**
- * Derive one flag-aware prefix specifier for a single already-decomposed subcommand: keep the first
+ * Derive one flag-aware prefix specifier for a single already-decomposed leaf: keep the first
  * {@link DEFAULT_PREFIX_DEPTH} non-flag tokens (a `-`/`--` flag and its following value are kept but
  * not counted), then take that literal prefix of the source plus {@link WORD_BOUNDARY_SUFFIX}.
- * `undefined` when there is no non-flag token (e.g. a lone `--flag`). Never re-splits the subcommand.
+ *
+ * D5 — stop the prefix at the first `$`-bearing non-flag token: a variable's value decides what runs
+ * and its name is noise (`Remove-Item $file` → `Remove-Item *`). But if the leaf's first token itself
+ * bears a `$`, the whole leaf is variable-driven, so fall back to normal derivation
+ * (`$_.Status -eq 'Running' *`) — stopping there would yield no rule and a leaf with no rule can never
+ * be matched.
+ *
+ * `undefined` when there is no non-flag token (e.g. a lone `--flag`). Never re-splits the leaf.
  */
 function derivePrefixSpecifier(subcommand: string, syntax: ShellSyntax, depth: number): string | undefined {
   const spans = tokenSpans(subcommand, syntax);
+  const firstTokenBearsDollar =
+    spans.length > 0 && subcommand.slice(spans[0].start, spans[0].end).includes(DOLLAR);
   let counted = 0;
   let lastKeptEnd = -1;
   let index = 0;
@@ -617,6 +881,10 @@ function derivePrefixSpecifier(subcommand: string, syntax: ShellSyntax, depth: n
       continue;
     }
 
+    if (!firstTokenBearsDollar && counted > 0 && text.includes(DOLLAR)) {
+      break;
+    }
+
     lastKeptEnd = spans[index].end;
     counted += 1;
     index += 1;
@@ -626,20 +894,20 @@ function derivePrefixSpecifier(subcommand: string, syntax: ShellSyntax, depth: n
 }
 
 /**
- * Capture side: derive one literal-prefix specifier per subcommand, deduped and capped at
- * {@link MAX_DERIVED_RULES}. A subcommand with no non-flag token contributes nothing. User config is
- * the only auto-approve authority — there is no read-only skip.
+ * Capture side: derive one literal-prefix specifier per leaf ({@link splitCommandPositions}), deduped
+ * and capped at {@link MAX_DERIVED_RULES}. A leaf with no non-flag token contributes nothing. User
+ * config is the only auto-approve authority — there is no read-only skip.
  */
 export function deriveCommandRules(command: string, shell: ShellDialect, depth = DEFAULT_PREFIX_DEPTH): string[] {
   const syntax = SHELL_SYNTAX[shell];
   const specifiers: string[] = [];
 
-  for (const subcommand of splitSubcommands(command, shell)) {
+  for (const leaf of splitCommandPositions(command, shell)) {
     if (specifiers.length >= MAX_DERIVED_RULES) {
       break;
     }
 
-    const specifier = derivePrefixSpecifier(subcommand, syntax, depth);
+    const specifier = derivePrefixSpecifier(leaf, syntax, depth);
     if (specifier !== undefined && !specifiers.includes(specifier)) {
       specifiers.push(specifier);
     }
@@ -649,10 +917,10 @@ export function deriveCommandRules(command: string, shell: ShellDialect, depth =
 }
 
 /**
- * Diff-aware capture: split once, then derive one specifier per subcommand not already covered by
- * `existingSpecifiers` (matched via {@link matchesSpecifier}), deduped and capped at
- * {@link MAX_DERIVED_RULES}. Shares {@link derivePrefixSpecifier} with {@link deriveCommandRules}
- * rather than re-invoking the whole-command capture, which would decompose a subcommand twice.
+ * Diff-aware capture: decompose once ({@link splitCommandPositions}), then derive one specifier per
+ * leaf not already covered by `existingSpecifiers` (matched via {@link matchesSpecifier}), deduped and
+ * capped at {@link MAX_DERIVED_RULES}. Shares {@link derivePrefixSpecifier} with
+ * {@link deriveCommandRules} so a leaf is never decomposed twice.
  */
 export function deriveNewCommandRules(
   command: string,
@@ -663,16 +931,16 @@ export function deriveNewCommandRules(
   const syntax = SHELL_SYNTAX[shell];
   const specifiers: string[] = [];
 
-  for (const subcommand of splitSubcommands(command, shell)) {
+  for (const leaf of splitCommandPositions(command, shell)) {
     if (specifiers.length >= MAX_DERIVED_RULES) {
       break;
     }
 
-    if (existingSpecifiers.some((specifier) => matchesSpecifier(subcommand, specifier))) {
+    if (existingSpecifiers.some((specifier) => matchesSpecifier(leaf, specifier))) {
       continue;
     }
 
-    const specifier = derivePrefixSpecifier(subcommand, syntax, depth);
+    const specifier = derivePrefixSpecifier(leaf, syntax, depth);
     if (specifier !== undefined && !specifiers.includes(specifier)) {
       specifiers.push(specifier);
     }
@@ -682,9 +950,9 @@ export function deriveNewCommandRules(
 }
 
 /**
- * Match side: fails closed. Each literal subcommand is matched against the specifiers via
- * {@link matchesSpecifier}. `ALL` (approve) requires every subcommand to match; `ANY` (deny) fires
- * when a single subcommand matches. Empty/unparseable input yields `false` in both modes.
+ * Match side: fails closed. Each literal leaf ({@link splitCommandPositions}) is matched against the
+ * specifiers via {@link matchesSpecifier}. `ALL` (approve) requires every leaf to match; `ANY` (deny)
+ * fires when a single leaf matches. Empty/unparseable input yields `false` in both modes.
  */
 export function matchesCommandRules(
   command: string,
@@ -692,15 +960,13 @@ export function matchesCommandRules(
   shell: ShellDialect,
   mode: SubcommandMatchMode = SUBCOMMAND_MATCH_MODE.ALL
 ): boolean {
-  const subcommands = splitSubcommands(command, shell);
-  if (subcommands.length === 0) {
+  const leaves = splitCommandPositions(command, shell);
+  if (leaves.length === 0) {
     return false;
   }
 
-  const subcommandMatches = (subcommand: string): boolean =>
-    specifiers.some((specifier) => matchesSpecifier(subcommand, specifier));
+  const leafMatches = (leaf: string): boolean =>
+    specifiers.some((specifier) => matchesSpecifier(leaf, specifier));
 
-  return mode === SUBCOMMAND_MATCH_MODE.ANY
-    ? subcommands.some(subcommandMatches)
-    : subcommands.every(subcommandMatches);
+  return mode === SUBCOMMAND_MATCH_MODE.ANY ? leaves.some(leafMatches) : leaves.every(leafMatches);
 }

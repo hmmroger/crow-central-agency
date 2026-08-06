@@ -3,6 +3,7 @@ import {
   deriveNewCommandRules,
   deriveCommandRules,
   matchesCommandRules,
+  splitCommandPositions,
   splitSubcommands,
   SHELL,
   SUBCOMMAND_MATCH_MODE,
@@ -330,9 +331,12 @@ describe("splitSubcommands (powershell here-string)", () => {
 });
 
 describe("deriveCommandRules (powershell here-string)", () => {
-  it("derives a prefix covering the whole here-string rather than cutting into it", () => {
+  it("derives a prefix covering the whole here-string, skipping the assignment prefix (D4)", () => {
     const command = ["$msg = @'", "it's ; risky", "'@"].join("\n");
-    expect(deriveCommandRules(command, SHELL.POWERSHELL)).toEqual([`${command} *`]);
+    const rhs = ["@'", "it's ; risky", "'@"].join("\n");
+    // The `$msg =` assignment prefix is skipped (D4); the rule still covers the whole here-string body
+    // rather than cutting into it, and self-matches when the same assignment recurs.
+    expect(deriveCommandRules(command, SHELL.POWERSHELL)).toEqual([`${rhs} *`]);
     expect(matchesCommandRules(command, deriveCommandRules(command, SHELL.POWERSHELL), SHELL.POWERSHELL)).toBe(true);
   });
 });
@@ -357,20 +361,23 @@ describe("deriveCommandRules", () => {
     ]);
   });
 
-  it("derives one rule per cmdlet for a realistic PowerShell pipeline, keeping the whole script block", () => {
+  it("recurses into a script block, deriving the cmdlet prefix and the block's own command", () => {
+    // Whole-block-baked rules are reversed by this design: the block's contents get their own rule
+    // instead of being buried literally in the enclosing cmdlet's prefix.
     const command = "Get-Service | Where-Object { $_.Status -eq 'Running' } | Select-Object -Property DisplayName";
     expect(deriveCommandRules(command, SHELL.POWERSHELL)).toEqual([
       "Get-Service *",
-      "Where-Object { $_.Status -eq 'Running' } *",
+      "Where-Object *",
+      "$_.Status -eq 'Running' *",
       "Select-Object -Property DisplayName *",
     ]);
   });
 
-  it("keeps a PowerShell assignment prefix literal rather than broadening to the right-hand command", () => {
-    // Stripping `$files =` to derive `Get-ChildItem *` would broaden the grant; the specific rule is
-    // safer and still self-matches when the same assignment recurs.
+  it("skips a PowerShell assignment prefix, deriving from the right-hand command (D4)", () => {
+    // Reverses the prior design's D7: an assignment target can't run anything, so key the rule on the
+    // command actually being run rather than on the variable name.
     expect(deriveCommandRules("$files = Get-ChildItem -Recurse", SHELL.POWERSHELL)).toEqual([
-      "$files = Get-ChildItem *",
+      "Get-ChildItem -Recurse *",
     ]);
   });
 
@@ -395,6 +402,160 @@ describe("deriveCommandRules", () => {
 
   it("returns empty for empty input", () => {
     expect(deriveCommandRules("", SHELL.BASH)).toEqual([]);
+  });
+});
+
+describe("splitCommandPositions — decompose to the commands actually being run", () => {
+  it("recurses into a script block, keeping the enclosing prefix and the block body as leaves (D2)", () => {
+    expect(splitCommandPositions("foreach ($file in $files) { Remove-Item $file }", SHELL.POWERSHELL)).toEqual([
+      "foreach ($file in $files)",
+      "Remove-Item $file",
+    ]);
+  });
+
+  it("recurses into a Bash command substitution (D3)", () => {
+    expect(splitCommandPositions("echo $(rm -rf /)", SHELL.BASH)).toEqual(["echo", "rm -rf /"]);
+  });
+
+  it("continues scanning past each closing paren for adjacent substitutions (D3)", () => {
+    expect(splitCommandPositions("echo $(cmd1)$(cmd2)", SHELL.BASH)).toEqual(["echo", "cmd1", "cmd2"]);
+  });
+
+  it("recovers leaves at both levels of a nested substitution (D3)", () => {
+    expect(splitCommandPositions("echo $(dirname $(pwd))", SHELL.BASH)).toEqual(["echo", "dirname", "pwd"]);
+  });
+
+  it("reaches a deeply nested command through two script blocks (D2)", () => {
+    expect(
+      splitCommandPositions(
+        "Get-Process | ForEach-Object { if ($_.CPU -gt 10) { Stop-Process $_ } }",
+        SHELL.POWERSHELL
+      )
+    ).toEqual(["Get-Process", "ForEach-Object", "if ($_.CPU -gt 10)", "Stop-Process $_"]);
+  });
+
+  it("skips consecutive Bash assignment prefixes (D4)", () => {
+    expect(splitCommandPositions("A=1 B=2 npm run build", SHELL.BASH)).toEqual(["npm run build"]);
+  });
+
+  it("keeps the whole literal command as the leaf when nothing remains after D4", () => {
+    // A subcommand that is entirely assignments must still carry a match obligation.
+    expect(splitCommandPositions("A=1 B=2", SHELL.BASH)).toEqual(["A=1 B=2"]);
+  });
+
+  it("treats a whole-block segment as its command, dropping the empty enclosing prefix (D2)", () => {
+    expect(splitCommandPositions("&{ Remove-Item x }", SHELL.POWERSHELL)).toEqual(["Remove-Item x"]);
+  });
+
+  it("keeps a call operator, splat, and bare-variable invocation each as their own leaf", () => {
+    expect(splitCommandPositions("& $cmd arg", SHELL.POWERSHELL)).toEqual(["$cmd arg"]);
+    expect(splitCommandPositions("$sb.Invoke()", SHELL.POWERSHELL)).toEqual(["$sb.Invoke()"]);
+    expect(splitCommandPositions("$CMD arg", SHELL.BASH)).toEqual(["$CMD arg"]);
+  });
+
+  it("leaves an unresolvable boundary literal in the enclosing leaf, never recursing (D6)", () => {
+    // Unbalanced `$(`, unbalanced `{`, backtick, and Bash `$((` arithmetic all stay literal.
+    expect(splitCommandPositions("echo $(rm -rf /", SHELL.BASH)).toEqual(["echo $(rm -rf /"]);
+    expect(splitCommandPositions("echo $((1+2))", SHELL.BASH)).toEqual(["echo $((1+2))"]);
+    expect(splitCommandPositions("echo `rm -rf /`", SHELL.BASH)).toEqual(["echo `rm -rf /`"]);
+    expect(splitCommandPositions("ForEach-Object { Remove-Item $_", SHELL.POWERSHELL)).toEqual([
+      "ForEach-Object { Remove-Item $_",
+    ]);
+  });
+
+  it("recurses a PowerShell substitution wrapping a grouping paren (no arithmetic context)", () => {
+    // Contrast with Bash, where `$((` is arithmetic and stays literal. PowerShell recurses the `$(`.
+    expect(splitCommandPositions("$((Get-Process).Count)", SHELL.POWERSHELL)).toEqual(["(Get-Process).Count"]);
+    expect(splitCommandPositions("echo $((1+2))", SHELL.BASH)).toEqual(["echo $((1+2))"]);
+  });
+
+  it("returns a single leaf for a plain command and empty for empty input", () => {
+    expect(splitCommandPositions("git commit -m x", SHELL.BASH)).toEqual(["git commit -m x"]);
+    expect(splitCommandPositions("", SHELL.BASH)).toEqual([]);
+  });
+});
+
+describe("deriveCommandRules — command position decomposition", () => {
+  it("derives a rule for the loop header and the block command, not the header alone", () => {
+    expect(deriveCommandRules("foreach ($file in $files) { Remove-Item $file }", SHELL.POWERSHELL)).toEqual([
+      "foreach *",
+      "Remove-Item *",
+    ]);
+  });
+
+  it("derives from the right-hand command after skipping an assignment (D4)", () => {
+    expect(deriveCommandRules("$files = Get-ChildItem -Recurse", SHELL.POWERSHELL)).toEqual(["Get-ChildItem -Recurse *"]);
+    expect(deriveCommandRules("A=1 B=2 npm run build", SHELL.BASH)).toEqual(["npm run build *"]);
+  });
+
+  it("derives one rule per command through nested substitutions and blocks", () => {
+    expect(deriveCommandRules("echo $(rm -rf /)", SHELL.BASH)).toEqual(["echo *", "rm -rf / *"]);
+    expect(deriveCommandRules("Get-Content log | ForEach-Object { $_ | Out-Host }", SHELL.POWERSHELL)).toEqual([
+      "Get-Content log *",
+      "ForEach-Object *",
+      "$_ *",
+      "Out-Host *",
+    ]);
+  });
+
+  it("stops the prefix at the first $-bearing token (D5)", () => {
+    expect(deriveCommandRules("Remove-Item $file", SHELL.POWERSHELL)).toEqual(["Remove-Item *"]);
+    // A later invocation with a different variable derives the identical rule and self-matches.
+    expect(deriveCommandRules("Remove-Item $other", SHELL.POWERSHELL)).toEqual(["Remove-Item *"]);
+    // A `-m x` argument that does not bear `$` is unchanged.
+    expect(deriveCommandRules("git commit -m x", SHELL.BASH)).toEqual(["git commit -m x *"]);
+  });
+
+  it("falls back to normal derivation when the first token bears $ (D5)", () => {
+    // A leaf with no rule could never be matched, so a variable-led leaf still derives a prefix.
+    expect(deriveCommandRules("$_.Status -eq 'Running'", SHELL.POWERSHELL)).toEqual(["$_.Status -eq 'Running' *"]);
+    expect(deriveCommandRules("$sb.Invoke()", SHELL.POWERSHELL)).toEqual(["$sb.Invoke() *"]);
+  });
+
+  it("keeps loop scaffolding rules rather than classifying which keywords run commands", () => {
+    // Locked case: `while CMD` runs a command, so `while rm -rf /` must keep its own rule.
+    expect(deriveCommandRules("while rm -rf /; do echo hi; done", SHELL.BASH)).toEqual([
+      "while rm -rf / *",
+      "do echo hi *",
+      "done *",
+    ]);
+    expect(deriveCommandRules("for f in *.ts; do rm $f; done", SHELL.BASH)).toEqual([
+      "for f in *",
+      "do rm *",
+      "done *",
+    ]);
+  });
+
+  it("leaves an unresolvable boundary literal and still derives an approvable rule (D6)", () => {
+    expect(deriveCommandRules("echo $((1+2))", SHELL.BASH)).toEqual(["echo *"]);
+    expect(deriveCommandRules("echo $(rm -rf /", SHELL.BASH)).toEqual(["echo *"]);
+  });
+});
+
+describe("matchesCommandRules — command position decomposition", () => {
+  it("auto-approves a script-shaped command against its own decomposed rules", () => {
+    const command = "foreach ($file in $files) { Remove-Item $file }";
+    expect(matchesCommandRules(command, deriveCommandRules(command, SHELL.POWERSHELL), SHELL.POWERSHELL)).toBe(true);
+    const nested = "Get-Process | ForEach-Object { if ($_.CPU -gt 10) { Stop-Process $_ } }";
+    expect(matchesCommandRules(nested, deriveCommandRules(nested, SHELL.POWERSHELL), SHELL.POWERSHELL)).toBe(true);
+  });
+
+  it("matches a $-wildcarded rule against a different variable value (D5)", () => {
+    expect(matchesCommandRules("Remove-Item $other", ["Remove-Item *"], SHELL.POWERSHELL)).toBe(true);
+  });
+
+  it("exposes a command hidden inside a substitution, so it must match its own rule", () => {
+    // The prior string-offset-0 rule auto-approved `echo $(rm -rf /)` under `Bash(echo *)`; now the
+    // `rm -rf /` is its own leaf and fails closed unless separately granted.
+    expect(matchesCommandRules("echo $(rm -rf /)", ["echo *"], SHELL.BASH)).toBe(false);
+    expect(matchesCommandRules("echo $(rm -rf /)", ["echo *", "rm -rf *"], SHELL.BASH)).toBe(true);
+  });
+
+  it("fails closed on a dangerous block body under a benign block's rules", () => {
+    const benign = deriveCommandRules("foreach ($file in $files) { Remove-Item $file }", SHELL.POWERSHELL);
+    expect(matchesCommandRules("foreach ($file in $files) { Start-Process calc.exe }", benign, SHELL.POWERSHELL)).toBe(
+      false
+    );
   });
 });
 
