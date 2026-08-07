@@ -83,17 +83,13 @@ interface ShellSyntax {
    * separator scan and token scan so a lone apostrophe in the body cannot fragment it. PowerShell only.
    */
   readonly hereString: boolean;
-  /**
-   * Whether `$( … )` is a command substitution to recurse into: the enclosing leaf's prefix ends
-   * before the `$(`, and the contents decompose as their own command list. Both shells. In Bash a
-   * `$((` is arithmetic (guarded by {@link arithmetic}), not a substitution, so it is left literal.
-   */
+  /** Whether `$( … )` recurses as its own command list. Both shells; a Bash `$((` is arithmetic, not this. */
   readonly commandSubstitution: boolean;
-  /** Whether `@( … )` is an array subexpression to recurse into like a command substitution. PowerShell only. */
+  /** Whether `@( … )` recurses like a command substitution. PowerShell only. */
   readonly arraySubexpression: boolean;
-  /** Whether consecutive leading `NAME=value` tokens are assignment prefixes to skip (D4). Bash only. */
+  /** Whether leading `NAME=value` tokens are assignment prefixes to skip. Bash only. */
   readonly bashAssignmentPrefix: boolean;
-  /** Whether a leading `$var`/`$env:NAME` followed by `=`/`+=` is an assignment prefix to skip (D4). PowerShell only. */
+  /** Whether a leading `$var`/`$env:NAME` before `=`/`+=` is an assignment prefix to skip. PowerShell only. */
   readonly variableAssignmentPrefix: boolean;
   readonly twoCharSeparators: readonly string[];
   readonly singleCharSeparators: readonly string[];
@@ -234,11 +230,9 @@ function findBlockEnd(command: string, openIndex: number, syntax: ShellSyntax): 
 }
 
 /**
- * Given a command substitution's opening `(` at `openIndex` (the `(` of `$(` or `@(`), return the
- * index just past its matching `)` under the shell's grammar, tracking paren nesting and skipping
- * quoted/escaped regions. Mirrors {@link findBlockEnd}. Returns `undefined` when the substitution is
- * never closed, so the caller leaves the `$(`/`@(` literal in the enclosing leaf (never recurse into
- * an unresolvable boundary — fail toward keeping text literal).
+ * Given a command substitution's opening `(` at `openIndex`, return the index just past its matching
+ * `)`, tracking paren nesting and skipping quoted/escaped regions. Mirrors {@link findBlockEnd};
+ * `undefined` when never closed.
  */
 function findSubstitutionEnd(command: string, openIndex: number, syntax: ShellSyntax): number | undefined {
   let depth = 0;
@@ -609,10 +603,8 @@ export function splitSubcommands(command: string, shell: ShellDialect): string[]
 }
 
 /**
- * Strip leading assignment prefixes from a subcommand slice under the shell's grammar (D4), returning
- * the remaining literal suffix (a slice of the input). An assignment target can't run anything, so
- * keeping it makes the derived rule key on a variable name. Returns an empty string when the whole
- * slice is assignments (the caller falls back to the whole literal command so the leaf is never lost).
+ * Strip leading assignment prefixes from a subcommand slice, returning the remaining suffix. An
+ * assignment target can't run anything, so keeping it would key the derived rule on a variable name.
  */
 function stripAssignmentPrefix(text: string, syntax: ShellSyntax): string {
   if (syntax.bashAssignmentPrefix) {
@@ -649,10 +641,8 @@ function stripAssignmentPrefix(text: string, syntax: ShellSyntax): string {
 }
 
 /**
- * The start of a command substitution to recurse into at `index`, or `undefined` if none. `$(` in both
- * shells; PowerShell `@(` as well. A Bash `$((` is arithmetic (not a substitution) and is excluded so
- * it stays literal in the enclosing leaf; PowerShell has no arithmetic context, so its `$((` is a
- * substitution wrapping a grouping paren. Returns the index of the opening `(`.
+ * The index of the opening `(` of a command substitution at `index`, or `undefined` if none. `$(` in
+ * both shells; PowerShell `@(` as well. A Bash `$((` is arithmetic and is excluded.
  */
 function substitutionOpenParen(command: string, index: number, syntax: ShellSyntax): number | undefined {
   const char = command[index];
@@ -675,11 +665,10 @@ function substitutionOpenParen(command: string, index: number, syntax: ShellSynt
 
 /**
  * Decompose one already-split subcommand into the commands actually being run, appending each as a
- * literal slice to `leaves`. The enclosing prefix (up to the first script block or command
- * substitution) is one leaf; a script block's or substitution's contents recurse as their own command
- * list. An unresolvable boundary (unbalanced `$(`/`{`, a backtick, `$((`) is left literal in the
- * enclosing leaf — never recursed. If the subcommand yields no leaf (e.g. it is entirely assignments),
- * the whole literal subcommand is kept so every position carries a match obligation.
+ * literal slice to `leaves`. The prefix up to the first script block or command substitution is one
+ * leaf; a block's or substitution's contents recurse as their own command list. An unresolvable
+ * boundary is left literal in the enclosing leaf. If nothing is emitted (e.g. all assignments), the
+ * whole subcommand is kept so every position carries a match obligation.
  */
 function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves: string[]): void {
   const startCount = leaves.length;
@@ -720,7 +709,6 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
 
     if (syntax.scriptBlock && char === BLOCK_OPEN) {
       const end = findBlockEnd(subcommand, index, syntax);
-      // Unbalanced block: leave the `{` literal in the enclosing leaf (do not recurse — D6).
       if (end === undefined) {
         index += 1;
         continue;
@@ -736,7 +724,6 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
     const parenIndex = substitutionOpenParen(subcommand, index, syntax);
     if (parenIndex !== undefined) {
       const end = findSubstitutionEnd(subcommand, parenIndex, syntax);
-      // Unresolvable substitution: leave the `$(`/`@(` literal in the enclosing leaf (do not recurse).
       if (end === undefined) {
         index = parenIndex + 1;
         continue;
@@ -749,8 +736,6 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
       continue;
     }
 
-    // A Bash `$((` left literal by substitutionOpenParen: skip past the marker so its inner parens are
-    // not mistaken for a substitution, keeping the arithmetic region inside the enclosing leaf.
     if (syntax.arithmetic && char === SUBSTITUTION_MARKER && subcommand[index + 1] === PAREN_OPEN) {
       index += 2;
       continue;
@@ -778,8 +763,8 @@ function collectLeaves(command: string, syntax: ShellSyntax, leaves: string[]): 
 /**
  * Decompose a command into the commands actually being run, as literal slices of the original: split
  * top-level subcommands ({@link splitSubcommands}), then recurse into each subcommand's script blocks
- * and command substitutions and skip assignment prefixes (D1–D6). Both derivation and matching consume
- * this, so they cannot disagree on where the commands are. Never empty for a non-empty command.
+ * and command substitutions, skipping assignment prefixes. Both derivation and matching consume this,
+ * so they cannot disagree on where the commands are. Never empty for a non-empty command.
  */
 export function splitCommandPositions(command: string, shell: ShellDialect): string[] {
   const leaves: string[] = [];
@@ -850,11 +835,10 @@ function tokenSpans(subcommand: string, syntax: ShellSyntax): TokenSpan[] {
  * {@link DEFAULT_PREFIX_DEPTH} non-flag tokens (a `-`/`--` flag and its following value are kept but
  * not counted), then take that literal prefix of the source plus {@link WORD_BOUNDARY_SUFFIX}.
  *
- * D5 — stop the prefix at the first `$`-bearing non-flag token: a variable's value decides what runs
- * and its name is noise (`Remove-Item $file` → `Remove-Item *`). But if the leaf's first token itself
- * bears a `$`, the whole leaf is variable-driven, so fall back to normal derivation
- * (`$_.Status -eq 'Running' *`) — stopping there would yield no rule and a leaf with no rule can never
- * be matched.
+ * Stops at the first `$`-bearing non-flag token: a variable's value decides what runs, so its name is
+ * noise (`Remove-Item $file` → `Remove-Item *`). But if the leaf's first token itself bears a `$`, the
+ * whole leaf is variable-driven, so fall back to normal derivation (`$_.Status -eq 'Running' *`);
+ * stopping there would yield no rule, and a leaf with no rule can never be matched.
  *
  * `undefined` when there is no non-flag token (e.g. a lone `--flag`). Never re-splits the leaf.
  */
