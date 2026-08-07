@@ -5,9 +5,9 @@ import {
   matchesCommandRules,
   splitCommandPositions,
   splitSubcommands,
-  SHELL,
   SUBCOMMAND_MATCH_MODE,
 } from "./command-decomposition.js";
+import { SHELL } from "./shell-grammar.js";
 
 const REPORTED_HEREDOC_COMMAND = [
   "git add -A && git commit -q -F - <<'EOF'",

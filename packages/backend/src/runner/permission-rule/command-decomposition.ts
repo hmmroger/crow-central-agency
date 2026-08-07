@@ -6,7 +6,6 @@ import {
   DOLLAR,
   PAREN_CLOSE,
   PAREN_OPEN,
-  SHELL,
   SHELL_SYNTAX,
   SUBSTITUTION_MARKER,
   findBalancedEnd,
@@ -16,9 +15,6 @@ import {
   tokenSpans,
   type ShellDialect,
 } from "./shell-grammar.js";
-
-export { SHELL };
-export type { ShellDialect };
 
 /** Number of non-flag tokens a derived prefix keeps before wildcarding the rest. */
 export const DEFAULT_PREFIX_DEPTH = 3;

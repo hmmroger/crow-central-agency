@@ -1,12 +1,7 @@
 import { CLAUDE_CODE_TOOL, formatRule, GLOB_STAR, type ParsedRule } from "@crow-central-agency/shared";
 import type { PermissionRuleStrategy } from "./permission-rule-strategy.types.js";
-import {
-  deriveCommandRules,
-  deriveNewCommandRules,
-  matchesCommandRules,
-  SHELL,
-  type ShellDialect,
-} from "./command-decomposition.js";
+import { deriveCommandRules, deriveNewCommandRules, matchesCommandRules } from "./command-decomposition.js";
+import { SHELL, type ShellDialect } from "./shell-grammar.js";
 
 /** Input field carrying the shell command for Bash/PowerShell tools. */
 const COMMAND_INPUT_KEY = "command";
