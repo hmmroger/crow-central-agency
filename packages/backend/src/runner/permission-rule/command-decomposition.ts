@@ -1,4 +1,24 @@
 import { matchesSpecifier, WORD_BOUNDARY_SUFFIX } from "@crow-central-agency/shared";
+import type { ShellSyntax } from "./shell-grammar.types.js";
+import {
+  BLOCK_CLOSE,
+  BLOCK_OPEN,
+  DOLLAR,
+  PAREN_CLOSE,
+  PAREN_OPEN,
+  SHELL,
+  SHELL_SYNTAX,
+  SUBSTITUTION_MARKER,
+  findBalancedEnd,
+  skipInertRegion,
+  splitSubcommandsBySyntax,
+  substitutionOpenParen,
+  tokenSpans,
+  type ShellDialect,
+} from "./shell-grammar.js";
+
+export { SHELL };
+export type { ShellDialect };
 
 /** Number of non-flag tokens a derived prefix keeps before wildcarding the rest. */
 export const DEFAULT_PREFIX_DEPTH = 3;
@@ -17,581 +37,10 @@ export type SubcommandMatchMode = (typeof SUBCOMMAND_MATCH_MODE)[keyof typeof SU
 /** Maximum number of rules derived from a single compound command, mirroring the SDK cap. */
 export const MAX_DERIVED_RULES = 5;
 
-/**
- * The shell whose quote/escape grammar governs decomposition. Resolved from the command tool name
- * (Bash vs PowerShell) so a `\"` is read as a literal quote in Bash but a path char in PowerShell.
- */
-export const SHELL = {
-  BASH: "bash",
-  POWERSHELL: "powershell",
-} as const;
-
-export type ShellDialect = (typeof SHELL)[keyof typeof SHELL];
-
 const OPTION_PREFIX = "-";
-const SINGLE_QUOTE = "'";
-const DOUBLE_QUOTE = '"';
-const REDIRECT_CHAR = ">";
-const BLOCK_OPEN = "{";
-const BLOCK_CLOSE = "}";
-const LINE_FEED = "\n";
-const CARRIAGE_RETURN = "\r";
-const TAB = "\t";
-const PAREN_OPEN = "(";
-const PAREN_CLOSE = ")";
-const DOLLAR = "$";
-const SUBSTITUTION_MARKER = "$";
-const ARRAY_SUBEXPRESSION_MARKER = "@";
 const ASSIGNMENT_OPERATORS = ["=", "+="] as const;
 /** A leading Bash `NAME=value` assignment token: an identifier immediately followed by `=`. */
 const BASH_ASSIGNMENT_TOKEN = /^[A-Za-z_][A-Za-z0-9_]*=/;
-const HEREDOC_CHAR = "<";
-const HEREDOC_OPERATOR = "<<";
-const HEREDOC_TAB_STRIP = "-";
-const HEREDOC_WORD_TERMINATORS = " \t\n\r;|&<>()";
-/** Characters a `<<` may follow to be a heredoc redirect rather than a glued arithmetic left shift. */
-const HEREDOC_OPENER_PRECEDERS = " \t\n\r;|&";
-const HERE_STRING_MARKER = "@";
-
-interface ShellSyntax {
-  /** Escapes the next char outside quotes and inside double quotes (Bash `\`, PowerShell backtick). */
-  readonly escapeChar: string;
-  /** Whether a doubled single quote (`''`) is an embedded quote that keeps the string open. */
-  readonly singleQuoteEmbedded: boolean;
-  /** Whether a doubled double quote (`""`) is an embedded quote that keeps the string open. */
-  readonly doubleQuoteEmbedded: boolean;
-  /**
-   * Whether `{ … }` is an opaque script block whose inner separators are internal, not top-level
-   * (PowerShell `Where-Object { … }`, `if (…) { … }`). Off for Bash, where `{ …; …; }` is a brace
-   * group whose `;` separates real commands — grouping there would hide a subcommand.
-   */
-  readonly scriptBlock: boolean;
-  /**
-   * Whether `<<`/`<<-` opens a heredoc whose body (up to a terminator line) is a skipped region, not
-   * shell text. Bash only — a heredoc body would otherwise decompose as one subcommand per prose line.
-   */
-  readonly hereDoc: boolean;
-  /**
-   * Whether `((`/`$((` … `))` is an arithmetic context. Tracked as a nesting depth only to suppress
-   * heredoc-operator detection inside it (a `1 << 2` left shift is not a redirect); separators inside
-   * are still top-level, so the region is never opaque and cannot hide a command. Bash only.
-   */
-  readonly arithmetic: boolean;
-  /**
-   * Whether `@' … '@` / `@" … "@` is a here-string: an inline opaque region from the opener (last
-   * token on its line) to a closing `'@`/`"@` that begins a line. Skipped like a quote in both the
-   * separator scan and token scan so a lone apostrophe in the body cannot fragment it. PowerShell only.
-   */
-  readonly hereString: boolean;
-  /** Whether `$( … )` recurses as its own command list. Both shells; a Bash `$((` is arithmetic, not this. */
-  readonly commandSubstitution: boolean;
-  /** Whether `@( … )` recurses like a command substitution. PowerShell only. */
-  readonly arraySubexpression: boolean;
-  /** Whether leading `NAME=value` tokens are assignment prefixes to skip. Bash only. */
-  readonly bashAssignmentPrefix: boolean;
-  /** Whether a leading `$var`/`$env:NAME` before `=`/`+=` is an assignment prefix to skip. PowerShell only. */
-  readonly variableAssignmentPrefix: boolean;
-  readonly twoCharSeparators: readonly string[];
-  readonly singleCharSeparators: readonly string[];
-}
-
-interface SeparatorPosition {
-  readonly index: number;
-  readonly length: number;
-}
-
-interface HereDocOpener {
-  readonly delimiter: string;
-  readonly stripTabs: boolean;
-}
-
-interface HereDocOpenerMatch {
-  readonly opener: HereDocOpener;
-  readonly nextIndex: number;
-}
-
-interface TokenSpan {
-  readonly start: number;
-  readonly end: number;
-}
-
-const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
-  [SHELL.BASH]: {
-    escapeChar: "\\",
-    singleQuoteEmbedded: false,
-    doubleQuoteEmbedded: false,
-    scriptBlock: false,
-    hereDoc: true,
-    arithmetic: true,
-    hereString: false,
-    commandSubstitution: true,
-    arraySubexpression: false,
-    bashAssignmentPrefix: true,
-    variableAssignmentPrefix: false,
-    twoCharSeparators: ["&&", "||", "|&"],
-    singleCharSeparators: [";", "|", "&", "\n", "\r"],
-  },
-  [SHELL.POWERSHELL]: {
-    escapeChar: "`",
-    singleQuoteEmbedded: true,
-    doubleQuoteEmbedded: true,
-    scriptBlock: true,
-    hereDoc: false,
-    arithmetic: false,
-    hereString: true,
-    commandSubstitution: true,
-    arraySubexpression: true,
-    bashAssignmentPrefix: false,
-    variableAssignmentPrefix: true,
-    twoCharSeparators: ["&&", "||"],
-    singleCharSeparators: [";", "|", "&", "\n", "\r"],
-  },
-};
-
-/**
- * Given a quote opening at `openIndex`, return the index just past its close under the shell's
- * grammar, or `undefined` when the quote is never closed. Escapes and embedded-quote doublings are
- * consumed but never rewritten — this only locates the boundary. An unterminated quote returns
- * `undefined` so the caller can fall back to scanning through it (never hide a later separator).
- */
-function findQuoteEnd(command: string, openIndex: number, syntax: ShellSyntax): number | undefined {
-  const quoteChar = command[openIndex];
-  const isDouble = quoteChar === DOUBLE_QUOTE;
-  const embedded = isDouble ? syntax.doubleQuoteEmbedded : syntax.singleQuoteEmbedded;
-  let index = openIndex + 1;
-
-  while (index < command.length) {
-    const char = command[index];
-
-    if (isDouble && char === syntax.escapeChar && index + 1 < command.length) {
-      index += 2;
-      continue;
-    }
-
-    if (char === quoteChar) {
-      if (embedded && command[index + 1] === quoteChar) {
-        index += 2;
-        continue;
-      }
-
-      return index + 1;
-    }
-
-    index += 1;
-  }
-
-  return undefined;
-}
-
-/**
- * Given a script block opening `{` at `openIndex`, return the index just past its matching `}` under
- * the shell's grammar, tracking nesting and skipping quoted/escaped regions (so a `}` inside a quote
- * does not close the block). Returns `undefined` when the block is never closed, so the caller falls
- * back to scanning through the `{` and any inner separator still splits (fail toward splitting).
- */
-function findBlockEnd(command: string, openIndex: number, syntax: ShellSyntax): number | undefined {
-  let depth = 0;
-  let index = openIndex;
-
-  while (index < command.length) {
-    const char = command[index];
-
-    if (char === syntax.escapeChar && index + 1 < command.length) {
-      index += 2;
-      continue;
-    }
-
-    if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
-      const end = findQuoteEnd(command, index, syntax);
-      index = end ?? index + 1;
-      continue;
-    }
-
-    if (char === BLOCK_OPEN) {
-      depth += 1;
-      index += 1;
-      continue;
-    }
-
-    if (char === BLOCK_CLOSE) {
-      depth -= 1;
-      index += 1;
-      if (depth === 0) {
-        return index;
-      }
-
-      continue;
-    }
-
-    index += 1;
-  }
-
-  return undefined;
-}
-
-/**
- * Given a command substitution's opening `(` at `openIndex`, return the index just past its matching
- * `)`, tracking paren nesting and skipping quoted/escaped regions. Mirrors {@link findBlockEnd};
- * `undefined` when never closed.
- */
-function findSubstitutionEnd(command: string, openIndex: number, syntax: ShellSyntax): number | undefined {
-  let depth = 0;
-  let index = openIndex;
-
-  while (index < command.length) {
-    const char = command[index];
-
-    if (char === syntax.escapeChar && index + 1 < command.length) {
-      index += 2;
-      continue;
-    }
-
-    if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
-      const end = findQuoteEnd(command, index, syntax);
-      index = end ?? index + 1;
-      continue;
-    }
-
-    if (char === PAREN_OPEN) {
-      depth += 1;
-      index += 1;
-      continue;
-    }
-
-    if (char === PAREN_CLOSE) {
-      depth -= 1;
-      index += 1;
-      if (depth === 0) {
-        return index;
-      }
-
-      continue;
-    }
-
-    index += 1;
-  }
-
-  return undefined;
-}
-
-/** Return the length of the shell separator starting at `index`, or `undefined` if none. */
-function separatorLengthAt(command: string, index: number, syntax: ShellSyntax): number | undefined {
-  const twoChar = command.slice(index, index + 2);
-  for (const separator of syntax.twoCharSeparators) {
-    if (twoChar === separator) {
-      return separator.length;
-    }
-  }
-
-  const char = command[index];
-  if (char === "&") {
-    // Guard shell redirects (`2>&1`, `&>file`) from being read as a background separator.
-    if (command[index - 1] === REDIRECT_CHAR || command[index + 1] === REDIRECT_CHAR) {
-      return undefined;
-    }
-  }
-
-  for (const separator of syntax.singleCharSeparators) {
-    if (char === separator) {
-      return separator.length;
-    }
-  }
-
-  return undefined;
-}
-
-function isLineTerminator(char: string): boolean {
-  return char === LINE_FEED || char === CARRIAGE_RETURN;
-}
-
-/** Length of the line terminator at `index` (`\r\n` counts as one), or 0 if there is none. */
-function lineTerminatorLength(command: string, index: number): number {
-  if (command[index] === CARRIAGE_RETURN && command[index + 1] === LINE_FEED) {
-    return 2;
-  }
-
-  return isLineTerminator(command[index]) ? 1 : 0;
-}
-
-/** Index where the line starting at `from` ends (first line terminator, or end of input). */
-function lineContentEnd(command: string, from: number): number {
-  let index = from;
-  while (index < command.length && !isLineTerminator(command[index])) {
-    index += 1;
-  }
-
-  return index;
-}
-
-function stripLeadingTabs(line: string): string {
-  let index = 0;
-  while (line[index] === TAB) {
-    index += 1;
-  }
-
-  return line.slice(index);
-}
-
-/**
- * A `<<`/`<<-` heredoc operator in redirect position: at start-of-input or following whitespace or a
- * separator. A `<<` glued to a preceding token is an arithmetic left shift (`1<<3`, `let y=1<<4`), not
- * a redirect; a `<<<` here-string and a longer `<` run are excluded by the same preceder/next checks.
- */
-function isHereDocOperator(command: string, index: number): boolean {
-  if (command.slice(index, index + HEREDOC_OPERATOR.length) !== HEREDOC_OPERATOR) {
-    return false;
-  }
-
-  if (index !== 0 && !HEREDOC_OPENER_PRECEDERS.includes(command[index - 1])) {
-    return false;
-  }
-
-  return command[index + HEREDOC_OPERATOR.length] !== HEREDOC_CHAR;
-}
-
-/**
- * Parse a heredoc opener at `operatorIndex`, returning its unquoted delimiter and the index just past
- * the delimiter word. `undefined` when there is no delimiter, so `<<` falls back to ordinary chars.
- */
-function parseHereDocOpener(command: string, operatorIndex: number, syntax: ShellSyntax): HereDocOpenerMatch | undefined {
-  let cursor = operatorIndex + HEREDOC_OPERATOR.length;
-
-  const stripTabs = command[cursor] === HEREDOC_TAB_STRIP;
-  if (stripTabs) {
-    cursor += 1;
-  }
-
-  while (command[cursor] === " " || command[cursor] === TAB) {
-    cursor += 1;
-  }
-
-  let delimiter = "";
-  while (cursor < command.length) {
-    const char = command[cursor];
-    if (HEREDOC_WORD_TERMINATORS.includes(char)) {
-      break;
-    }
-
-    if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
-      const end = findQuoteEnd(command, cursor, syntax);
-      if (end === undefined) {
-        return undefined;
-      }
-
-      delimiter += command.slice(cursor + 1, end - 1);
-      cursor = end;
-      continue;
-    }
-
-    if (char === syntax.escapeChar && cursor + 1 < command.length) {
-      delimiter += command[cursor + 1];
-      cursor += 2;
-      continue;
-    }
-
-    delimiter += char;
-    cursor += 1;
-  }
-
-  if (delimiter.length === 0) {
-    return undefined;
-  }
-
-  return { opener: { delimiter, stripTabs }, nextIndex: cursor };
-}
-
-/**
- * Given the heredoc openers pending after an opener line, return the index at the end of the last
- * terminator line's content, consuming each opener's body in order. `undefined` when any terminator
- * is missing, so the caller falls back to normal scanning (an unterminated heredoc over-splits its
- * body rather than hiding a later command).
- */
-function findHereDocBodyEnd(command: string, bodyStart: number, openers: readonly HereDocOpener[]): number | undefined {
-  let cursor = bodyStart;
-
-  for (let openerIndex = 0; openerIndex < openers.length; openerIndex += 1) {
-    const opener = openers[openerIndex];
-    const isLastOpener = openerIndex === openers.length - 1;
-    let terminated = false;
-
-    while (cursor <= command.length) {
-      const contentEnd = lineContentEnd(command, cursor);
-      const line = command.slice(cursor, contentEnd);
-      const compared = opener.stripTabs ? stripLeadingTabs(line) : line;
-
-      if (compared === opener.delimiter) {
-        if (isLastOpener) {
-          return contentEnd;
-        }
-
-        cursor = contentEnd + lineTerminatorLength(command, contentEnd);
-        terminated = true;
-        break;
-      }
-
-      if (contentEnd >= command.length) {
-        return undefined;
-      }
-
-      cursor = contentEnd + lineTerminatorLength(command, contentEnd);
-    }
-
-    if (!terminated) {
-      return undefined;
-    }
-  }
-
-  return undefined;
-}
-
-/** An `@` immediately followed by a quote — the shape of a here-string opener `@'`/`@"`. */
-function isHereStringQuotePair(text: string, index: number): boolean {
-  if (text[index] !== HERE_STRING_MARKER) {
-    return false;
-  }
-
-  const quoteChar = text[index + 1];
-  return quoteChar === SINGLE_QUOTE || quoteChar === DOUBLE_QUOTE;
-}
-
-/** A here-string opener `@'`/`@"` that is the last token on its line (its body starts on the next). */
-function isHereStringOpener(text: string, index: number): boolean {
-  return isHereStringQuotePair(text, index) && isLineTerminator(text[index + 2]);
-}
-
-/**
- * Given a here-string opener at `openIndex`, return the index just past the closing `'@`/`"@` that
- * begins a line, or `undefined` when it is never closed (caller falls back to scanning through the
- * opener so a later separator still splits — same fail-toward-splitting convention as findQuoteEnd).
- */
-function findHereStringEnd(text: string, openIndex: number): number | undefined {
-  const closer = text[openIndex + 1] + HERE_STRING_MARKER;
-  const openerTerminator = openIndex + 2;
-  let lineStart = openerTerminator + lineTerminatorLength(text, openerTerminator);
-
-  while (lineStart <= text.length) {
-    if (text.slice(lineStart, lineStart + closer.length) === closer) {
-      return lineStart + closer.length;
-    }
-
-    const contentEnd = lineContentEnd(text, lineStart);
-    if (contentEnd >= text.length) {
-      return undefined;
-    }
-
-    lineStart = contentEnd + lineTerminatorLength(text, contentEnd);
-  }
-
-  return undefined;
-}
-
-/**
- * Scan the command for top-level separators, skipping quoted regions and escaped characters. A Bash
- * heredoc body is skipped by emitting its opener line's terminator separator with a `length` extended
- * through the terminator line, so scanning resumes past the body without touching `splitSubcommands`.
- */
-function findSeparatorPositions(command: string, syntax: ShellSyntax): SeparatorPosition[] {
-  const positions: SeparatorPosition[] = [];
-  let pendingHereDocs: HereDocOpener[] = [];
-  let arithmeticDepth = 0;
-  let index = 0;
-
-  while (index < command.length) {
-    const char = command[index];
-
-    if (char === syntax.escapeChar && index + 1 < command.length) {
-      index += 2;
-      continue;
-    }
-
-    if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
-      const end = findQuoteEnd(command, index, syntax);
-      // Unterminated quote: treat the opening quote as a literal char and keep scanning so a later
-      // separator is still found (fail toward splitting, never toward hiding a command).
-      index = end ?? index + 1;
-      continue;
-    }
-
-    if (syntax.scriptBlock && char === BLOCK_OPEN) {
-      const end = findBlockEnd(command, index, syntax);
-      // Unbalanced block: fall through the `{` so an inner separator still splits (fail toward split).
-      index = end ?? index + 1;
-      continue;
-    }
-
-    if (syntax.hereString && isHereStringQuotePair(command, index)) {
-      // Skip a terminated here-string as an opaque region. Otherwise (not at end-of-line, or never
-      // closed) skip both the `@` and the quote as inert so the quote cannot open a multi-line scan
-      // that swallows a following separator — fail toward splitting.
-      const end = isHereStringOpener(command, index) ? findHereStringEnd(command, index) : undefined;
-      index = end ?? index + 2;
-      continue;
-    }
-
-    if (syntax.arithmetic && char === PAREN_OPEN && command[index + 1] === PAREN_OPEN) {
-      arithmeticDepth += 1;
-      index += 2;
-      continue;
-    }
-
-    if (syntax.arithmetic && arithmeticDepth > 0 && char === PAREN_CLOSE && command[index + 1] === PAREN_CLOSE) {
-      arithmeticDepth -= 1;
-      index += 2;
-      continue;
-    }
-
-    if (syntax.hereDoc && arithmeticDepth === 0 && isHereDocOperator(command, index)) {
-      const match = parseHereDocOpener(command, index, syntax);
-      if (match !== undefined) {
-        pendingHereDocs.push(match.opener);
-        index = match.nextIndex;
-        continue;
-      }
-    }
-
-    const length = separatorLengthAt(command, index, syntax);
-    if (length !== undefined) {
-      if (pendingHereDocs.length > 0 && isLineTerminator(char)) {
-        const bodyStart = index + lineTerminatorLength(command, index);
-        const bodyEnd = findHereDocBodyEnd(command, bodyStart, pendingHereDocs);
-        pendingHereDocs = [];
-        if (bodyEnd !== undefined) {
-          positions.push({ index, length: bodyEnd - index });
-          index = bodyEnd;
-          continue;
-        }
-      }
-
-      positions.push({ index, length });
-      index += length;
-      continue;
-    }
-
-    index += 1;
-  }
-
-  return positions;
-}
-
-function splitSubcommandsBySyntax(command: string, syntax: ShellSyntax): string[] {
-  const subcommands: string[] = [];
-  let start = 0;
-
-  const pushSegment = (end: number): void => {
-    const trimmed = command.slice(start, end).trim();
-    if (trimmed.length > 0) {
-      subcommands.push(trimmed);
-    }
-  };
-
-  for (const position of findSeparatorPositions(command, syntax)) {
-    pushSegment(position.index);
-    start = position.index + position.length;
-  }
-
-  pushSegment(command.length);
-  return subcommands;
-}
 
 /**
  * Split a compound command into its top-level subcommands, preserving each as a literal slice of
@@ -605,6 +54,8 @@ export function splitSubcommands(command: string, shell: ShellDialect): string[]
 /**
  * Strip leading assignment prefixes from a subcommand slice, returning the remaining suffix. An
  * assignment target can't run anything, so keeping it would key the derived rule on a variable name.
+ * A PowerShell target-plus-operator with no right-hand token (`$x =`) strips to empty: its RHS is a
+ * script block already recursed as its own leaf, so the bare assignment must not become a junk rule.
  */
 function stripAssignmentPrefix(text: string, syntax: ShellSyntax): string {
   if (syntax.bashAssignmentPrefix) {
@@ -626,7 +77,7 @@ function stripAssignmentPrefix(text: string, syntax: ShellSyntax): string {
 
   if (syntax.variableAssignmentPrefix) {
     const spans = tokenSpans(text, syntax);
-    if (spans.length < 3) {
+    if (spans.length < 2) {
       return text;
     }
 
@@ -634,33 +85,14 @@ function stripAssignmentPrefix(text: string, syntax: ShellSyntax): string {
     const operator = text.slice(spans[1].start, spans[1].end);
     const isAssignment =
       target.startsWith(DOLLAR) && (ASSIGNMENT_OPERATORS as readonly string[]).includes(operator);
-    return isAssignment ? text.slice(spans[2].start) : text;
+    if (!isAssignment) {
+      return text;
+    }
+
+    return spans.length >= 3 ? text.slice(spans[2].start) : "";
   }
 
   return text;
-}
-
-/**
- * The index of the opening `(` of a command substitution at `index`, or `undefined` if none. `$(` in
- * both shells; PowerShell `@(` as well. A Bash `$((` is arithmetic and is excluded.
- */
-function substitutionOpenParen(command: string, index: number, syntax: ShellSyntax): number | undefined {
-  const char = command[index];
-  const next = command[index + 1];
-
-  if (syntax.commandSubstitution && char === SUBSTITUTION_MARKER && next === PAREN_OPEN) {
-    if (syntax.arithmetic && command[index + 2] === PAREN_OPEN) {
-      return undefined;
-    }
-
-    return index + 1;
-  }
-
-  if (syntax.arraySubexpression && char === ARRAY_SUBEXPRESSION_MARKER && next === PAREN_OPEN) {
-    return index + 1;
-  }
-
-  return undefined;
 }
 
 /**
@@ -688,27 +120,16 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
   };
 
   while (index < subcommand.length) {
+    const inertEnd = skipInertRegion(subcommand, index, syntax);
+    if (inertEnd !== undefined) {
+      index = inertEnd;
+      continue;
+    }
+
     const char = subcommand[index];
 
-    if (char === syntax.escapeChar && index + 1 < subcommand.length) {
-      index += 2;
-      continue;
-    }
-
-    if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
-      const end = findQuoteEnd(subcommand, index, syntax);
-      index = end ?? index + 1;
-      continue;
-    }
-
-    if (syntax.hereString && isHereStringQuotePair(subcommand, index)) {
-      const end = isHereStringOpener(subcommand, index) ? findHereStringEnd(subcommand, index) : undefined;
-      index = end ?? index + 2;
-      continue;
-    }
-
     if (syntax.scriptBlock && char === BLOCK_OPEN) {
-      const end = findBlockEnd(subcommand, index, syntax);
+      const end = findBalancedEnd(subcommand, index, BLOCK_OPEN, BLOCK_CLOSE, syntax);
       if (end === undefined) {
         index += 1;
         continue;
@@ -723,7 +144,7 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
 
     const parenIndex = substitutionOpenParen(subcommand, index, syntax);
     if (parenIndex !== undefined) {
-      const end = findSubstitutionEnd(subcommand, parenIndex, syntax);
+      const end = findBalancedEnd(subcommand, parenIndex, PAREN_OPEN, PAREN_CLOSE, syntax);
       if (end === undefined) {
         index = parenIndex + 1;
         continue;
@@ -770,64 +191,6 @@ export function splitCommandPositions(command: string, shell: ShellDialect): str
   const leaves: string[] = [];
   collectLeaves(command, SHELL_SYNTAX[shell], leaves);
   return leaves;
-}
-
-/** Locate whitespace-delimited token spans in a single subcommand, skipping quoted regions. */
-function tokenSpans(subcommand: string, syntax: ShellSyntax): TokenSpan[] {
-  const spans: TokenSpan[] = [];
-  let index = 0;
-
-  while (index < subcommand.length) {
-    while (index < subcommand.length && (subcommand[index] === " " || subcommand[index] === "\t")) {
-      index += 1;
-    }
-
-    if (index >= subcommand.length) {
-      break;
-    }
-
-    const start = index;
-    while (index < subcommand.length) {
-      const char = subcommand[index];
-      if (char === " " || char === "\t") {
-        break;
-      }
-
-      if (char === syntax.escapeChar && index + 1 < subcommand.length) {
-        index += 2;
-        continue;
-      }
-
-      if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) {
-        const end = findQuoteEnd(subcommand, index, syntax);
-        index = end ?? index + 1;
-        continue;
-      }
-
-      if (syntax.scriptBlock && char === BLOCK_OPEN) {
-        // Keep a whole `{ … }` block as one token so its inner whitespace does not fragment it and a
-        // derived prefix covers the entire script block rather than cutting into it.
-        const end = findBlockEnd(subcommand, index, syntax);
-        index = end ?? index + 1;
-        continue;
-      }
-
-      if (syntax.hereString && isHereStringQuotePair(subcommand, index)) {
-        // Keep the whole here-string as one token so a lone apostrophe in its body cannot fragment it
-        // and a derived prefix covers the entire region rather than cutting into it. A rejected pair
-        // skips both chars inert so the quote cannot open a token-spanning scan.
-        const end = isHereStringOpener(subcommand, index) ? findHereStringEnd(subcommand, index) : undefined;
-        index = end ?? index + 2;
-        continue;
-      }
-
-      index += 1;
-    }
-
-    spans.push({ start, end: index });
-  }
-
-  return spans;
 }
 
 /**

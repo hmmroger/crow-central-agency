@@ -314,6 +314,15 @@ describe("splitSubcommands (powershell here-string)", () => {
     expect(splitSubcommands(singleForm, SHELL.POWERSHELL)).toEqual(["echo @'", "rm -rf /", "'@"]);
   });
 
+  it("keeps a here-string body's leading `}` and lone apostrophe opaque inside a script block", () => {
+    // findBalancedEnd now skips here-strings, which findBlockEnd did not: a `}` at the start of a body
+    // line no longer closes the enclosing block early, and a lone apostrophe no longer opens a bogus
+    // quote scan. The whole ForEach-Object block stays one subcommand.
+    const block = ["ForEach-Object { Write-Output @'", "'", "}", "'@ ; Remove-Item $x }"].join("\n");
+    const command = ["Get-Process |", block].join(" ");
+    expect(splitSubcommands(command, SHELL.POWERSHELL)).toEqual(["Get-Process", block]);
+  });
+
   it("does not misread `@(` array, `@{` hashtable, or `@var` splat as a here-string opener", () => {
     expect(splitSubcommands("Write-Output @(1, 2) ; Remove-Item x", SHELL.POWERSHELL)).toEqual([
       "Write-Output @(1, 2)",
