@@ -488,6 +488,17 @@ describe("deriveCommandRules — command position decomposition", () => {
     expect(deriveCommandRules("A=1 B=2 npm run build", SHELL.BASH)).toEqual(["npm run build *"]);
   });
 
+  it("pins the derived rule for a substitution wrapping a grouping paren (no arithmetic context)", () => {
+    // splitCommandPositions already locks the `(Get-Process).Count` leaf; lock the rule level too.
+    expect(deriveCommandRules("$((Get-Process).Count)", SHELL.POWERSHELL)).toEqual(["(Get-Process).Count *"]);
+  });
+
+  it("strips an assignment prefix whose right-hand side is a script block", () => {
+    // The RHS block recurses as its own leaf, leaving only `$x =`; that bare assignment must not
+    // become a junk `$x = *` rule alongside the real command from the block.
+    expect(deriveCommandRules("$x = { Remove-Item y }", SHELL.POWERSHELL)).toEqual(["Remove-Item y *"]);
+  });
+
   it("derives one rule per command through nested substitutions and blocks", () => {
     expect(deriveCommandRules("echo $(rm -rf /)", SHELL.BASH)).toEqual(["echo *", "rm -rf / *"]);
     expect(deriveCommandRules("Get-Content log | ForEach-Object { $_ | Out-Host }", SHELL.POWERSHELL)).toEqual([
