@@ -13,26 +13,29 @@ export function deriveSessionLabel(message: string): string {
   return words.slice(0, SESSION_LABEL_MAX_WORDS).join(" ") + SESSION_LABEL_ELLIPSIS;
 }
 
+// Mutates `history` in place; eviction may still return a filtered copy, so callers must adopt the
+// returned reference rather than keep their own.
 export function upsertSessionHistory(
   history: SessionHistory[] | undefined,
   append: SessionHistoryAppend
 ): SessionHistory[] {
   const entries = history ?? [];
   const lastEntry = entries.at(-1);
+  // The active session is always the last entry, and its timestamp is the only field that ever
+  // changes, so the refresh is a single in-place write rather than a rebuild of the ledger.
   if (lastEntry?.sessionId === append.sessionId) {
-    return entries.map((entry, index) =>
-      index === entries.length - 1 ? { ...entry, lastUpdatedTimestamp: append.timestamp } : entry
-    );
+    lastEntry.lastUpdatedTimestamp = append.timestamp;
+    return entries;
   }
 
-  const appended: SessionHistory = {
+  entries.push({
     sessionId: append.sessionId,
     lastUpdatedTimestamp: append.timestamp,
     label: deriveSessionLabel(append.message),
     workspace: append.workspace,
-  };
+  });
 
-  return evictSessionFamilies([...entries, appended]);
+  return evictSessionFamilies(entries);
 }
 
 // Evicting a family only once all of its members leave the window is what keeps branchPoint from dangling.
@@ -41,58 +44,41 @@ function evictSessionFamilies(entries: SessionHistory[]): SessionHistory[] {
     return entries;
   }
 
-  const familyRoot = resolveFamilyRoots(entries);
+  const familyRoots = resolveFamilyRoots(entries);
   const windowStart = entries.length - SESSION_HISTORY_ACTIVE_WINDOW;
   const retainedRoots = new Set<string>();
   for (let index = windowStart; index < entries.length; index++) {
-    retainedRoots.add(familyRoot(entries[index].sessionId));
+    retainedRoots.add(familyRoots[index]);
   }
 
-  return entries.filter((entry) => retainedRoots.has(familyRoot(entry.sessionId)));
+  let evicting = false;
+  for (let index = 0; index < windowStart; index++) {
+    if (!retainedRoots.has(familyRoots[index])) {
+      evicting = true;
+      break;
+    }
+  }
+
+  if (!evicting) {
+    return entries;
+  }
+
+  return entries.filter((_entry, index) => retainedRoots.has(familyRoots[index]));
 }
 
-function resolveFamilyRoots(entries: SessionHistory[]): (sessionId: string) => string {
-  const parent = new Map<string, string>();
-  for (const entry of entries) {
-    parent.set(entry.sessionId, entry.sessionId);
-  }
-
-  const find = (sessionId: string): string => {
-    let root = sessionId;
-    let parentOfRoot = parent.get(root);
-    while (parentOfRoot !== undefined && parentOfRoot !== root) {
-      root = parentOfRoot;
-      parentOfRoot = parent.get(root);
-    }
-
-    let cursor = sessionId;
-    while (cursor !== root) {
-      const next = parent.get(cursor);
-      if (next === undefined) {
-        break;
-      }
-
-      parent.set(cursor, root);
-      cursor = next;
-    }
-
-    return root;
-  };
-
-  const union = (left: string, right: string): void => {
-    const leftRoot = find(left);
-    const rightRoot = find(right);
-    if (leftRoot !== rightRoot) {
-      parent.set(leftRoot, rightRoot);
-    }
-  };
-
+// Entries are appended in creation order and a family is evicted whole, so a branch parent always
+// precedes its child: one forward pass propagates each root down its lineage. A branchPoint whose
+// parent is absent starts a new family, matching how an uninitiated session id is recorded.
+function resolveFamilyRoots(entries: SessionHistory[]): string[] {
+  const rootBySessionId = new Map<string, string>();
+  const familyRoots: string[] = [];
   for (const entry of entries) {
     const parentSessionId = entry.branchPoint?.sessionId;
-    if (parentSessionId !== undefined && parent.has(parentSessionId)) {
-      union(entry.sessionId, parentSessionId);
-    }
+    const parentRoot = parentSessionId === undefined ? undefined : rootBySessionId.get(parentSessionId);
+    const familyRoot = parentRoot ?? entry.sessionId;
+    rootBySessionId.set(entry.sessionId, familyRoot);
+    familyRoots.push(familyRoot);
   }
 
-  return find;
+  return familyRoots;
 }

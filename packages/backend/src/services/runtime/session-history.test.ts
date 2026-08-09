@@ -78,6 +78,22 @@ describe("upsertSessionHistory", () => {
     expect(result).toEqual([{ sessionId: "s1", lastUpdatedTimestamp: 2000, label: "s1", workspace: "/ws" }]);
   });
 
+  it("refreshes the active entry in place instead of rebuilding the ledger", () => {
+    const activeEntry = makeEntry("s1", 1000);
+    const history = [makeEntry("s0", 500), activeEntry];
+
+    const result = upsertSessionHistory(history, {
+      sessionId: "s1",
+      message: "same session",
+      workspace: "/ws",
+      timestamp: 2000,
+    });
+
+    expect(result).toBe(history);
+    expect(result[1]).toBe(activeEntry);
+    expect(activeEntry.lastUpdatedTimestamp).toBe(2000);
+  });
+
   it("appends a new entry when the incoming id differs from the last entry", () => {
     const history = [makeEntry("s1", 1000)];
 
@@ -113,6 +129,7 @@ describe("upsertSessionHistory family-aware eviction", () => {
     expect(ids).toContain("root");
     expect(ids).toContain("child");
     expect(ids).toContain("grandchild");
+    expect(result).toBe(history);
     assertNoDanglingBranchPoints(result);
   });
 
@@ -135,6 +152,26 @@ describe("upsertSessionHistory family-aware eviction", () => {
     expect(ids).not.toContain("child");
     expect(result).toHaveLength(SESSION_HISTORY_ACTIVE_WINDOW);
     assertNoDanglingBranchPoints(result);
+  });
+
+  it("treats an entry whose branch parent is absent as a family of its own", () => {
+    const history = [
+      makeEntry("orphanA", 1, "ghost"),
+      makeEntry("orphanB", 2, "ghost"),
+      ...singletons("s", SESSION_HISTORY_ACTIVE_WINDOW - 1, 100),
+    ];
+
+    const result = upsertSessionHistory(history, {
+      sessionId: "fresh",
+      message: "new turn",
+      workspace: "/ws",
+      timestamp: 900,
+    });
+
+    const ids = result.map((entry) => entry.sessionId);
+    expect(ids).not.toContain("orphanA");
+    expect(ids).not.toContain("orphanB");
+    expect(result).toHaveLength(SESSION_HISTORY_ACTIVE_WINDOW);
   });
 
   it("retains sibling branches together via their shared root", () => {
