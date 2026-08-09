@@ -5,6 +5,9 @@ import { PendingQuestionInfoSchema } from "./ask-user-question.schema.js";
 /** Maximum number of recent user inputs retained per agent for compose-box recall. */
 export const MAX_INPUT_HISTORY = 30;
 
+/** Count of most-recently-appended session-history entries that keep their family retained. */
+export const SESSION_HISTORY_ACTIVE_WINDOW = 15;
+
 export const AGENT_STATUS = {
   IDLE: "idle",
   ACTIVATING: "activating",
@@ -89,6 +92,26 @@ export const PendingInstructionReminderSchema = z.object({
 });
 
 /**
+ * Points at the session and message a branched session forked from.
+ * Populated only by session branching; never set by plain session history.
+ */
+export const BranchPointSchema = z.object({
+  sessionId: z.string(),
+  fromMessageId: z.string(),
+});
+
+/**
+ * One entry in an agent's session ledger. The last entry always names the active session.
+ */
+export const SessionHistorySchema = z.object({
+  sessionId: z.string(),
+  lastUpdatedTimestamp: z.number(),
+  label: z.string(),
+  workspace: z.string(),
+  branchPoint: BranchPointSchema.optional(),
+});
+
+/**
  * Agent runtime state - maintained by the runtime manager per agent.
  */
 export const AgentRuntimeStateSchema = z.object({
@@ -108,9 +131,12 @@ export const AgentRuntimeStateSchema = z.object({
   pendingQuestion: PendingQuestionInfoSchema.optional(),
   pendingInstructionReminder: PendingInstructionReminderSchema.optional(),
   inputHistory: z.array(z.string()).optional(),
+  sessionHistory: z.array(SessionHistorySchema).optional(),
 });
 
 export type SessionUsage = z.infer<typeof SessionUsageSchema>;
+export type BranchPoint = z.infer<typeof BranchPointSchema>;
+export type SessionHistory = z.infer<typeof SessionHistorySchema>;
 export type PendingPermissionInfo = z.infer<typeof PendingPermissionInfoSchema>;
 export type PendingInstructionReminder = z.infer<typeof PendingInstructionReminderSchema>;
 export type AgentRuntimeState = z.infer<typeof AgentRuntimeStateSchema>;

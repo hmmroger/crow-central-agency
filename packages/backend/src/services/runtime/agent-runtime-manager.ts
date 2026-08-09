@@ -22,6 +22,7 @@ import type { AgentRegistry } from "../agent-registry.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
 import { PermissionHandler } from "./permission-handler.js";
 import { QuestionHandler } from "./question-handler.js";
+import { upsertSessionHistory } from "./session-history.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
 import { MESSAGE_SOURCE_TYPE, type MessageSource, type QueuedMessage } from "../message-queue-manager.types.js";
@@ -394,6 +395,12 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             querySpan.setSessionId(event.sessionId);
             state.lastError = undefined;
             state.sessionId = event.sessionId;
+            state.sessionHistory = upsertSessionHistory(state.sessionHistory, {
+              sessionId: event.sessionId,
+              message,
+              workspace,
+              timestamp: Date.now(),
+            });
             if (persistUserMessage && !userMessageAdded) {
               const userMessage = await this.sessionManager.addUserMessage(
                 agent.type,
