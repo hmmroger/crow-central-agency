@@ -1,14 +1,8 @@
 import { SESSION_HISTORY_ACTIVE_WINDOW, type SessionHistory } from "@crow-central-agency/shared";
+import type { SessionHistoryAppend } from "./session-history.types.js";
 
 const SESSION_LABEL_MAX_WORDS = 30;
 const SESSION_LABEL_ELLIPSIS = "…";
-
-export interface SessionHistoryAppend {
-  sessionId: string;
-  message: string;
-  workspace: string;
-  timestamp: number;
-}
 
 export function deriveSessionLabel(message: string): string {
   const words = message.trim().split(/\s+/).filter((word) => word.length > 0);
