@@ -47,7 +47,7 @@ describe("deriveSessionLabel", () => {
   it("truncates to the first 30 words and appends an ellipsis", () => {
     const words = Array.from({ length: 40 }, (_unused, index) => `w${index}`);
     const label = deriveSessionLabel(words.join(" "));
-    expect(label).toBe(words.slice(0, 30).join(" ") + "…");
+    expect(label).toBe(words.slice(0, 30).join(" ") + "...");
   });
 });
 

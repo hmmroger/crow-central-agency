@@ -2,7 +2,7 @@ import { SESSION_HISTORY_ACTIVE_WINDOW, type SessionHistory } from "@crow-centra
 import type { SessionHistoryAppend } from "./session-history.types.js";
 
 const SESSION_LABEL_MAX_WORDS = 30;
-const SESSION_LABEL_ELLIPSIS = "…";
+const SESSION_LABEL_ELLIPSIS = "...";
 
 export function deriveSessionLabel(message: string): string {
   const words = message.trim().split(/\s+/).filter((word) => word.length > 0);
@@ -13,11 +13,6 @@ export function deriveSessionLabel(message: string): string {
   return words.slice(0, SESSION_LABEL_MAX_WORDS).join(" ") + SESSION_LABEL_ELLIPSIS;
 }
 
-/**
- * Records the active session in the ledger. When the incoming id already names the
- * last entry, only its timestamp is refreshed; otherwise a new entry is appended and
- * families that no longer reach the active window are evicted.
- */
 export function upsertSessionHistory(
   history: SessionHistory[] | undefined,
   append: SessionHistoryAppend
@@ -40,11 +35,7 @@ export function upsertSessionHistory(
   return evictSessionFamilies([...entries, appended]);
 }
 
-/**
- * Retains a family (a session and everything transitively branched from it) as long as
- * any of its members sits within the active window; evicts a family only once all of its
- * members have fallen out. Guarantees no stored branchPoint is left dangling.
- */
+// Evicting a family only once all of its members leave the window is what keeps branchPoint from dangling.
 function evictSessionFamilies(entries: SessionHistory[]): SessionHistory[] {
   if (entries.length <= SESSION_HISTORY_ACTIVE_WINDOW) {
     return entries;
@@ -68,13 +59,19 @@ function resolveFamilyRoots(entries: SessionHistory[]): (sessionId: string) => s
 
   const find = (sessionId: string): string => {
     let root = sessionId;
-    while (parent.get(root) !== root) {
-      root = parent.get(root) as string;
+    let parentOfRoot = parent.get(root);
+    while (parentOfRoot !== undefined && parentOfRoot !== root) {
+      root = parentOfRoot;
+      parentOfRoot = parent.get(root);
     }
 
     let cursor = sessionId;
     while (cursor !== root) {
-      const next = parent.get(cursor) as string;
+      const next = parent.get(cursor);
+      if (next === undefined) {
+        break;
+      }
+
       parent.set(cursor, root);
       cursor = next;
     }
