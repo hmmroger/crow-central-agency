@@ -1,4 +1,4 @@
-import { SESSION_HISTORY_ACTIVE_WINDOW, type SessionHistory } from "@crow-central-agency/shared";
+import { MAX_SESSION_HISTORY, type SessionHistory } from "@crow-central-agency/shared";
 import type { SessionHistoryAppend } from "./session-history.types.js";
 
 const SESSION_LABEL_MAX_WORDS = 30;
@@ -13,18 +13,14 @@ export function deriveSessionLabel(message: string): string {
   return words.slice(0, SESSION_LABEL_MAX_WORDS).join(" ") + SESSION_LABEL_ELLIPSIS;
 }
 
-// Mutates `history` in place; eviction may still return a filtered copy, so callers must adopt the
-// returned reference rather than keep their own.
 export function upsertSessionHistory(
   history: SessionHistory[] | undefined,
   append: SessionHistoryAppend
 ): SessionHistory[] {
   const entries = history ?? [];
-  const lastEntry = entries.at(-1);
-  // The active session is always the last entry, and its timestamp is the only field that ever
-  // changes, so the refresh is a single in-place write rather than a rebuild of the ledger.
-  if (lastEntry?.sessionId === append.sessionId) {
-    lastEntry.lastUpdatedTimestamp = append.timestamp;
+  const existingEntry = entries.find((entry) => entry.sessionId === append.sessionId);
+  if (existingEntry !== undefined) {
+    existingEntry.lastUpdatedTimestamp = append.timestamp;
     return entries;
   }
 
@@ -38,47 +34,22 @@ export function upsertSessionHistory(
   return evictSessionFamilies(entries);
 }
 
-// Evicting a family only once all of its members leave the window is what keeps branchPoint from dangling.
 function evictSessionFamilies(entries: SessionHistory[]): SessionHistory[] {
-  if (entries.length <= SESSION_HISTORY_ACTIVE_WINDOW) {
+  if (entries.length <= MAX_SESSION_HISTORY) {
     return entries;
   }
 
-  const familyRoots = resolveFamilyRoots(entries);
-  const windowStart = entries.length - SESSION_HISTORY_ACTIVE_WINDOW;
-  const retainedRoots = new Set<string>();
-  for (let index = windowStart; index < entries.length; index++) {
-    retainedRoots.add(familyRoots[index]);
-  }
-
-  let evicting = false;
-  for (let index = 0; index < windowStart; index++) {
-    if (!retainedRoots.has(familyRoots[index])) {
-      evicting = true;
-      break;
-    }
-  }
-
-  if (!evicting) {
-    return entries;
-  }
-
-  return entries.filter((_entry, index) => retainedRoots.has(familyRoots[index]));
-}
-
-// Entries are appended in creation order and a family is evicted whole, so a branch parent always
-// precedes its child: one forward pass propagates each root down its lineage. A branchPoint whose
-// parent is absent starts a new family, matching how an uninitiated session id is recorded.
-function resolveFamilyRoots(entries: SessionHistory[]): string[] {
-  const rootBySessionId = new Map<string, string>();
   const familyRoots: string[] = [];
+  const rootBySessionId = new Map<string, string>();
   for (const entry of entries) {
     const parentSessionId = entry.branchPoint?.sessionId;
     const parentRoot = parentSessionId === undefined ? undefined : rootBySessionId.get(parentSessionId);
     const familyRoot = parentRoot ?? entry.sessionId;
-    rootBySessionId.set(entry.sessionId, familyRoot);
     familyRoots.push(familyRoot);
+    rootBySessionId.set(entry.sessionId, familyRoot);
   }
 
-  return familyRoots;
+  const retainedRoots = new Set(familyRoots.slice(entries.length - MAX_SESSION_HISTORY));
+
+  return entries.filter((_unused, index) => retainedRoots.has(familyRoots[index]));
 }

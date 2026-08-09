@@ -90,7 +90,7 @@ export {
   AGENT_ACTIVITY_TYPE,
   AGENT_STATUS,
   MAX_INPUT_HISTORY,
-  SESSION_HISTORY_ACTIVE_WINDOW,
+  MAX_SESSION_HISTORY,
   type AgentStatus,
   type SessionUsage,
   type BranchPoint,

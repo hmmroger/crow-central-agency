@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SESSION_HISTORY_ACTIVE_WINDOW, type SessionHistory } from "@crow-central-agency/shared";
+import { MAX_SESSION_HISTORY, type SessionHistory } from "@crow-central-agency/shared";
 import { deriveSessionLabel, upsertSessionHistory } from "./session-history.js";
 
 function makeEntry(sessionId: string, timestamp: number, branchParent?: string): SessionHistory {
@@ -65,7 +65,7 @@ describe("upsertSessionHistory", () => {
     ]);
   });
 
-  it("refreshes only the timestamp when the incoming id matches the last entry", () => {
+  it("refreshes only the timestamp when the incoming id matches an entry", () => {
     const history = [makeEntry("s1", 1000)];
 
     const result = upsertSessionHistory(history, {
@@ -78,9 +78,9 @@ describe("upsertSessionHistory", () => {
     expect(result).toEqual([{ sessionId: "s1", lastUpdatedTimestamp: 2000, label: "s1", workspace: "/ws" }]);
   });
 
-  it("refreshes the active entry in place instead of rebuilding the ledger", () => {
-    const activeEntry = makeEntry("s1", 1000);
-    const history = [makeEntry("s0", 500), activeEntry];
+  it("refreshes the matched entry in place instead of rebuilding the ledger", () => {
+    const matchedEntry = makeEntry("s1", 1000);
+    const history = [makeEntry("s0", 500), matchedEntry];
 
     const result = upsertSessionHistory(history, {
       sessionId: "s1",
@@ -90,11 +90,38 @@ describe("upsertSessionHistory", () => {
     });
 
     expect(result).toBe(history);
-    expect(result[1]).toBe(activeEntry);
-    expect(activeEntry.lastUpdatedTimestamp).toBe(2000);
+    expect(result[1]).toBe(matchedEntry);
+    expect(matchedEntry.lastUpdatedTimestamp).toBe(2000);
   });
 
-  it("appends a new entry when the incoming id differs from the last entry", () => {
+  it("refreshes an entry that is not the last one without moving or appending it", () => {
+    const history = [makeEntry("s0", 500), makeEntry("s1", 1000), makeEntry("s2", 1500)];
+
+    const result = upsertSessionHistory(history, {
+      sessionId: "s1",
+      message: "revisited",
+      workspace: "/ws",
+      timestamp: 2000,
+    });
+
+    expect(result.map((entry) => entry.sessionId)).toEqual(["s0", "s1", "s2"]);
+    expect(result[1].lastUpdatedTimestamp).toBe(2000);
+  });
+
+  it("keeps the original label when a session is revisited", () => {
+    const history = [makeEntry("s0", 500), makeEntry("s1", 1000)];
+
+    const result = upsertSessionHistory(history, {
+      sessionId: "s0",
+      message: "a much later message that must not relabel the session",
+      workspace: "/ws",
+      timestamp: 2000,
+    });
+
+    expect(result[0].label).toBe("s0");
+  });
+
+  it("appends a new entry when the incoming id matches no entry", () => {
     const history = [makeEntry("s1", 1000)];
 
     const result = upsertSessionHistory(history, {
@@ -110,11 +137,11 @@ describe("upsertSessionHistory", () => {
 });
 
 describe("upsertSessionHistory family-aware eviction", () => {
-  it("retains a family while a transitive descendant sits in the active window", () => {
+  it("retains a family while a transitive descendant sits in the window", () => {
     const history = [
       makeEntry("root", 1),
       makeEntry("child", 2, "root"),
-      ...singletons("s", SESSION_HISTORY_ACTIVE_WINDOW - 2, 100),
+      ...singletons("s", MAX_SESSION_HISTORY - 2, 100),
       makeEntry("grandchild", 500, "child"),
     ];
 
@@ -129,7 +156,6 @@ describe("upsertSessionHistory family-aware eviction", () => {
     expect(ids).toContain("root");
     expect(ids).toContain("child");
     expect(ids).toContain("grandchild");
-    expect(result).toBe(history);
     assertNoDanglingBranchPoints(result);
   });
 
@@ -137,7 +163,7 @@ describe("upsertSessionHistory family-aware eviction", () => {
     const history = [
       makeEntry("root", 1),
       makeEntry("child", 2, "root"),
-      ...singletons("s", SESSION_HISTORY_ACTIVE_WINDOW, 100),
+      ...singletons("s", MAX_SESSION_HISTORY, 100),
     ];
 
     const result = upsertSessionHistory(history, {
@@ -150,7 +176,7 @@ describe("upsertSessionHistory family-aware eviction", () => {
     const ids = result.map((entry) => entry.sessionId);
     expect(ids).not.toContain("root");
     expect(ids).not.toContain("child");
-    expect(result).toHaveLength(SESSION_HISTORY_ACTIVE_WINDOW);
+    expect(result).toHaveLength(MAX_SESSION_HISTORY);
     assertNoDanglingBranchPoints(result);
   });
 
@@ -158,7 +184,7 @@ describe("upsertSessionHistory family-aware eviction", () => {
     const history = [
       makeEntry("orphanA", 1, "ghost"),
       makeEntry("orphanB", 2, "ghost"),
-      ...singletons("s", SESSION_HISTORY_ACTIVE_WINDOW - 1, 100),
+      ...singletons("s", MAX_SESSION_HISTORY - 1, 100),
     ];
 
     const result = upsertSessionHistory(history, {
@@ -171,14 +197,14 @@ describe("upsertSessionHistory family-aware eviction", () => {
     const ids = result.map((entry) => entry.sessionId);
     expect(ids).not.toContain("orphanA");
     expect(ids).not.toContain("orphanB");
-    expect(result).toHaveLength(SESSION_HISTORY_ACTIVE_WINDOW);
+    expect(result).toHaveLength(MAX_SESSION_HISTORY);
   });
 
   it("retains sibling branches together via their shared root", () => {
     const history = [
       makeEntry("root", 1),
       makeEntry("childA", 2, "root"),
-      ...singletons("s", SESSION_HISTORY_ACTIVE_WINDOW - 2, 100),
+      ...singletons("s", MAX_SESSION_HISTORY - 2, 100),
       makeEntry("childB", 500, "root"),
     ];
 

@@ -5,8 +5,8 @@ import { PendingQuestionInfoSchema } from "./ask-user-question.schema.js";
 /** Maximum number of recent user inputs retained per agent for compose-box recall. */
 export const MAX_INPUT_HISTORY = 30;
 
-/** Count of most-recently-appended session-history entries that keep their family retained. */
-export const SESSION_HISTORY_ACTIVE_WINDOW = 15;
+/** Count of most-recently-created session-history entries that keep their family retained. */
+export const MAX_SESSION_HISTORY = 15;
 
 export const AGENT_STATUS = {
   IDLE: "idle",
