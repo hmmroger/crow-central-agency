@@ -81,6 +81,8 @@ export {
 
 export {
   SessionUsageSchema,
+  BranchPointSchema,
+  SessionHistorySchema,
   PendingPermissionInfoSchema,
   PendingInstructionReminderSchema,
   AgentRuntimeStateSchema,
@@ -88,8 +90,11 @@ export {
   AGENT_ACTIVITY_TYPE,
   AGENT_STATUS,
   MAX_INPUT_HISTORY,
+  MAX_SESSION_HISTORY,
   type AgentStatus,
   type SessionUsage,
+  type BranchPoint,
+  type SessionHistory,
   type PendingPermissionInfo,
   type PendingInstructionReminder,
   type AgentRuntimeState,
