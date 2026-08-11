@@ -13,6 +13,8 @@ import {
   type AgentTaskItem,
   type AgentActivity,
   AGENT_ACTIVITY_TYPE,
+  AGENT_TYPE,
+  type BranchPoint,
   type PermissionDecision,
   type QuestionSubmission,
   type AgentMessage,
@@ -151,17 +153,30 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
    * Send a message to an agent - creates an SDK query and processes the stream.
    * If the agent is busy, the message is transparently enqueued and processed
    * when the agent becomes idle.
+   *
+   * A `branchPoint` forks the named session at its anchor and continues from the fork. It is
+   * rejected rather than enqueued when the agent is busy: the queue carries only (message, source),
+   * so a deferred branch would rewind against a session the user is no longer looking at.
    */
   public async sendMessage(
     agentId: string,
     message: string,
-    source: MessageSource = { sourceType: MESSAGE_SOURCE_TYPE.USER }
+    source: MessageSource = { sourceType: MESSAGE_SOURCE_TYPE.USER },
+    branchPoint?: BranchPoint
   ): Promise<void> {
     const state = this.ensureState(agentId);
     const agentRunner = this.getAgentRunner(agentId);
     if (agentRunner.getAgentStatus() !== AGENT_STATUS.IDLE) {
+      if (branchPoint) {
+        throw new AppError("Agent must be idle to branch a session", APP_ERROR_CODES.CONFLICT);
+      }
+
       await this.messageQueue.enqueue(agentId, message, source);
       return;
+    }
+
+    if (branchPoint) {
+      await this.branchSession(agentId, state, message, branchPoint);
     }
 
     await this.runAgent(agentId, message, state, source);
@@ -354,6 +369,82 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       messageId,
       response.message
     );
+  }
+
+  /**
+   * Fork the session named by `branchPoint` and make the fork the agent's active session.
+   * Runs before the message is dispatched; a rejected branch mutates nothing and sends nothing.
+   */
+  private async branchSession(
+    agentId: string,
+    state: AgentRuntimeState,
+    message: string,
+    branchPoint: BranchPoint
+  ): Promise<void> {
+    const agent = this.registry.getAgent(agentId);
+    if (agent.type !== AGENT_TYPE.CLAUDE_CODE) {
+      throw new AppError("Session branching is only supported for Claude Code agents.", APP_ERROR_CODES.NOT_SUPPORTED);
+    }
+
+    if (agent.persistSession === false) {
+      throw new AppError(
+        "This agent does not persist sessions, so there is nothing to branch from.",
+        APP_ERROR_CODES.VALIDATION
+      );
+    }
+
+    const sourceEntry = state.sessionHistory?.find((entry) => entry.sessionId === branchPoint.sessionId);
+    if (!sourceEntry) {
+      throw new AppError(
+        `Session ${branchPoint.sessionId} is no longer available to branch from.`,
+        APP_ERROR_CODES.SESSION_NOT_FOUND
+      );
+    }
+
+    // Claude sessions are keyed by project directory: the fork lands under the source session's
+    // workspace, while the turn that follows runs under the agent's current one. On a divergence
+    // ensureValidSession would find nothing and silently clear the session and its active domains,
+    // so the workspace change is reported here instead.
+    if (sourceEntry.workspace !== this.registry.resolveWorkspace(agent)) {
+      throw new AppError(
+        "The agent's workspace changed since that session, so it can no longer be branched from.",
+        APP_ERROR_CODES.CONFLICT
+      );
+    }
+
+    const newSessionId = await this.sessionManager.forkSession(
+      agent.type,
+      branchPoint.sessionId,
+      sourceEntry.workspace,
+      branchPoint.fromMessageId
+    );
+
+    const previousSessionId = state.sessionId;
+    state.sessionHistory = upsertSessionHistory(state.sessionHistory, {
+      sessionId: newSessionId,
+      message,
+      workspace: sourceEntry.workspace,
+      timestamp: Date.now(),
+      branchPoint,
+    });
+    state.sessionId = newSessionId;
+    state.sessionUsage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalCostUsd: 0,
+      contextUsed: 0,
+      contextTotal: 0,
+    };
+
+    if (previousSessionId) {
+      this.sessionManager.invalidateCache(agent.type, previousSessionId);
+    }
+
+    try {
+      await this.persistAgentState(agentId);
+    } catch (error) {
+      log.error({ agentId, error }, "Failed to persist state after branching session");
+    }
   }
 
   private async runAgent(

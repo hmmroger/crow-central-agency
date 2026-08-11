@@ -1,6 +1,6 @@
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
 import type { SessionMessage } from "@anthropic-ai/claude-agent-sdk";
-import { getSessionInfo, getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
+import { forkSession, getSessionInfo, getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
 import { parseToolActivity } from "../../runner/tool-activity-parser.js";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta.mjs";
 import type { ContentBlockParam, MessageParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
@@ -231,6 +231,22 @@ export async function claudeCodeSessionExists(sessionId: string, cwd: string): P
     );
     return true;
   }
+}
+
+/**
+ * Fork a Claude session at a transcript entry, producing a new session that ends at that entry.
+ *
+ * The slice is inclusive of `upToMessageId`, and the fork is written under the same project
+ * directory as the source, so `cwd` must be the workspace the source session was created under.
+ *
+ * @param sessionId source session ID
+ * @param cwd workspace folder the source session lives under
+ * @param upToMessageId transcript entry uuid to fork at
+ * @returns The new session ID
+ */
+export async function forkClaudeCodeSession(sessionId: string, cwd: string, upToMessageId: string): Promise<string> {
+  const result = await forkSession(sessionId, { dir: cwd, upToMessageId });
+  return result.sessionId;
 }
 
 export function transformClaudeCodeSessionMessage(sessionMessage: unknown, baseTimestamp: number): AgentMessage[] {

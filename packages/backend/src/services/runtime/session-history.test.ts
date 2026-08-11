@@ -108,6 +108,57 @@ describe("upsertSessionHistory", () => {
     expect(result[1].lastUpdatedTimestamp).toBe(2000);
   });
 
+  it("stores the branch point verbatim on a branched entry", () => {
+    const branchPoint = { sessionId: "s0", fromMessageId: "anchor-uuid" };
+
+    const result = upsertSessionHistory([makeEntry("s0", 500)], {
+      sessionId: "s1",
+      message: "try another approach",
+      workspace: "/ws",
+      timestamp: 2000,
+      branchPoint,
+    });
+
+    expect(result[1]).toEqual({
+      sessionId: "s1",
+      lastUpdatedTimestamp: 2000,
+      label: "try another approach",
+      workspace: "/ws",
+      branchPoint: { sessionId: "s0", fromMessageId: "anchor-uuid" },
+    });
+  });
+
+  it("leaves the branch point unset on an ordinary entry", () => {
+    const result = upsertSessionHistory(undefined, {
+      sessionId: "s1",
+      message: "start work",
+      workspace: "/ws",
+      timestamp: 1000,
+    });
+
+    expect(result[0].branchPoint).toBeUndefined();
+  });
+
+  it("keeps the branch point when the branched session is revisited", () => {
+    const history = upsertSessionHistory([makeEntry("s0", 500)], {
+      sessionId: "s1",
+      message: "try another approach",
+      workspace: "/ws",
+      timestamp: 2000,
+      branchPoint: { sessionId: "s0", fromMessageId: "anchor-uuid" },
+    });
+
+    const result = upsertSessionHistory(history, {
+      sessionId: "s1",
+      message: "the run that resumes the fork",
+      workspace: "/ws",
+      timestamp: 3000,
+    });
+
+    expect(result[1].branchPoint).toEqual({ sessionId: "s0", fromMessageId: "anchor-uuid" });
+    expect(result[1].lastUpdatedTimestamp).toBe(3000);
+  });
+
   it("keeps the original label when a session is revisited", () => {
     const history = [makeEntry("s0", 500), makeEntry("s1", 1000)];
 

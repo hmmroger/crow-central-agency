@@ -4,7 +4,7 @@ import { AgentConfigSchema } from "./agent.schema.js";
 import { AgentMessageSchema } from "./agent-message.schema.js";
 import { AgentTaskItemSchema, AgentTaskStateSchema } from "./agent-task.schema.js";
 import { AgentCircleSchema, RelationshipSchema } from "./agent-circle.schema.js";
-import { AGENT_STATUS, AgentActivitySchema } from "./agent-runtime-state.schema.js";
+import { AGENT_STATUS, AgentActivitySchema, BranchPointSchema } from "./agent-runtime-state.schema.js";
 import { MessageSourceSchema } from "./message-source.schema.js";
 import { AgentCommandSchema } from "./agent-command.schema.js";
 import { AgentBuilderDraftViewSchema } from "./agent-builder.schema.js";
@@ -68,6 +68,8 @@ export const SendMessageSchema = z.object({
   type: z.literal(CLIENT_MESSAGE_TYPE.SEND_MESSAGE),
   agentId: z.string(),
   message: z.string(),
+  /** When present, fork the named session at the anchor and continue from there instead of the active session */
+  branchPoint: BranchPointSchema.optional(),
 });
 
 export const InjectMessageSchema = z.object({

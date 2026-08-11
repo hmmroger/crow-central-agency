@@ -9,6 +9,7 @@ import {
 } from "@crow-central-agency/shared";
 import {
   claudeCodeSessionExists,
+  forkClaudeCodeSession,
   loadClaudeCodeSessionMessages,
   transformClaudeCodeSessionMessage,
 } from "./session-message-transformer.js";
@@ -222,6 +223,20 @@ export class SessionManager {
 
       case AGENT_TYPE.GITHUB_COPILOT:
         return true;
+    }
+  }
+
+  /**
+   * Fork a session at a transcript message, returning the new session ID.
+   * `cwd` must be the workspace the source session was created under, not the agent's current one.
+   */
+  public async forkSession(type: AgentType, sessionId: string, cwd: string, fromMessageId: string): Promise<string> {
+    switch (type) {
+      case AGENT_TYPE.CLAUDE_CODE:
+        return forkClaudeCodeSession(sessionId, cwd, fromMessageId);
+
+      case AGENT_TYPE.GITHUB_COPILOT:
+        throw new AppError("Session branching is not supported for GitHub Copilot agents.", APP_ERROR_CODES.NOT_SUPPORTED);
     }
   }
 

@@ -29,6 +29,7 @@ export function upsertSessionHistory(
     lastUpdatedTimestamp: append.timestamp,
     label: deriveSessionLabel(append.message),
     workspace: append.workspace,
+    branchPoint: append.branchPoint,
   });
 
   return evictSessionFamilies(entries);
