@@ -4,12 +4,14 @@ import type { SessionMessage } from "@anthropic-ai/claude-agent-sdk";
 import { transformClaudeCodeSessionMessage } from "./session-message-transformer.js";
 
 const MESSAGE_UUID = "6d2c9d2e-0f3b-4d1a-9c1a-2f2a1b8c4d5e";
+const SESSION_ID = "session-1";
+const EXPECTED_ANCHOR = { sessionId: SESSION_ID, fromMessageId: MESSAGE_UUID };
 
 function makeSessionMessage(type: "user" | "assistant", message: unknown): SessionMessage {
   return {
     type,
     uuid: MESSAGE_UUID,
-    session_id: "session-1",
+    session_id: SESSION_ID,
     message,
     parent_tool_use_id: null,
     parent_agent_id: null,
@@ -21,7 +23,7 @@ function makeAssistantMessage(content: unknown[]): SessionMessage {
 }
 
 describe("transformClaudeCodeSessionMessage branch anchors", () => {
-  it("anchors a text-only assistant message on its parent uuid", () => {
+  it("anchors a text-only assistant message on its parent session and uuid", () => {
     const messages = transformClaudeCodeSessionMessage(
       makeAssistantMessage([{ type: "text", text: "Here is the plan." }]),
       0
@@ -29,11 +31,11 @@ describe("transformClaudeCodeSessionMessage branch anchors", () => {
 
     expect(messages).toHaveLength(1);
     expect(messages[0].type).toBe(AGENT_MESSAGE_TYPE.TEXT);
-    expect(messages[0].branchAnchorId).toBe(MESSAGE_UUID);
+    expect(messages[0].branchAnchor).toEqual(EXPECTED_ANCHOR);
     expect(messages[0].id).toBe(`${MESSAGE_UUID}-0`);
   });
 
-  it("anchors every text block of a multi-text assistant message on the same parent uuid", () => {
+  it("anchors every text block of a multi-text assistant message on the same parent message", () => {
     const messages = transformClaudeCodeSessionMessage(
       makeAssistantMessage([
         { type: "text", text: "First." },
@@ -43,7 +45,7 @@ describe("transformClaudeCodeSessionMessage branch anchors", () => {
     );
 
     expect(messages).toHaveLength(2);
-    expect(messages.map((message) => message.branchAnchorId)).toEqual([MESSAGE_UUID, MESSAGE_UUID]);
+    expect(messages.map((message) => message.branchAnchor)).toEqual([EXPECTED_ANCHOR, EXPECTED_ANCHOR]);
   });
 
   it("anchors no block when the assistant message also carries a tool_use", () => {
@@ -58,7 +60,7 @@ describe("transformClaudeCodeSessionMessage branch anchors", () => {
     expect(messages).toHaveLength(2);
     expect(messages.map((message) => message.type)).toEqual([AGENT_MESSAGE_TYPE.TEXT, AGENT_MESSAGE_TYPE.TOOL_USE]);
     for (const message of messages) {
-      expect(message.branchAnchorId).toBeUndefined();
+      expect(message.branchAnchor).toBeUndefined();
     }
   });
 
@@ -73,7 +75,7 @@ describe("transformClaudeCodeSessionMessage branch anchors", () => {
 
     expect(messages).toHaveLength(2);
     for (const message of messages) {
-      expect(message.branchAnchorId).toBeUndefined();
+      expect(message.branchAnchor).toBeUndefined();
     }
   });
 
@@ -92,7 +94,7 @@ describe("transformClaudeCodeSessionMessage branch anchors", () => {
       AGENT_MESSAGE_TYPE.THINKING,
     ]);
     for (const message of messages) {
-      expect(message.branchAnchorId).toBeUndefined();
+      expect(message.branchAnchor).toBeUndefined();
     }
   });
 
@@ -106,8 +108,8 @@ describe("transformClaudeCodeSessionMessage branch anchors", () => {
     );
 
     expect(messages).toHaveLength(2);
-    expect(messages[0].branchAnchorId).toBeUndefined();
-    expect(messages[1].branchAnchorId).toBe(MESSAGE_UUID);
+    expect(messages[0].branchAnchor).toBeUndefined();
+    expect(messages[1].branchAnchor).toEqual(EXPECTED_ANCHOR);
   });
 
   it("does not anchor user messages", () => {
@@ -117,7 +119,7 @@ describe("transformClaudeCodeSessionMessage branch anchors", () => {
     );
 
     expect(messages).toHaveLength(1);
-    expect(messages[0].branchAnchorId).toBeUndefined();
+    expect(messages[0].branchAnchor).toBeUndefined();
   });
 
   it("does not anchor slash-command messages", () => {
@@ -131,6 +133,6 @@ describe("transformClaudeCodeSessionMessage branch anchors", () => {
 
     expect(messages).toHaveLength(1);
     expect(messages[0].type).toBe(AGENT_MESSAGE_TYPE.COMMAND);
-    expect(messages[0].branchAnchorId).toBeUndefined();
+    expect(messages[0].branchAnchor).toBeUndefined();
   });
 });

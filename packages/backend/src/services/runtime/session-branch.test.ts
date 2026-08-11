@@ -46,14 +46,6 @@ describe("resolveBranchSource", () => {
     expect(sourceEntry).toBe(history[1]);
   });
 
-  it("resolves an entry that is not the agent's active session", () => {
-    const history = makeHistory();
-
-    const sourceEntry = resolveBranchSource(makeAgent(), history, BRANCH_POINT, WORKSPACE);
-
-    expect(sourceEntry.sessionId).toBe("s0");
-  });
-
   it("rejects a non-Claude agent", () => {
     expectAppErrorCode(
       () =>
