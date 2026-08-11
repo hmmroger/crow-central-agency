@@ -13,7 +13,6 @@ import {
   type AgentTaskItem,
   type AgentActivity,
   AGENT_ACTIVITY_TYPE,
-  AGENT_TYPE,
   type BranchPoint,
   type PermissionDecision,
   type QuestionSubmission,
@@ -25,6 +24,7 @@ import type { WsBroadcaster } from "../ws-broadcaster.js";
 import { PermissionHandler } from "./permission-handler.js";
 import { QuestionHandler } from "./question-handler.js";
 import { upsertSessionHistory } from "./session-history.js";
+import { resolveBranchSource } from "./session-branch.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
 import { MESSAGE_SOURCE_TYPE, type MessageSource, type QueuedMessage } from "../message-queue-manager.types.js";
@@ -382,35 +382,12 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     branchPoint: BranchPoint
   ): Promise<void> {
     const agent = this.registry.getAgent(agentId);
-    if (agent.type !== AGENT_TYPE.CLAUDE_CODE) {
-      throw new AppError("Session branching is only supported for Claude Code agents.", APP_ERROR_CODES.NOT_SUPPORTED);
-    }
-
-    if (agent.persistSession === false) {
-      throw new AppError(
-        "This agent does not persist sessions, so there is nothing to branch from.",
-        APP_ERROR_CODES.VALIDATION
-      );
-    }
-
-    const sourceEntry = state.sessionHistory?.find((entry) => entry.sessionId === branchPoint.sessionId);
-    if (!sourceEntry) {
-      throw new AppError(
-        `Session ${branchPoint.sessionId} is no longer available to branch from.`,
-        APP_ERROR_CODES.SESSION_NOT_FOUND
-      );
-    }
-
-    // Claude sessions are keyed by project directory: the fork lands under the source session's
-    // workspace, while the turn that follows runs under the agent's current one. On a divergence
-    // ensureValidSession would find nothing and silently clear the session and its active domains,
-    // so the workspace change is reported here instead.
-    if (sourceEntry.workspace !== this.registry.resolveWorkspace(agent)) {
-      throw new AppError(
-        "The agent's workspace changed since that session, so it can no longer be branched from.",
-        APP_ERROR_CODES.CONFLICT
-      );
-    }
+    const sourceEntry = resolveBranchSource(
+      agent,
+      state.sessionHistory,
+      branchPoint,
+      this.registry.resolveWorkspace(agent)
+    );
 
     const newSessionId = await this.sessionManager.forkSession(
       agent.type,
