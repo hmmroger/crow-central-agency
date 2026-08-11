@@ -36,6 +36,11 @@ const AgentMessageBase = z.object({
   /** Timestamp for ordering */
   timestamp: z.number(),
   annotations: MessageAnnotationSchema.omit({ id: true }).optional(),
+  /**
+   * Transcript entry uuid to fork the session at. Set only on messages a branch may anchor on,
+   * so presence is both the eligibility signal and the anchor value.
+   */
+  branchAnchorId: z.string().optional(),
 });
 
 /** User or agent text message */

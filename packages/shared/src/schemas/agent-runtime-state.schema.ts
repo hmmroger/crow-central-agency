@@ -101,7 +101,8 @@ export const BranchPointSchema = z.object({
 });
 
 /**
- * One entry in an agent's session ledger. The last entry always names the active session.
+ * One entry in an agent's session ledger. No position in the array carries meaning;
+ * the active session is `state.sessionId`.
  */
 export const SessionHistorySchema = z.object({
   sessionId: z.string(),
