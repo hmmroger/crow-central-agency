@@ -27,6 +27,10 @@ export function AgentComposer({ agentId, variant = "full" }: AgentComposerProps)
     }
   }, [status, clearPendingBranch]);
 
+  // An anchor outlives its composer otherwise, and a turn run while no composer was mounted would
+  // leave it pointing behind a transcript the user never saw.
+  useEffect(() => clearPendingBranch, [clearPendingBranch]);
+
   const handleSend = useCallback(
     (text: string) => {
       sendMessage(text, pendingBranch?.anchor);
