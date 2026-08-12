@@ -31,8 +31,9 @@ const COMPOSE_DRAFT_STORAGE_KEY = "crow-compose-drafts";
  * Per-agent compose state store — dedicated, keyed by agentId. Kept out of app-store
  * (navigation/layout only), mirroring the dedicated message-audio-store. Everything here is
  * client-only ephemeral UI state describing an unsent message; once sent it becomes
- * backend-owned history. Only the draft text is persisted — a branch anchor is paired with the
- * agent's session id at send time, so it must not outlive the state query that supplies it.
+ * backend-owned history. Draft text is inert, so it persists across reloads. A branch anchor is
+ * not: it is paired with the agent's session id at send time and changes what that send does, so
+ * it is kept out of the persisted slice and the composer clears it on unmount.
  */
 export const useComposeDraftStore = create<ComposeDraftState>()(
   persist(

@@ -27,6 +27,12 @@ export function AgentComposer({ agentId, variant = "full" }: AgentComposerProps)
     }
   }, [status, clearPendingBranchAnchorId]);
 
+  // Not redundant with the status effect above: that one only observes transitions while this
+  // composer is mounted, so a whole turn running after the user navigates away leaves the anchor
+  // pointing into a transcript the branch would now discard unseen. An anchor changes what the
+  // next send does, destructively, so it must not outlive the view that shows its consequences.
+  useEffect(() => clearPendingBranchAnchorId, [clearPendingBranchAnchorId]);
+
   const handleSend = useCallback(
     (text: string) => {
       const branchPoint =
