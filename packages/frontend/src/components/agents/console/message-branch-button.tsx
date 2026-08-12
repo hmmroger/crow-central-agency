@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { GitBranch } from "lucide-react";
 import { AGENT_STATUS, type AgentMessage } from "@crow-central-agency/shared";
 import { useAgentStateQuery } from "../../../hooks/queries/use-agent-state-query.js";
-import { usePendingBranch } from "../../../stores/branch-anchor-store.js";
+import { usePendingBranchAnchor } from "../../../stores/compose-draft-store.js";
 
 interface MessageBranchButtonProps {
   agentId: string;
@@ -11,28 +11,29 @@ interface MessageBranchButtonProps {
 
 /**
  * Compact branch button rendered next to a message.
- * Self-gates on the backend-issued `branchAnchor`: messages the transcript cannot be forked at
+ * Self-gates on the backend-issued `branchAnchorId`: messages the transcript cannot be forked at
  * carry none and render nothing. Selecting one anchors the compose box rather than branching
  * immediately, so the tail that will be discarded stays on screen until the user sends.
  */
 export function MessageBranchButton({ agentId, message }: MessageBranchButtonProps) {
-  const { pendingBranch, setPendingBranch, clearPendingBranch } = usePendingBranch(agentId);
+  const { pendingBranchAnchorId, setPendingBranchAnchorId, clearPendingBranchAnchorId } =
+    usePendingBranchAnchor(agentId);
   const { data: agentState } = useAgentStateQuery(agentId);
-  const branchAnchor = message.branchAnchor;
-  const isAnchored = pendingBranch?.messageId === message.id;
+  const branchAnchorId = message.branchAnchorId;
+  const isAnchored = branchAnchorId !== undefined && pendingBranchAnchorId === branchAnchorId;
 
   const handleClick = useCallback(() => {
     if (isAnchored) {
-      clearPendingBranch();
+      clearPendingBranchAnchorId();
       return;
     }
 
-    if (branchAnchor) {
-      setPendingBranch({ messageId: message.id, anchor: branchAnchor });
+    if (branchAnchorId !== undefined) {
+      setPendingBranchAnchorId(branchAnchorId);
     }
-  }, [isAnchored, branchAnchor, message.id, setPendingBranch, clearPendingBranch]);
+  }, [isAnchored, branchAnchorId, setPendingBranchAnchorId, clearPendingBranchAnchorId]);
 
-  if (!branchAnchor) {
+  if (branchAnchorId === undefined) {
     return null;
   }
 

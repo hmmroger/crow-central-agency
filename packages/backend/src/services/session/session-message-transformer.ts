@@ -102,9 +102,7 @@ function transformSingleMessage(sessionMessage: SessionMessage, baseTimestamp: n
 
     // forkSession slices inclusively at the SessionMessage, so anchoring on a message that also
     // carried a tool_use would leave the fork ending on a tool call whose result was cut off.
-    const branchAnchor = blocks.some((block) => block.type === "tool_use")
-      ? undefined
-      : { sessionId: sessionMessage.session_id, fromMessageId: sessionMessage.uuid };
+    const branchAnchorId = blocks.some((block) => block.type === "tool_use") ? undefined : sessionMessage.uuid;
 
     for (const block of blocks) {
       if (block.type === "text" && block.text.trim()) {
@@ -114,7 +112,7 @@ function transformSingleMessage(sessionMessage: SessionMessage, baseTimestamp: n
           type: AGENT_MESSAGE_TYPE.TEXT,
           content: block.text,
           timestamp: baseTimestamp + blockIndex,
-          branchAnchor,
+          branchAnchorId,
         });
         blockIndex++;
       } else if (block.type === "tool_use") {

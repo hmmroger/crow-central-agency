@@ -18,8 +18,8 @@ import type { ApiError } from "../../services/api-client.types.js";
 export interface AgentActions {
   /**
    * Send a user message - backend creates the AgentMessage and broadcasts via WS.
-   * `branchPoint` is a message's `branchAnchor` passed back untouched; the backend forks that
-   * session at the anchor and the message continues the fork instead of the active session.
+   * With a `branchPoint` the backend forks that session at the anchor and the message continues
+   * the fork instead of the active session.
    */
   sendMessage: (text: string, branchPoint?: BranchPoint) => void;
   /** Inject a btw message while streaming */

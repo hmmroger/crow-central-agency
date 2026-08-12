@@ -175,11 +175,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       return;
     }
 
-    if (branchPoint) {
-      await this.branchSession(agentId, state, message, branchPoint);
-    }
-
-    await this.runAgent(agentId, message, state, source);
+    await this.runAgent(agentId, message, state, source, branchPoint);
   }
 
   /**
@@ -372,23 +368,17 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   }
 
   /**
-   * Fork the session named by `branchPoint` and make the fork the agent's active session.
-   * Runs before the message is dispatched; a rejected branch mutates nothing and sends nothing.
+   * Fork the session named by `branchPoint` and repoint the agent at the fork for this turn.
+   * Session history is not written here: the turn's `INIT` records the fork on the single entry
+   * that path already creates.
    */
   private async branchSession(
-    agentId: string,
+    agent: AgentConfig,
     state: AgentRuntimeState,
-    message: string,
+    workspace: string,
     branchPoint: BranchPoint
   ): Promise<void> {
-    const agent = this.registry.getAgent(agentId);
-    const sourceEntry = resolveBranchSource(
-      agent,
-      state.sessionHistory,
-      branchPoint,
-      this.registry.resolveWorkspace(agent)
-    );
-
+    const sourceEntry = resolveBranchSource(agent, state.sessionHistory, branchPoint, workspace);
     const newSessionId = await this.sessionManager.forkSession(
       agent.type,
       branchPoint.sessionId,
@@ -397,13 +387,6 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     );
 
     const previousSessionId = state.sessionId;
-    state.sessionHistory = upsertSessionHistory(state.sessionHistory, {
-      sessionId: newSessionId,
-      message,
-      workspace: sourceEntry.workspace,
-      timestamp: Date.now(),
-      branchPoint,
-    });
     state.sessionId = newSessionId;
     state.sessionUsage = {
       inputTokens: 0,
@@ -416,23 +399,24 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     if (previousSessionId) {
       this.sessionManager.invalidateCache(agent.type, previousSessionId);
     }
-
-    try {
-      await this.persistAgentState(agentId);
-    } catch (error) {
-      log.error({ agentId, error }, "Failed to persist state after branching session");
-    }
   }
 
   private async runAgent(
     agentId: string,
     message: string,
     state: AgentRuntimeState,
-    source: MessageSource
+    source: MessageSource,
+    branchPoint?: BranchPoint
   ): Promise<string | undefined> {
     const agentRunner = this.getAgentRunner(agentId);
     const agent = this.registry.getAgent(agentId);
     const workspace = this.registry.resolveWorkspace(agent);
+    // Before the span is opened, so a rejected branch reaches the caller as an error instead of
+    // being swallowed by this method's own error handling and leaking the span.
+    if (branchPoint) {
+      await this.branchSession(agent, state, workspace, branchPoint);
+    }
+
     const querySpan = startQuerySpan(agentId, agent.name, source.sourceType);
     this.activeQuerySpans.set(agentId, querySpan);
 
@@ -468,6 +452,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
               message,
               workspace,
               timestamp: Date.now(),
+              branchPoint,
             });
             if (persistUserMessage && !userMessageAdded) {
               const userMessage = await this.sessionManager.addUserMessage(

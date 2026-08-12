@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { BranchPointSchema } from "./agent-runtime-state.schema.js";
 
 export const AGENT_MESSAGE_ROLE = {
   USER: "user",
@@ -38,11 +37,11 @@ const AgentMessageBase = z.object({
   timestamp: z.number(),
   annotations: MessageAnnotationSchema.omit({ id: true }).optional(),
   /**
-   * Session and transcript entry to fork at. Set only on messages a branch may anchor on, so
-   * presence is both the eligibility signal and the anchor value. The client echoes it back
-   * verbatim as the send request's `branchPoint` and never has to know a session id.
+   * Transcript entry to fork at. Set only on messages a branch may anchor on, so presence is
+   * both the eligibility signal and the anchor value. Not the message `id`, which is derived
+   * per content block and cannot address the transcript entry the fork slices at.
    */
-  branchAnchor: BranchPointSchema.optional(),
+  branchAnchorId: z.string().optional(),
 });
 
 /** User or agent text message */
