@@ -253,11 +253,19 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   /**
    * Make an existing session from the agent's ledger the current one.
    *
-   * Every guard resolves before the first write, so a rejected switch leaves the agent untouched.
-   * The ledger itself does not change — only which of its sessions is current.
+   * Idempotent: switching to the session that is already current does nothing. Every guard resolves
+   * before the first write, so a rejected switch leaves the agent untouched. The ledger itself does
+   * not change — only which of its sessions is current.
    */
   public async switchSession(agentId: string, sessionId: string): Promise<void> {
     const state = this.ensureState(agentId);
+    // Ahead of every guard: doing nothing needs nothing validated, and a network retry of a switch
+    // that already succeeded lands here. Rejecting it would fail a request whose intent is met, and
+    // running the effect would reset live state for a session that never changed.
+    if (state.sessionId === sessionId) {
+      return;
+    }
+
     const agentRunner = this.getAgentRunner(agentId);
     if (agentRunner.getAgentStatus() !== AGENT_STATUS.IDLE) {
       throw new AppError("Agent must be idle to switch sessions", APP_ERROR_CODES.CONFLICT);
