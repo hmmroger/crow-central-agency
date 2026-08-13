@@ -1,6 +1,7 @@
 import { useAppStore } from "../../../stores/app-store.js";
 import { SIDE_PANEL_TAB, type SidePanelTab } from "./side-panel-tabs.js";
 import { StatusTab } from "./status-tab.js";
+import { SessionHistoryTab } from "./session-history-tab.js";
 import { AgentArtifactsTab } from "./agent-artifacts-tab.js";
 import { CircleArtifactsTab } from "./circle-artifacts-tab.js";
 
@@ -29,6 +30,7 @@ export function SidePanelTabContent({ tab }: SidePanelTabContentProps) {
   return (
     <div className="h-full flex flex-col animate-fade-in">
       {tab === SIDE_PANEL_TAB.STATUS && <StatusTab agentId={selectedAgentId} />}
+      {tab === SIDE_PANEL_TAB.SESSION_HISTORY && <SessionHistoryTab agentId={selectedAgentId} />}
       {tab === SIDE_PANEL_TAB.ARTIFACTS && (
         <div className="flex-1 min-h-0 overflow-hidden">
           <AgentArtifactsTab agentId={selectedAgentId} />
