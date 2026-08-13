@@ -1,5 +1,4 @@
 import {
-  AGENT_TYPE,
   MAX_SESSION_HISTORY,
   type AgentConfig,
   type BranchPoint,
@@ -103,10 +102,6 @@ export function assertBranchSource(
   sessionHistory: SessionHistory[] | undefined,
   branchPoint: BranchPoint
 ): void {
-  if (agent.type !== AGENT_TYPE.CLAUDE_CODE) {
-    throw new AppError("Session branching is only supported for Claude Code agents.", APP_ERROR_CODES.NOT_SUPPORTED);
-  }
-
   if (agent.persistSession === false) {
     throw new AppError(
       "This agent does not persist sessions, so there is nothing to branch from.",

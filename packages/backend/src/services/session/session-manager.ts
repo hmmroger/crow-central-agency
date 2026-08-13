@@ -14,6 +14,7 @@ import {
   transformClaudeCodeSessionMessage,
 } from "./session-message-transformer.js";
 import {
+  forkGithubCopilotSession,
   loadGithubCopilotSessionMessages,
   transformGithubCopilotSessionMessage,
 } from "./github-copilot-session-transformer.js";
@@ -219,14 +220,20 @@ export class SessionManager {
     }
   }
 
-  /** Fork a session at a transcript message, returning the new session ID. */
+  /**
+   * Fork a session at the transcript entry the anchor names, returning the new session ID.
+   * The anchor is whatever the provider's transformer put on the message; each provider resolves
+   * it against its own fork API.
+   */
   public async forkSession(type: AgentType, sessionId: string, fromMessageId: string): Promise<string> {
     switch (type) {
       case AGENT_TYPE.CLAUDE_CODE:
         return forkClaudeCodeSession(sessionId, fromMessageId);
 
-      case AGENT_TYPE.GITHUB_COPILOT:
-        throw new AppError("Session branching is not supported for GitHub Copilot agents.", APP_ERROR_CODES.NOT_SUPPORTED);
+      case AGENT_TYPE.GITHUB_COPILOT: {
+        const copilotClient = this.copilotClientManager.getClient();
+        return forkGithubCopilotSession(copilotClient, sessionId, fromMessageId);
+      }
     }
   }
 

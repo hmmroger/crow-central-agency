@@ -3,6 +3,8 @@ import type { AssistantMessageEvent, CopilotClient, CopilotSession, SessionEvent
 import { parseToolActivity } from "../../runner/tool-activity-parser.js";
 import { INSTRUCTION_REMINDER_PATTERN, USER_AGENT_MESSAGE_PATTERN } from "../../utils/message-template.js";
 import { logger } from "../../utils/logger.js";
+import { AppError } from "../../core/error/app-error.js";
+import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 
 const log = logger.child({ context: "github-copilot-session-transformer" });
 
@@ -44,7 +46,8 @@ function transformAssistantMessage(event: AssistantMessageEvent, timestamp: numb
     });
   }
 
-  for (const toolRequest of event.data.toolRequests ?? []) {
+  const toolRequests = event.data.toolRequests ?? [];
+  for (const toolRequest of toolRequests) {
     const toolInput: Record<string, unknown> = toolRequest.arguments ?? {};
     messages.push({
       id: toolRequest.toolCallId,
@@ -59,12 +62,15 @@ function transformAssistantMessage(event: AssistantMessageEvent, timestamp: numb
 
   const content = event.data.content.trim();
   if (content) {
+    // Tool results arrive in later events, so anchoring on an event that requested tools would leave
+    // the fork ending on unresolved calls. The anchor is the event id: sessions.fork takes one of those.
     messages.push({
       id: event.data.messageId,
       role: AGENT_MESSAGE_ROLE.AGENT,
       type: AGENT_MESSAGE_TYPE.TEXT,
       content,
       timestamp,
+      branchAnchorId: toolRequests.length > 0 ? undefined : event.id,
     });
   }
 
@@ -120,4 +126,44 @@ export async function loadGithubCopilotSessionMessages(
   }
 
   return messages;
+}
+
+/**
+ * Fork a Copilot session at an event, producing a new session that ends at that event.
+ *
+ * `toEventId` is exclusive — the fork keeps only the events before it — so the boundary is the
+ * anchor's successor, not the anchor itself. The successor is read off the raw event stream: the
+ * fork copies every event, so skipping the ones the loader hides would pull extra events in.
+ * An anchor that is the last event needs no boundary; the RPC then copies the whole session.
+ *
+ * @param client shared Copilot read client
+ * @param sessionId source session ID
+ * @param fromEventId session event id to fork at
+ * @returns The new session ID
+ */
+export async function forkGithubCopilotSession(
+  client: CopilotClient,
+  sessionId: string,
+  fromEventId: string
+): Promise<string> {
+  const session = await client.resumeSession(sessionId, { suppressResumeEvent: true });
+  let events: SessionEvent[];
+  try {
+    events = await session.getEvents();
+  } finally {
+    await session.disconnect().catch((error) => {
+      log.warn({ sessionId, error }, "Failed to disconnect Copilot session after read");
+    });
+  }
+
+  const anchorIndex = events.findIndex((event) => event.id === fromEventId);
+  if (anchorIndex < 0) {
+    throw new AppError(
+      `Event ${fromEventId} is not part of Copilot session ${sessionId}.`,
+      APP_ERROR_CODES.SESSION_NOT_FOUND
+    );
+  }
+
+  const result = await client.rpc.sessions.fork({ sessionId, toEventId: events[anchorIndex + 1]?.id });
+  return result.sessionId;
 }

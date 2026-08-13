@@ -347,13 +347,6 @@ describe("assertBranchSource", () => {
     expect(() => assertBranchSource(makeAgent(), makeHistory(), BRANCH_POINT)).not.toThrow();
   });
 
-  it("rejects a non-Claude agent", () => {
-    expectAppErrorCode(
-      () => assertBranchSource(makeAgent({ type: AGENT_TYPE.GITHUB_COPILOT }), makeHistory(), BRANCH_POINT),
-      APP_ERROR_CODES.NOT_SUPPORTED
-    );
-  });
-
   it("rejects an agent that does not persist sessions", () => {
     expectAppErrorCode(
       () => assertBranchSource(makeAgent({ persistSession: false }), makeHistory(), BRANCH_POINT),
