@@ -98,16 +98,12 @@ function evictSessionFamilies(entries: SessionHistory[]): SessionHistory[] {
   return entries.filter((_unused, index) => retainedRoots.has(familyRoots[index]));
 }
 
-/**
- * Resolve the session-history entry a branch forks from, rejecting a branch the agent cannot make.
- * The caller owns the runner, so it gates on IDLE itself.
- */
-export function resolveBranchSource(
+/** Reject a branch the agent cannot make. The caller owns the runner, so it gates on IDLE itself. */
+export function assertBranchSource(
   agent: AgentConfig,
   sessionHistory: SessionHistory[] | undefined,
-  branchPoint: BranchPoint,
-  currentWorkspace: string
-): SessionHistory {
+  branchPoint: BranchPoint
+): void {
   if (agent.type !== AGENT_TYPE.CLAUDE_CODE) {
     throw new AppError("Session branching is only supported for Claude Code agents.", APP_ERROR_CODES.NOT_SUPPORTED);
   }
@@ -126,35 +122,13 @@ export function resolveBranchSource(
       APP_ERROR_CODES.SESSION_NOT_FOUND
     );
   }
-
-  if (sourceEntry.workspace !== currentWorkspace) {
-    throw new AppError(
-      "The agent's workspace changed since that session, so it can no longer be branched from.",
-      APP_ERROR_CODES.CONFLICT
-    );
-  }
-
-  return sourceEntry;
 }
 
-export function resolveSwitchTarget(
-  sessionHistory: SessionHistory[] | undefined,
-  sessionId: string,
-  currentWorkspace: string
-): SessionHistory {
+export function assertSwitchTarget(sessionHistory: SessionHistory[] | undefined, sessionId: string): void {
   const targetEntry = sessionHistory?.find((entry) => entry.sessionId === sessionId);
   if (!targetEntry) {
     throw new AppError(`Session ${sessionId} is no longer available to switch to.`, APP_ERROR_CODES.SESSION_NOT_FOUND);
   }
-
-  if (targetEntry.workspace !== currentWorkspace) {
-    throw new AppError(
-      "The agent's workspace changed since that session, so it can no longer be switched to.",
-      APP_ERROR_CODES.CONFLICT
-    );
-  }
-
-  return targetEntry;
 }
 
 function resolveParentLinks(entries: SessionHistory[]): Map<string, string> {

@@ -9,10 +9,10 @@ import {
 } from "@crow-central-agency/shared";
 import {
   SESSION_LABEL_MAX_WORDS,
+  assertBranchSource,
+  assertSwitchTarget,
   buildSessionTree,
   deriveSessionLabel,
-  resolveBranchSource,
-  resolveSwitchTarget,
   updateSessionHistory,
 } from "./session-history.js";
 import type { SessionHistoryUpdate, UpdatedSessionHistory } from "./session-history.types.js";
@@ -37,11 +37,11 @@ function makeEntry(sessionId: string, timestamp: number, branchParent?: string):
   return entry;
 }
 
-/** A two-entry ledger for the resolvers, whose workspace is the thing under test. */
-function makeHistory(workspace = WORKSPACE): SessionHistory[] {
+/** A two-entry ledger for the guards, whose second entry is what BRANCH_POINT names. */
+function makeHistory(): SessionHistory[] {
   return [
-    { sessionId: "older", lastUpdatedTimestamp: 500, label: "label older", workspace },
-    { sessionId: "target", lastUpdatedTimestamp: 1000, label: "label target", workspace },
+    { sessionId: "older", lastUpdatedTimestamp: 500, label: "label older", workspace: WORKSPACE },
+    { sessionId: "target", lastUpdatedTimestamp: 1000, label: "label target", workspace: WORKSPACE },
   ];
 }
 
@@ -361,66 +361,50 @@ describe("updateSessionHistory family-aware eviction", () => {
   });
 });
 
-describe("resolveBranchSource", () => {
-  it("returns the ledger entry naming the branched session", () => {
-    const history = makeHistory();
-
-    const sourceEntry = resolveBranchSource(makeAgent(), history, BRANCH_POINT, WORKSPACE);
-
-    expect(sourceEntry).toBe(history[1]);
+describe("assertBranchSource", () => {
+  it("accepts a session the ledger holds", () => {
+    expect(() => assertBranchSource(makeAgent(), makeHistory(), BRANCH_POINT)).not.toThrow();
   });
 
   it("rejects a non-Claude agent", () => {
     expectAppErrorCode(
-      () => resolveBranchSource(makeAgent({ type: AGENT_TYPE.GITHUB_COPILOT }), makeHistory(), BRANCH_POINT, WORKSPACE),
+      () => assertBranchSource(makeAgent({ type: AGENT_TYPE.GITHUB_COPILOT }), makeHistory(), BRANCH_POINT),
       APP_ERROR_CODES.NOT_SUPPORTED
     );
   });
 
   it("rejects an agent that does not persist sessions", () => {
     expectAppErrorCode(
-      () => resolveBranchSource(makeAgent({ persistSession: false }), makeHistory(), BRANCH_POINT, WORKSPACE),
+      () => assertBranchSource(makeAgent({ persistSession: false }), makeHistory(), BRANCH_POINT),
       APP_ERROR_CODES.VALIDATION
     );
   });
 
   it("accepts an agent whose persistSession is unset", () => {
-    expect(() => resolveBranchSource(makeAgent(), makeHistory(), BRANCH_POINT, WORKSPACE)).not.toThrow();
+    expect(() => assertBranchSource(makeAgent(), makeHistory(), BRANCH_POINT)).not.toThrow();
   });
 
   it("rejects a session that names no ledger entry", () => {
     expectAppErrorCode(
-      () =>
-        resolveBranchSource(makeAgent(), makeHistory(), { sessionId: "evicted", fromMessageId: "anchor" }, WORKSPACE),
+      () => assertBranchSource(makeAgent(), makeHistory(), { sessionId: "evicted", fromMessageId: "anchor" }),
       APP_ERROR_CODES.SESSION_NOT_FOUND
     );
   });
 
   it("rejects when the ledger is empty", () => {
     expectAppErrorCode(
-      () => resolveBranchSource(makeAgent(), undefined, BRANCH_POINT, WORKSPACE),
+      () => assertBranchSource(makeAgent(), undefined, BRANCH_POINT),
       APP_ERROR_CODES.SESSION_NOT_FOUND
-    );
-  });
-
-  // The fork lands under the entry's workspace while the following turn runs under the agent's
-  // current one; ensureValidSession would silently drop the fork on a divergence.
-  it("rejects when the agent's workspace moved since the source session", () => {
-    expectAppErrorCode(
-      () => resolveBranchSource(makeAgent(), makeHistory("/old-ws"), BRANCH_POINT, WORKSPACE),
-      APP_ERROR_CODES.CONFLICT
     );
   });
 });
 
-describe("resolveSwitchTarget", () => {
-  it("returns the ledger entry naming the target session", () => {
-    const history = makeHistory();
-
-    expect(resolveSwitchTarget(history, "target", WORKSPACE)).toBe(history[1]);
+describe("assertSwitchTarget", () => {
+  it("accepts a session the ledger holds", () => {
+    expect(() => assertSwitchTarget(makeHistory(), "target")).not.toThrow();
   });
 
-  it("resolves a branched entry like any other", () => {
+  it("accepts a branched entry like any other", () => {
     const history: SessionHistory[] = [
       ...makeHistory(),
       {
@@ -432,26 +416,16 @@ describe("resolveSwitchTarget", () => {
       },
     ];
 
-    expect(resolveSwitchTarget(history, "branched", WORKSPACE)).toBe(history[2]);
+    expect(() => assertSwitchTarget(history, "branched")).not.toThrow();
   });
 
   it("rejects a session that names no ledger entry", () => {
-    expectAppErrorCode(
-      () => resolveSwitchTarget(makeHistory(), "unknown", WORKSPACE),
-      APP_ERROR_CODES.SESSION_NOT_FOUND
-    );
+    expectAppErrorCode(() => assertSwitchTarget(makeHistory(), "unknown"), APP_ERROR_CODES.SESSION_NOT_FOUND);
   });
 
   it("rejects when the ledger is empty", () => {
-    expectAppErrorCode(() => resolveSwitchTarget([], "target", WORKSPACE), APP_ERROR_CODES.SESSION_NOT_FOUND);
-    expectAppErrorCode(() => resolveSwitchTarget(undefined, "target", WORKSPACE), APP_ERROR_CODES.SESSION_NOT_FOUND);
-  });
-
-  it("rejects when the agent's workspace moved since the target session", () => {
-    expectAppErrorCode(
-      () => resolveSwitchTarget(makeHistory("/old-ws"), "target", WORKSPACE),
-      APP_ERROR_CODES.CONFLICT
-    );
+    expectAppErrorCode(() => assertSwitchTarget([], "target"), APP_ERROR_CODES.SESSION_NOT_FOUND);
+    expectAppErrorCode(() => assertSwitchTarget(undefined, "target"), APP_ERROR_CODES.SESSION_NOT_FOUND);
   });
 });
 

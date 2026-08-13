@@ -151,7 +151,7 @@ export async function registerAgentRoutes(
       return { success: true, data: [] };
     }
 
-    const messages = await sessionManager.loadMessages(agent.type, sessionId, registry.resolveWorkspace(agent));
+    const messages = await sessionManager.loadMessages(agent.type, sessionId);
 
     return { success: true, data: messages };
   });
@@ -177,12 +177,7 @@ export async function registerAgentRoutes(
       }
 
       const agent = registry.getAgent(agentId);
-      const audio = await sessionManager.getAudioMessage(
-        agent.type,
-        state.sessionId,
-        registry.resolveWorkspace(agent),
-        request.params.messageId
-      );
+      const audio = await sessionManager.getAudioMessage(agent.type, state.sessionId, request.params.messageId);
       return reply.type(audio.mimeType ?? "application/octet-stream").send(audio.data);
     }
   );

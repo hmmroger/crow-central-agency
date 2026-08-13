@@ -24,7 +24,7 @@ import type { AgentRegistry } from "../agent-registry.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
 import { PermissionHandler } from "./permission-handler.js";
 import { QuestionHandler } from "./question-handler.js";
-import { buildSessionTree, resolveBranchSource, resolveSwitchTarget, updateSessionHistory } from "./session-history.js";
+import { assertBranchSource, assertSwitchTarget, buildSessionTree, updateSessionHistory } from "./session-history.js";
 import type { SessionHistoryUpdate } from "./session-history.types.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
@@ -277,9 +277,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
 
     const agent = this.registry.getAgent(agentId);
-    const workspace = this.registry.resolveWorkspace(agent);
-    const targetEntry = resolveSwitchTarget(state.sessionHistory, sessionId, workspace);
-    if (!(await this.sessionManager.isSessionValid(agent.type, sessionId, targetEntry.workspace))) {
+    assertSwitchTarget(state.sessionHistory, sessionId);
+    if (!(await this.sessionManager.isSessionValid(agent.type, sessionId))) {
       throw new AppError(
         `Session ${sessionId} no longer has a transcript to return to.`,
         APP_ERROR_CODES.SESSION_NOT_FOUND
@@ -311,8 +310,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
 
     const agent = this.registry.getAgent(agentId);
-    const workspace = this.registry.resolveWorkspace(agent);
-    if (await this.sessionManager.isSessionValid(agent.type, state.sessionId, workspace)) {
+    if (await this.sessionManager.isSessionValid(agent.type, state.sessionId)) {
       return state.sessionId;
     }
 
@@ -402,8 +400,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
 
     const agent = this.registry.getAgent(agentId);
-    const workspace = this.registry.resolveWorkspace(agent);
-    const message = await this.sessionManager.getMessage(agent.type, state.sessionId, workspace, messageId);
+    const message = await this.sessionManager.getMessage(agent.type, state.sessionId, messageId);
     if (!message.content.trim()) {
       throw new AppError(`Message ${messageId} has no content to synthesize`, APP_ERROR_CODES.VALIDATION);
     }
@@ -413,13 +410,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       voice: [{ voice: voiceConfig?.voiceName }],
       stylePrompt: voiceConfig?.stylePrompt,
     });
-    return this.sessionManager.associateAudioMessage(
-      agent.type,
-      state.sessionId,
-      workspace,
-      messageId,
-      response.message
-    );
+    return this.sessionManager.associateAudioMessage(agent.type, state.sessionId, messageId, response.message);
   }
 
   /**
@@ -427,17 +418,11 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
    * Session history is not written here: the turn's `INIT` records the fork on the single entry
    * that path already creates.
    */
-  private async branchSession(
-    agent: AgentConfig,
-    state: AgentRuntimeState,
-    workspace: string,
-    branchPoint: BranchPoint
-  ): Promise<void> {
-    const sourceEntry = resolveBranchSource(agent, state.sessionHistory, branchPoint, workspace);
+  private async branchSession(agent: AgentConfig, state: AgentRuntimeState, branchPoint: BranchPoint): Promise<void> {
+    assertBranchSource(agent, state.sessionHistory, branchPoint);
     const newSessionId = await this.sessionManager.forkSession(
       agent.type,
       branchPoint.sessionId,
-      sourceEntry.workspace,
       branchPoint.fromMessageId
     );
 
@@ -469,7 +454,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     // Before the span is opened, so a rejected branch reaches the caller as an error instead of
     // being swallowed by this method's own error handling and leaking the span.
     if (branchPoint) {
-      await this.branchSession(agent, state, workspace, branchPoint);
+      await this.branchSession(agent, state, branchPoint);
     }
 
     const querySpan = startQuerySpan(agentId, agent.name, source.sourceType);
@@ -511,12 +496,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             });
 
             if (persistUserMessage && !userMessageAdded) {
-              const userMessage = await this.sessionManager.addUserMessage(
-                agent.type,
-                event.sessionId,
-                workspace,
-                message
-              );
+              const userMessage = await this.sessionManager.addUserMessage(agent.type, event.sessionId, message);
               this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: userMessage });
               if (source.sourceType === MESSAGE_SOURCE_TYPE.USER) {
                 this.recordInputHistory(state, message);
@@ -550,12 +530,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             break;
 
           case AGENT_STREAM_EVENT_TYPE.MESSAGE_DONE: {
-            const agentMessages = await this.sessionManager.addMessage(
-              agent.type,
-              event.sessionId,
-              workspace,
-              event.message
-            );
+            const agentMessages = await this.sessionManager.addMessage(agent.type, event.sessionId, event.message);
             for (const msg of agentMessages) {
               this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: msg });
               if (msg.role === AGENT_MESSAGE_ROLE.AGENT && msg.type === AGENT_MESSAGE_TYPE.TEXT) {
