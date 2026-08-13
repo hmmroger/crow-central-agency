@@ -433,6 +433,8 @@ export {
   type GraphData,
 } from "./schemas/graph.schema.js";
 
+export { SessionHistoryNodeSchema, type SessionHistoryNode } from "./schemas/session-history.schema.js";
+
 export {
   ConnectorConnectionSchema,
   ConnectorInfoSchema,
