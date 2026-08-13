@@ -19,7 +19,6 @@ import type { SessionHistoryUpdate, UpdatedSessionHistory } from "./session-hist
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 
-const WORKSPACE = "/ws";
 const BRANCH_POINT = { sessionId: "target", fromMessageId: "anchor-uuid" };
 
 function makeEntry(sessionId: string, timestamp: number, branchParent?: string): SessionHistory {
@@ -27,7 +26,6 @@ function makeEntry(sessionId: string, timestamp: number, branchParent?: string):
     sessionId,
     lastUpdatedTimestamp: timestamp,
     label: `label ${sessionId}`,
-    workspace: WORKSPACE,
   };
 
   if (branchParent !== undefined) {
@@ -40,8 +38,8 @@ function makeEntry(sessionId: string, timestamp: number, branchParent?: string):
 /** A two-entry ledger for the guards, whose second entry is what BRANCH_POINT names. */
 function makeHistory(): SessionHistory[] {
   return [
-    { sessionId: "older", lastUpdatedTimestamp: 500, label: "label older", workspace: WORKSPACE },
-    { sessionId: "target", lastUpdatedTimestamp: 1000, label: "label target", workspace: WORKSPACE },
+    { sessionId: "older", lastUpdatedTimestamp: 500, label: "label older" },
+    { sessionId: "target", lastUpdatedTimestamp: 1000, label: "label target" },
   ];
 }
 
@@ -93,7 +91,6 @@ function makeUpdate(sessionId: string, timestamp: number, branchParent?: string)
   const update: SessionHistoryUpdate = {
     sessionId,
     message: `message for ${sessionId}`,
-    workspace: WORKSPACE,
     timestamp,
   };
 
@@ -144,11 +141,10 @@ describe("updateSessionHistory ledger", () => {
     const { history: result } = applyUpdate(undefined, {
       sessionId: "s1",
       message: "start work",
-      workspace: WORKSPACE,
       timestamp: 1000,
     });
 
-    expect(result).toEqual([{ sessionId: "s1", lastUpdatedTimestamp: 1000, label: "start work", workspace: "/ws" }]);
+    expect(result).toEqual([{ sessionId: "s1", lastUpdatedTimestamp: 1000, label: "start work" }]);
   });
 
   it("refreshes only the timestamp when the incoming id matches an entry", () => {
@@ -157,11 +153,10 @@ describe("updateSessionHistory ledger", () => {
     const { history: result } = applyUpdate(history, {
       sessionId: "s1",
       message: "a brand new message that must not become the label",
-      workspace: "/other",
       timestamp: 2000,
     });
 
-    expect(result).toEqual([{ sessionId: "s1", lastUpdatedTimestamp: 2000, label: "label s1", workspace: "/ws" }]);
+    expect(result).toEqual([{ sessionId: "s1", lastUpdatedTimestamp: 2000, label: "label s1" }]);
   });
 
   it("refreshes the matched entry in place instead of rebuilding the ledger", () => {
@@ -171,7 +166,6 @@ describe("updateSessionHistory ledger", () => {
     const { history: result } = applyUpdate(history, {
       sessionId: "s1",
       message: "same session",
-      workspace: WORKSPACE,
       timestamp: 2000,
     });
 
@@ -186,7 +180,6 @@ describe("updateSessionHistory ledger", () => {
     const { history: result } = applyUpdate(history, {
       sessionId: "s1",
       message: "revisited",
-      workspace: WORKSPACE,
       timestamp: 2000,
     });
 
@@ -200,7 +193,6 @@ describe("updateSessionHistory ledger", () => {
     const { history: result } = applyUpdate([makeEntry("s0", 500)], {
       sessionId: "s1",
       message: "try another approach",
-      workspace: WORKSPACE,
       timestamp: 2000,
       branchPoint,
     });
@@ -209,7 +201,6 @@ describe("updateSessionHistory ledger", () => {
       sessionId: "s1",
       lastUpdatedTimestamp: 2000,
       label: "try another approach",
-      workspace: "/ws",
       branchPoint: { sessionId: "s0", fromMessageId: "anchor-uuid" },
     });
   });
@@ -218,7 +209,6 @@ describe("updateSessionHistory ledger", () => {
     const { history: result } = applyUpdate(undefined, {
       sessionId: "s1",
       message: "start work",
-      workspace: WORKSPACE,
       timestamp: 1000,
     });
 
@@ -229,7 +219,6 @@ describe("updateSessionHistory ledger", () => {
     const { history } = applyUpdate([makeEntry("s0", 500)], {
       sessionId: "s1",
       message: "try another approach",
-      workspace: WORKSPACE,
       timestamp: 2000,
       branchPoint: { sessionId: "s0", fromMessageId: "anchor-uuid" },
     });
@@ -237,7 +226,6 @@ describe("updateSessionHistory ledger", () => {
     const { history: result } = applyUpdate(history, {
       sessionId: "s1",
       message: "the run that resumes the fork",
-      workspace: WORKSPACE,
       timestamp: 3000,
     });
 
@@ -251,7 +239,6 @@ describe("updateSessionHistory ledger", () => {
     const { history: result } = applyUpdate(history, {
       sessionId: "s0",
       message: "a much later message that must not relabel the session",
-      workspace: WORKSPACE,
       timestamp: 2000,
     });
 
@@ -264,7 +251,6 @@ describe("updateSessionHistory ledger", () => {
     const { history: result } = applyUpdate(history, {
       sessionId: "s2",
       message: "second session",
-      workspace: WORKSPACE,
       timestamp: 2000,
     });
 
@@ -273,7 +259,6 @@ describe("updateSessionHistory ledger", () => {
       sessionId: "s2",
       lastUpdatedTimestamp: 2000,
       label: "second session",
-      workspace: "/ws",
     });
   });
 });
@@ -290,7 +275,6 @@ describe("updateSessionHistory family-aware eviction", () => {
     const { history: result } = applyUpdate(history, {
       sessionId: "fresh",
       message: "new turn",
-      workspace: WORKSPACE,
       timestamp: 900,
     });
 
@@ -307,7 +291,6 @@ describe("updateSessionHistory family-aware eviction", () => {
     const { history: result } = applyUpdate(history, {
       sessionId: "fresh",
       message: "new turn",
-      workspace: WORKSPACE,
       timestamp: 900,
     });
 
@@ -328,7 +311,6 @@ describe("updateSessionHistory family-aware eviction", () => {
     const { history: result } = applyUpdate(history, {
       sessionId: "fresh",
       message: "new turn",
-      workspace: WORKSPACE,
       timestamp: 900,
     });
 
@@ -349,7 +331,6 @@ describe("updateSessionHistory family-aware eviction", () => {
     const { history: result } = applyUpdate(history, {
       sessionId: "fresh",
       message: "new turn",
-      workspace: WORKSPACE,
       timestamp: 900,
     });
 
@@ -411,7 +392,6 @@ describe("assertSwitchTarget", () => {
         sessionId: "branched",
         lastUpdatedTimestamp: 2000,
         label: "branched",
-        workspace: WORKSPACE,
         branchPoint: BRANCH_POINT,
       },
     ];

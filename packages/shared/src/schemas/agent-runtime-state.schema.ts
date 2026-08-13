@@ -108,7 +108,6 @@ export const SessionHistorySchema = z.object({
   sessionId: z.string(),
   lastUpdatedTimestamp: z.number(),
   label: z.string(),
-  workspace: z.string(),
   branchPoint: BranchPointSchema.optional(),
 });
 

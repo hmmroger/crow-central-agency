@@ -450,7 +450,6 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   ): Promise<string | undefined> {
     const agentRunner = this.getAgentRunner(agentId);
     const agent = this.registry.getAgent(agentId);
-    const workspace = this.registry.resolveWorkspace(agent);
     // Before the span is opened, so a rejected branch reaches the caller as an error instead of
     // being swallowed by this method's own error handling and leaking the span.
     if (branchPoint) {
@@ -490,7 +489,6 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             this.updateAgentSessionHistory(state, {
               sessionId: event.sessionId,
               message,
-              workspace,
               timestamp: Date.now(),
               branchPoint,
             });

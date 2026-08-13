@@ -46,7 +46,6 @@ export function updateSessionHistory(
       sessionId: update.sessionId,
       lastUpdatedTimestamp: update.timestamp,
       label: deriveSessionLabel(update.message),
-      workspace: update.workspace,
       branchPoint: update.branchPoint,
     });
     const retainedEntries = evictSessionFamilies(entries);
