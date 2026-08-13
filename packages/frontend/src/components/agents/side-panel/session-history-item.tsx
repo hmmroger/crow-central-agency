@@ -11,12 +11,12 @@ interface SessionHistoryItemProps {
   onSelect: (sessionId: string) => void;
 }
 
-/** Tailwind needs literal classes, so deeper branches share the last entry. */
-const DEPTH_PADDING_CLASS = ["pl-3", "pl-6", "pl-9", "pl-12"] as const;
+/** Deeper branches stop indenting, so a long fork chain cannot push its labels off the panel. */
+const MAX_RAIL_DEPTH = 4;
 
 export function SessionHistoryItem({ node, isCurrent, disabled, onSelect }: SessionHistoryItemProps) {
   const handleClick = useCallback(() => onSelect(node.sessionId), [onSelect, node.sessionId]);
-  const indentClass = DEPTH_PADDING_CLASS[Math.min(node.depth, DEPTH_PADDING_CLASS.length - 1)];
+  const railDepth = Math.min(node.depth, MAX_RAIL_DEPTH);
 
   return (
     <button
@@ -24,24 +24,28 @@ export function SessionHistoryItem({ node, isCurrent, disabled, onSelect }: Sess
       disabled={disabled}
       onClick={handleClick}
       title={node.label}
+      aria-current={isCurrent}
       className={cn(
-        "w-full flex items-center gap-2 pr-3 py-1.5 text-left transition-colors",
-        indentClass,
-        isCurrent && "bg-surface-elevated",
-        disabled ? "cursor-default" : "hover:bg-surface-elevated",
+        "w-full flex items-stretch pl-3 text-left transition-colors",
+        isCurrent ? "bg-primary/15" : !disabled && "hover:bg-surface-elevated",
+        disabled && "cursor-default",
         disabled && !isCurrent && "opacity-50"
       )}
     >
-      {node.isBranch ? (
-        <GitBranch className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-      ) : (
-        <MessageSquare className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-      )}
-      <div className="flex-1 min-w-0">
-        <div className={cn("text-xs truncate", isCurrent ? "text-text-base" : "text-text-neutral")}>{node.label}</div>
-        <div className="text-2xs text-text-muted">{formatRelativeTime(node.lastUpdatedTimestamp)}</div>
+      {Array.from({ length: railDepth }, (_unused, level) => (
+        <span key={level} className="w-3 shrink-0 border-l border-border-subtle" />
+      ))}
+      <div className="flex-1 min-w-0 flex items-center gap-2 pr-3 py-1.5">
+        {node.isBranch ? (
+          <GitBranch className={cn("h-3.5 w-3.5 shrink-0", isCurrent ? "text-primary" : "text-text-muted")} />
+        ) : (
+          <MessageSquare className={cn("h-3.5 w-3.5 shrink-0", isCurrent ? "text-primary" : "text-text-muted")} />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className={cn("text-xs truncate", isCurrent ? "text-primary" : "text-text-neutral")}>{node.label}</div>
+          <div className="text-2xs text-text-muted">{formatRelativeTime(node.lastUpdatedTimestamp)}</div>
+        </div>
       </div>
-      {isCurrent && <span className="shrink-0 font-mono text-3xs uppercase tracking-widest text-accent">Current</span>}
     </button>
   );
 }

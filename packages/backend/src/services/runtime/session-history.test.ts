@@ -8,6 +8,7 @@ import {
   type SessionHistoryNode,
 } from "@crow-central-agency/shared";
 import {
+  SESSION_LABEL_MAX_WORDS,
   buildSessionTree,
   deriveSessionLabel,
   resolveBranchSource,
@@ -126,15 +127,15 @@ describe("deriveSessionLabel", () => {
     expect(deriveSessionLabel("  plan   the\n\trelease ")).toBe("plan the release");
   });
 
-  it("keeps exactly 30 words without an ellipsis", () => {
-    const words = Array.from({ length: 30 }, (_unused, index) => `w${index}`);
+  it("keeps a message at the word limit without an ellipsis", () => {
+    const words = Array.from({ length: SESSION_LABEL_MAX_WORDS }, (_unused, index) => `w${index}`);
     expect(deriveSessionLabel(words.join(" "))).toBe(words.join(" "));
   });
 
-  it("truncates to the first 30 words and appends an ellipsis", () => {
-    const words = Array.from({ length: 40 }, (_unused, index) => `w${index}`);
+  it("truncates a message past the word limit and appends an ellipsis", () => {
+    const words = Array.from({ length: SESSION_LABEL_MAX_WORDS + 1 }, (_unused, index) => `w${index}`);
     const label = deriveSessionLabel(words.join(" "));
-    expect(label).toBe(words.slice(0, 30).join(" ") + "...");
+    expect(label).toBe(words.slice(0, SESSION_LABEL_MAX_WORDS).join(" ") + "...");
   });
 });
 

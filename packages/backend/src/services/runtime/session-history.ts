@@ -16,7 +16,7 @@ interface SessionFamilies {
   familyMaxByRootId: Map<string, number>;
 }
 
-const SESSION_LABEL_MAX_WORDS = 30;
+export const SESSION_LABEL_MAX_WORDS = 15;
 const SESSION_LABEL_ELLIPSIS = "...";
 
 export function deriveSessionLabel(message: string): string {

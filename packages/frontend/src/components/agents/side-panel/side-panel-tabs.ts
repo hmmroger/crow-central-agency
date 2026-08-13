@@ -12,7 +12,7 @@ export type SidePanelTab = (typeof SIDE_PANEL_TAB)[keyof typeof SIDE_PANEL_TAB];
 
 export const SIDE_PANEL_TABS: TabDefinition<SidePanelTab>[] = [
   { id: SIDE_PANEL_TAB.STATUS, label: "Status", icon: Activity },
-  { id: SIDE_PANEL_TAB.SESSION_HISTORY, label: "Sessions", icon: History },
   { id: SIDE_PANEL_TAB.ARTIFACTS, label: "Artifacts", icon: FileText },
   { id: SIDE_PANEL_TAB.CIRCLE_ARTIFACTS, label: "Circle", icon: CircleDot },
+  { id: SIDE_PANEL_TAB.SESSION_HISTORY, label: "Sessions", icon: History },
 ];
