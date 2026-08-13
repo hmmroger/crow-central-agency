@@ -25,6 +25,7 @@ import { PermissionHandler } from "./permission-handler.js";
 import { QuestionHandler } from "./question-handler.js";
 import { upsertSessionHistory } from "./session-history.js";
 import { resolveBranchSource } from "./session-branch.js";
+import { resolveSwitchTarget } from "./session-switch.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
 import { MESSAGE_SOURCE_TYPE, type MessageSource, type QueuedMessage } from "../message-queue-manager.types.js";
@@ -247,6 +248,48 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     } catch (error) {
       log.error({ agentId, error }, "Failed to persist state after newSession");
     }
+  }
+
+  /**
+   * Make an existing session from the agent's ledger the current one.
+   *
+   * Every guard resolves before the first write, so a rejected switch leaves the agent untouched.
+   * The ledger itself does not change — only which of its sessions is current.
+   */
+  public async switchSession(agentId: string, sessionId: string): Promise<void> {
+    const state = this.ensureState(agentId);
+    const agentRunner = this.getAgentRunner(agentId);
+    if (agentRunner.getAgentStatus() !== AGENT_STATUS.IDLE) {
+      throw new AppError("Agent must be idle to switch sessions", APP_ERROR_CODES.CONFLICT);
+    }
+
+    const agent = this.registry.getAgent(agentId);
+    const workspace = this.registry.resolveWorkspace(agent);
+    const targetEntry = resolveSwitchTarget(state.sessionHistory, sessionId, workspace);
+    if (!(await this.sessionManager.isSessionValid(agent.type, sessionId, targetEntry.workspace))) {
+      throw new AppError(
+        `Session ${sessionId} no longer has a transcript to return to.`,
+        APP_ERROR_CODES.SESSION_NOT_FOUND
+      );
+    }
+
+    if (state.sessionId) {
+      this.sessionManager.invalidateCache(agent.type, state.sessionId);
+    }
+
+    state.sessionId = sessionId;
+    // Neither is stored per session: both reflect real values again once a query runs in the
+    // session being switched to.
+    state.activeDomainFragmentIds = [];
+    state.sessionUsage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalCostUsd: 0,
+      contextUsed: 0,
+      contextTotal: 0,
+    };
+
+    await this.persistAgentState(agentId);
   }
 
   public async ensureValidSession(agentId: string): Promise<string | undefined> {

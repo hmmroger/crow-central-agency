@@ -3,7 +3,12 @@ import type { AgentRegistry } from "../services/agent-registry.js";
 import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
 import { buildSessionTree } from "../services/runtime/session-tree.js";
 import type { SessionManager } from "../services/session/session-manager.js";
-import { AGENT_STATUS, AgentConfigTemplateSchema, type AgentRuntimeState } from "@crow-central-agency/shared";
+import {
+  AGENT_STATUS,
+  AgentConfigTemplateSchema,
+  SessionHistorySchema,
+  type AgentRuntimeState,
+} from "@crow-central-agency/shared";
 import type { ConnectorManager } from "../connectors/connector-manager.js";
 import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
 import { AppError } from "../core/error/app-error.js";
@@ -201,6 +206,23 @@ export async function registerAgentRoutes(
 
     return { success: true, data: { newSession: true } };
   });
+
+  /** Make one of an agent's existing sessions current */
+  server.post<{ Params: { id: string }; Body: { sessionId?: unknown } }>(
+    "/api/agents/:id/session/switch",
+    async (request) => {
+      const agentId = validateAgentIdParam(request.params.id);
+
+      try {
+        const sessionId = SessionHistorySchema.shape.sessionId.parse(request.body?.sessionId);
+        await runtimeManager.switchSession(agentId, sessionId);
+
+        return { success: true, data: { sessionId } };
+      } catch (error) {
+        return wrapZodError(error);
+      }
+    }
+  );
 
   /** Get runtime state for an agent */
   server.get<{ Params: { id: string } }>("/api/agents/:id/state", async (request) => {

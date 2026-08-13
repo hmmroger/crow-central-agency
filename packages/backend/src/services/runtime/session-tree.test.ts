@@ -42,7 +42,11 @@ describe("buildSessionTree", () => {
   });
 
   it("raises a whole family on its most recent branch, keeping the root first", () => {
-    const history = [makeEntry("old-root", 1000), makeEntry("recent-branch", 5000, "old-root"), makeEntry("other", 3000)];
+    const history = [
+      makeEntry("old-root", 1000),
+      makeEntry("recent-branch", 5000, "old-root"),
+      makeEntry("other", 3000),
+    ];
 
     // The root is older than `other` and still leads, because the family sorts on its branch.
     expect(orderOf(history)).toEqual(["old-root", "recent-branch", "other"]);
@@ -79,6 +83,15 @@ describe("buildSessionTree", () => {
       { sessionId: "orphan", label: "label orphan", lastUpdatedTimestamp: 4000, depth: 0, isBranch: true },
       { sessionId: "kept", label: "label kept", lastUpdatedTimestamp: 1000, depth: 0, isBranch: false },
     ]);
+  });
+
+  it("falls back to ledger order when subtree maxima tie", () => {
+    const history = [makeEntry("first", 1000), makeEntry("second", 1000), makeEntry("third", 1000)];
+
+    // Ledger order is creation order, the only fallback here that carries meaning.
+    expect(orderOf(history)).toEqual(["first", "second", "third"]);
+    const siblings = [makeEntry("root", 5000), makeEntry("left", 1000, "root"), makeEntry("right", 1000, "root")];
+    expect(orderOf(siblings)).toEqual(["root", "left", "right"]);
   });
 
   it("does not depend on the ledger's array order", () => {
