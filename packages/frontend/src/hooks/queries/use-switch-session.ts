@@ -8,17 +8,14 @@ import type { ApiError } from "../../services/api-client.types.js";
 export interface SwitchSession {
   /** Make one of the agent's existing sessions the current one */
   switchSession: (sessionId: string) => void;
-  /** The rejection from the last attempt, if it failed */
   error?: ApiError;
   isPending: boolean;
 }
 
 /**
  * Switch an agent to an existing session via REST.
- *
- * POSTs /agents/:id/session/switch and invalidates the messages and runtime-state queries, so the
- * console reloads against the now-current session and the current-session marker moves. The sessions
- * query is left alone: a switch changes which session is current, not the ledger.
+ * POSTs /agents/:id/session/switch and invalidates messages and runtime state. The sessions query is
+ * left alone: a switch changes which session is current, not the ledger.
  *
  * @param agentId - The agent to switch
  */

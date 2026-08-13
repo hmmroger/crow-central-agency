@@ -1,7 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
-import { buildSessionTree } from "../services/runtime/session-tree.js";
 import type { SessionManager } from "../services/session/session-manager.js";
 import {
   AGENT_STATUS,
@@ -242,9 +241,8 @@ export async function registerAgentRoutes(
   /** Get an agent's session ledger as an ordered branch hierarchy, most recently active family first */
   server.get<{ Params: { id: string } }>("/api/agents/:id/sessions", async (request) => {
     const agentId = validateAgentIdParam(request.params.id);
-    const state = runtimeManager.getState(agentId);
 
-    return { success: true, data: buildSessionTree(state?.sessionHistory) };
+    return { success: true, data: runtimeManager.getSessionTree(agentId) };
   });
 
   /** Get persisted activities for an agent, oldest first */

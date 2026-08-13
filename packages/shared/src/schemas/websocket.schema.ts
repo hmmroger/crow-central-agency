@@ -298,10 +298,7 @@ export const AgentBuilderDraftUpdatedWsMessageSchema = z.object({
   draft: AgentBuilderDraftViewSchema.nullable(),
 });
 
-/**
- * The agent's session list changed shape or order. It carries no session data: the client refetches
- * the sessions query, so the projection keeps a single source.
- */
+/** The agent's session list changed shape or order; carries no data, the client refetches. */
 export const AgentSessionsUpdatedWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.AGENT_SESSIONS_UPDATED),
   agentId: z.string(),

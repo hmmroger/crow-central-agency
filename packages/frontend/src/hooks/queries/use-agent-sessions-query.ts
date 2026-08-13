@@ -6,11 +6,9 @@ import { useWsSubscription } from "../use-ws-subscription.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
 /**
- * Fetch an agent's sessions via React Query, already ordered and depth-annotated by the backend.
- *
- * `agent_sessions_updated` carries no session data, so a change refetches rather than patching the
- * cache. The event only arrives while this hook is mounted, hence the refetch on mount: a turn that
- * runs with the panel closed changes the list with nobody listening.
+ * Fetch an agent's sessions, already ordered and depth-annotated by the backend.
+ * The event only arrives while mounted, hence the refetch on mount: a turn taken with the panel
+ * closed changes the list with nobody listening.
  *
  * @param agentId - The agent whose sessions to fetch
  */

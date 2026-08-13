@@ -11,10 +11,9 @@ interface SessionHistoryItemProps {
   onSelect: (sessionId: string) => void;
 }
 
-/** Tailwind needs the indent as a literal class, so depth maps onto a fixed set and deeper branches share the last. */
+/** Tailwind needs literal classes, so deeper branches share the last entry. */
 const DEPTH_PADDING_CLASS = ["pl-3", "pl-6", "pl-9", "pl-12"] as const;
 
-/** Single session row — label, relative time, and a marker when the session was branched. */
 export function SessionHistoryItem({ node, isCurrent, disabled, onSelect }: SessionHistoryItemProps) {
   const handleClick = useCallback(() => onSelect(node.sessionId), [onSelect, node.sessionId]);
   const indentClass = DEPTH_PADDING_CLASS[Math.min(node.depth, DEPTH_PADDING_CLASS.length - 1)];

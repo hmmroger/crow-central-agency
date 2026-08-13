@@ -8,10 +8,7 @@ interface SessionHistoryTabProps {
   agentId: string;
 }
 
-/**
- * Sessions tab — the agent's sessions in the order the backend projected them, click to switch.
- * Switching is only offered while the agent is idle; the backend rejects it otherwise.
- */
+/** Sessions tab — the agent's sessions in the backend's order, click to switch. */
 export function SessionHistoryTab({ agentId }: SessionHistoryTabProps) {
   const { data: sessions = [], isLoading, isError } = useAgentSessionsQuery(agentId);
   const { data: agentState } = useAgentStateQuery(agentId);

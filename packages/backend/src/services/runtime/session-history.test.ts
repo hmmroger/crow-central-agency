@@ -1,13 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { MAX_SESSION_HISTORY, type SessionHistory } from "@crow-central-agency/shared";
-import { deriveSessionLabel, upsertSessionHistory } from "./session-history.js";
+import {
+  AGENT_TYPE,
+  AgentConfigSchema,
+  MAX_SESSION_HISTORY,
+  type AgentConfig,
+  type SessionHistory,
+  type SessionHistoryNode,
+} from "@crow-central-agency/shared";
+import {
+  buildSessionTree,
+  deriveSessionLabel,
+  resolveBranchSource,
+  resolveSwitchTarget,
+  updateSessionHistory,
+} from "./session-history.js";
+import type { SessionHistoryUpdate, UpdatedSessionHistory } from "./session-history.types.js";
+import { AppError } from "../../core/error/app-error.js";
+import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
+
+const WORKSPACE = "/ws";
+const BRANCH_POINT = { sessionId: "target", fromMessageId: "anchor-uuid" };
 
 function makeEntry(sessionId: string, timestamp: number, branchParent?: string): SessionHistory {
   const entry: SessionHistory = {
     sessionId,
     lastUpdatedTimestamp: timestamp,
-    label: sessionId,
-    workspace: "/ws",
+    label: `label ${sessionId}`,
+    workspace: WORKSPACE,
   };
 
   if (branchParent !== undefined) {
@@ -15,6 +34,25 @@ function makeEntry(sessionId: string, timestamp: number, branchParent?: string):
   }
 
   return entry;
+}
+
+/** A two-entry ledger for the resolvers, whose workspace is the thing under test. */
+function makeHistory(workspace = WORKSPACE): SessionHistory[] {
+  return [
+    { sessionId: "older", lastUpdatedTimestamp: 500, label: "label older", workspace },
+    { sessionId: "target", lastUpdatedTimestamp: 1000, label: "label target", workspace },
+  ];
+}
+
+function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
+  return AgentConfigSchema.parse({
+    id: "3f8a1c2d-9b4e-4a7f-8c1d-2e5b7a9f0c34",
+    type: AGENT_TYPE.CLAUDE_CODE,
+    name: "Test Agent",
+    createdAt: "2026-08-11T00:00:00Z",
+    updatedAt: "2026-08-11T00:00:00Z",
+    ...overrides,
+  });
 }
 
 function singletons(prefix: string, count: number, startTimestamp: number): SessionHistory[] {
@@ -28,6 +66,55 @@ function assertNoDanglingBranchPoints(entries: SessionHistory[]): void {
       expect(presentIds.has(entry.branchPoint.sessionId)).toBe(true);
     }
   }
+}
+
+function expectAppErrorCode(operation: () => unknown, errorCode: string): void {
+  let caught: unknown;
+  try {
+    operation();
+  } catch (error) {
+    caught = error;
+  }
+
+  expect(caught).toBeInstanceOf(AppError);
+  expect(caught instanceof AppError ? caught.errorCode : undefined).toBe(errorCode);
+}
+
+function orderOf(history: SessionHistory[]): string[] {
+  return buildSessionTree(history).map((node) => node.sessionId);
+}
+
+function depthOf(history: SessionHistory[]): Record<string, number> {
+  return Object.fromEntries(buildSessionTree(history).map((node) => [node.sessionId, node.depth]));
+}
+
+function makeUpdate(sessionId: string, timestamp: number, branchParent?: string): SessionHistoryUpdate {
+  const update: SessionHistoryUpdate = {
+    sessionId,
+    message: `message for ${sessionId}`,
+    workspace: WORKSPACE,
+    timestamp,
+  };
+
+  if (branchParent !== undefined) {
+    update.branchPoint = { sessionId: branchParent, fromMessageId: `${sessionId}-from` };
+  }
+
+  return update;
+}
+
+/** An update as the manager makes one: against the ledger and the tree standing over it. */
+function applyUpdate(history: SessionHistory[] | undefined, update: SessionHistoryUpdate): UpdatedSessionHistory {
+  return updateSessionHistory(history, buildSessionTree(history), update);
+}
+
+/** The tree an update had to rebuild, failing the test when the standing tree absorbed it instead. */
+function rebuiltTreeOf(updated: UpdatedSessionHistory): SessionHistoryNode[] {
+  if (updated.sessionTree === undefined) {
+    throw new Error("Expected the update to rebuild the session tree.");
+  }
+
+  return updated.sessionTree;
 }
 
 describe("deriveSessionLabel", () => {
@@ -51,41 +138,39 @@ describe("deriveSessionLabel", () => {
   });
 });
 
-describe("upsertSessionHistory", () => {
+describe("updateSessionHistory ledger", () => {
   it("appends the first entry when history is undefined", () => {
-    const result = upsertSessionHistory(undefined, {
+    const { history: result } = applyUpdate(undefined, {
       sessionId: "s1",
       message: "start work",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 1000,
     });
 
-    expect(result).toEqual([
-      { sessionId: "s1", lastUpdatedTimestamp: 1000, label: "start work", workspace: "/ws" },
-    ]);
+    expect(result).toEqual([{ sessionId: "s1", lastUpdatedTimestamp: 1000, label: "start work", workspace: "/ws" }]);
   });
 
   it("refreshes only the timestamp when the incoming id matches an entry", () => {
     const history = [makeEntry("s1", 1000)];
 
-    const result = upsertSessionHistory(history, {
+    const { history: result } = applyUpdate(history, {
       sessionId: "s1",
       message: "a brand new message that must not become the label",
       workspace: "/other",
       timestamp: 2000,
     });
 
-    expect(result).toEqual([{ sessionId: "s1", lastUpdatedTimestamp: 2000, label: "s1", workspace: "/ws" }]);
+    expect(result).toEqual([{ sessionId: "s1", lastUpdatedTimestamp: 2000, label: "label s1", workspace: "/ws" }]);
   });
 
   it("refreshes the matched entry in place instead of rebuilding the ledger", () => {
     const matchedEntry = makeEntry("s1", 1000);
     const history = [makeEntry("s0", 500), matchedEntry];
 
-    const result = upsertSessionHistory(history, {
+    const { history: result } = applyUpdate(history, {
       sessionId: "s1",
       message: "same session",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 2000,
     });
 
@@ -97,10 +182,10 @@ describe("upsertSessionHistory", () => {
   it("refreshes an entry that is not the last one without moving or appending it", () => {
     const history = [makeEntry("s0", 500), makeEntry("s1", 1000), makeEntry("s2", 1500)];
 
-    const result = upsertSessionHistory(history, {
+    const { history: result } = applyUpdate(history, {
       sessionId: "s1",
       message: "revisited",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 2000,
     });
 
@@ -111,10 +196,10 @@ describe("upsertSessionHistory", () => {
   it("stores the branch point verbatim on a branched entry", () => {
     const branchPoint = { sessionId: "s0", fromMessageId: "anchor-uuid" };
 
-    const result = upsertSessionHistory([makeEntry("s0", 500)], {
+    const { history: result } = applyUpdate([makeEntry("s0", 500)], {
       sessionId: "s1",
       message: "try another approach",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 2000,
       branchPoint,
     });
@@ -129,10 +214,10 @@ describe("upsertSessionHistory", () => {
   });
 
   it("leaves the branch point unset on an ordinary entry", () => {
-    const result = upsertSessionHistory(undefined, {
+    const { history: result } = applyUpdate(undefined, {
       sessionId: "s1",
       message: "start work",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 1000,
     });
 
@@ -140,18 +225,18 @@ describe("upsertSessionHistory", () => {
   });
 
   it("keeps the branch point when the branched session is revisited", () => {
-    const history = upsertSessionHistory([makeEntry("s0", 500)], {
+    const { history } = applyUpdate([makeEntry("s0", 500)], {
       sessionId: "s1",
       message: "try another approach",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 2000,
       branchPoint: { sessionId: "s0", fromMessageId: "anchor-uuid" },
     });
 
-    const result = upsertSessionHistory(history, {
+    const { history: result } = applyUpdate(history, {
       sessionId: "s1",
       message: "the run that resumes the fork",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 3000,
     });
 
@@ -162,32 +247,37 @@ describe("upsertSessionHistory", () => {
   it("keeps the original label when a session is revisited", () => {
     const history = [makeEntry("s0", 500), makeEntry("s1", 1000)];
 
-    const result = upsertSessionHistory(history, {
+    const { history: result } = applyUpdate(history, {
       sessionId: "s0",
       message: "a much later message that must not relabel the session",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 2000,
     });
 
-    expect(result[0].label).toBe("s0");
+    expect(result[0].label).toBe("label s0");
   });
 
   it("appends a new entry when the incoming id matches no entry", () => {
     const history = [makeEntry("s1", 1000)];
 
-    const result = upsertSessionHistory(history, {
+    const { history: result } = applyUpdate(history, {
       sessionId: "s2",
       message: "second session",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 2000,
     });
 
     expect(result).toHaveLength(2);
-    expect(result[1]).toEqual({ sessionId: "s2", lastUpdatedTimestamp: 2000, label: "second session", workspace: "/ws" });
+    expect(result[1]).toEqual({
+      sessionId: "s2",
+      lastUpdatedTimestamp: 2000,
+      label: "second session",
+      workspace: "/ws",
+    });
   });
 });
 
-describe("upsertSessionHistory family-aware eviction", () => {
+describe("updateSessionHistory family-aware eviction", () => {
   it("retains a family while a transitive descendant sits in the window", () => {
     const history = [
       makeEntry("root", 1),
@@ -196,10 +286,10 @@ describe("upsertSessionHistory family-aware eviction", () => {
       makeEntry("grandchild", 500, "child"),
     ];
 
-    const result = upsertSessionHistory(history, {
+    const { history: result } = applyUpdate(history, {
       sessionId: "fresh",
       message: "new turn",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 900,
     });
 
@@ -211,16 +301,12 @@ describe("upsertSessionHistory family-aware eviction", () => {
   });
 
   it("evicts a family whole once every member has fallen out of the window", () => {
-    const history = [
-      makeEntry("root", 1),
-      makeEntry("child", 2, "root"),
-      ...singletons("s", MAX_SESSION_HISTORY, 100),
-    ];
+    const history = [makeEntry("root", 1), makeEntry("child", 2, "root"), ...singletons("s", MAX_SESSION_HISTORY, 100)];
 
-    const result = upsertSessionHistory(history, {
+    const { history: result } = applyUpdate(history, {
       sessionId: "fresh",
       message: "new turn",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 900,
     });
 
@@ -238,10 +324,10 @@ describe("upsertSessionHistory family-aware eviction", () => {
       ...singletons("s", MAX_SESSION_HISTORY - 1, 100),
     ];
 
-    const result = upsertSessionHistory(history, {
+    const { history: result } = applyUpdate(history, {
       sessionId: "fresh",
       message: "new turn",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 900,
     });
 
@@ -259,10 +345,10 @@ describe("upsertSessionHistory family-aware eviction", () => {
       makeEntry("childB", 500, "root"),
     ];
 
-    const result = upsertSessionHistory(history, {
+    const { history: result } = applyUpdate(history, {
       sessionId: "fresh",
       message: "new turn",
-      workspace: "/ws",
+      workspace: WORKSPACE,
       timestamp: 900,
     });
 
@@ -271,5 +357,266 @@ describe("upsertSessionHistory family-aware eviction", () => {
     expect(ids).toContain("childA");
     expect(ids).toContain("childB");
     assertNoDanglingBranchPoints(result);
+  });
+});
+
+describe("resolveBranchSource", () => {
+  it("returns the ledger entry naming the branched session", () => {
+    const history = makeHistory();
+
+    const sourceEntry = resolveBranchSource(makeAgent(), history, BRANCH_POINT, WORKSPACE);
+
+    expect(sourceEntry).toBe(history[1]);
+  });
+
+  it("rejects a non-Claude agent", () => {
+    expectAppErrorCode(
+      () => resolveBranchSource(makeAgent({ type: AGENT_TYPE.GITHUB_COPILOT }), makeHistory(), BRANCH_POINT, WORKSPACE),
+      APP_ERROR_CODES.NOT_SUPPORTED
+    );
+  });
+
+  it("rejects an agent that does not persist sessions", () => {
+    expectAppErrorCode(
+      () => resolveBranchSource(makeAgent({ persistSession: false }), makeHistory(), BRANCH_POINT, WORKSPACE),
+      APP_ERROR_CODES.VALIDATION
+    );
+  });
+
+  it("accepts an agent whose persistSession is unset", () => {
+    expect(() => resolveBranchSource(makeAgent(), makeHistory(), BRANCH_POINT, WORKSPACE)).not.toThrow();
+  });
+
+  it("rejects a session that names no ledger entry", () => {
+    expectAppErrorCode(
+      () =>
+        resolveBranchSource(makeAgent(), makeHistory(), { sessionId: "evicted", fromMessageId: "anchor" }, WORKSPACE),
+      APP_ERROR_CODES.SESSION_NOT_FOUND
+    );
+  });
+
+  it("rejects when the ledger is empty", () => {
+    expectAppErrorCode(
+      () => resolveBranchSource(makeAgent(), undefined, BRANCH_POINT, WORKSPACE),
+      APP_ERROR_CODES.SESSION_NOT_FOUND
+    );
+  });
+
+  // The fork lands under the entry's workspace while the following turn runs under the agent's
+  // current one; ensureValidSession would silently drop the fork on a divergence.
+  it("rejects when the agent's workspace moved since the source session", () => {
+    expectAppErrorCode(
+      () => resolveBranchSource(makeAgent(), makeHistory("/old-ws"), BRANCH_POINT, WORKSPACE),
+      APP_ERROR_CODES.CONFLICT
+    );
+  });
+});
+
+describe("resolveSwitchTarget", () => {
+  it("returns the ledger entry naming the target session", () => {
+    const history = makeHistory();
+
+    expect(resolveSwitchTarget(history, "target", WORKSPACE)).toBe(history[1]);
+  });
+
+  it("resolves a branched entry like any other", () => {
+    const history: SessionHistory[] = [
+      ...makeHistory(),
+      {
+        sessionId: "branched",
+        lastUpdatedTimestamp: 2000,
+        label: "branched",
+        workspace: WORKSPACE,
+        branchPoint: BRANCH_POINT,
+      },
+    ];
+
+    expect(resolveSwitchTarget(history, "branched", WORKSPACE)).toBe(history[2]);
+  });
+
+  it("rejects a session that names no ledger entry", () => {
+    expectAppErrorCode(
+      () => resolveSwitchTarget(makeHistory(), "unknown", WORKSPACE),
+      APP_ERROR_CODES.SESSION_NOT_FOUND
+    );
+  });
+
+  it("rejects when the ledger is empty", () => {
+    expectAppErrorCode(() => resolveSwitchTarget([], "target", WORKSPACE), APP_ERROR_CODES.SESSION_NOT_FOUND);
+    expectAppErrorCode(() => resolveSwitchTarget(undefined, "target", WORKSPACE), APP_ERROR_CODES.SESSION_NOT_FOUND);
+  });
+
+  it("rejects when the agent's workspace moved since the target session", () => {
+    expectAppErrorCode(
+      () => resolveSwitchTarget(makeHistory("/old-ws"), "target", WORKSPACE),
+      APP_ERROR_CODES.CONFLICT
+    );
+  });
+});
+
+describe("buildSessionTree", () => {
+  it("returns nothing for an empty or absent ledger", () => {
+    expect(buildSessionTree(undefined)).toEqual([]);
+    expect(buildSessionTree([])).toEqual([]);
+  });
+
+  it("orders a branchless ledger by recency, all at depth zero", () => {
+    const history = [makeEntry("s1", 1000), makeEntry("s2", 3000), makeEntry("s3", 2000)];
+
+    expect(buildSessionTree(history)).toEqual([
+      { sessionId: "s2", label: "label s2", lastUpdatedTimestamp: 3000, depth: 0, isBranch: false },
+      { sessionId: "s3", label: "label s3", lastUpdatedTimestamp: 2000, depth: 0, isBranch: false },
+      { sessionId: "s1", label: "label s1", lastUpdatedTimestamp: 1000, depth: 0, isBranch: false },
+    ]);
+  });
+
+  it("raises a whole family on its most recent branch, keeping the root first", () => {
+    const history = [
+      makeEntry("old-root", 1000),
+      makeEntry("recent-branch", 5000, "old-root"),
+      makeEntry("other", 3000),
+    ];
+
+    // The root is older than `other` and still leads, because the family sorts on its branch.
+    expect(orderOf(history)).toEqual(["old-root", "recent-branch", "other"]);
+  });
+
+  it("keeps siblings in the order they were branched, whatever their recency", () => {
+    const history = [
+      makeEntry("root", 1000),
+      makeEntry("first-branch", 2000, "root"),
+      makeEntry("second-branch", 9000, "root"),
+    ];
+
+    expect(orderOf(history)).toEqual(["root", "first-branch", "second-branch"]);
+  });
+
+  it("holds a session's place when a sibling runs, so the tree does not reshuffle", () => {
+    const history = [
+      makeEntry("root", 1000),
+      makeEntry("first-branch", 2000, "root"),
+      makeEntry("second-branch", 3000, "root"),
+    ];
+    const before = orderOf(history);
+
+    history[1].lastUpdatedTimestamp = 9000;
+
+    expect(orderOf(history)).toEqual(before);
+  });
+
+  it("increments depth once per branch level along a chain", () => {
+    const history = [makeEntry("s1", 1000), makeEntry("s2", 2000, "s1"), makeEntry("s3", 3000, "s2")];
+
+    expect(depthOf(history)).toEqual({ s1: 0, s2: 1, s3: 2 });
+  });
+
+  it("marks every entry carrying a branch point as a branch", () => {
+    const history = [makeEntry("root", 1000), makeEntry("branch", 2000, "root")];
+
+    expect(buildSessionTree(history).map((node) => node.isBranch)).toEqual([false, true]);
+  });
+
+  it("roots an entry whose branch source is gone, still marking it a branch", () => {
+    const history = [makeEntry("kept", 1000), makeEntry("orphan", 4000, "evicted")];
+
+    expect(buildSessionTree(history)).toEqual([
+      { sessionId: "orphan", label: "label orphan", lastUpdatedTimestamp: 4000, depth: 0, isBranch: true },
+      { sessionId: "kept", label: "label kept", lastUpdatedTimestamp: 1000, depth: 0, isBranch: false },
+    ]);
+  });
+
+  it("falls back to ledger order when families tie on recency", () => {
+    const history = [makeEntry("first", 1000), makeEntry("second", 1000), makeEntry("third", 1000)];
+
+    // Ledger order is creation order, the only fallback here that carries meaning.
+    expect(orderOf(history)).toEqual(["first", "second", "third"]);
+  });
+
+  it("nests a child listed before its parent, so hierarchy does not depend on array order", () => {
+    const appendOrder = [
+      makeEntry("root", 1000),
+      makeEntry("branch", 2000, "root"),
+      makeEntry("deep-leaf", 9000, "branch"),
+      makeEntry("other-root", 3000),
+    ];
+    const expectedDepths = { root: 0, branch: 1, "deep-leaf": 2, "other-root": 0 };
+    const reverseOrder = appendOrder.toReversed();
+
+    expect(depthOf(appendOrder)).toEqual(expectedDepths);
+    expect(depthOf(reverseOrder)).toEqual(expectedDepths);
+    // The family still leads on its leaf, which no forward pass over the reversed array would find.
+    expect(orderOf(reverseOrder)[0]).toBe("root");
+  });
+});
+
+describe("updateSessionHistory tree upkeep", () => {
+  it("rebuilds nothing for an update on the leading session, refreshing the standing tree in place", () => {
+    const history = [makeEntry("older", 500), makeEntry("current", 1000)];
+    const sessionTree = buildSessionTree(history);
+
+    const updated = updateSessionHistory(history, sessionTree, makeUpdate("current", 2000));
+
+    expect(updated.sessionTree).toBeUndefined();
+    expect(sessionTree[0].lastUpdatedTimestamp).toBe(2000);
+  });
+
+  it("rebuilds nothing for an update on a branch under the leading root", () => {
+    const history = [makeEntry("root", 1000), makeEntry("left", 3000, "root"), makeEntry("right", 2000, "root")];
+    const sessionTree = buildSessionTree(history);
+
+    const updated = updateSessionHistory(history, sessionTree, makeUpdate("right", 4000));
+
+    expect(updated.sessionTree).toBeUndefined();
+    expect(sessionTree[2].lastUpdatedTimestamp).toBe(4000);
+  });
+
+  it("rebuilds around a session the ledger did not hold", () => {
+    const updated = applyUpdate([makeEntry("older", 500), makeEntry("current", 1000)], makeUpdate("fresh", 2000));
+
+    expect(rebuiltTreeOf(updated).map((node) => node.sessionId)).toEqual(["fresh", "current", "older"]);
+  });
+
+  it("rebuilds around a branch of the leading session, nesting it", () => {
+    const updated = applyUpdate([makeEntry("current", 1000)], makeUpdate("forked", 2000, "current"));
+
+    expect(rebuiltTreeOf(updated).map((node) => node.depth)).toEqual([0, 1]);
+  });
+
+  it("rebuilds around an older family being resumed", () => {
+    const updated = applyUpdate([makeEntry("recent", 5000), makeEntry("stale", 1000)], makeUpdate("stale", 9000));
+
+    expect(rebuiltTreeOf(updated).map((node) => node.sessionId)).toEqual(["stale", "recent"]);
+  });
+
+  it("rebuilds around an eviction", () => {
+    const history = Array.from({ length: MAX_SESSION_HISTORY }, (_unused, index) =>
+      makeEntry(`s${index}`, 1000 + index)
+    );
+
+    const updated = applyUpdate(history, makeUpdate("overflow", 9000));
+
+    expect(rebuiltTreeOf(updated).map((node) => node.sessionId)).not.toContain("s0");
+  });
+
+  it("stops at the next root, so a trailing family's branch is not taken for a leading one", () => {
+    const history = [
+      makeEntry("leader", 9000),
+      makeEntry("trailing-root", 1000),
+      makeEntry("trailing-branch", 2000, "trailing-root"),
+    ];
+
+    const updated = applyUpdate(history, makeUpdate("trailing-branch", 9500));
+
+    expect(rebuiltTreeOf(updated).map((node) => node.sessionId)).toEqual([
+      "trailing-root",
+      "trailing-branch",
+      "leader",
+    ]);
+  });
+
+  it("rebuilds for the first session an agent ever runs", () => {
+    const updated = applyUpdate(undefined, makeUpdate("first-ever", 1000));
+
+    expect(rebuiltTreeOf(updated).map((node) => node.sessionId)).toEqual(["first-ever"]);
   });
 });

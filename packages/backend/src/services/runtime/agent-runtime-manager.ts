@@ -16,6 +16,7 @@ import {
   type BranchPoint,
   type PermissionDecision,
   type QuestionSubmission,
+  type SessionHistoryNode,
   type AgentMessage,
   AGENT_TASK_SOURCE_TYPE,
 } from "@crow-central-agency/shared";
@@ -23,10 +24,8 @@ import type { AgentRegistry } from "../agent-registry.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
 import { PermissionHandler } from "./permission-handler.js";
 import { QuestionHandler } from "./question-handler.js";
-import { upsertSessionHistory } from "./session-history.js";
-import { resolveBranchSource } from "./session-branch.js";
-import { resolveSwitchTarget } from "./session-switch.js";
-import { sessionTreeOrder } from "./session-tree.js";
+import { buildSessionTree, resolveBranchSource, resolveSwitchTarget, updateSessionHistory } from "./session-history.js";
+import type { SessionHistoryUpdate } from "./session-history.types.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
 import { MESSAGE_SOURCE_TYPE, type MessageSource, type QueuedMessage } from "../message-queue-manager.types.js";
@@ -47,7 +46,7 @@ import {
 } from "../../runner/agent-runner.types.js";
 import type { CrowMcpManager } from "../../mcp/crow-mcp-manager.js";
 import type { AgentTaskManager } from "../agent-task-manager.js";
-import { head, isEqual, isString, uniqBy } from "es-toolkit";
+import { head, isString, uniqBy } from "es-toolkit";
 import { EventBus } from "../../core/event-bus/event-bus.js";
 import type { AgentRuntimeManagerEvents, ArtifactRecord } from "./agent-runtime-manager.types.js";
 import { startQuerySpan, type AgentQuerySpan } from "../../telemetry/agent-telemetry.js";
@@ -77,6 +76,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   private agentRunners = new Map<string, AgentRunner>();
   private agentActivities = new Map<string, AgentActivity[]>();
   private runtimeStates = new Map<string, AgentRuntimeState>();
+  private sessionTrees = new Map<string, SessionHistoryNode[]>();
   private activeQuerySpans = new Map<string, AgentQuerySpan>();
   private readonly permissionHandler: PermissionHandler;
   private readonly questionHandler: QuestionHandler;
@@ -140,6 +140,18 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
   public getActivities(agentId: string): AgentActivity[] | undefined {
     return this.agentActivities.get(agentId);
+  }
+
+  public getSessionTree(agentId: string): SessionHistoryNode[] {
+    const sessionTree = this.sessionTrees.get(agentId);
+    if (sessionTree) {
+      return sessionTree;
+    }
+
+    const builtTree = buildSessionTree(this.runtimeStates.get(agentId)?.sessionHistory);
+    this.sessionTrees.set(agentId, builtTree);
+
+    return builtTree;
   }
 
   /** Get all runtime states */
@@ -251,18 +263,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
   }
 
-  /**
-   * Make an existing session from the agent's ledger the current one.
-   *
-   * Idempotent: switching to the session that is already current does nothing. Every guard resolves
-   * before the first write, so a rejected switch leaves the agent untouched. The ledger itself does
-   * not change — only which of its sessions is current.
-   */
+  /** Make an existing session from the agent's ledger the current one. */
   public async switchSession(agentId: string, sessionId: string): Promise<void> {
     const state = this.ensureState(agentId);
-    // Ahead of every guard: doing nothing needs nothing validated, and a network retry of a switch
-    // that already succeeded lands here. Rejecting it would fail a request whose intent is met, and
-    // running the effect would reset live state for a session that never changed.
+    // Ahead of every guard so a retry of a switch that already succeeded stays a no-op.
     if (state.sessionId === sessionId) {
       return;
     }
@@ -287,8 +291,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
 
     state.sessionId = sessionId;
-    // Neither is stored per session: both reflect real values again once a query runs in the
-    // session being switched to.
+    // Neither is stored per session; both refill once a query runs in the session switched to.
     state.activeDomainFragmentIds = [];
     state.sessionUsage = {
       inputTokens: 0,
@@ -499,19 +502,13 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             querySpan.setSessionId(event.sessionId);
             state.lastError = undefined;
             state.sessionId = event.sessionId;
-            const sessionOrderBeforeTurn = sessionTreeOrder(state.sessionHistory);
-            state.sessionHistory = upsertSessionHistory(state.sessionHistory, {
+            this.updateAgentSessionHistory(state, {
               sessionId: event.sessionId,
               message,
               workspace,
               timestamp: Date.now(),
               branchPoint,
             });
-            // The ordinary turn only refreshes a timestamp on the session that already leads, which
-            // the panel renders identically; announcing that would cost a refetch per turn.
-            if (!isEqual(sessionOrderBeforeTurn, sessionTreeOrder(state.sessionHistory))) {
-              this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_SESSIONS_UPDATED, agentId });
-            }
 
             if (persistUserMessage && !userMessageAdded) {
               const userMessage = await this.sessionManager.addUserMessage(
@@ -803,6 +800,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     this.agentRunners.delete(agentId);
 
     this.runtimeStates.delete(agentId);
+    this.sessionTrees.delete(agentId);
     await this.messageQueue.clear(agentId);
 
     try {
@@ -810,6 +808,17 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     } catch (error) {
       log.error({ agentId, error }, "Failed to persist state after cleanup");
     }
+  }
+
+  private updateAgentSessionHistory(state: AgentRuntimeState, update: SessionHistoryUpdate): void {
+    const updated = updateSessionHistory(state.sessionHistory, this.getSessionTree(state.agentId), update);
+    state.sessionHistory = updated.history;
+    if (updated.sessionTree === undefined) {
+      return;
+    }
+
+    this.sessionTrees.set(state.agentId, updated.sessionTree);
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_SESSIONS_UPDATED, agentId: state.agentId });
   }
 
   /** Ensure a runtime state exists for the given agent */
@@ -948,6 +957,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       } catch {
         log.warn({ agentId }, "Orphaned runtime state - agent no longer exists, cleaning up");
         this.runtimeStates.delete(agentId);
+        this.sessionTrees.delete(agentId);
         await this.store.delete(AGENT_RUNTIME_MANAGER_STORE_TABLE, agentId);
 
         continue;
