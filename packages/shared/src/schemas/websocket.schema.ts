@@ -60,6 +60,7 @@ export const SERVER_MESSAGE_TYPE = {
   FRAGMENT_UPDATED: "fragment_updated",
   FRAGMENT_DELETED: "fragment_deleted",
   AGENT_BUILDER_DRAFT_UPDATED: "agent_builder_draft_updated",
+  AGENT_SESSIONS_UPDATED: "agent_sessions_updated",
 } as const;
 
 export type ServerMessageType = (typeof SERVER_MESSAGE_TYPE)[keyof typeof SERVER_MESSAGE_TYPE];
@@ -297,6 +298,15 @@ export const AgentBuilderDraftUpdatedWsMessageSchema = z.object({
   draft: AgentBuilderDraftViewSchema.nullable(),
 });
 
+/**
+ * The agent's session list changed shape or order. It carries no session data: the client refetches
+ * the sessions query, so the projection keeps a single source.
+ */
+export const AgentSessionsUpdatedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.AGENT_SESSIONS_UPDATED),
+  agentId: z.string(),
+});
+
 /** Server -> Client discriminated union for runtime parsing */
 export const ServerMessageSchema = z.discriminatedUnion("type", [
   AgentTextWsMessageSchema,
@@ -328,6 +338,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   FragmentUpdatedWsMessageSchema,
   FragmentDeletedWsMessageSchema,
   AgentBuilderDraftUpdatedWsMessageSchema,
+  AgentSessionsUpdatedWsMessageSchema,
 ]);
 
 export type AgentTextWsMessage = z.infer<typeof AgentTextWsMessageSchema>;
@@ -359,6 +370,7 @@ export type FragmentCreatedWsMessage = z.infer<typeof FragmentCreatedWsMessageSc
 export type FragmentUpdatedWsMessage = z.infer<typeof FragmentUpdatedWsMessageSchema>;
 export type FragmentDeletedWsMessage = z.infer<typeof FragmentDeletedWsMessageSchema>;
 export type AgentBuilderDraftUpdatedWsMessage = z.infer<typeof AgentBuilderDraftUpdatedWsMessageSchema>;
+export type AgentSessionsUpdatedWsMessage = z.infer<typeof AgentSessionsUpdatedWsMessageSchema>;
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 
 /** The server messages scoped to a single agent — those carrying an `agentId`. */

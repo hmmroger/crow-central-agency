@@ -74,3 +74,16 @@ export function buildSessionTree(sessionHistory: SessionHistory[] | undefined): 
 
   return nodes;
 }
+
+/**
+ * The projected session ids in render order. Comparing one taken before a ledger write with one
+ * taken after says whether the panel's view actually moved — an append, an eviction, a family
+ * rising, or siblings swapping within a family — without enumerating those causes.
+ *
+ * Only ids: `lastUpdatedTimestamp` changes on every turn, so comparing it would report a change
+ * every time. Take the earlier snapshot with this function rather than keeping the ledger array,
+ * which `upsertSessionHistory` updates in place.
+ */
+export function sessionTreeOrder(sessionHistory: SessionHistory[] | undefined): string[] {
+  return buildSessionTree(sessionHistory).map((node) => node.sessionId);
+}

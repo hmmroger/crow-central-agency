@@ -26,6 +26,7 @@ import { QuestionHandler } from "./question-handler.js";
 import { upsertSessionHistory } from "./session-history.js";
 import { resolveBranchSource } from "./session-branch.js";
 import { resolveSwitchTarget } from "./session-switch.js";
+import { sessionTreeOrder } from "./session-tree.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
 import { MESSAGE_SOURCE_TYPE, type MessageSource, type QueuedMessage } from "../message-queue-manager.types.js";
@@ -46,7 +47,7 @@ import {
 } from "../../runner/agent-runner.types.js";
 import type { CrowMcpManager } from "../../mcp/crow-mcp-manager.js";
 import type { AgentTaskManager } from "../agent-task-manager.js";
-import { head, isString, uniqBy } from "es-toolkit";
+import { head, isEqual, isString, uniqBy } from "es-toolkit";
 import { EventBus } from "../../core/event-bus/event-bus.js";
 import type { AgentRuntimeManagerEvents, ArtifactRecord } from "./agent-runtime-manager.types.js";
 import { startQuerySpan, type AgentQuerySpan } from "../../telemetry/agent-telemetry.js";
@@ -493,11 +494,12 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       );
       for await (const event of eventStream) {
         switch (event.type) {
-          case AGENT_STREAM_EVENT_TYPE.INIT:
+          case AGENT_STREAM_EVENT_TYPE.INIT: {
             this.addQueryStartActivity(agentId);
             querySpan.setSessionId(event.sessionId);
             state.lastError = undefined;
             state.sessionId = event.sessionId;
+            const sessionOrderBeforeTurn = sessionTreeOrder(state.sessionHistory);
             state.sessionHistory = upsertSessionHistory(state.sessionHistory, {
               sessionId: event.sessionId,
               message,
@@ -505,6 +507,12 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
               timestamp: Date.now(),
               branchPoint,
             });
+            // The ordinary turn only refreshes a timestamp on the session that already leads, which
+            // the panel renders identically; announcing that would cost a refetch per turn.
+            if (!isEqual(sessionOrderBeforeTurn, sessionTreeOrder(state.sessionHistory))) {
+              this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_SESSIONS_UPDATED, agentId });
+            }
+
             if (persistUserMessage && !userMessageAdded) {
               const userMessage = await this.sessionManager.addUserMessage(
                 agent.type,
@@ -527,6 +535,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
             await this.persistAgentState(agentId);
             break;
+          }
 
           case AGENT_STREAM_EVENT_TYPE.TOOLS_DISCOVERED:
             if (event.discoveredTools.length > 0) {

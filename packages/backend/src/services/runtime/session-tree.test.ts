@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { SessionHistory } from "@crow-central-agency/shared";
-import { buildSessionTree } from "./session-tree.js";
+import { isEqual } from "es-toolkit";
+import { MAX_SESSION_HISTORY, type SessionHistory } from "@crow-central-agency/shared";
+import { buildSessionTree, sessionTreeOrder } from "./session-tree.js";
+import { upsertSessionHistory } from "./session-history.js";
+import type { SessionHistoryAppend } from "./session-history.types.js";
 
 function makeEntry(sessionId: string, timestamp: number, branchParent?: string): SessionHistory {
   const entry: SessionHistory = {
@@ -108,5 +111,80 @@ describe("buildSessionTree", () => {
     // Children ahead of their parents, families interleaved.
     expect(orderOf([...appendOrder].reverse())).toEqual(expected);
     expect(orderOf([appendOrder[3], appendOrder[4], appendOrder[1], appendOrder[0], appendOrder[2]])).toEqual(expected);
+  });
+});
+
+describe("sessionTreeOrder as the agent_sessions_updated condition", () => {
+  interface TurnResult {
+    emits: boolean;
+    order: string[];
+  }
+
+  /** What the INIT case does: project either side of the turn's ledger write and compare. */
+  function applyTurn(
+    history: SessionHistory[],
+    sessionId: string,
+    timestamp: number,
+    branchParent?: string
+  ): TurnResult {
+    const append: SessionHistoryAppend = {
+      sessionId,
+      message: `message for ${sessionId}`,
+      workspace: "/ws",
+      timestamp,
+    };
+    if (branchParent !== undefined) {
+      append.branchPoint = { sessionId: branchParent, fromMessageId: `${sessionId}-from` };
+    }
+
+    const orderBefore = sessionTreeOrder(history);
+    const orderAfter = sessionTreeOrder(upsertSessionHistory(history, append));
+
+    return { emits: !isEqual(orderBefore, orderAfter), order: orderAfter };
+  }
+
+  it("stays quiet when a turn only refreshes the session already leading", () => {
+    // The ordinary turn. Its timestamp moves, which is deliberately not part of the comparison.
+    const history = [makeEntry("older", 500), makeEntry("current", 1000)];
+
+    expect(applyTurn(history, "current", 2000).emits).toBe(false);
+  });
+
+  it("announces a session the ledger did not hold", () => {
+    const history = [makeEntry("older", 500), makeEntry("current", 1000)];
+
+    expect(applyTurn(history, "fresh", 2000).emits).toBe(true);
+  });
+
+  it("announces a branch of the leading session", () => {
+    expect(applyTurn([makeEntry("current", 1000)], "forked", 2000, "current").emits).toBe(true);
+  });
+
+  it("announces an eviction", () => {
+    const history = Array.from({ length: MAX_SESSION_HISTORY }, (_unused, index) =>
+      makeEntry(`s${index}`, 1000 + index)
+    );
+
+    const result = applyTurn(history, "overflow", 9000);
+
+    expect(result.emits).toBe(true);
+    expect(result.order).not.toContain("s0");
+  });
+
+  it("announces an older family being resumed", () => {
+    const history = [makeEntry("recent", 5000), makeEntry("stale", 1000)];
+
+    expect(applyTurn(history, "stale", 9000).emits).toBe(true);
+  });
+
+  it("announces siblings reordering inside the family already leading", () => {
+    // The case an emit rule stated as append/evict/family-rose would miss: the leading family stays
+    // leading and no entry is added, yet the rendered order changes.
+    const history = [makeEntry("root", 1000), makeEntry("left", 3000, "root"), makeEntry("right", 2000, "root")];
+
+    const result = applyTurn(history, "right", 4000);
+
+    expect(result.emits).toBe(true);
+    expect(result.order).toEqual(["root", "right", "left"]);
   });
 });
