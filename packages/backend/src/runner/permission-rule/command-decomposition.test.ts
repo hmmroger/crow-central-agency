@@ -368,12 +368,11 @@ describe("deriveCommandRules", () => {
     ]);
   });
 
-  it("recurses into a script block, deriving the cmdlet prefix and the block's own command", () => {
+  it("recurses into a script block, deriving the cmdlet prefix and dropping the block's expression", () => {
     const command = "Get-Service | Where-Object { $_.Status -eq 'Running' } | Select-Object -Property DisplayName";
     expect(deriveCommandRules(command, SHELL.POWERSHELL)).toEqual([
       "Get-Service *",
       "Where-Object *",
-      "$_.Status -eq 'Running' *",
       "Select-Object -Property DisplayName *",
     ]);
   });
@@ -409,9 +408,8 @@ describe("deriveCommandRules", () => {
 });
 
 describe("splitCommandPositions — decompose to the commands actually being run", () => {
-  it("drops the bare foreach keyword and keeps the block body as its own leaf", () => {
+  it("drops the foreach header entirely, keeping only the block body as a leaf", () => {
     expect(splitCommandPositions("foreach ($file in $files) { Remove-Item $file }", SHELL.POWERSHELL)).toEqual([
-      "$file in $files",
       "Remove-Item $file",
     ]);
   });
@@ -434,7 +432,7 @@ describe("splitCommandPositions — decompose to the commands actually being run
         "Get-Process | ForEach-Object { if ($_.CPU -gt 10) { Stop-Process $_ } }",
         SHELL.POWERSHELL
       )
-    ).toEqual(["Get-Process", "ForEach-Object", "$_.CPU -gt 10", "Stop-Process $_"]);
+    ).toEqual(["Get-Process", "ForEach-Object", "Stop-Process $_"]);
   });
 
   it("skips consecutive Bash assignment prefixes", () => {
@@ -449,9 +447,9 @@ describe("splitCommandPositions — decompose to the commands actually being run
     expect(splitCommandPositions("&{ Remove-Item x }", SHELL.POWERSHELL)).toEqual(["Remove-Item x"]);
   });
 
-  it("keeps a call operator, splat, and bare-variable invocation each as their own leaf", () => {
-    expect(splitCommandPositions("& $cmd arg", SHELL.POWERSHELL)).toEqual(["$cmd arg"]);
-    expect(splitCommandPositions("$sb.Invoke()", SHELL.POWERSHELL)).toEqual(["$sb.Invoke()"]);
+  it("drops a PowerShell variable-driven invocation but keeps a Bash one", () => {
+    expect(splitCommandPositions("& $cmd arg", SHELL.POWERSHELL)).toEqual([]);
+    expect(splitCommandPositions("$sb.Invoke()", SHELL.POWERSHELL)).toEqual([]);
     expect(splitCommandPositions("$CMD arg", SHELL.BASH)).toEqual(["$CMD arg"]);
   });
 
@@ -479,12 +477,11 @@ describe("splitCommandPositions — bare paren as a balanced region (Defect 1)",
   it("recurses a grouping paren instead of mangling it into fragments and a bare `)` leaf", () => {
     expect(
       splitCommandPositions("$x = (Get-Process | Where-Object { $_.CPU -gt 1 })", SHELL.POWERSHELL)
-    ).toEqual(["Get-Process", "Where-Object", "$_.CPU -gt 1"]);
+    ).toEqual(["Get-Process", "Where-Object"]);
   });
 
   it("recurses a grouping paren after an assignment, dropping the assignment prefix", () => {
     expect(splitCommandPositions("$firstAuthor = ($authors | Select-Object -First 1)", SHELL.POWERSHELL)).toEqual([
-      "$authors",
       "Select-Object -First 1",
     ]);
   });
@@ -495,11 +492,9 @@ describe("splitCommandPositions — bare paren as a balanced region (Defect 1)",
     ).toBe(true);
   });
 
-  it("keeps a glued argument-list paren inline in the enclosing leaf (R2 exception)", () => {
-    expect(splitCommandPositions("$_.Groups[1].Value.Trim()", SHELL.POWERSHELL)).toEqual(["$_.Groups[1].Value.Trim()"]);
-    expect(splitCommandPositions(String.raw`[regex]::Matches($b, '-\s+([^(]+)\(')`, SHELL.POWERSHELL)).toEqual([
-      String.raw`[regex]::Matches($b, '-\s+([^(]+)\(')`,
-    ]);
+  it("keeps a glued argument-list paren inline as one expression leaf, then drops it", () => {
+    expect(splitCommandPositions("$_.Groups[1].Value.Trim()", SHELL.POWERSHELL)).toEqual([]);
+    expect(splitCommandPositions(String.raw`[regex]::Matches($b, '-\s+([^(]+)\(')`, SHELL.POWERSHELL)).toEqual([]);
   });
 
   it("recurses a Bash subshell's interior into its own leaves", () => {
@@ -596,9 +591,8 @@ describe("splitCommandPositions — Bash reserved words and case patterns (Defec
 });
 
 describe("deriveCommandRules — command position decomposition", () => {
-  it("derives a rule for the loop header and the block command, not the header alone", () => {
+  it("derives only the block command, dropping the foreach header entirely", () => {
     expect(deriveCommandRules("foreach ($file in $files) { Remove-Item $file }", SHELL.POWERSHELL)).toEqual([
-      "$file in $files *",
       "Remove-Item *",
     ]);
   });
@@ -623,7 +617,6 @@ describe("deriveCommandRules — command position decomposition", () => {
     expect(deriveCommandRules("Get-Content log | ForEach-Object { $_ | Out-Host }", SHELL.POWERSHELL)).toEqual([
       "Get-Content log *",
       "ForEach-Object *",
-      "$_ *",
       "Out-Host *",
     ]);
   });
@@ -634,9 +627,9 @@ describe("deriveCommandRules — command position decomposition", () => {
     expect(deriveCommandRules("git commit -m x", SHELL.BASH)).toEqual(["git commit -m x *"]);
   });
 
-  it("falls back to normal derivation when the first token bears $", () => {
-    expect(deriveCommandRules("$_.Status -eq 'Running'", SHELL.POWERSHELL)).toEqual(["$_.Status -eq 'Running' *"]);
-    expect(deriveCommandRules("$sb.Invoke()", SHELL.POWERSHELL)).toEqual(["$sb.Invoke() *"]);
+  it("drops a PowerShell expression leaf whose first token is not an invocation", () => {
+    expect(deriveCommandRules("$_.Status -eq 'Running'", SHELL.POWERSHELL)).toEqual([]);
+    expect(deriveCommandRules("$sb.Invoke()", SHELL.POWERSHELL)).toEqual([]);
   });
 
   it("strips loop scaffolding down to the commands the keywords delimit", () => {
@@ -647,6 +640,52 @@ describe("deriveCommandRules — command position decomposition", () => {
   it("leaves an unresolvable boundary literal and still derives an approvable rule", () => {
     expect(deriveCommandRules("echo $((1+2))", SHELL.BASH)).toEqual(["echo *"]);
     expect(deriveCommandRules("echo $(rm -rf /", SHELL.BASH)).toEqual(["echo *"]);
+  });
+});
+
+const POWERSHELL_MOTIVATING_COMMAND = [
+  String.raw`$c = Get-Content 'C:\logs\out.txt' -Raw`,
+  String.raw`$blocks = $c -split '(?=Thread #)'`,
+  String.raw`foreach ($b in $blocks) {`,
+  String.raw`  if ($b -match 'Thread #(\d+)\s*\[([^\]]+)\]') {`,
+  String.raw`    $id = $Matches[1]; $status = $Matches[2]`,
+  String.raw`    $authors = [regex]::Matches($b, '-\s+([^(]+)\(') | ForEach-Object { $_.Groups[1].Value.Trim() }`,
+  String.raw`    $firstAuthor = ($authors | Select-Object -First 1)`,
+  String.raw`    "$id | $status | $firstAuthor"`,
+  String.raw`  }`,
+  String.raw`}`,
+].join("\n");
+
+const BASH_MOTIVATING_COMMAND =
+  'cd /repo/src && for f in a.ts b.ts c.ts; do echo "===== $f"; grep -n "x" "$f" | head -30; done';
+
+describe("the motivating commands decompose to real invocations only", () => {
+  it("reduces the PowerShell command to the cmdlets that actually run", () => {
+    expect(splitCommandPositions(POWERSHELL_MOTIVATING_COMMAND, SHELL.POWERSHELL)).toEqual([
+      String.raw`Get-Content 'C:\logs\out.txt' -Raw`,
+      "ForEach-Object",
+      "Select-Object -First 1",
+    ]);
+    expect(deriveCommandRules(POWERSHELL_MOTIVATING_COMMAND, SHELL.POWERSHELL)).toEqual([
+      String.raw`Get-Content 'C:\logs\out.txt' -Raw *`,
+      "ForEach-Object *",
+      "Select-Object -First 1 *",
+    ]);
+  });
+
+  it("reduces the Bash command to four leaves within the rule cap", () => {
+    expect(splitCommandPositions(BASH_MOTIVATING_COMMAND, SHELL.BASH)).toEqual([
+      "cd /repo/src",
+      'echo "===== $f"',
+      'grep -n "x" "$f"',
+      "head -30",
+    ]);
+    expect(deriveCommandRules(BASH_MOTIVATING_COMMAND, SHELL.BASH)).toEqual([
+      "cd /repo/src *",
+      "echo *",
+      'grep -n "x" *',
+      "head -30 *",
+    ]);
   });
 });
 

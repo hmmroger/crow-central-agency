@@ -173,8 +173,10 @@ function stripCommandListKeyword(leaf: string, syntax: ShellSyntax): string {
 
 /**
  * Refine a decomposed leaf into the command it actually names, or `undefined` when it names nothing
- * runnable: strip a leading command-list keyword, then drop a leaf that heads a word-list construct or
- * reduces to a bare reserved word.
+ * runnable: strip a leading command-list keyword, then drop a leaf that heads a word-list construct,
+ * reduces to a bare reserved word, or is a non-executing expression (a PowerShell leaf opening with
+ * `$`/`"`/`'`/`[` or a digit — safe to drop only because every executable sub-region already recursed
+ * out into its own leaf).
  */
 function refineLeaf(leaf: string, syntax: ShellSyntax): string | undefined {
   const stripped = stripCommandListKeyword(leaf, syntax);
@@ -195,7 +197,21 @@ function refineLeaf(leaf: string, syntax: ShellSyntax): string | undefined {
     return undefined;
   }
 
+  if (isNonExecutingExpression(firstToken, syntax)) {
+    return undefined;
+  }
+
   return stripped;
+}
+
+/** Whether a leaf's first token cannot invoke a command: a PowerShell expression opener or a digit. */
+function isNonExecutingExpression(firstToken: string, syntax: ShellSyntax): boolean {
+  const firstChar = firstToken[0];
+  if (syntax.expressionLeafOpeners.includes(firstChar)) {
+    return true;
+  }
+
+  return syntax.expressionLeafDropsLeadingDigit && firstChar >= "0" && firstChar <= "9";
 }
 
 /**
