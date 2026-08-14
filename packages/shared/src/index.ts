@@ -167,6 +167,7 @@ export {
   FragmentUpdatedWsMessageSchema,
   FragmentDeletedWsMessageSchema,
   AgentBuilderDraftUpdatedWsMessageSchema,
+  AgentSessionsUpdatedWsMessageSchema,
   type CircleCreatedWsMessage,
   type CircleUpdatedWsMessage,
   type CircleDeletedWsMessage,
@@ -176,6 +177,7 @@ export {
   type FragmentUpdatedWsMessage,
   type FragmentDeletedWsMessage,
   type AgentBuilderDraftUpdatedWsMessage,
+  type AgentSessionsUpdatedWsMessage,
   type ServerMessage,
   type AgentServerMessage,
   type AgentLifecycleServerMessage,
@@ -432,6 +434,8 @@ export {
   type GraphEdge,
   type GraphData,
 } from "./schemas/graph.schema.js";
+
+export { SessionHistoryNodeSchema, type SessionHistoryNode } from "./schemas/session-history.schema.js";
 
 export {
   ConnectorConnectionSchema,

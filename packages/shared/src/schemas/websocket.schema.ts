@@ -4,7 +4,7 @@ import { AgentConfigSchema } from "./agent.schema.js";
 import { AgentMessageSchema } from "./agent-message.schema.js";
 import { AgentTaskItemSchema, AgentTaskStateSchema } from "./agent-task.schema.js";
 import { AgentCircleSchema, RelationshipSchema } from "./agent-circle.schema.js";
-import { AGENT_STATUS, AgentActivitySchema } from "./agent-runtime-state.schema.js";
+import { AGENT_STATUS, AgentActivitySchema, BranchPointSchema } from "./agent-runtime-state.schema.js";
 import { MessageSourceSchema } from "./message-source.schema.js";
 import { AgentCommandSchema } from "./agent-command.schema.js";
 import { AgentBuilderDraftViewSchema } from "./agent-builder.schema.js";
@@ -60,6 +60,7 @@ export const SERVER_MESSAGE_TYPE = {
   FRAGMENT_UPDATED: "fragment_updated",
   FRAGMENT_DELETED: "fragment_deleted",
   AGENT_BUILDER_DRAFT_UPDATED: "agent_builder_draft_updated",
+  AGENT_SESSIONS_UPDATED: "agent_sessions_updated",
 } as const;
 
 export type ServerMessageType = (typeof SERVER_MESSAGE_TYPE)[keyof typeof SERVER_MESSAGE_TYPE];
@@ -68,6 +69,8 @@ export const SendMessageSchema = z.object({
   type: z.literal(CLIENT_MESSAGE_TYPE.SEND_MESSAGE),
   agentId: z.string(),
   message: z.string(),
+  /** When present, fork the named session at the anchor and continue from there instead of the active session */
+  branchPoint: BranchPointSchema.optional(),
 });
 
 export const InjectMessageSchema = z.object({
@@ -295,6 +298,12 @@ export const AgentBuilderDraftUpdatedWsMessageSchema = z.object({
   draft: AgentBuilderDraftViewSchema.nullable(),
 });
 
+/** The agent's session list changed shape or order; carries no data, the client refetches. */
+export const AgentSessionsUpdatedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.AGENT_SESSIONS_UPDATED),
+  agentId: z.string(),
+});
+
 /** Server -> Client discriminated union for runtime parsing */
 export const ServerMessageSchema = z.discriminatedUnion("type", [
   AgentTextWsMessageSchema,
@@ -326,6 +335,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   FragmentUpdatedWsMessageSchema,
   FragmentDeletedWsMessageSchema,
   AgentBuilderDraftUpdatedWsMessageSchema,
+  AgentSessionsUpdatedWsMessageSchema,
 ]);
 
 export type AgentTextWsMessage = z.infer<typeof AgentTextWsMessageSchema>;
@@ -357,6 +367,7 @@ export type FragmentCreatedWsMessage = z.infer<typeof FragmentCreatedWsMessageSc
 export type FragmentUpdatedWsMessage = z.infer<typeof FragmentUpdatedWsMessageSchema>;
 export type FragmentDeletedWsMessage = z.infer<typeof FragmentDeletedWsMessageSchema>;
 export type AgentBuilderDraftUpdatedWsMessage = z.infer<typeof AgentBuilderDraftUpdatedWsMessageSchema>;
+export type AgentSessionsUpdatedWsMessage = z.infer<typeof AgentSessionsUpdatedWsMessageSchema>;
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 
 /** The server messages scoped to a single agent — those carrying an `agentId`. */

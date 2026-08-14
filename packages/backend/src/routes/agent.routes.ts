@@ -2,7 +2,12 @@ import type { FastifyInstance } from "fastify";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
 import type { SessionManager } from "../services/session/session-manager.js";
-import { AGENT_STATUS, AgentConfigTemplateSchema, type AgentRuntimeState } from "@crow-central-agency/shared";
+import {
+  AGENT_STATUS,
+  AgentConfigTemplateSchema,
+  SessionHistorySchema,
+  type AgentRuntimeState,
+} from "@crow-central-agency/shared";
 import type { ConnectorManager } from "../connectors/connector-manager.js";
 import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
 import { AppError } from "../core/error/app-error.js";
@@ -146,7 +151,7 @@ export async function registerAgentRoutes(
       return { success: true, data: [] };
     }
 
-    const messages = await sessionManager.loadMessages(agent.type, sessionId, registry.resolveWorkspace(agent));
+    const messages = await sessionManager.loadMessages(agent.type, sessionId);
 
     return { success: true, data: messages };
   });
@@ -172,12 +177,7 @@ export async function registerAgentRoutes(
       }
 
       const agent = registry.getAgent(agentId);
-      const audio = await sessionManager.getAudioMessage(
-        agent.type,
-        state.sessionId,
-        registry.resolveWorkspace(agent),
-        request.params.messageId
-      );
+      const audio = await sessionManager.getAudioMessage(agent.type, state.sessionId, request.params.messageId);
       return reply.type(audio.mimeType ?? "application/octet-stream").send(audio.data);
     }
   );
@@ -201,6 +201,23 @@ export async function registerAgentRoutes(
     return { success: true, data: { newSession: true } };
   });
 
+  /** Make one of an agent's existing sessions current */
+  server.post<{ Params: { id: string }; Body: { sessionId?: unknown } }>(
+    "/api/agents/:id/session/switch",
+    async (request) => {
+      const agentId = validateAgentIdParam(request.params.id);
+
+      try {
+        const sessionId = SessionHistorySchema.shape.sessionId.parse(request.body?.sessionId);
+        await runtimeManager.switchSession(agentId, sessionId);
+
+        return { success: true, data: { sessionId } };
+      } catch (error) {
+        return wrapZodError(error);
+      }
+    }
+  );
+
   /** Get runtime state for an agent */
   server.get<{ Params: { id: string } }>("/api/agents/:id/state", async (request) => {
     const agentId = validateAgentIdParam(request.params.id);
@@ -214,6 +231,13 @@ export async function registerAgentRoutes(
     };
 
     return { success: true, data: state ?? defaultState };
+  });
+
+  /** Get an agent's session ledger as an ordered branch hierarchy, most recently active family first */
+  server.get<{ Params: { id: string } }>("/api/agents/:id/sessions", async (request) => {
+    const agentId = validateAgentIdParam(request.params.id);
+
+    return { success: true, data: runtimeManager.getSessionTree(agentId) };
   });
 
   /** Get persisted activities for an agent, oldest first */

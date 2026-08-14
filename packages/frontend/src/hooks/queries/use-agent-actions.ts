@@ -6,6 +6,7 @@ import {
   PERMISSION_DECISION,
   QUESTION_SUBMISSION_KIND,
   type AgentRuntimeState,
+  type BranchPoint,
   type QuestionAnswer,
 } from "@crow-central-agency/shared";
 import { useWs } from "../use-ws.js";
@@ -15,8 +16,12 @@ import type { ApiError } from "../../services/api-client.types.js";
 
 /** Return type of useAgentActions */
 export interface AgentActions {
-  /** Send a user message - backend creates the AgentMessage and broadcasts via WS */
-  sendMessage: (text: string) => void;
+  /**
+   * Send a user message - backend creates the AgentMessage and broadcasts via WS.
+   * With a `branchPoint` the backend forks that session at the anchor and the message continues
+   * the fork instead of the active session.
+   */
+  sendMessage: (text: string, branchPoint?: BranchPoint) => void;
   /** Inject a btw message while streaming */
   injectMessage: (text: string) => void;
   /** Stop the agent */
@@ -65,11 +70,18 @@ export function useAgentActions(agentId: string): AgentActions {
 
   /** Send a user message - backend creates the AgentMessage and broadcasts agent_message WS */
   const sendMessage = useCallback(
-    (text: string) => {
-      send({ type: CLIENT_MESSAGE_TYPE.SEND_MESSAGE, agentId, message: text });
+    (text: string, branchPoint?: BranchPoint) => {
+      send({ type: CLIENT_MESSAGE_TYPE.SEND_MESSAGE, agentId, message: text, branchPoint });
       appendInputHistory(text);
+
+      // A branch rewrites the transcript and starts a new session; the agent_status event that
+      // follows the fork refreshes messages again should this land before the fork completed.
+      if (branchPoint) {
+        void queryClient.invalidateQueries({ queryKey: agentKeys.messages(agentId) });
+        void queryClient.invalidateQueries({ queryKey: agentKeys.state(agentId) });
+      }
     },
-    [send, agentId, appendInputHistory]
+    [send, agentId, appendInputHistory, queryClient]
   );
 
   /** Inject a btw message while streaming */

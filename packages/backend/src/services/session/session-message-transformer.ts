@@ -1,6 +1,6 @@
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
 import type { SessionMessage } from "@anthropic-ai/claude-agent-sdk";
-import { getSessionInfo, getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
+import { forkSession, getSessionInfo, getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
 import { parseToolActivity } from "../../runner/tool-activity-parser.js";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta.mjs";
 import type { ContentBlockParam, MessageParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages.mjs";
@@ -100,6 +100,10 @@ function transformSingleMessage(sessionMessage: SessionMessage, baseTimestamp: n
     const messages: AgentMessage[] = [];
     let blockIndex = 0;
 
+    // forkSession slices inclusively at the SessionMessage, so anchoring on a message that also
+    // carried a tool_use would leave the fork ending on a tool call whose result was cut off.
+    const branchAnchorId = blocks.some((block) => block.type === "tool_use") ? undefined : sessionMessage.uuid;
+
     for (const block of blocks) {
       if (block.type === "text" && block.text.trim()) {
         messages.push({
@@ -108,6 +112,7 @@ function transformSingleMessage(sessionMessage: SessionMessage, baseTimestamp: n
           type: AGENT_MESSAGE_TYPE.TEXT,
           content: block.text,
           timestamp: baseTimestamp + blockIndex,
+          branchAnchorId,
         });
         blockIndex++;
       } else if (block.type === "tool_use") {
@@ -187,13 +192,12 @@ function extractTextFromBlocks(content: ContentBlockParam[] | string | undefined
  * Uses incrementing timestamps for ordering since SDK SessionMessages lack wall-clock time.
  *
  * @param sessionId session ID
- * @param cwd workspace folder
  * @returns Ordered array of AgentMessages
  */
-export async function loadClaudeCodeSessionMessages(sessionId: string, cwd: string): Promise<AgentMessage[]> {
+export async function loadClaudeCodeSessionMessages(sessionId: string): Promise<AgentMessage[]> {
   const result: AgentMessage[] = [];
   let timestampCounter = 0;
-  const sessionMessages = await getSessionMessages(sessionId, { dir: cwd });
+  const sessionMessages = await getSessionMessages(sessionId);
 
   for (const sessionMsg of sessionMessages) {
     const messages = transformSingleMessage(sessionMsg, timestampCounter);
@@ -212,12 +216,11 @@ export async function loadClaudeCodeSessionMessages(sessionId: string, cwd: stri
  * session file is gone. Reads fail open: a transient read error must never discard a live session.
  *
  * @param sessionId session ID
- * @param cwd workspace folder
  * @returns Whether session exists
  */
-export async function claudeCodeSessionExists(sessionId: string, cwd: string): Promise<boolean> {
+export async function claudeCodeSessionExists(sessionId: string): Promise<boolean> {
   try {
-    const info = await getSessionInfo(sessionId, { dir: cwd });
+    const info = await getSessionInfo(sessionId);
     return info !== undefined;
   } catch (error) {
     log.warn(
@@ -226,6 +229,21 @@ export async function claudeCodeSessionExists(sessionId: string, cwd: string): P
     );
     return true;
   }
+}
+
+/**
+ * Fork a Claude session at a transcript entry, producing a new session that ends at that entry.
+ *
+ * The slice is inclusive of `upToMessageId`. The source is located by id across every project
+ * directory, so a fork does not depend on the workspace the source session was created under.
+ *
+ * @param sessionId source session ID
+ * @param upToMessageId transcript entry uuid to fork at
+ * @returns The new session ID
+ */
+export async function forkClaudeCodeSession(sessionId: string, upToMessageId: string): Promise<string> {
+  const result = await forkSession(sessionId, { upToMessageId });
+  return result.sessionId;
 }
 
 export function transformClaudeCodeSessionMessage(sessionMessage: unknown, baseTimestamp: number): AgentMessage[] {

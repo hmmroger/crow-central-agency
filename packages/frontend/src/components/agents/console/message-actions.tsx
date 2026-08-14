@@ -1,6 +1,7 @@
 import type { AgentMessage } from "@crow-central-agency/shared";
 import { cn } from "../../../utils/cn.js";
 import { MessageAudioButton } from "./message-audio-button.js";
+import { MessageBranchButton } from "./message-branch-button.js";
 import { MessageCopyButton } from "./message-copy-button.js";
 
 type MessageActionsAlign = "start" | "end";
@@ -33,6 +34,7 @@ export function MessageActions({ agentId, message, align = "start" }: MessageAct
     >
       <MessageCopyButton message={message} />
       <MessageAudioButton agentId={agentId} message={message} />
+      <MessageBranchButton agentId={agentId} message={message} />
     </div>
   );
 }

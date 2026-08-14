@@ -63,7 +63,7 @@ export async function setupWebSocket(
 
         switch (message.type) {
           case CLIENT_MESSAGE_TYPE.SEND_MESSAGE:
-            runtimeManager.sendMessage(message.agentId, message.message).catch((error) => {
+            runtimeManager.sendMessage(message.agentId, message.message, undefined, message.branchPoint).catch((error) => {
               log.error({ agentId: message.agentId, error }, "Failed to send message");
               broadcaster.sendTo(socket, {
                 type: "error",
