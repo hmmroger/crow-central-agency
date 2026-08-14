@@ -4,10 +4,12 @@ import {
   BLOCK_CLOSE,
   BLOCK_OPEN,
   DOLLAR,
+  DOUBLE_QUOTE,
   PAREN_CLOSE,
   PAREN_OPEN,
   SHELL_SYNTAX,
   SUBSTITUTION_MARKER,
+  commandSubstitutionOpenParen,
   findBalancedEnd,
   skipInertRegion,
   splitSubcommandsBySyntax,
@@ -37,6 +39,13 @@ const OPTION_PREFIX = "-";
 const ASSIGNMENT_OPERATORS = ["=", "+="] as const;
 /** A leading Bash `NAME=value` assignment token: an identifier immediately followed by `=`. */
 const BASH_ASSIGNMENT_TOKEN = /^[A-Za-z_][A-Za-z0-9_]*=/;
+/**
+ * A leading PowerShell assignment target-plus-operator glued to its right-hand side: `$name=`,
+ * `$name+=`, `$env:NAME=`. Matched as a character pattern on the first token so it is spelling-
+ * independent, mirroring {@link BASH_ASSIGNMENT_TOKEN}; the spaced form `$name = …` has no `=` in
+ * its first token and is handled separately.
+ */
+const POWERSHELL_ASSIGNMENT_TOKEN = /^\$[A-Za-z0-9_:]+\+?=/;
 
 /**
  * Split a compound command into its top-level subcommands, preserving each as a literal slice of
@@ -45,6 +54,61 @@ const BASH_ASSIGNMENT_TOKEN = /^[A-Za-z_][A-Za-z0-9_]*=/;
  */
 export function splitSubcommands(command: string, shell: ShellDialect): string[] {
   return splitSubcommandsBySyntax(command, SHELL_SYNTAX[shell]);
+}
+
+/**
+ * Whether a `(` at `parenIndex` opens a grouping expression rather than an argument list. A paren at
+ * start-of-input or preceded by whitespace or a separator is a grouping expression whose interior is
+ * its own command list; a paren glued to a preceding token is an argument list (`Value.Trim()`,
+ * `[regex]::Matches($b, '…')`) that stays inline in the enclosing leaf.
+ */
+function isGroupingParen(text: string, parenIndex: number, syntax: ShellSyntax): boolean {
+  if (parenIndex === 0) {
+    return true;
+  }
+
+  const previous = text[parenIndex - 1];
+  return previous === " " || previous === "\t" || syntax.singleCharSeparators.includes(previous);
+}
+
+/**
+ * From `from` — the index just past a recursed region's closing `)` — return the index past any text
+ * glued to it. Text with no separating whitespace is expression continuation of that region (member
+ * access `.Year`, an index `[0]`, a chained method call), which runs nothing and must not become a
+ * leaf; this is the mirror of {@link isGroupingParen}, where gluedness marks an argument list to keep
+ * inline. Inert regions and balanced parens are skipped so whitespace inside them does not end the run.
+ */
+function skipGluedContinuation(text: string, from: number, syntax: ShellSyntax): number {
+  let index = from;
+
+  while (index < text.length) {
+    const char = text[index];
+    if (char === " " || char === "\t" || syntax.singleCharSeparators.includes(char)) {
+      break;
+    }
+
+    // A glued substitution (`$(cmd1)$(cmd2)`) is a real command region for the main scan to recurse,
+    // not inert continuation, so stop before it rather than swallowing it.
+    if (substitutionOpenParen(text, index, syntax) !== undefined) {
+      break;
+    }
+
+    const inertEnd = skipInertRegion(text, index, syntax);
+    if (inertEnd !== undefined) {
+      index = inertEnd;
+      continue;
+    }
+
+    if (char === PAREN_OPEN) {
+      const end = findBalancedEnd(text, index, PAREN_OPEN, PAREN_CLOSE, syntax);
+      index = end ?? index + 1;
+      continue;
+    }
+
+    index += 1;
+  }
+
+  return index;
 }
 
 /**
@@ -73,14 +137,23 @@ function stripAssignmentPrefix(text: string, syntax: ShellSyntax): string {
 
   if (syntax.variableAssignmentPrefix) {
     const spans = tokenSpans(text, syntax);
+    if (spans.length === 0) {
+      return text;
+    }
+
+    const firstToken = text.slice(spans[0].start, spans[0].end);
+    const gluedMatch = firstToken.match(POWERSHELL_ASSIGNMENT_TOKEN);
+    if (gluedMatch !== null) {
+      return text.slice(spans[0].start + gluedMatch[0].length).trimStart();
+    }
+
     if (spans.length < 2) {
       return text;
     }
 
-    const target = text.slice(spans[0].start, spans[0].end);
     const operator = text.slice(spans[1].start, spans[1].end);
     const isAssignment =
-      target.startsWith(DOLLAR) && (ASSIGNMENT_OPERATORS as readonly string[]).includes(operator);
+      firstToken.startsWith(DOLLAR) && (ASSIGNMENT_OPERATORS as readonly string[]).includes(operator);
     if (!isAssignment) {
       return text;
     }
@@ -92,16 +165,134 @@ function stripAssignmentPrefix(text: string, syntax: ShellSyntax): string {
 }
 
 /**
+ * Recurse the command substitutions inside a terminated double-quoted region `[interiorStart,
+ * interiorEnd)` as their own command lists, appending each command's leaves. A double-quoted region
+ * interpolates in both shells, so a `$( … )` inside it runs; the quoted text itself stays inline in the
+ * enclosing leaf. Only `$( … )` interpolates — a PowerShell `@( … )` is literal text inside a string —
+ * so it is not recursed. Escapes are honoured so `` `$( `` / `\$(` is not read as a substitution.
+ */
+function collectInterpolatedSubstitutions(
+  text: string,
+  interiorStart: number,
+  interiorEnd: number,
+  syntax: ShellSyntax,
+  leaves: string[]
+): void {
+  let index = interiorStart;
+
+  while (index < interiorEnd) {
+    if (text[index] === syntax.escapeChar && index + 1 < interiorEnd) {
+      index += 2;
+      continue;
+    }
+
+    const parenIndex = commandSubstitutionOpenParen(text, index, syntax);
+    if (parenIndex !== undefined) {
+      const end = findBalancedEnd(text, parenIndex, PAREN_OPEN, PAREN_CLOSE, syntax);
+      if (end !== undefined && end <= interiorEnd) {
+        collectLeaves(text.slice(parenIndex + 1, end - 1), syntax, leaves);
+        index = end;
+        continue;
+      }
+    }
+
+    index += 1;
+  }
+}
+
+/** The leaf's first whitespace-delimited token, or `undefined` when it holds none. */
+function firstLeafToken(leaf: string, syntax: ShellSyntax): string | undefined {
+  const spans = tokenSpans(leaf, syntax);
+  return spans.length > 0 ? leaf.slice(spans[0].start, spans[0].end) : undefined;
+}
+
+/**
+ * Strip a leading command-list keyword so the command it delimits becomes the leaf: `then rm -rf y` →
+ * `rm -rf y`. A keyword with no command after it strips to empty and is dropped by the caller. Shells
+ * without such keywords (PowerShell) return the leaf unchanged.
+ */
+function stripCommandListKeyword(leaf: string, syntax: ShellSyntax): string {
+  if (syntax.commandListKeywords.length === 0) {
+    return leaf;
+  }
+
+  const spans = tokenSpans(leaf, syntax);
+  if (spans.length === 0) {
+    return leaf;
+  }
+
+  const firstToken = leaf.slice(spans[0].start, spans[0].end);
+  if (!syntax.commandListKeywords.includes(firstToken)) {
+    return leaf;
+  }
+
+  return leaf.slice(spans[0].end).trimStart();
+}
+
+/**
+ * Refine a decomposed leaf into the command it actually names, or `undefined` when it names nothing
+ * runnable: strip a leading command-list keyword, then drop a leaf that heads a word-list construct,
+ * reduces to a bare reserved word, or is a non-executing expression (a PowerShell leaf opening with
+ * `$`/`"`/`'`/`[` or a digit — safe to drop only because every executable sub-region already recursed
+ * out into its own leaf).
+ */
+function refineLeaf(leaf: string, syntax: ShellSyntax): string | undefined {
+  const stripped = stripCommandListKeyword(leaf, syntax);
+  if (stripped.length === 0) {
+    return undefined;
+  }
+
+  const firstToken = firstLeafToken(stripped, syntax);
+  if (firstToken === undefined) {
+    return undefined;
+  }
+
+  if (syntax.wordListHeaderKeywords.includes(firstToken)) {
+    return undefined;
+  }
+
+  if (syntax.standaloneKeywords.includes(stripped)) {
+    return undefined;
+  }
+
+  if (isNonExecutingExpression(firstToken, syntax)) {
+    return undefined;
+  }
+
+  return stripped;
+}
+
+/** Whether a leaf's first token cannot invoke a command: a PowerShell expression opener or a digit. */
+function isNonExecutingExpression(firstToken: string, syntax: ShellSyntax): boolean {
+  const firstChar = firstToken[0];
+  if (syntax.expressionLeafOpeners.includes(firstChar)) {
+    return true;
+  }
+
+  return syntax.expressionLeafDropsLeadingDigit && firstChar >= "0" && firstChar <= "9";
+}
+
+/**
  * Decompose one already-split subcommand into the commands actually being run, appending each as a
  * literal slice to `leaves`. The prefix up to the first script block or command substitution is one
  * leaf; a block's or substitution's contents recurse as their own command list. An unresolvable
- * boundary is left literal in the enclosing leaf. If nothing is emitted (e.g. all assignments), the
- * whole subcommand is kept so every position carries a match obligation.
+ * boundary is left literal in the enclosing leaf. A leaf that names nothing runnable — a reserved word
+ * or a word-list header — is dropped, and the whole-literal fallback (for a subcommand that decomposed
+ * to nothing, e.g. all assignments) must not resurrect it.
  */
-function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves: string[]): void {
+function collectSubcommandLeaves(originalSubcommand: string, syntax: ShellSyntax, leaves: string[]): void {
   const startCount = leaves.length;
+  // A PowerShell assignment target is not carved by the scan — a glued `$a=(…)` reads as an argument
+  // list, not a grouping paren — so strip a leading assignment up front and let its `(…)`/`$(…)`
+  // right-hand side recurse from start-of-input, matching the spaced `$a = (…)` form. A Bash
+  // assignment glues its value to the name (`x=$(foo)`), so it stays stripped per-prefix below, after
+  // the scan has already carved out any substitution.
+  const subcommand = syntax.variableAssignmentPrefix
+    ? stripAssignmentPrefix(originalSubcommand, syntax)
+    : originalSubcommand;
   let prefixStart = 0;
   let index = 0;
+  let droppedNonRunnable = false;
 
   const emitPrefix = (end: number): void => {
     const slice = subcommand.slice(prefixStart, end).trim();
@@ -109,13 +300,32 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
       return;
     }
 
-    const stripped = stripAssignmentPrefix(slice, syntax);
-    if (stripped.length > 0) {
-      leaves.push(stripped);
+    const assignmentStripped = stripAssignmentPrefix(slice, syntax);
+    if (assignmentStripped.length === 0) {
+      return;
     }
+
+    const refined = refineLeaf(assignmentStripped, syntax);
+    if (refined === undefined) {
+      droppedNonRunnable = true;
+      return;
+    }
+
+    leaves.push(refined);
   };
 
   while (index < subcommand.length) {
+    if (subcommand[index] === DOUBLE_QUOTE) {
+      // A terminated double-quoted region interpolates, so its `$( … )` runs and is recursed while the
+      // quoted text stays inline in the enclosing leaf. An unterminated quote falls through below.
+      const quoteEnd = skipInertRegion(subcommand, index, syntax);
+      if (quoteEnd !== undefined && quoteEnd > index + 1) {
+        collectInterpolatedSubstitutions(subcommand, index + 1, quoteEnd - 1, syntax, leaves);
+        index = quoteEnd;
+        continue;
+      }
+    }
+
     const inertEnd = skipInertRegion(subcommand, index, syntax);
     if (inertEnd !== undefined) {
       index = inertEnd;
@@ -148,7 +358,29 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
 
       emitPrefix(index);
       collectLeaves(subcommand.slice(parenIndex + 1, end - 1), syntax, leaves);
-      prefixStart = end;
+      prefixStart = skipGluedContinuation(subcommand, end, syntax);
+      index = prefixStart;
+      continue;
+    }
+
+    if (char === PAREN_OPEN) {
+      const end = findBalancedEnd(subcommand, index, PAREN_OPEN, PAREN_CLOSE, syntax);
+      if (end === undefined) {
+        index += 1;
+        continue;
+      }
+
+      const interior = subcommand.slice(index + 1, end - 1);
+      if (isGroupingParen(subcommand, index, syntax) && interior.trim().length > 0) {
+        emitPrefix(index);
+        collectLeaves(interior, syntax, leaves);
+        // Text glued to the closing `)` (`.Year`, `.Count`) is expression continuation, not a leaf.
+        prefixStart = skipGluedContinuation(subcommand, end, syntax);
+        index = prefixStart;
+        continue;
+      }
+
+      // A glued argument list or an empty grouping paren stays inline in the enclosing leaf.
       index = end;
       continue;
     }
@@ -163,8 +395,10 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
 
   emitPrefix(subcommand.length);
 
-  if (leaves.length === startCount) {
-    const whole = subcommand.trim();
+  // Keep the whole subcommand only when nothing decomposed out and nothing was deliberately dropped —
+  // e.g. a bare `A=1 B=2`. A dropped reserved word or word-list header must stay gone.
+  if (leaves.length === startCount && !droppedNonRunnable) {
+    const whole = originalSubcommand.trim();
     if (whole.length > 0) {
       leaves.push(whole);
     }

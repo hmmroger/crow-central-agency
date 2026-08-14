@@ -39,6 +39,25 @@ const HEREDOC_WORD_TERMINATORS = " \t\n\r;|&<>()";
 const HEREDOC_OPENER_PRECEDERS = " \t\n\r;|&";
 const HERE_STRING_MARKER = "@";
 
+const BASH_COMMAND_LIST_KEYWORDS = ["if", "then", "elif", "else", "while", "until", "do"];
+const BASH_STANDALONE_KEYWORDS = ["done", "fi", "esac", "}"];
+const BASH_WORD_LIST_HEADER_KEYWORDS = ["for", "select", "case"];
+const POWERSHELL_STANDALONE_KEYWORDS = [
+  "if",
+  "elseif",
+  "else",
+  "foreach",
+  "for",
+  "while",
+  "do",
+  "until",
+  "switch",
+  "try",
+  "catch",
+  "finally",
+];
+const POWERSHELL_EXPRESSION_LEAF_OPENERS = [DOLLAR, DOUBLE_QUOTE, SINGLE_QUOTE, "["];
+
 export const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
   [SHELL.BASH]: {
     escapeChar: "\\",
@@ -52,6 +71,12 @@ export const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     arraySubexpression: false,
     bashAssignmentPrefix: true,
     variableAssignmentPrefix: false,
+    commandListKeywords: BASH_COMMAND_LIST_KEYWORDS,
+    standaloneKeywords: BASH_STANDALONE_KEYWORDS,
+    wordListHeaderKeywords: BASH_WORD_LIST_HEADER_KEYWORDS,
+    expressionLeafOpeners: [],
+    expressionLeafDropsLeadingDigit: false,
+    unmatchedCloseParenSeparator: true,
     twoCharSeparators: ["&&", "||", "|&"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -67,6 +92,12 @@ export const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     arraySubexpression: true,
     bashAssignmentPrefix: false,
     variableAssignmentPrefix: true,
+    commandListKeywords: [],
+    standaloneKeywords: POWERSHELL_STANDALONE_KEYWORDS,
+    wordListHeaderKeywords: [],
+    expressionLeafOpeners: POWERSHELL_EXPRESSION_LEAF_OPENERS,
+    expressionLeafDropsLeadingDigit: true,
+    unmatchedCloseParenSeparator: false,
     twoCharSeparators: ["&&", "||"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -434,6 +465,23 @@ function findSeparatorPositions(command: string, syntax: ShellSyntax): Separator
       continue;
     }
 
+    if (char === PAREN_OPEN) {
+      // A bare `( … )` grouping or subshell is a balanced region: a separator inside it is internal,
+      // and its matching `)` is consumed here so a `)` reached later is unmatched by construction.
+      // Unbalanced falls through as `index + 1`, the same fail-toward-splitting convention as `{`.
+      const end = findBalancedEnd(command, index, PAREN_OPEN, PAREN_CLOSE, syntax);
+      index = end ?? index + 1;
+      continue;
+    }
+
+    if (syntax.unmatchedCloseParenSeparator && char === PAREN_CLOSE) {
+      // A `)` the scan reaches closes nothing — every matched `( … )` was consumed above — so it is a
+      // case-pattern terminator: a separator, so the pattern body is its own subcommand.
+      positions.push({ index, length: 1 });
+      index += 1;
+      continue;
+    }
+
     if (syntax.hereDoc && arithmeticDepth === 0 && isHereDocOperator(command, index)) {
       const match = parseHereDocOpener(command, index, syntax);
       if (match !== undefined) {
@@ -493,14 +541,12 @@ export function splitSubcommandsBySyntax(command: string, syntax: ShellSyntax): 
 }
 
 /**
- * The index of the opening `(` of a command substitution at `index`, or `undefined` if none. `$(` in
- * both shells; PowerShell `@(` as well. A Bash `$((` is arithmetic and is excluded.
+ * The index of the opening `(` of a `$( … )` command substitution at `index`, or `undefined` if none.
+ * `$(` in both shells; a Bash `$((` is arithmetic and is excluded. Unlike {@link substitutionOpenParen}
+ * this never matches a PowerShell `@( … )`, which does not interpolate inside a string literal.
  */
-export function substitutionOpenParen(command: string, index: number, syntax: ShellSyntax): number | undefined {
-  const char = command[index];
-  const next = command[index + 1];
-
-  if (syntax.commandSubstitution && char === SUBSTITUTION_MARKER && next === PAREN_OPEN) {
+export function commandSubstitutionOpenParen(command: string, index: number, syntax: ShellSyntax): number | undefined {
+  if (syntax.commandSubstitution && command[index] === SUBSTITUTION_MARKER && command[index + 1] === PAREN_OPEN) {
     if (syntax.arithmetic && command[index + 2] === PAREN_OPEN) {
       return undefined;
     }
@@ -508,7 +554,20 @@ export function substitutionOpenParen(command: string, index: number, syntax: Sh
     return index + 1;
   }
 
-  if (syntax.arraySubexpression && char === ARRAY_SUBEXPRESSION_MARKER && next === PAREN_OPEN) {
+  return undefined;
+}
+
+/**
+ * The index of the opening `(` of a command substitution at `index`, or `undefined` if none. `$(` in
+ * both shells; PowerShell `@(` as well. A Bash `$((` is arithmetic and is excluded.
+ */
+export function substitutionOpenParen(command: string, index: number, syntax: ShellSyntax): number | undefined {
+  const commandSubstitution = commandSubstitutionOpenParen(command, index, syntax);
+  if (commandSubstitution !== undefined) {
+    return commandSubstitution;
+  }
+
+  if (syntax.arraySubexpression && command[index] === ARRAY_SUBEXPRESSION_MARKER && command[index + 1] === PAREN_OPEN) {
     return index + 1;
   }
 
@@ -546,6 +605,14 @@ export function tokenSpans(subcommand: string, syntax: ShellSyntax): TokenSpan[]
         // Keep a whole `{ … }` block as one token so its inner whitespace does not fragment it and a
         // derived prefix covers the entire script block rather than cutting into it.
         const end = findBalancedEnd(subcommand, index, BLOCK_OPEN, BLOCK_CLOSE, syntax);
+        index = end ?? index + 1;
+        continue;
+      }
+
+      if (char === PAREN_OPEN) {
+        // Keep a whole `( … )` as one token so a derived prefix covers an argument list or grouping
+        // expression rather than cutting into it (`[regex]::Matches($b, '…')` stays one token).
+        const end = findBalancedEnd(subcommand, index, PAREN_OPEN, PAREN_CLOSE, syntax);
         index = end ?? index + 1;
         continue;
       }
