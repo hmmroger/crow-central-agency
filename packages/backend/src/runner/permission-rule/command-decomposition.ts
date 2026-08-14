@@ -39,6 +39,13 @@ const OPTION_PREFIX = "-";
 const ASSIGNMENT_OPERATORS = ["=", "+="] as const;
 /** A leading Bash `NAME=value` assignment token: an identifier immediately followed by `=`. */
 const BASH_ASSIGNMENT_TOKEN = /^[A-Za-z_][A-Za-z0-9_]*=/;
+/**
+ * A leading PowerShell assignment target-plus-operator glued to its right-hand side: `$name=`,
+ * `$name+=`, `$env:NAME=`. Matched as a character pattern on the first token so it is spelling-
+ * independent, mirroring {@link BASH_ASSIGNMENT_TOKEN}; the spaced form `$name = …` has no `=` in
+ * its first token and is handled separately.
+ */
+const POWERSHELL_ASSIGNMENT_TOKEN = /^\$[A-Za-z0-9_:]+\+?=/;
 
 /**
  * Split a compound command into its top-level subcommands, preserving each as a literal slice of
@@ -130,14 +137,23 @@ function stripAssignmentPrefix(text: string, syntax: ShellSyntax): string {
 
   if (syntax.variableAssignmentPrefix) {
     const spans = tokenSpans(text, syntax);
+    if (spans.length === 0) {
+      return text;
+    }
+
+    const firstToken = text.slice(spans[0].start, spans[0].end);
+    const gluedMatch = firstToken.match(POWERSHELL_ASSIGNMENT_TOKEN);
+    if (gluedMatch !== null) {
+      return text.slice(spans[0].start + gluedMatch[0].length).trimStart();
+    }
+
     if (spans.length < 2) {
       return text;
     }
 
-    const target = text.slice(spans[0].start, spans[0].end);
     const operator = text.slice(spans[1].start, spans[1].end);
     const isAssignment =
-      target.startsWith(DOLLAR) && (ASSIGNMENT_OPERATORS as readonly string[]).includes(operator);
+      firstToken.startsWith(DOLLAR) && (ASSIGNMENT_OPERATORS as readonly string[]).includes(operator);
     if (!isAssignment) {
       return text;
     }
@@ -264,8 +280,16 @@ function isNonExecutingExpression(firstToken: string, syntax: ShellSyntax): bool
  * or a word-list header — is dropped, and the whole-literal fallback (for a subcommand that decomposed
  * to nothing, e.g. all assignments) must not resurrect it.
  */
-function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves: string[]): void {
+function collectSubcommandLeaves(originalSubcommand: string, syntax: ShellSyntax, leaves: string[]): void {
   const startCount = leaves.length;
+  // A PowerShell assignment target is not carved by the scan — a glued `$a=(…)` reads as an argument
+  // list, not a grouping paren — so strip a leading assignment up front and let its `(…)`/`$(…)`
+  // right-hand side recurse from start-of-input, matching the spaced `$a = (…)` form. A Bash
+  // assignment glues its value to the name (`x=$(foo)`), so it stays stripped per-prefix below, after
+  // the scan has already carved out any substitution.
+  const subcommand = syntax.variableAssignmentPrefix
+    ? stripAssignmentPrefix(originalSubcommand, syntax)
+    : originalSubcommand;
   let prefixStart = 0;
   let index = 0;
   let droppedNonRunnable = false;
@@ -374,7 +398,7 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
   // Keep the whole subcommand only when nothing decomposed out and nothing was deliberately dropped —
   // e.g. a bare `A=1 B=2`. A dropped reserved word or word-list header must stay gone.
   if (leaves.length === startCount && !droppedNonRunnable) {
-    const whole = subcommand.trim();
+    const whole = originalSubcommand.trim();
     if (whole.length > 0) {
       leaves.push(whole);
     }

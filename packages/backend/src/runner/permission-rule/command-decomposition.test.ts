@@ -511,6 +511,50 @@ describe("splitCommandPositions — bare paren as a balanced region (Defect 1)",
   });
 });
 
+describe("splitCommandPositions — PowerShell glued assignment stripping (R14)", () => {
+  it("decomposes a glued assignment identically to its spaced form", () => {
+    expect(splitCommandPositions("$a=(rm -rf /)", SHELL.POWERSHELL)).toEqual(
+      splitCommandPositions("$a = (rm -rf /)", SHELL.POWERSHELL)
+    );
+    expect(splitCommandPositions("$a=(rm -rf /)", SHELL.POWERSHELL)).toEqual(["rm -rf /"]);
+  });
+
+  it("recurses a glued assignment's grouping paren so a piped command list decomposes in full", () => {
+    expect(splitCommandPositions("$x=(Get-Process | Where-Object { $_.CPU -gt 1 })", SHELL.POWERSHELL)).toEqual([
+      "Get-Process",
+      "Where-Object",
+    ]);
+  });
+
+  it("strips a glued assignment before a plain command right-hand side", () => {
+    expect(splitCommandPositions("$a=Get-Content foo.txt", SHELL.POWERSHELL)).toEqual(["Get-Content foo.txt"]);
+    expect(deriveCommandRules("$a=Get-Content foo.txt", SHELL.POWERSHELL)).toEqual(["Get-Content foo.txt *"]);
+  });
+
+  it("handles the `+=` operator and the `$env:NAME` scope in the glued form", () => {
+    expect(splitCommandPositions("$a+=(rm -rf /)", SHELL.POWERSHELL)).toEqual(["rm -rf /"]);
+    expect(splitCommandPositions("$env:X=(rm -rf /)", SHELL.POWERSHELL)).toEqual(["rm -rf /"]);
+  });
+
+  it("restores deny reach over a command hidden behind a glued assignment", () => {
+    expect(matchesCommandRules("$a=(rm -rf /)", ["rm -rf / *"], SHELL.POWERSHELL, SUBCOMMAND_MATCH_MODE.ANY)).toBe(true);
+    expect(matchesCommandRules("$env:X=(rm -rf /)", ["rm -rf / *"], SHELL.POWERSHELL, SUBCOMMAND_MATCH_MODE.ANY)).toBe(
+      true
+    );
+  });
+
+  it("keeps a glued argument-list paren opaque, deriving zero leaves (deliberate known gap)", () => {
+    expect(splitCommandPositions("[Math]::Max($(rm -rf /), 2)", SHELL.POWERSHELL)).toEqual([]);
+    expect(matchesCommandRules("[Math]::Max($(rm -rf /), 2)", ["rm -rf / *"], SHELL.POWERSHELL, SUBCOMMAND_MATCH_MODE.ANY)).toBe(
+      false
+    );
+  });
+
+  it("pins a Bash glued assignment with a substitution right-hand side to the substitution's leaf", () => {
+    expect(splitCommandPositions("x=$(foo)", SHELL.BASH)).toEqual(["foo"]);
+  });
+});
+
 describe("splitCommandPositions — substitutions inside interpolating quotes (Defect 2)", () => {
   it("recurses a `$( … )` inside a double-quoted region while keeping the quoted text inline", () => {
     expect(splitCommandPositions('Write-Host "$(Remove-Item x)"', SHELL.POWERSHELL)).toEqual([
