@@ -287,6 +287,8 @@ async function mapSessionEvent(
     case "session.canvas.removed":
     case "session.managed_settings_resolved":
     case "session.auto_mode_resolved":
+    case "session.context_cleared":
+    case "session.managed_settings_enforced":
       return [];
   }
 }
