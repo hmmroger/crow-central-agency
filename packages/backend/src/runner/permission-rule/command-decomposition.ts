@@ -4,6 +4,7 @@ import {
   BLOCK_CLOSE,
   BLOCK_OPEN,
   DOLLAR,
+  DOUBLE_QUOTE,
   PAREN_CLOSE,
   PAREN_OPEN,
   SHELL_SYNTAX,
@@ -107,6 +108,41 @@ function stripAssignmentPrefix(text: string, syntax: ShellSyntax): string {
 }
 
 /**
+ * Recurse the command substitutions inside a terminated double-quoted region `[interiorStart,
+ * interiorEnd)` as their own command lists, appending each command's leaves. A double-quoted region
+ * interpolates in both shells, so a `$( … )` / `@( … )` inside it runs; the quoted text itself stays
+ * inline in the enclosing leaf. Escapes are honoured so `` `$( `` / `\$(` is not read as a substitution.
+ */
+function collectInterpolatedSubstitutions(
+  text: string,
+  interiorStart: number,
+  interiorEnd: number,
+  syntax: ShellSyntax,
+  leaves: string[]
+): void {
+  let index = interiorStart;
+
+  while (index < interiorEnd) {
+    if (text[index] === syntax.escapeChar && index + 1 < interiorEnd) {
+      index += 2;
+      continue;
+    }
+
+    const parenIndex = substitutionOpenParen(text, index, syntax);
+    if (parenIndex !== undefined) {
+      const end = findBalancedEnd(text, parenIndex, PAREN_OPEN, PAREN_CLOSE, syntax);
+      if (end !== undefined && end <= interiorEnd) {
+        collectLeaves(text.slice(parenIndex + 1, end - 1), syntax, leaves);
+        index = end;
+        continue;
+      }
+    }
+
+    index += 1;
+  }
+}
+
+/**
  * Decompose one already-split subcommand into the commands actually being run, appending each as a
  * literal slice to `leaves`. The prefix up to the first script block or command substitution is one
  * leaf; a block's or substitution's contents recurse as their own command list. An unresolvable
@@ -131,6 +167,17 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
   };
 
   while (index < subcommand.length) {
+    if (subcommand[index] === DOUBLE_QUOTE) {
+      // A terminated double-quoted region interpolates, so its `$( … )` runs and is recursed while the
+      // quoted text stays inline in the enclosing leaf. An unterminated quote falls through below.
+      const quoteEnd = skipInertRegion(subcommand, index, syntax);
+      if (quoteEnd !== undefined && quoteEnd > index + 1) {
+        collectInterpolatedSubstitutions(subcommand, index + 1, quoteEnd - 1, syntax, leaves);
+        index = quoteEnd;
+        continue;
+      }
+    }
+
     const inertEnd = skipInertRegion(subcommand, index, syntax);
     if (inertEnd !== undefined) {
       index = inertEnd;

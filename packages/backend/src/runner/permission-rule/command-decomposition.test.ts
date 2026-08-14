@@ -528,6 +528,43 @@ describe("splitCommandPositions — bare paren as a balanced region (Defect 1)",
   });
 });
 
+describe("splitCommandPositions — substitutions inside interpolating quotes (Defect 2)", () => {
+  it("recurses a `$( … )` inside a double-quoted region while keeping the quoted text inline", () => {
+    expect(splitCommandPositions('Write-Host "$(Remove-Item x)"', SHELL.POWERSHELL)).toEqual([
+      "Remove-Item x",
+      'Write-Host "$(Remove-Item x)"',
+    ]);
+    expect(splitCommandPositions('echo "$(rm -rf ~)"', SHELL.BASH)).toEqual(["rm -rf ~", 'echo "$(rm -rf ~)"']);
+  });
+
+  it("restores deny reach over a command hidden in a double-quoted substitution", () => {
+    expect(
+      matchesCommandRules('Write-Host "$(Remove-Item x)"', ["Remove-Item *"], SHELL.POWERSHELL, SUBCOMMAND_MATCH_MODE.ANY)
+    ).toBe(true);
+    expect(matchesCommandRules('echo "$(rm -rf ~)"', ["rm *"], SHELL.BASH, SUBCOMMAND_MATCH_MODE.ANY)).toBe(true);
+  });
+
+  it("fails closed for the enclosing grant alone, since the substitution is its own obligation", () => {
+    expect(matchesCommandRules('echo "$(rm -rf ~)"', ["echo *"], SHELL.BASH)).toBe(false);
+  });
+
+  it("keeps a single-quoted region opaque — no interpolation, no recursion", () => {
+    expect(splitCommandPositions("echo '$(rm -rf ~)'", SHELL.BASH)).toEqual(["echo '$(rm -rf ~)'"]);
+    expect(matchesCommandRules("echo '$(rm -rf ~)'", ["rm *"], SHELL.BASH, SUBCOMMAND_MATCH_MODE.ANY)).toBe(false);
+  });
+
+  it("does not read an escaped `$(` inside a double-quoted region as a substitution", () => {
+    expect(splitCommandPositions(String.raw`echo "\$(rm -rf ~)"`, SHELL.BASH)).toEqual([String.raw`echo "\$(rm -rf ~)"`]);
+  });
+
+  it("keeps a PowerShell here-string body opaque — no substitution recursion", () => {
+    const command = ['$msg = @"', "$(Remove-Item x)", '"@'].join("\n");
+    const rhs = ['@"', "$(Remove-Item x)", '"@'].join("\n");
+    expect(splitCommandPositions(command, SHELL.POWERSHELL)).toEqual([rhs]);
+    expect(matchesCommandRules(command, ["Remove-Item *"], SHELL.POWERSHELL, SUBCOMMAND_MATCH_MODE.ANY)).toBe(false);
+  });
+});
+
 describe("deriveCommandRules — command position decomposition", () => {
   it("derives a rule for the loop header and the block command, not the header alone", () => {
     expect(deriveCommandRules("foreach ($file in $files) { Remove-Item $file }", SHELL.POWERSHELL)).toEqual([
