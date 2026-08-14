@@ -40,7 +40,7 @@ const HEREDOC_OPENER_PRECEDERS = " \t\n\r;|&";
 const HERE_STRING_MARKER = "@";
 
 const BASH_COMMAND_LIST_KEYWORDS = ["if", "then", "elif", "else", "while", "until", "do"];
-const BASH_STANDALONE_KEYWORDS = ["done", "fi", "esac"];
+const BASH_STANDALONE_KEYWORDS = ["done", "fi", "esac", "}"];
 const BASH_WORD_LIST_HEADER_KEYWORDS = ["for", "select", "case"];
 const POWERSHELL_STANDALONE_KEYWORDS = [
   "if",
@@ -541,14 +541,12 @@ export function splitSubcommandsBySyntax(command: string, syntax: ShellSyntax): 
 }
 
 /**
- * The index of the opening `(` of a command substitution at `index`, or `undefined` if none. `$(` in
- * both shells; PowerShell `@(` as well. A Bash `$((` is arithmetic and is excluded.
+ * The index of the opening `(` of a `$( … )` command substitution at `index`, or `undefined` if none.
+ * `$(` in both shells; a Bash `$((` is arithmetic and is excluded. Unlike {@link substitutionOpenParen}
+ * this never matches a PowerShell `@( … )`, which does not interpolate inside a string literal.
  */
-export function substitutionOpenParen(command: string, index: number, syntax: ShellSyntax): number | undefined {
-  const char = command[index];
-  const next = command[index + 1];
-
-  if (syntax.commandSubstitution && char === SUBSTITUTION_MARKER && next === PAREN_OPEN) {
+export function commandSubstitutionOpenParen(command: string, index: number, syntax: ShellSyntax): number | undefined {
+  if (syntax.commandSubstitution && command[index] === SUBSTITUTION_MARKER && command[index + 1] === PAREN_OPEN) {
     if (syntax.arithmetic && command[index + 2] === PAREN_OPEN) {
       return undefined;
     }
@@ -556,7 +554,20 @@ export function substitutionOpenParen(command: string, index: number, syntax: Sh
     return index + 1;
   }
 
-  if (syntax.arraySubexpression && char === ARRAY_SUBEXPRESSION_MARKER && next === PAREN_OPEN) {
+  return undefined;
+}
+
+/**
+ * The index of the opening `(` of a command substitution at `index`, or `undefined` if none. `$(` in
+ * both shells; PowerShell `@(` as well. A Bash `$((` is arithmetic and is excluded.
+ */
+export function substitutionOpenParen(command: string, index: number, syntax: ShellSyntax): number | undefined {
+  const commandSubstitution = commandSubstitutionOpenParen(command, index, syntax);
+  if (commandSubstitution !== undefined) {
+    return commandSubstitution;
+  }
+
+  if (syntax.arraySubexpression && command[index] === ARRAY_SUBEXPRESSION_MARKER && command[index + 1] === PAREN_OPEN) {
     return index + 1;
   }
 

@@ -463,7 +463,7 @@ describe("splitCommandPositions — decompose to the commands actually being run
   });
 
   it("recurses a PowerShell substitution wrapping a grouping paren, exposing the real command", () => {
-    expect(splitCommandPositions("$((Get-Process).Count)", SHELL.POWERSHELL)).toEqual(["Get-Process", ".Count"]);
+    expect(splitCommandPositions("$((Get-Process).Count)", SHELL.POWERSHELL)).toEqual(["Get-Process"]);
     expect(splitCommandPositions("echo $((1+2))", SHELL.BASH)).toEqual(["echo $((1+2))"]);
   });
 
@@ -590,6 +590,48 @@ describe("splitCommandPositions — Bash reserved words and case patterns (Defec
   });
 });
 
+describe("splitCommandPositions — glued tails and non-interpolating substitutions", () => {
+  it("drops a trailing Bash `}` brace-group terminator instead of deriving a junk rule", () => {
+    expect(splitCommandPositions("foo() { echo hi; }", SHELL.BASH)).toEqual(["foo() { echo hi"]);
+    expect(deriveCommandRules("foo() { echo hi; }", SHELL.BASH)).toEqual(["foo() { echo *"]);
+  });
+
+  it("still exposes a command inside a Bash brace group for deny", () => {
+    expect(matchesCommandRules("{ echo hi ; rm -rf / ; }", ["rm *"], SHELL.BASH, SUBCOMMAND_MATCH_MODE.ANY)).toBe(true);
+  });
+
+  it("drops expression continuation glued to a recursed grouping paren's close", () => {
+    expect(splitCommandPositions("(Get-Date).Year", SHELL.POWERSHELL)).toEqual(["Get-Date"]);
+    expect(splitCommandPositions("$n = (Get-ChildItem).Count", SHELL.POWERSHELL)).toEqual(["Get-ChildItem"]);
+    expect(deriveCommandRules("(Get-Date).Year", SHELL.POWERSHELL)).toEqual(["Get-Date *"]);
+  });
+
+  it("still exposes the real command behind a glued member access for deny", () => {
+    expect(
+      matchesCommandRules("(Remove-Item x).Count", ["Remove-Item *"], SHELL.POWERSHELL, SUBCOMMAND_MATCH_MODE.ANY)
+    ).toBe(true);
+  });
+
+  it("keeps a PowerShell dot-source invocation as a runnable leaf", () => {
+    expect(splitCommandPositions(String.raw`.\script.ps1`, SHELL.POWERSHELL)).toEqual([String.raw`.\script.ps1`]);
+    expect(splitCommandPositions(". ./script.ps1", SHELL.POWERSHELL)).toEqual([". ./script.ps1"]);
+  });
+
+  it("does not recurse a PowerShell `@( … )` inside a double-quoted string literal", () => {
+    expect(splitCommandPositions('Write-Host "@(Remove-Item x)"', SHELL.POWERSHELL)).toEqual([
+      'Write-Host "@(Remove-Item x)"',
+    ]);
+    expect(
+      matchesCommandRules(
+        'Write-Host "@(Remove-Item x)"',
+        ["Remove-Item *"],
+        SHELL.POWERSHELL,
+        SUBCOMMAND_MATCH_MODE.ANY
+      )
+    ).toBe(false);
+  });
+});
+
 describe("deriveCommandRules — command position decomposition", () => {
   it("derives only the block command, dropping the foreach header entirely", () => {
     expect(deriveCommandRules("foreach ($file in $files) { Remove-Item $file }", SHELL.POWERSHELL)).toEqual([
@@ -603,7 +645,7 @@ describe("deriveCommandRules — command position decomposition", () => {
   });
 
   it("derives the real command from a substitution wrapping a grouping paren", () => {
-    expect(deriveCommandRules("$((Get-Process).Count)", SHELL.POWERSHELL)).toEqual(["Get-Process *", ".Count *"]);
+    expect(deriveCommandRules("$((Get-Process).Count)", SHELL.POWERSHELL)).toEqual(["Get-Process *"]);
   });
 
   it("strips an assignment prefix whose right-hand side is a script block", () => {

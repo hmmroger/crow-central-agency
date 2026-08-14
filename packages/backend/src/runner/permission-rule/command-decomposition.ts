@@ -9,6 +9,7 @@ import {
   PAREN_OPEN,
   SHELL_SYNTAX,
   SUBSTITUTION_MARKER,
+  commandSubstitutionOpenParen,
   findBalancedEnd,
   skipInertRegion,
   splitSubcommandsBySyntax,
@@ -64,6 +65,46 @@ function isGroupingParen(text: string, parenIndex: number, syntax: ShellSyntax):
 }
 
 /**
+ * From `from` — the index just past a recursed region's closing `)` — return the index past any text
+ * glued to it. Text with no separating whitespace is expression continuation of that region (member
+ * access `.Year`, an index `[0]`, a chained method call), which runs nothing and must not become a
+ * leaf; this is the mirror of {@link isGroupingParen}, where gluedness marks an argument list to keep
+ * inline. Inert regions and balanced parens are skipped so whitespace inside them does not end the run.
+ */
+function skipGluedContinuation(text: string, from: number, syntax: ShellSyntax): number {
+  let index = from;
+
+  while (index < text.length) {
+    const char = text[index];
+    if (char === " " || char === "\t" || syntax.singleCharSeparators.includes(char)) {
+      break;
+    }
+
+    // A glued substitution (`$(cmd1)$(cmd2)`) is a real command region for the main scan to recurse,
+    // not inert continuation, so stop before it rather than swallowing it.
+    if (substitutionOpenParen(text, index, syntax) !== undefined) {
+      break;
+    }
+
+    const inertEnd = skipInertRegion(text, index, syntax);
+    if (inertEnd !== undefined) {
+      index = inertEnd;
+      continue;
+    }
+
+    if (char === PAREN_OPEN) {
+      const end = findBalancedEnd(text, index, PAREN_OPEN, PAREN_CLOSE, syntax);
+      index = end ?? index + 1;
+      continue;
+    }
+
+    index += 1;
+  }
+
+  return index;
+}
+
+/**
  * Strip leading assignment prefixes from a subcommand slice, returning the remaining suffix. An
  * assignment target can't run anything, so keeping it would key the derived rule on a variable name.
  * A PowerShell target-plus-operator with no right-hand token (`$x =`) strips to empty: its RHS is a
@@ -110,8 +151,9 @@ function stripAssignmentPrefix(text: string, syntax: ShellSyntax): string {
 /**
  * Recurse the command substitutions inside a terminated double-quoted region `[interiorStart,
  * interiorEnd)` as their own command lists, appending each command's leaves. A double-quoted region
- * interpolates in both shells, so a `$( … )` / `@( … )` inside it runs; the quoted text itself stays
- * inline in the enclosing leaf. Escapes are honoured so `` `$( `` / `\$(` is not read as a substitution.
+ * interpolates in both shells, so a `$( … )` inside it runs; the quoted text itself stays inline in the
+ * enclosing leaf. Only `$( … )` interpolates — a PowerShell `@( … )` is literal text inside a string —
+ * so it is not recursed. Escapes are honoured so `` `$( `` / `\$(` is not read as a substitution.
  */
 function collectInterpolatedSubstitutions(
   text: string,
@@ -128,7 +170,7 @@ function collectInterpolatedSubstitutions(
       continue;
     }
 
-    const parenIndex = substitutionOpenParen(text, index, syntax);
+    const parenIndex = commandSubstitutionOpenParen(text, index, syntax);
     if (parenIndex !== undefined) {
       const end = findBalancedEnd(text, parenIndex, PAREN_OPEN, PAREN_CLOSE, syntax);
       if (end !== undefined && end <= interiorEnd) {
@@ -292,8 +334,8 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
 
       emitPrefix(index);
       collectLeaves(subcommand.slice(parenIndex + 1, end - 1), syntax, leaves);
-      prefixStart = end;
-      index = end;
+      prefixStart = skipGluedContinuation(subcommand, end, syntax);
+      index = prefixStart;
       continue;
     }
 
@@ -308,7 +350,10 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
       if (isGroupingParen(subcommand, index, syntax) && interior.trim().length > 0) {
         emitPrefix(index);
         collectLeaves(interior, syntax, leaves);
-        prefixStart = end;
+        // Text glued to the closing `)` (`.Year`, `.Count`) is expression continuation, not a leaf.
+        prefixStart = skipGluedContinuation(subcommand, end, syntax);
+        index = prefixStart;
+        continue;
       }
 
       // A glued argument list or an empty grouping paren stays inline in the enclosing leaf.
