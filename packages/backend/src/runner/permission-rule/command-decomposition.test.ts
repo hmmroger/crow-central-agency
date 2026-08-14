@@ -661,6 +661,11 @@ describe("splitCommandPositions — glued tails and non-interpolating substituti
     expect(splitCommandPositions(". ./script.ps1", SHELL.POWERSHELL)).toEqual([". ./script.ps1"]);
   });
 
+  it("does not swallow a chained substitution glued to a preceding substitution's close", () => {
+    expect(splitCommandPositions("$(cmd1)$(cmd2)", SHELL.BASH)).toEqual(["cmd1", "cmd2"]);
+    expect(splitCommandPositions("$(cmd1)$(cmd2)", SHELL.POWERSHELL)).toEqual(["cmd1", "cmd2"]);
+  });
+
   it("does not recurse a PowerShell `@( … )` inside a double-quoted string literal", () => {
     expect(splitCommandPositions('Write-Host "@(Remove-Item x)"', SHELL.POWERSHELL)).toEqual([
       'Write-Host "@(Remove-Item x)"',
