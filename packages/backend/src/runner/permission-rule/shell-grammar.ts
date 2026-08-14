@@ -434,6 +434,15 @@ function findSeparatorPositions(command: string, syntax: ShellSyntax): Separator
       continue;
     }
 
+    if (char === PAREN_OPEN) {
+      // A bare `( … )` grouping or subshell is a balanced region: a separator inside it is internal,
+      // and its matching `)` is consumed here so a `)` reached later is unmatched by construction.
+      // Unbalanced falls through as `index + 1`, the same fail-toward-splitting convention as `{`.
+      const end = findBalancedEnd(command, index, PAREN_OPEN, PAREN_CLOSE, syntax);
+      index = end ?? index + 1;
+      continue;
+    }
+
     if (syntax.hereDoc && arithmeticDepth === 0 && isHereDocOperator(command, index)) {
       const match = parseHereDocOpener(command, index, syntax);
       if (match !== undefined) {
@@ -546,6 +555,14 @@ export function tokenSpans(subcommand: string, syntax: ShellSyntax): TokenSpan[]
         // Keep a whole `{ … }` block as one token so its inner whitespace does not fragment it and a
         // derived prefix covers the entire script block rather than cutting into it.
         const end = findBalancedEnd(subcommand, index, BLOCK_OPEN, BLOCK_CLOSE, syntax);
+        index = end ?? index + 1;
+        continue;
+      }
+
+      if (char === PAREN_OPEN) {
+        // Keep a whole `( … )` as one token so a derived prefix covers an argument list or grouping
+        // expression rather than cutting into it (`[regex]::Matches($b, '…')` stays one token).
+        const end = findBalancedEnd(subcommand, index, PAREN_OPEN, PAREN_CLOSE, syntax);
         index = end ?? index + 1;
         continue;
       }

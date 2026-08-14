@@ -48,6 +48,21 @@ export function splitSubcommands(command: string, shell: ShellDialect): string[]
 }
 
 /**
+ * Whether a `(` at `parenIndex` opens a grouping expression rather than an argument list. A paren at
+ * start-of-input or preceded by whitespace or a separator is a grouping expression whose interior is
+ * its own command list; a paren glued to a preceding token is an argument list (`Value.Trim()`,
+ * `[regex]::Matches($b, '…')`) that stays inline in the enclosing leaf.
+ */
+function isGroupingParen(text: string, parenIndex: number, syntax: ShellSyntax): boolean {
+  if (parenIndex === 0) {
+    return true;
+  }
+
+  const previous = text[parenIndex - 1];
+  return previous === " " || previous === "\t" || syntax.singleCharSeparators.includes(previous);
+}
+
+/**
  * Strip leading assignment prefixes from a subcommand slice, returning the remaining suffix. An
  * assignment target can't run anything, so keeping it would key the derived rule on a variable name.
  * A PowerShell target-plus-operator with no right-hand token (`$x =`) strips to empty: its RHS is a
@@ -149,6 +164,25 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
       emitPrefix(index);
       collectLeaves(subcommand.slice(parenIndex + 1, end - 1), syntax, leaves);
       prefixStart = end;
+      index = end;
+      continue;
+    }
+
+    if (char === PAREN_OPEN) {
+      const end = findBalancedEnd(subcommand, index, PAREN_OPEN, PAREN_CLOSE, syntax);
+      if (end === undefined) {
+        index += 1;
+        continue;
+      }
+
+      const interior = subcommand.slice(index + 1, end - 1);
+      if (isGroupingParen(subcommand, index, syntax) && interior.trim().length > 0) {
+        emitPrefix(index);
+        collectLeaves(interior, syntax, leaves);
+        prefixStart = end;
+      }
+
+      // A glued argument list or an empty grouping paren stays inline in the enclosing leaf.
       index = end;
       continue;
     }

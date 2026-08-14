@@ -409,9 +409,12 @@ describe("deriveCommandRules", () => {
 });
 
 describe("splitCommandPositions — decompose to the commands actually being run", () => {
-  it("recurses into a script block, keeping the enclosing prefix and the block body as leaves", () => {
+  it("recurses a grouping paren header into its own command list alongside the block body", () => {
+    // R2 recurses the `($file in $files)` grouping paren; `foreach` and `$file in $files` are cleaned
+    // up later by R6/R4. The block body `Remove-Item $file` is its own leaf.
     expect(splitCommandPositions("foreach ($file in $files) { Remove-Item $file }", SHELL.POWERSHELL)).toEqual([
-      "foreach ($file in $files)",
+      "foreach",
+      "$file in $files",
       "Remove-Item $file",
     ]);
   });
@@ -434,7 +437,7 @@ describe("splitCommandPositions — decompose to the commands actually being run
         "Get-Process | ForEach-Object { if ($_.CPU -gt 10) { Stop-Process $_ } }",
         SHELL.POWERSHELL
       )
-    ).toEqual(["Get-Process", "ForEach-Object", "if ($_.CPU -gt 10)", "Stop-Process $_"]);
+    ).toEqual(["Get-Process", "ForEach-Object", "if", "$_.CPU -gt 10", "Stop-Process $_"]);
   });
 
   it("skips consecutive Bash assignment prefixes", () => {
@@ -464,8 +467,11 @@ describe("splitCommandPositions — decompose to the commands actually being run
     ]);
   });
 
-  it("recurses a PowerShell substitution wrapping a grouping paren (no arithmetic context)", () => {
-    expect(splitCommandPositions("$((Get-Process).Count)", SHELL.POWERSHELL)).toEqual(["(Get-Process).Count"]);
+  it("recurses a PowerShell substitution wrapping a grouping paren, exposing the real command", () => {
+    // R2 recurses the leading `(Get-Process)` grouping paren, recovering `Get-Process` as its own leaf;
+    // the `.Count` member-access residue is a harmless leftover (see R4 — leading `.` is not dropped,
+    // since `.` is also PowerShell's dot-source operator).
+    expect(splitCommandPositions("$((Get-Process).Count)", SHELL.POWERSHELL)).toEqual(["Get-Process", ".Count"]);
     expect(splitCommandPositions("echo $((1+2))", SHELL.BASH)).toEqual(["echo $((1+2))"]);
   });
 
@@ -475,10 +481,58 @@ describe("splitCommandPositions — decompose to the commands actually being run
   });
 });
 
+describe("splitCommandPositions — bare paren as a balanced region (Defect 1)", () => {
+  it("recurses a grouping paren instead of mangling it into fragments and a bare `)` leaf", () => {
+    // Today this decomposes to ["(Get-Process", "Where-Object", "$_.CPU -gt 1", ")"] — a leaf that is
+    // literally ")". R1/R2 make the `( … )` a balanced region whose interior is its own command list.
+    expect(
+      splitCommandPositions("$x = (Get-Process | Where-Object { $_.CPU -gt 1 })", SHELL.POWERSHELL)
+    ).toEqual(["Get-Process", "Where-Object", "$_.CPU -gt 1"]);
+  });
+
+  it("recurses a grouping paren after an assignment, dropping the assignment prefix", () => {
+    expect(splitCommandPositions("$firstAuthor = ($authors | Select-Object -First 1)", SHELL.POWERSHELL)).toEqual([
+      "$authors",
+      "Select-Object -First 1",
+    ]);
+  });
+
+  it("restores deny reach over a command hidden behind a grouping paren", () => {
+    // Today the glued `)` breaks the word boundary so the `Remove-Item)` leaf never matches; R1/R2
+    // recurse the paren so `Remove-Item` is its own leaf and the deny rule fires.
+    expect(
+      matchesCommandRules("(Get-Content a.txt | Remove-Item)", ["Remove-Item *"], SHELL.POWERSHELL, SUBCOMMAND_MATCH_MODE.ANY)
+    ).toBe(true);
+  });
+
+  it("keeps a glued argument-list paren inline in the enclosing leaf (R2 exception)", () => {
+    expect(splitCommandPositions("$_.Groups[1].Value.Trim()", SHELL.POWERSHELL)).toEqual(["$_.Groups[1].Value.Trim()"]);
+    expect(splitCommandPositions(String.raw`[regex]::Matches($b, '-\s+([^(]+)\(')`, SHELL.POWERSHELL)).toEqual([
+      String.raw`[regex]::Matches($b, '-\s+([^(]+)\(')`,
+    ]);
+  });
+
+  it("recurses a Bash subshell's interior into its own leaves", () => {
+    expect(splitCommandPositions("(cd x && rm -rf y)", SHELL.BASH)).toEqual(["cd x", "rm -rf y"]);
+  });
+
+  it("consumes a matched `(` so its `)` is never read as a separator", () => {
+    // `foo()` — the matched `()` is a balanced region, so the `)` does not split; only the Bash brace
+    // group's `;` does. `diff <(sort a) <(sort b)` — process-substitution parens are matched, no stray split.
+    expect(splitSubcommands("foo() { echo hi; }", SHELL.BASH)).toEqual(["foo() { echo hi", "}"]);
+    expect(splitCommandPositions("diff <(sort a) <(sort b)", SHELL.BASH)).toEqual(["diff <(sort a) <(sort b)"]);
+  });
+
+  it("falls toward splitting on an unbalanced bare paren, hiding no command", () => {
+    expect(splitSubcommands("(cd x && rm -rf ~", SHELL.BASH)).toEqual(["(cd x", "rm -rf ~"]);
+  });
+});
+
 describe("deriveCommandRules — command position decomposition", () => {
   it("derives a rule for the loop header and the block command, not the header alone", () => {
     expect(deriveCommandRules("foreach ($file in $files) { Remove-Item $file }", SHELL.POWERSHELL)).toEqual([
       "foreach *",
+      "$file in $files *",
       "Remove-Item *",
     ]);
   });
@@ -488,9 +542,9 @@ describe("deriveCommandRules — command position decomposition", () => {
     expect(deriveCommandRules("A=1 B=2 npm run build", SHELL.BASH)).toEqual(["npm run build *"]);
   });
 
-  it("pins the derived rule for a substitution wrapping a grouping paren (no arithmetic context)", () => {
-    // splitCommandPositions already locks the `(Get-Process).Count` leaf; lock the rule level too.
-    expect(deriveCommandRules("$((Get-Process).Count)", SHELL.POWERSHELL)).toEqual(["(Get-Process).Count *"]);
+  it("derives the real command from a substitution wrapping a grouping paren", () => {
+    // R2 recovers `Get-Process`; the `.Count` member-access residue derives a harmless extra rule.
+    expect(deriveCommandRules("$((Get-Process).Count)", SHELL.POWERSHELL)).toEqual(["Get-Process *", ".Count *"]);
   });
 
   it("strips an assignment prefix whose right-hand side is a script block", () => {
