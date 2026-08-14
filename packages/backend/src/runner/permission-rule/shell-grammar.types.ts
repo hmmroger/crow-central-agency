@@ -36,6 +36,33 @@ export interface ShellSyntax {
   readonly bashAssignmentPrefix: boolean;
   /** Whether a leading `$var`/`$env:NAME` before `=`/`+=` is an assignment prefix to skip. PowerShell only. */
   readonly variableAssignmentPrefix: boolean;
+  /**
+   * Reserved words that introduce a command list; a leading one is stripped so the command it delimits
+   * becomes the leaf (`then rm -rf y` → `rm -rf y`). Empty for PowerShell, which delimits with braces.
+   */
+  readonly commandListKeywords: readonly string[];
+  /**
+   * Reserved words a leaf may reduce to but that run nothing, so such a leaf is dropped: Bash loop
+   * terminators (`done`, `fi`, `esac`) and PowerShell block keywords left bare (`if`, `foreach`, …).
+   */
+  readonly standaloneKeywords: readonly string[];
+  /**
+   * Reserved words heading a word-list construct (`for`, `select`, `case`); a leaf whose first token is
+   * one of these runs nothing and is dropped. Bash only.
+   */
+  readonly wordListHeaderKeywords: readonly string[];
+  /**
+   * First-token opener characters that mark a leaf as a non-executing expression to drop (`$`, `"`,
+   * `'`, `[`). PowerShell only — in Bash a `$CMD arg` leaf genuinely executes.
+   */
+  readonly expressionLeafOpeners: readonly string[];
+  /** Whether a leaf whose first token starts with a digit is a non-executing expression to drop. PowerShell only. */
+  readonly expressionLeafDropsLeadingDigit: boolean;
+  /**
+   * Whether an unmatched `)` is a separator: a case-pattern terminator, since matched `( … )` regions
+   * are already consumed as balanced. Bash only — PowerShell delimits `switch` with braces.
+   */
+  readonly unmatchedCloseParenSeparator: boolean;
   readonly twoCharSeparators: readonly string[];
   readonly singleCharSeparators: readonly string[];
 }

@@ -39,6 +39,25 @@ const HEREDOC_WORD_TERMINATORS = " \t\n\r;|&<>()";
 const HEREDOC_OPENER_PRECEDERS = " \t\n\r;|&";
 const HERE_STRING_MARKER = "@";
 
+const BASH_COMMAND_LIST_KEYWORDS = ["if", "then", "elif", "else", "while", "until", "do"];
+const BASH_STANDALONE_KEYWORDS = ["done", "fi", "esac"];
+const BASH_WORD_LIST_HEADER_KEYWORDS = ["for", "select", "case"];
+const POWERSHELL_STANDALONE_KEYWORDS = [
+  "if",
+  "elseif",
+  "else",
+  "foreach",
+  "for",
+  "while",
+  "do",
+  "until",
+  "switch",
+  "try",
+  "catch",
+  "finally",
+];
+const POWERSHELL_EXPRESSION_LEAF_OPENERS = [DOLLAR, DOUBLE_QUOTE, SINGLE_QUOTE, "["];
+
 export const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
   [SHELL.BASH]: {
     escapeChar: "\\",
@@ -52,6 +71,12 @@ export const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     arraySubexpression: false,
     bashAssignmentPrefix: true,
     variableAssignmentPrefix: false,
+    commandListKeywords: BASH_COMMAND_LIST_KEYWORDS,
+    standaloneKeywords: BASH_STANDALONE_KEYWORDS,
+    wordListHeaderKeywords: BASH_WORD_LIST_HEADER_KEYWORDS,
+    expressionLeafOpeners: [],
+    expressionLeafDropsLeadingDigit: false,
+    unmatchedCloseParenSeparator: true,
     twoCharSeparators: ["&&", "||", "|&"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -67,6 +92,12 @@ export const SHELL_SYNTAX: Record<ShellDialect, ShellSyntax> = {
     arraySubexpression: true,
     bashAssignmentPrefix: false,
     variableAssignmentPrefix: true,
+    commandListKeywords: [],
+    standaloneKeywords: POWERSHELL_STANDALONE_KEYWORDS,
+    wordListHeaderKeywords: [],
+    expressionLeafOpeners: POWERSHELL_EXPRESSION_LEAF_OPENERS,
+    expressionLeafDropsLeadingDigit: true,
+    unmatchedCloseParenSeparator: false,
     twoCharSeparators: ["&&", "||"],
     singleCharSeparators: [";", "|", "&", "\n", "\r"],
   },
@@ -440,6 +471,14 @@ function findSeparatorPositions(command: string, syntax: ShellSyntax): Separator
       // Unbalanced falls through as `index + 1`, the same fail-toward-splitting convention as `{`.
       const end = findBalancedEnd(command, index, PAREN_OPEN, PAREN_CLOSE, syntax);
       index = end ?? index + 1;
+      continue;
+    }
+
+    if (syntax.unmatchedCloseParenSeparator && char === PAREN_CLOSE) {
+      // A `)` the scan reaches closes nothing — every matched `( … )` was consumed above — so it is a
+      // case-pattern terminator: a separator, so the pattern body is its own subcommand.
+      positions.push({ index, length: 1 });
+      index += 1;
       continue;
     }
 

@@ -142,17 +142,75 @@ function collectInterpolatedSubstitutions(
   }
 }
 
+/** The leaf's first whitespace-delimited token, or `undefined` when it holds none. */
+function firstLeafToken(leaf: string, syntax: ShellSyntax): string | undefined {
+  const spans = tokenSpans(leaf, syntax);
+  return spans.length > 0 ? leaf.slice(spans[0].start, spans[0].end) : undefined;
+}
+
+/**
+ * Strip a leading command-list keyword so the command it delimits becomes the leaf: `then rm -rf y` →
+ * `rm -rf y`. A keyword with no command after it strips to empty and is dropped by the caller. Shells
+ * without such keywords (PowerShell) return the leaf unchanged.
+ */
+function stripCommandListKeyword(leaf: string, syntax: ShellSyntax): string {
+  if (syntax.commandListKeywords.length === 0) {
+    return leaf;
+  }
+
+  const spans = tokenSpans(leaf, syntax);
+  if (spans.length === 0) {
+    return leaf;
+  }
+
+  const firstToken = leaf.slice(spans[0].start, spans[0].end);
+  if (!syntax.commandListKeywords.includes(firstToken)) {
+    return leaf;
+  }
+
+  return leaf.slice(spans[0].end).trimStart();
+}
+
+/**
+ * Refine a decomposed leaf into the command it actually names, or `undefined` when it names nothing
+ * runnable: strip a leading command-list keyword, then drop a leaf that heads a word-list construct or
+ * reduces to a bare reserved word.
+ */
+function refineLeaf(leaf: string, syntax: ShellSyntax): string | undefined {
+  const stripped = stripCommandListKeyword(leaf, syntax);
+  if (stripped.length === 0) {
+    return undefined;
+  }
+
+  const firstToken = firstLeafToken(stripped, syntax);
+  if (firstToken === undefined) {
+    return undefined;
+  }
+
+  if (syntax.wordListHeaderKeywords.includes(firstToken)) {
+    return undefined;
+  }
+
+  if (syntax.standaloneKeywords.includes(stripped)) {
+    return undefined;
+  }
+
+  return stripped;
+}
+
 /**
  * Decompose one already-split subcommand into the commands actually being run, appending each as a
  * literal slice to `leaves`. The prefix up to the first script block or command substitution is one
  * leaf; a block's or substitution's contents recurse as their own command list. An unresolvable
- * boundary is left literal in the enclosing leaf. If nothing is emitted (e.g. all assignments), the
- * whole subcommand is kept so every position carries a match obligation.
+ * boundary is left literal in the enclosing leaf. A leaf that names nothing runnable — a reserved word
+ * or a word-list header — is dropped, and the whole-literal fallback (for a subcommand that decomposed
+ * to nothing, e.g. all assignments) must not resurrect it.
  */
 function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves: string[]): void {
   const startCount = leaves.length;
   let prefixStart = 0;
   let index = 0;
+  let droppedNonRunnable = false;
 
   const emitPrefix = (end: number): void => {
     const slice = subcommand.slice(prefixStart, end).trim();
@@ -160,10 +218,18 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
       return;
     }
 
-    const stripped = stripAssignmentPrefix(slice, syntax);
-    if (stripped.length > 0) {
-      leaves.push(stripped);
+    const assignmentStripped = stripAssignmentPrefix(slice, syntax);
+    if (assignmentStripped.length === 0) {
+      return;
     }
+
+    const refined = refineLeaf(assignmentStripped, syntax);
+    if (refined === undefined) {
+      droppedNonRunnable = true;
+      return;
+    }
+
+    leaves.push(refined);
   };
 
   while (index < subcommand.length) {
@@ -244,7 +310,9 @@ function collectSubcommandLeaves(subcommand: string, syntax: ShellSyntax, leaves
 
   emitPrefix(subcommand.length);
 
-  if (leaves.length === startCount) {
+  // Keep the whole subcommand only when nothing decomposed out and nothing was deliberately dropped —
+  // e.g. a bare `A=1 B=2`. A dropped reserved word or word-list header must stay gone.
+  if (leaves.length === startCount && !droppedNonRunnable) {
     const whole = subcommand.trim();
     if (whole.length > 0) {
       leaves.push(whole);
