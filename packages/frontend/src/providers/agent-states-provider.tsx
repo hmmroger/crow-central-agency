@@ -11,6 +11,7 @@ import {
   type SessionUsage,
 } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../services/api-client.js";
+import { agentKeys } from "../services/query-keys.js";
 import { useWs } from "../hooks/use-ws.js";
 import { WS_STATE } from "../services/ws-client.types.js";
 import type { ApiError } from "../services/api-client.types.js";
@@ -25,8 +26,6 @@ interface AgentStatesProviderProps {
 }
 
 export const AgentStatesContext = createContext<AgentStatesContextValue | undefined>(undefined);
-
-const AGENT_STATES_QUERY_KEY = ["agents", "states"] as const;
 
 function splitRuntimeState(state: AgentRuntimeState): { entry: AgentStateEntry; usage: SessionUsage } {
   const { sessionUsage, ...entry } = state;
@@ -70,7 +69,7 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
   );
 
   const { data, refetch } = useQuery<AgentRuntimeState[], ApiError>({
-    queryKey: AGENT_STATES_QUERY_KEY,
+    queryKey: agentKeys.states(),
     queryFn: async () => {
       const response = await apiClient.get<AgentRuntimeState[]>("/agents/states");
 
