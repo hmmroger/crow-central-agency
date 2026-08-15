@@ -1,6 +1,6 @@
 import { AGENT_STATUS } from "@crow-central-agency/shared";
 import { useAgentSessionsQuery } from "../../../hooks/queries/use-agent-sessions-query.js";
-import { useAgentStateQuery } from "../../../hooks/queries/use-agent-state-query.js";
+import { useAgentState } from "../../../hooks/use-agent-state.js";
 import { useSwitchSession } from "../../../hooks/queries/use-switch-session.js";
 import { SessionHistoryItem } from "./session-history-item.js";
 
@@ -11,7 +11,7 @@ interface SessionHistoryTabProps {
 /** Sessions tab — the agent's sessions in the backend's order, click to switch. */
 export function SessionHistoryTab({ agentId }: SessionHistoryTabProps) {
   const { data: sessions = [], isLoading, isError } = useAgentSessionsQuery(agentId);
-  const { data: agentState } = useAgentStateQuery(agentId);
+  const agentState = useAgentState(agentId);
   const { switchSession, error, isPending } = useSwitchSession(agentId);
 
   const isIdle = (agentState?.status ?? AGENT_STATUS.IDLE) === AGENT_STATUS.IDLE;

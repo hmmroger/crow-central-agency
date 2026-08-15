@@ -1,7 +1,7 @@
 import { AGENT_STATUS } from "@crow-central-agency/shared";
 import { useAgentsContext } from "../../../providers/agents-provider.js";
 import { useAgentMessagesQuery } from "../../../hooks/queries/use-agent-messages-query.js";
-import { useAgentStateQuery } from "../../../hooks/queries/use-agent-state-query.js";
+import { useAgentState } from "../../../hooks/use-agent-state.js";
 import { useAgentStreamState } from "../../../hooks/queries/use-agent-stream-state.js";
 import { useAgentActions } from "../../../hooks/queries/use-agent-actions.js";
 import { MessageList } from "./message-list.js";
@@ -22,7 +22,7 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
   const { isLoading, getAgent } = useAgentsContext();
   const agent = getAgent(agentId);
   const { data: messages = [] } = useAgentMessagesQuery(agentId);
-  const { data: agentState } = useAgentStateQuery(agentId);
+  const agentState = useAgentState(agentId);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
   const { streamingText, activeToolUse } = useAgentStreamState(agentId);
   const pendingPermissions = agentState?.pendingPermissions ?? [];
