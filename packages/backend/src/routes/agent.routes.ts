@@ -19,6 +19,15 @@ import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 import { captureClientInfo } from "../sensors/capture-client-info.js";
 import { sanitizeAgentConfig, sanitizeAgentConfigs } from "../utils/agent-config-sanitizer.js";
 
+function buildDefaultRuntimeState(agentId: string): AgentRuntimeState {
+  return {
+    agentId,
+    status: AGENT_STATUS.IDLE,
+    activeDomainFragmentIds: [],
+    sessionUsage: { inputTokens: 0, outputTokens: 0, totalCostUsd: 0, contextUsed: 0, contextTotal: 0 },
+  };
+}
+
 /**
  * Register agent CRUD routes
  */
@@ -218,19 +227,20 @@ export async function registerAgentRoutes(
     }
   );
 
+  /** List runtime states for every registered agent, filling defaults for agents with no state yet. */
+  server.get("/api/agents/states", async () => {
+    const knownStates = new Map(runtimeManager.getAllStates().map((state) => [state.agentId, state]));
+    const states = registry.getAllAgents().map((agent) => knownStates.get(agent.id) ?? buildDefaultRuntimeState(agent.id));
+
+    return { success: true, data: states };
+  });
+
   /** Get runtime state for an agent */
   server.get<{ Params: { id: string } }>("/api/agents/:id/state", async (request) => {
     const agentId = validateAgentIdParam(request.params.id);
     const state = runtimeManager.getState(agentId);
 
-    const defaultState: AgentRuntimeState = {
-      agentId,
-      status: AGENT_STATUS.IDLE,
-      activeDomainFragmentIds: [],
-      sessionUsage: { inputTokens: 0, outputTokens: 0, totalCostUsd: 0, contextUsed: 0, contextTotal: 0 },
-    };
-
-    return { success: true, data: state ?? defaultState };
+    return { success: true, data: state ?? buildDefaultRuntimeState(agentId) };
   });
 
   /** Get an agent's session ledger as an ordered branch hierarchy, most recently active family first */
