@@ -4,7 +4,12 @@ import { AgentConfigSchema } from "./agent.schema.js";
 import { AgentMessageSchema } from "./agent-message.schema.js";
 import { AgentTaskItemSchema, AgentTaskStateSchema } from "./agent-task.schema.js";
 import { AgentCircleSchema, RelationshipSchema } from "./agent-circle.schema.js";
-import { AGENT_STATUS, AgentActivitySchema, BranchPointSchema } from "./agent-runtime-state.schema.js";
+import {
+  AGENT_STATUS,
+  AgentActivitySchema,
+  AgentRuntimeStateSchema,
+  BranchPointSchema,
+} from "./agent-runtime-state.schema.js";
 import { MessageSourceSchema } from "./message-source.schema.js";
 import { AgentCommandSchema } from "./agent-command.schema.js";
 import { AgentBuilderDraftViewSchema } from "./agent-builder.schema.js";
@@ -39,6 +44,7 @@ export const SERVER_MESSAGE_TYPE = {
   AGENT_UPDATED: "agent_updated",
   AGENT_DELETED: "agent_deleted",
   AGENT_USAGE: "agent_usage",
+  AGENT_STATE_UPDATED: "agent_state_updated",
   PERMISSION_REQUEST: "permission_request",
   PERMISSION_CANCELLED: "permission_cancelled",
   QUESTION_REQUEST: "question_request",
@@ -175,6 +181,12 @@ export const AgentUsageWsMessageSchema = z.object({
   totalCostUsd: z.number(),
   contextUsed: z.number(),
   contextTotal: z.number(),
+});
+
+export const AgentStateUpdatedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.AGENT_STATE_UPDATED),
+  agentId: z.string(),
+  state: AgentRuntimeStateSchema,
 });
 
 export const PermissionRequestWsMessageSchema = z.object({
@@ -314,6 +326,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   AgentUpdatedWsMessageSchema,
   AgentDeletedWsMessageSchema,
   AgentUsageWsMessageSchema,
+  AgentStateUpdatedWsMessageSchema,
   PermissionRequestWsMessageSchema,
   PermissionCancelledWsMessageSchema,
   QuestionRequestWsMessageSchema,
@@ -346,6 +359,7 @@ export type AgentCreatedWsMessage = z.infer<typeof AgentCreatedWsMessageSchema>;
 export type AgentUpdatedWsMessage = z.infer<typeof AgentUpdatedWsMessageSchema>;
 export type AgentDeletedWsMessage = z.infer<typeof AgentDeletedWsMessageSchema>;
 export type AgentUsageWsMessage = z.infer<typeof AgentUsageWsMessageSchema>;
+export type AgentStateUpdatedWsMessage = z.infer<typeof AgentStateUpdatedWsMessageSchema>;
 export type PermissionRequestWsMessage = z.infer<typeof PermissionRequestWsMessageSchema>;
 export type PermissionCancelledWsMessage = z.infer<typeof PermissionCancelledWsMessageSchema>;
 export type QuestionRequestWsMessage = z.infer<typeof QuestionRequestWsMessageSchema>;
