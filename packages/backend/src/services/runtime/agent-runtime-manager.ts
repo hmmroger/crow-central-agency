@@ -1161,6 +1161,11 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       }
 
       state.pendingPermissions.push(permissionInfo);
+      try {
+        await this.persistAgentState(permAgentId);
+      } catch (error) {
+        log.error({ agentId: permAgentId, error }, "Failed to persist state before requesting permission");
+      }
 
       try {
         return await this.permissionHandler.requestPermission(
@@ -1174,6 +1179,11 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       } finally {
         if (state.pendingPermissions) {
           state.pendingPermissions = state.pendingPermissions.filter((perm) => perm.toolUseId !== toolUseId);
+          try {
+            await this.persistAgentState(permAgentId);
+          } catch (error) {
+            log.error({ agentId: permAgentId, error }, "Failed to persist state after clearing pending permission");
+          }
         }
       }
     };
