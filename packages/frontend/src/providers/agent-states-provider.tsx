@@ -20,6 +20,10 @@ import type {
   AgentStatesListener,
 } from "./agent-states-provider.types.js";
 
+interface AgentStatesProviderProps {
+  children: ReactNode;
+}
+
 export const AgentStatesContext = createContext<AgentStatesContextValue | undefined>(undefined);
 
 const AGENT_STATES_QUERY_KEY = ["agents", "states"] as const;
@@ -33,15 +37,6 @@ function buildDefaultEntry(agentId: string): AgentStateEntry {
   return { agentId, status: AGENT_STATUS.IDLE, activeDomainFragmentIds: [] };
 }
 
-interface AgentStatesProviderProps {
-  children: ReactNode;
-}
-
-/**
- * Single owner of per-agent runtime state for the whole app.
- * Hydrates once via GET /api/agents/states, then maintains state via WS.
- * Consumers subscribe through useAgentState / useAgentSessionUsage.
- */
 export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
   const { onMessage, connectionState } = useWs();
 
@@ -147,7 +142,7 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
       }
 
       if (message.type === SERVER_MESSAGE_TYPE.AGENT_STATUS) {
-        const nextMessageSource = message.messageSource ?? undefined;
+        const nextMessageSource = message.messageSource;
         const changed = patchState(agentId, (prev) => {
           const base = prev ?? buildDefaultEntry(agentId);
           if (prev && base.status === message.status && base.messageSource === nextMessageSource) {
@@ -175,7 +170,7 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
           const base = prev ?? buildDefaultEntry(agentId);
           const existing = base.pendingPermissions ?? [];
           if (existing.some((perm) => perm.toolUseId === permInfo.toolUseId)) {
-            return prev ?? base;
+            return prev;
           }
 
           return { ...base, pendingPermissions: [...existing, permInfo] };
