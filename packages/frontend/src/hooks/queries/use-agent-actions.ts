@@ -2,16 +2,15 @@ import { useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CLIENT_MESSAGE_TYPE,
-  MAX_INPUT_HISTORY,
   PERMISSION_DECISION,
   QUESTION_SUBMISSION_KIND,
-  type AgentRuntimeState,
   type BranchPoint,
   type QuestionAnswer,
 } from "@crow-central-agency/shared";
 import { useWs } from "../use-ws.js";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { agentKeys } from "../../services/query-keys.js";
+import { useAgentStatesContext } from "../../providers/agent-states-provider.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
 /** Return type of useAgentActions */
@@ -38,53 +37,25 @@ export interface AgentActions {
   dismissQuestion: (toolUseId: string, response: string) => void;
 }
 
-/**
- * Action callbacks for agent interaction.
- * WS sends for real-time commands, useMutation for REST lifecycle operations.
- *
- * @param agentId - The agent to act on
- */
 export function useAgentActions(agentId: string): AgentActions {
   const { send } = useWs();
   const queryClient = useQueryClient();
+  const { appendInputHistory } = useAgentStatesContext();
 
-  // Optimistic update (mirrors the backend dedupe + cap) so the just-sent message is
-  // recallable until the next mount refetch reconciles inputHistory from /state.
-  const appendInputHistory = useCallback(
-    (text: string) => {
-      queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
-        if (!prev) {
-          return prev;
-        }
-
-        const history = prev.inputHistory ?? [];
-        if (history[history.length - 1] === text) {
-          return prev;
-        }
-
-        return { ...prev, inputHistory: [...history, text].slice(-MAX_INPUT_HISTORY) };
-      });
-    },
-    [queryClient, agentId]
-  );
-
-  /** Send a user message - backend creates the AgentMessage and broadcasts agent_message WS */
   const sendMessage = useCallback(
     (text: string, branchPoint?: BranchPoint) => {
       send({ type: CLIENT_MESSAGE_TYPE.SEND_MESSAGE, agentId, message: text, branchPoint });
-      appendInputHistory(text);
+      appendInputHistory(agentId, text);
 
-      // A branch rewrites the transcript and starts a new session; the agent_status event that
-      // follows the fork refreshes messages again should this land before the fork completed.
+      // A branch rewrites the transcript and starts a new session; the agent_message events
+      // that follow the fork then rebuild it — invalidate so a stale list is not re-shown.
       if (branchPoint) {
         void queryClient.invalidateQueries({ queryKey: agentKeys.messages(agentId) });
-        void queryClient.invalidateQueries({ queryKey: agentKeys.state(agentId) });
       }
     },
     [send, agentId, appendInputHistory, queryClient]
   );
 
-  /** Inject a btw message while streaming */
   const injectMessage = useCallback(
     (text: string) => {
       send({ type: CLIENT_MESSAGE_TYPE.INJECT_MESSAGE, agentId, message: text });
@@ -92,7 +63,6 @@ export function useAgentActions(agentId: string): AgentActions {
     [send, agentId]
   );
 
-  /** Stop the agent */
   const abortMutation = useMutation<void, ApiError>({
     mutationFn: async () => {
       const response = await apiClient.post<void>(`/agents/${agentId}/stop`);
@@ -103,33 +73,13 @@ export function useAgentActions(agentId: string): AgentActions {
     },
   });
 
-  /** Optimistically remove a pending permission from the query cache */
-  const removePendingPermission = useCallback(
-    (toolUseId: string) => {
-      queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
-        if (!prev) {
-          return prev;
-        }
-
-        return {
-          ...prev,
-          pendingPermissions: prev.pendingPermissions?.filter((perm) => perm.toolUseId !== toolUseId),
-        };
-      });
-    },
-    [queryClient, agentId]
-  );
-
-  /** Allow a pending permission request */
   const allowPermission = useCallback(
     (toolUseId: string) => {
       send({ type: CLIENT_MESSAGE_TYPE.PERMISSION_RESPONSE, agentId, toolUseId, decision: PERMISSION_DECISION.ALLOW });
-      removePendingPermission(toolUseId);
     },
-    [send, agentId, removePendingPermission]
+    [send, agentId]
   );
 
-  /** Allow a pending permission request and remember the tool in the agent's auto-approved list */
   const allowAlwaysPermission = useCallback(
     (toolUseId: string, rules?: string[]) => {
       send({
@@ -139,12 +89,10 @@ export function useAgentActions(agentId: string): AgentActions {
         decision: PERMISSION_DECISION.ALLOW_ALWAYS,
         rules,
       });
-      removePendingPermission(toolUseId);
     },
-    [send, agentId, removePendingPermission]
+    [send, agentId]
   );
 
-  /** Deny a pending permission request (optionally with a text message for the agent) */
   const denyPermission = useCallback(
     (toolUseId: string, message?: string) => {
       send({
@@ -154,26 +102,10 @@ export function useAgentActions(agentId: string): AgentActions {
         decision: PERMISSION_DECISION.DENY,
         message,
       });
-      removePendingPermission(toolUseId);
     },
-    [send, agentId, removePendingPermission]
+    [send, agentId]
   );
 
-  /** Optimistically clear the pending question from the query cache */
-  const clearPendingQuestion = useCallback(
-    (toolUseId: string) => {
-      queryClient.setQueryData<AgentRuntimeState>(agentKeys.state(agentId), (prev) => {
-        if (!prev || prev.pendingQuestion?.toolUseId !== toolUseId) {
-          return prev;
-        }
-
-        return { ...prev, pendingQuestion: undefined };
-      });
-    },
-    [queryClient, agentId]
-  );
-
-  /** Submit per-question answers for a parked AskUserQuestion */
   const submitQuestionAnswers = useCallback(
     (toolUseId: string, answers: QuestionAnswer[]) => {
       send({
@@ -182,12 +114,10 @@ export function useAgentActions(agentId: string): AgentActions {
         kind: QUESTION_SUBMISSION_KIND.ANSWERS,
         answers,
       });
-      clearPendingQuestion(toolUseId);
     },
-    [send, clearPendingQuestion]
+    [send]
   );
 
-  /** Dismiss a parked AskUserQuestion with a freeform response */
   const dismissQuestion = useCallback(
     (toolUseId: string, response: string) => {
       send({
@@ -196,9 +126,8 @@ export function useAgentActions(agentId: string): AgentActions {
         kind: QUESTION_SUBMISSION_KIND.RESPONSE,
         response,
       });
-      clearPendingQuestion(toolUseId);
     },
-    [send, clearPendingQuestion]
+    [send]
   );
 
   const { mutate: abortMutate } = abortMutation;

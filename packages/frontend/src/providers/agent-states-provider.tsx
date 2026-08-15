@@ -1,4 +1,4 @@
-import { createContext, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AGENT_STATUS,
@@ -289,4 +289,13 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
   );
 
   return <AgentStatesContext.Provider value={value}>{children}</AgentStatesContext.Provider>;
+}
+
+export function useAgentStatesContext(): AgentStatesContextValue {
+  const context = useContext(AgentStatesContext);
+  if (!context) {
+    throw new Error("useAgentStatesContext must be used within an AgentStatesProvider");
+  }
+
+  return context;
 }

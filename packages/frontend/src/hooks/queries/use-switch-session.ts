@@ -30,7 +30,6 @@ export function useSwitchSession(agentId: string): SwitchSession {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: agentKeys.messages(agentId) });
-      void queryClient.invalidateQueries({ queryKey: agentKeys.state(agentId) });
     },
   });
 

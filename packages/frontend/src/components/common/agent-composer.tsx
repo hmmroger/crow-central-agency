@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { AGENT_STATUS } from "@crow-central-agency/shared";
-import { useAgentStateQuery } from "../../hooks/queries/use-agent-state-query.js";
+import { useAgentState } from "../../hooks/use-agent-state.js";
 import { useAgentActions } from "../../hooks/queries/use-agent-actions.js";
 import { useComposeDraft, usePendingBranchAnchor } from "../../stores/compose-draft-store.js";
 import { BranchAnchorNotice } from "./branch-anchor-notice.js";
@@ -14,7 +14,7 @@ interface AgentComposerProps {
 export function AgentComposer({ agentId, variant = "full" }: AgentComposerProps) {
   const { draft, setDraft } = useComposeDraft(agentId);
   const { pendingBranchAnchorId, clearPendingBranchAnchorId } = usePendingBranchAnchor(agentId);
-  const { data: agentState } = useAgentStateQuery(agentId);
+  const agentState = useAgentState(agentId);
   const status = agentState?.status;
   const sessionId = agentState?.sessionId;
   const isStreaming = status === AGENT_STATUS.STREAMING;
