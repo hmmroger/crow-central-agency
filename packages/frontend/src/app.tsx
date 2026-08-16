@@ -10,6 +10,7 @@ import { ModalDialogProvider } from "./providers/modal-dialog-provider.js";
 import { FullPanelProvider } from "./providers/full-panel-provider.js";
 import { ContextMenuProvider } from "./providers/context-menu-provider.js";
 import { AgentsProvider } from "./providers/agents-provider.js";
+import { AgentStatesProvider } from "./providers/agent-states-provider.js";
 import { TasksProvider } from "./providers/tasks-provider.js";
 import { AgentBuilderProvider } from "./providers/agent-builder-provider.js";
 import { AccessKeyPage } from "./components/auth/access-key-page.js";
@@ -39,23 +40,25 @@ export function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <WsProvider>
-          <AgentsProvider>
-            <TasksProvider>
-              <AgentBuilderProvider>
-                <ContextMenuProvider>
-                  <ModalDialogProvider>
-                    <FullPanelProvider>
-                      <HeaderProvider>
-                        <AppLayout>
-                          <AppContent />
-                        </AppLayout>
-                      </HeaderProvider>
-                    </FullPanelProvider>
-                  </ModalDialogProvider>
-                </ContextMenuProvider>
-              </AgentBuilderProvider>
-            </TasksProvider>
-          </AgentsProvider>
+          <AgentStatesProvider>
+            <AgentsProvider>
+              <TasksProvider>
+                <AgentBuilderProvider>
+                  <ContextMenuProvider>
+                    <ModalDialogProvider>
+                      <FullPanelProvider>
+                        <HeaderProvider>
+                          <AppLayout>
+                            <AppContent />
+                          </AppLayout>
+                        </HeaderProvider>
+                      </FullPanelProvider>
+                    </ModalDialogProvider>
+                  </ContextMenuProvider>
+                </AgentBuilderProvider>
+              </TasksProvider>
+            </AgentsProvider>
+          </AgentStatesProvider>
         </WsProvider>
       </QueryClientProvider>
     </ErrorBoundary>

@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { AGENT_STATUS, type AgentConfig } from "@crow-central-agency/shared";
 import { useAgentMessagesQuery } from "../../../hooks/queries/use-agent-messages-query.js";
-import { useAgentStateQuery } from "../../../hooks/queries/use-agent-state-query.js";
+import { useAgentState } from "../../../hooks/use-agent-state.js";
 import { useAgentStreamState } from "../../../hooks/queries/use-agent-stream-state.js";
 import { useAgentActions } from "../../../hooks/queries/use-agent-actions.js";
 import { useAppStore } from "../../../stores/app-store.js";
@@ -24,7 +24,7 @@ interface AgentCardProps {
 export function AgentCard({ agent }: AgentCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { data: messages = [] } = useAgentMessagesQuery(agent.id);
-  const { data: agentState } = useAgentStateQuery(agent.id);
+  const agentState = useAgentState(agent.id);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
   const { streamingText, activeToolUse } = useAgentStreamState(agent.id);
   const pendingPermissions = agentState?.pendingPermissions ?? [];

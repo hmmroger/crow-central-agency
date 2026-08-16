@@ -1,5 +1,5 @@
 import { AGENT_STATUS, type AgentConfig } from "@crow-central-agency/shared";
-import { useAgentStateQuery } from "../../hooks/queries/use-agent-state-query.js";
+import { useAgentState } from "../../hooks/use-agent-state.js";
 import { getAgentAbbreviation } from "../../utils/agent-abbreviation.js";
 import { cn } from "../../utils/cn.js";
 
@@ -18,7 +18,7 @@ interface AgentCommandPillProps {
  * - Streaming/active: accent border + text, dot at upper-right
  */
 export function AgentCommandPill({ agent, isSelected, onClick }: AgentCommandPillProps) {
-  const { data: agentState } = useAgentStateQuery(agent.id);
+  const agentState = useAgentState(agent.id);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
   const isStreaming = status === AGENT_STATUS.STREAMING || status === AGENT_STATUS.COMPACTING;
   const abbreviation = getAgentAbbreviation(agent.name);

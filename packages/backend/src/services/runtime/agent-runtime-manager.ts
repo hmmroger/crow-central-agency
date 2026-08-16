@@ -854,12 +854,15 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     state.inputHistory = [...history, message].slice(-MAX_INPUT_HISTORY);
   }
 
-  /** Persist a single agent's runtime state to the store */
+  /** Persist a single agent's runtime state to the store and broadcast the snapshot. */
   private async persistAgentState(agentId: string): Promise<void> {
     const state = this.runtimeStates.get(agentId);
-    if (state) {
-      await this.store.set(AGENT_RUNTIME_MANAGER_STORE_TABLE, agentId, state);
+    if (!state) {
+      return;
     }
+
+    await this.store.set(AGENT_RUNTIME_MANAGER_STORE_TABLE, agentId, state);
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_STATE_UPDATED, agentId, state });
   }
 
   /** Persist all runtime states to the store (used after bulk recovery mutations) */
@@ -1158,6 +1161,11 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       }
 
       state.pendingPermissions.push(permissionInfo);
+      try {
+        await this.persistAgentState(permAgentId);
+      } catch (error) {
+        log.error({ agentId: permAgentId, error }, "Failed to persist state before requesting permission");
+      }
 
       try {
         return await this.permissionHandler.requestPermission(
@@ -1171,6 +1179,11 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       } finally {
         if (state.pendingPermissions) {
           state.pendingPermissions = state.pendingPermissions.filter((perm) => perm.toolUseId !== toolUseId);
+          try {
+            await this.persistAgentState(permAgentId);
+          } catch (error) {
+            log.error({ agentId: permAgentId, error }, "Failed to persist state after clearing pending permission");
+          }
         }
       }
     };

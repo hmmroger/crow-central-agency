@@ -4,7 +4,8 @@ import { Plus, FoldVertical } from "lucide-react";
 import { AGENT_COMMAND, AGENT_STATUS, CLIENT_MESSAGE_TYPE } from "@crow-central-agency/shared";
 import { cn } from "../../../utils/cn.js";
 import { useWs } from "../../../hooks/use-ws.js";
-import { useAgentStateQuery, DEFAULT_SESSION_USAGE } from "../../../hooks/queries/use-agent-state-query.js";
+import { useAgentState } from "../../../hooks/use-agent-state.js";
+import { DEFAULT_SESSION_USAGE, useAgentSessionUsage } from "../../../hooks/use-agent-session-usage.js";
 import { useNewConversation } from "../../../hooks/queries/use-new-conversation.js";
 import { STATUS_DOT_COLOR, STATUS_TEXT_COLOR, STATUS_LABEL } from "../../../utils/agent-status-display.js";
 import { ActivityFeed } from "../activity/activity-feed.js";
@@ -32,9 +33,9 @@ interface ControlButtonProps {
  */
 export function StatusTab({ agentId }: StatusTabProps) {
   const { send } = useWs();
-  const { data: agentState } = useAgentStateQuery(agentId);
+  const agentState = useAgentState(agentId);
   const status = agentState?.status ?? AGENT_STATUS.IDLE;
-  const usage = agentState?.sessionUsage ?? DEFAULT_SESSION_USAGE;
+  const usage = useAgentSessionUsage(agentId) ?? DEFAULT_SESSION_USAGE;
   const isStreaming = status === AGENT_STATUS.STREAMING;
   const { newConversation } = useNewConversation(agentId);
 

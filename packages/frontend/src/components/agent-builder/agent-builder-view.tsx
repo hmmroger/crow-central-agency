@@ -3,7 +3,7 @@ import { Hammer, Loader2, RotateCcw } from "lucide-react";
 import { AGENT_STATUS, AGENT_BUILDER_DRAFT_STATUS, CROW_WORLD_BUILDER_AGENT_ID } from "@crow-central-agency/shared";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { useAgentBuilderContext } from "../../providers/agent-builder-provider.js";
-import { useAgentStateQuery } from "../../hooks/queries/use-agent-state-query.js";
+import { useAgentState } from "../../hooks/use-agent-state.js";
 import { useDesignFleet, useResetDraft, useBuildFleet } from "../../hooks/queries/use-agent-builder-mutations.js";
 import { useModalDialog } from "../../providers/modal-dialog-provider.js";
 import { ConfirmationDialog } from "../common/dialogs/confirmation-dialog.js";
@@ -16,7 +16,7 @@ import { AvailableAgentsNotice } from "./available-agents-notice.js";
 
 export function AgentBuilderView() {
   const { draft, isLoading } = useAgentBuilderContext();
-  const worldBuilderState = useAgentStateQuery(CROW_WORLD_BUILDER_AGENT_ID);
+  const worldBuilderState = useAgentState(CROW_WORLD_BUILDER_AGENT_ID);
   const { mutateAsync: designFleet, isPending: isDesigningMutation, error: designError } = useDesignFleet();
   const { mutateAsync: resetDraft } = useResetDraft();
   const { mutateAsync: buildFleet } = useBuildFleet();
@@ -32,7 +32,7 @@ export function AgentBuilderView() {
   const buildResult = draft?.lastBuildResult;
   const existingAgents = draft?.existingAgents ?? [];
 
-  const worldBuilderStatus = worldBuilderState.data?.status ?? AGENT_STATUS.IDLE;
+  const worldBuilderStatus = worldBuilderState?.status ?? AGENT_STATUS.IDLE;
   const isDesigning = isDesigningMutation || worldBuilderStatus !== AGENT_STATUS.IDLE;
   const isBuilding = status === AGENT_BUILDER_DRAFT_STATUS.BUILDING;
   const isCompleted = status === AGENT_BUILDER_DRAFT_STATUS.COMPLETED;

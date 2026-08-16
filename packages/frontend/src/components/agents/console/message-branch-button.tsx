@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { GitBranch } from "lucide-react";
 import { AGENT_STATUS, type AgentMessage } from "@crow-central-agency/shared";
-import { useAgentStateQuery } from "../../../hooks/queries/use-agent-state-query.js";
+import { useAgentState } from "../../../hooks/use-agent-state.js";
 import { usePendingBranchAnchor } from "../../../stores/compose-draft-store.js";
 
 interface MessageBranchButtonProps {
@@ -18,7 +18,7 @@ interface MessageBranchButtonProps {
 export function MessageBranchButton({ agentId, message }: MessageBranchButtonProps) {
   const { pendingBranchAnchorId, setPendingBranchAnchorId, clearPendingBranchAnchorId } =
     usePendingBranchAnchor(agentId);
-  const { data: agentState } = useAgentStateQuery(agentId);
+  const agentState = useAgentState(agentId);
   const branchAnchorId = message.branchAnchorId;
   const isAnchored = branchAnchorId !== undefined && pendingBranchAnchorId === branchAnchorId;
 
