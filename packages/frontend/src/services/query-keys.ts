@@ -15,8 +15,6 @@ export const agentKeys = {
   detail: (agentId: string) => [...agentKeys.all, "detail", agentId] as const,
   /** Messages for an agent session */
   messages: (agentId: string) => [...agentKeys.all, "detail", agentId, "messages"] as const,
-  /** Agent runtime state (status, usage) */
-  state: (agentId: string) => [...agentKeys.all, "detail", agentId, "state"] as const,
   /** Bulk agent runtime states — one entry per registered agent */
   states: () => [...agentKeys.all, "states"] as const,
   /** An agent's session ledger, projected as an ordered branch hierarchy */
