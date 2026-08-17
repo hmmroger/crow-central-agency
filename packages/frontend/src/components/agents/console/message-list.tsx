@@ -49,7 +49,7 @@ export function MessageList({ agentId, messages, streamingText, isStreaming, act
     <div ref={scrollRef} tabIndex={-1} className="flex-1 overflow-y-auto px-5 py-5 focus:outline-none">
       <div
         ref={contentRef}
-        className={`max-w-3xl mx-auto min-h-full flex flex-col transition-opacity duration-150 ${
+        className={`max-w-3xl mx-auto min-h-full flex flex-col transition-opacity duration-fast ${
           isSettled ? "opacity-100" : "opacity-0"
         }`}
       >
