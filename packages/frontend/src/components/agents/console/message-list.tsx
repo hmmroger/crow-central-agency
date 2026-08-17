@@ -36,7 +36,7 @@ export function MessageList({ agentId, messages, streamingText, isStreaming, act
     getItemKey: (index) => messages[index].id,
   });
 
-  const { scheduleScrollIfPinned } = useStickToBottom({ scrollRef, contentRef });
+  const { scheduleScrollIfPinned, isSettled } = useStickToBottom({ scrollRef, contentRef });
 
   useEffect(() => {
     scheduleScrollIfPinned();
@@ -46,12 +46,13 @@ export function MessageList({ agentId, messages, streamingText, isStreaming, act
   const isEmpty = messages.length === 0 && !isStreaming;
 
   return (
-    <div
-      ref={scrollRef}
-      tabIndex={-1}
-      className="flex-1 overflow-y-auto px-5 py-5 focus:outline-none"
-    >
-      <div ref={contentRef} className="max-w-3xl mx-auto min-h-full flex flex-col">
+    <div ref={scrollRef} tabIndex={-1} className="flex-1 overflow-y-auto px-5 py-5 focus:outline-none">
+      <div
+        ref={contentRef}
+        className={`max-w-3xl mx-auto min-h-full flex flex-col transition-opacity duration-150 ${
+          isSettled ? "opacity-100" : "opacity-0"
+        }`}
+      >
         {isEmpty ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">

@@ -143,6 +143,7 @@
   }
 
   body {
+    overflow: hidden;
     color-scheme: dark;
     background-color: var(--color-base);
     color: var(--color-text-primary);
