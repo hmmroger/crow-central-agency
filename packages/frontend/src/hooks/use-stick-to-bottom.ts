@@ -96,11 +96,16 @@ export function useStickToBottom({ scrollRef, contentRef }: UseStickToBottomOpti
       }
     };
 
+    const armSettleTimer = () => {
+      clearSettleTimer();
+      settleTimerRef.current = setTimeout(evaluatePinAfterGesture, GESTURE_SETTLE_MS);
+    };
+
     const startGesture = () => {
       pinnedRef.current = false;
       gestureActiveRef.current = true;
       clearRaf();
-      clearSettleTimer();
+      armSettleTimer();
     };
 
     const handleScroll = () => {
@@ -108,8 +113,7 @@ export function useStickToBottom({ scrollRef, contentRef }: UseStickToBottomOpti
         return;
       }
 
-      clearSettleTimer();
-      settleTimerRef.current = setTimeout(evaluatePinAfterGesture, GESTURE_SETTLE_MS);
+      armSettleTimer();
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
