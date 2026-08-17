@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 
 interface UseStickToBottomOptions {
-  /** Ref to the scroll container element */
   scrollRef: RefObject<HTMLElement | null>;
   /** Ref to the inner content wrapper observed for size changes */
   contentRef: RefObject<HTMLElement | null>;
 }
 
 interface UseStickToBottomResult {
-  /** Coalesced scroll-to-bottom triggered from external triggers while pinned */
   scheduleScrollIfPinned: () => void;
 }
 
@@ -27,12 +25,6 @@ const NAVIGATION_KEYS = new Set([
   "ArrowDown",
 ]);
 
-/**
- * Gesture-driven stick-to-bottom controller for a scroll container.
- * Pinned state lives in a ref so content growth never triggers re-renders.
- * Release fires immediately on real user input; re-pin only inside the
- * post-gesture window derived from scroll settling.
- */
 export function useStickToBottom({ scrollRef, contentRef }: UseStickToBottomOptions): UseStickToBottomResult {
   const pinnedRef = useRef(true);
   const gestureActiveRef = useRef(false);
