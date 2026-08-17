@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Terminal } from "lucide-react";
 import type { AgentMessage } from "@crow-central-agency/shared";
 import type { ActiveToolUse } from "../../../hooks/queries/use-agent-stream-state.types.js";
+import { useStickToBottom } from "../../../hooks/use-stick-to-bottom.js";
 import { useVirtualList } from "../../../hooks/use-virtual-list.js";
 import { AgentMessageView } from "./agent-message.js";
 import { MarkdownRenderer } from "../../common/markdown-renderer.js";
@@ -24,7 +25,7 @@ const ROW_GAP = 12;
 
 export function MessageList({ agentId, messages, streamingText, isStreaming, activeToolUse }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualList({
     count: messages.length,
@@ -35,17 +36,11 @@ export function MessageList({ agentId, messages, streamingText, isStreaming, act
     getItemKey: (index) => messages[index].id,
   });
 
-  useEffect(() => {
-    if (messages.length === 0) {
-      return;
-    }
-
-    virtualizer.scrollToIndex(messages.length - 1, { align: "end" });
-  }, [messages.length, virtualizer]);
+  const { scheduleScrollIfPinned } = useStickToBottom({ scrollRef, contentRef });
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [streamingText.length, activeToolUse?.toolName]);
+    scheduleScrollIfPinned();
+  }, [messages.length, streamingText, activeToolUse?.toolName, scheduleScrollIfPinned]);
 
   if (messages.length === 0 && !isStreaming) {
     return (
@@ -62,7 +57,7 @@ export function MessageList({ agentId, messages, streamingText, isStreaming, act
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-5">
-      <div className="max-w-3xl mx-auto">
+      <div ref={contentRef} className="max-w-3xl mx-auto">
         <div
           style={{
             height: virtualizer.getTotalSize(),
@@ -110,8 +105,6 @@ export function MessageList({ agentId, messages, streamingText, isStreaming, act
         )}
 
         {isStreaming && !streamingText && !activeToolUse && <StreamingIndicator />}
-
-        <div ref={bottomRef} />
       </div>
     </div>
   );
