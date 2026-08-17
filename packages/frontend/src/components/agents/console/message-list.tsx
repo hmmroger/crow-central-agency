@@ -15,19 +15,13 @@ interface MessageListProps {
   activeToolUse?: ActiveToolUse;
 }
 
-/** Initial per-row height estimate in pixels; real heights come from measurement */
 const ESTIMATED_ROW_HEIGHT = 120;
 
-/** Rows rendered outside the viewport in each direction */
 const OVERSCAN = 4;
 
 /** Gap between rows in pixels — must match the previous `space-y-3` (0.75rem) */
 const ROW_GAP = 12;
 
-/**
- * Scrollable message area for the agent console.
- * Centered chat layout with auto-scroll to bottom.
- */
 export function MessageList({ agentId, messages, streamingText, isStreaming, activeToolUse }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
