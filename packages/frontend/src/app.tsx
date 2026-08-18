@@ -13,6 +13,7 @@ import { AgentsProvider } from "./providers/agents-provider.js";
 import { AgentStatesProvider } from "./providers/agent-states-provider.js";
 import { TasksProvider } from "./providers/tasks-provider.js";
 import { AgentBuilderProvider } from "./providers/agent-builder-provider.js";
+import { RowHeightsProvider } from "./providers/row-heights-provider.js";
 import { AccessKeyPage } from "./components/auth/access-key-page.js";
 import { requestGeolocation } from "./services/geolocation.js";
 import { useAppStore } from "./stores/app-store.js";
@@ -48,9 +49,11 @@ export function App() {
                     <ModalDialogProvider>
                       <FullPanelProvider>
                         <HeaderProvider>
-                          <AppLayout>
-                            <AppContent />
-                          </AppLayout>
+                          <RowHeightsProvider>
+                            <AppLayout>
+                              <AppContent />
+                            </AppLayout>
+                          </RowHeightsProvider>
                         </HeaderProvider>
                       </FullPanelProvider>
                     </ModalDialogProvider>
