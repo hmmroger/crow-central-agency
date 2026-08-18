@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
 import { Terminal } from "lucide-react";
-import type { AgentMessage } from "@crow-central-agency/shared";
+import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
 import type { ActiveToolUse } from "../../../hooks/queries/use-agent-stream-state.types.js";
 import { useStickToBottom } from "../../../hooks/use-stick-to-bottom.js";
 import { useVirtualList } from "../../../hooks/use-virtual-list.js";
+import { useRowHeights } from "../../../providers/row-heights-provider.js";
+import type { RowHeights } from "../../../providers/row-heights-provider.types.js";
 import { AgentMessageView } from "./agent-message.js";
 import { MarkdownRenderer } from "../../common/markdown-renderer.js";
 import { StreamingIndicator } from "./streaming-indicator.js";
@@ -16,21 +18,49 @@ interface MessageListProps {
   activeToolUse?: ActiveToolUse;
 }
 
-const ESTIMATED_ROW_HEIGHT = 120;
-
-const OVERSCAN = 4;
+const OVERSCAN = 8;
 
 /** Gap between rows in pixels — must match the previous `space-y-3` (0.75rem) */
 const ROW_GAP = 12;
 
+/** Line height for TEXT bubbles (text-sm leading-relaxed ≈ 0.875rem × 1.625) */
+const TEXT_LINE_HEIGHT_PX = 23;
+
+/** MessageActions row below every TEXT bubble (message-actions.tsx: single icon-button row) */
+const MESSAGE_ACTIONS_HEIGHT_PX = 24;
+
+/** Approx characters per wrapped line in a USER bubble (max-w-bubble = 75% of max-w-3xl, minus px-3) */
+const USER_TEXT_CHARS_PER_LINE = 75;
+
+/** Approx characters per wrapped line in an AGENT bubble (full max-w-3xl, minus px-3) */
+const AGENT_TEXT_CHARS_PER_LINE = 105;
+
+function estimateMessageHeight(message: AgentMessage, rowHeights: RowHeights): number {
+  switch (message.type) {
+    case AGENT_MESSAGE_TYPE.TOOL_USE:
+      return rowHeights.toolUse;
+    case AGENT_MESSAGE_TYPE.COMMAND:
+      return rowHeights.command;
+    case AGENT_MESSAGE_TYPE.THINKING:
+      return rowHeights.thinkingCollapsed;
+    case AGENT_MESSAGE_TYPE.TEXT: {
+      const charsPerLine =
+        message.role === AGENT_MESSAGE_ROLE.USER ? USER_TEXT_CHARS_PER_LINE : AGENT_TEXT_CHARS_PER_LINE;
+      const lines = Math.max(1, Math.ceil(message.content.length / charsPerLine));
+      return lines * TEXT_LINE_HEIGHT_PX + MESSAGE_ACTIONS_HEIGHT_PX;
+    }
+  }
+}
+
 export function MessageList({ agentId, messages, streamingText, isStreaming, activeToolUse }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const rowHeights = useRowHeights();
 
   const virtualizer = useVirtualList({
     count: messages.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    estimateSize: (index) => estimateMessageHeight(messages[index], rowHeights),
     overscan: OVERSCAN,
     gap: ROW_GAP,
     getItemKey: (index) => messages[index].id,
