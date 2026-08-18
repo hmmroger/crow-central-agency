@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityItem } from "../components/agents/console/activity-item.js";
 import { CommandItem } from "../components/agents/console/command-item.js";
 import { ThinkingMessage } from "../components/agents/console/thinking-message.js";
@@ -9,7 +9,6 @@ const PROBE_TOOL_CONTENT = "sample";
 const PROBE_COMMAND_CONTENT = "/sample";
 const PROBE_THINKING_CONTENT = "sample";
 
-/** Fallback used until probes measure — a plausible single-line height, corrected within a frame */
 const INITIAL_ROW_HEIGHT_PX = 24;
 
 const INITIAL_HEIGHTS: RowHeights = {
@@ -26,7 +25,7 @@ export function RowHeightsProvider({ children }: { children: ReactNode }) {
   const commandRef = useRef<HTMLDivElement>(null);
   const thinkingRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const toolUseEl = toolUseRef.current;
     const commandEl = commandRef.current;
     const thinkingEl = thinkingRef.current;
@@ -34,6 +33,12 @@ export function RowHeightsProvider({ children }: { children: ReactNode }) {
     if (!toolUseEl || !commandEl || !thinkingEl) {
       return;
     }
+
+    setHeights({
+      toolUse: Math.round(toolUseEl.getBoundingClientRect().height),
+      command: Math.round(commandEl.getBoundingClientRect().height),
+      thinkingCollapsed: Math.round(thinkingEl.getBoundingClientRect().height),
+    });
 
     const observeProbe = (element: HTMLElement, key: keyof RowHeights) => {
       const observer = new ResizeObserver((entries) => {
