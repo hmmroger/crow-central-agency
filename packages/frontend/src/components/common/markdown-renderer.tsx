@@ -51,8 +51,11 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   const containerRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<PanDragState | null>(null);
   // Optional: MarkdownRenderer is general-purpose and may render outside a
-  // ModalDialogProvider. When absent, the expand affordance degrades to a no-op.
-  const modalDialog = useOptionalModalDialog();
+  // ModalDialogProvider. When absent, showDialog is undefined and the expand
+  // affordance degrades to a no-op. Reading the method out keeps the click
+  // handler's dep a stable identifier (the provider's useCallback([],[])) rather
+  // than the context object, which is recreated on every dialog stack mutation.
+  const showDialog = useOptionalModalDialog()?.showDialog;
 
   // Memoize parsed HTML with copy buttons and embed chrome injected
   const html = useMemo(() => injectHtmlviewChrome(injectCopyButtons(parseMarkdown(content))), [content]);
@@ -177,7 +180,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
         const source = container?.querySelector(".htmlview-source")?.textContent ?? "";
         if (source) {
           if (htmlviewBtn.dataset.htmlviewAction === HTMLVIEW_EXPAND_ACTION) {
-            modalDialog?.showDialog({
+            showDialog?.({
               id: `htmlview-expand-${Date.now()}`,
               component: MarkdownViewerDialog,
               componentProps: { content: toHtmlviewFence(source) },
@@ -216,7 +219,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
           console.warn("Clipboard not available.");
         });
     },
-    [modalDialog?.showDialog]
+    [showDialog]
   );
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
