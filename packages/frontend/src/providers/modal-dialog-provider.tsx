@@ -86,3 +86,13 @@ export function useModalDialog(): ModalDialogContextValue {
 
   return ctx;
 }
+
+/**
+ * Optional variant for general-purpose components (e.g. MarkdownRenderer) that
+ * may render outside a ModalDialogProvider. Returns undefined instead of
+ * throwing so callers can degrade the dialog-dependent affordance gracefully.
+ * Purpose-built dialog components should keep using useModalDialog().
+ */
+export function useOptionalModalDialog(): ModalDialogContextValue | undefined {
+  return useContext(ModalDialogContext);
+}

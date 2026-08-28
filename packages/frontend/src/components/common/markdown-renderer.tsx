@@ -5,7 +5,7 @@ import { parseMarkdown } from "../../utils/marked-config";
 import { sanitizeSvg, sanitizeEmbedHtml } from "../../utils/html-sanitizer";
 import { HTMLVIEW_EMBED_STYLES } from "./htmlview-embed-styles";
 import { MarkdownViewerDialog } from "./dialogs/markdown-viewer-dialog";
-import { useModalDialog } from "../../providers/modal-dialog-provider";
+import { useOptionalModalDialog } from "../../providers/modal-dialog-provider";
 import { cn } from "../../utils/cn";
 
 const MIN_ZOOM = 0.5;
@@ -50,7 +50,9 @@ ensureMermaidInit();
 export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<PanDragState | null>(null);
-  const { showDialog } = useModalDialog();
+  // Optional: MarkdownRenderer is general-purpose and may render outside a
+  // ModalDialogProvider. When absent, the expand affordance degrades to a no-op.
+  const modalDialog = useOptionalModalDialog();
 
   // Memoize parsed HTML with copy buttons and embed chrome injected
   const html = useMemo(() => injectHtmlviewChrome(injectCopyButtons(parseMarkdown(content))), [content]);
@@ -175,7 +177,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
         const source = container?.querySelector(".htmlview-source")?.textContent ?? "";
         if (source) {
           if (htmlviewBtn.dataset.htmlviewAction === HTMLVIEW_EXPAND_ACTION) {
-            showDialog({
+            modalDialog?.showDialog({
               id: `htmlview-expand-${Date.now()}`,
               component: MarkdownViewerDialog,
               componentProps: { content: toHtmlviewFence(source) },
@@ -214,7 +216,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
           console.warn("Clipboard not available.");
         });
     },
-    [showDialog]
+    [modalDialog]
   );
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
