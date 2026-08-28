@@ -5,6 +5,18 @@ const HTTPS_PROTOCOL = "https:";
 const EMBED_MEDIA_TAGS = ["IMG", "SOURCE", "VIDEO", "AUDIO"];
 const BUTTON_SUBMIT_TYPE = "submit";
 
+// Form controls are forbidden on every sanitized path. The real agent-HTML risk
+// is prompt-injection-driven phishing (per design-gmail-body-format.md), which
+// sanitization does not otherwise mitigate, so the credential-harvest shape is
+// removed outright rather than merely defanged.
+const FORBIDDEN_FORM_TAGS = ["form", "input", "select", "textarea"];
+
+// Embeds additionally forbid these: <iframe> executes, <link> can issue an
+// uncontrolled http request, and <base> can reroute the embed's relative URLs —
+// none covered by enforceHttpsMedia, and no legitimate embed use for any.
+// Composed from FORBIDDEN_FORM_TAGS so the two paths cannot drift.
+const FORBIDDEN_EMBED_TAGS = FORBIDDEN_FORM_TAGS.concat(["iframe", "link", "base"]);
+
 /**
  * DOMPurify config for general markdown output
  */
@@ -15,6 +27,12 @@ const purifyConfigGeneral = {
 
   // High-value safety: ensure links don't leak tab control
   ADD_ATTR: ["target", "rel"],
+
+  // Remove the phishing-shaped form controls from ordinary agent prose. No
+  // submit-button hook here: a lone <button> is inert once <form> is gone, and
+  // a global afterSanitizeElements hook would run against every markdown/mermaid
+  // render for no security gain.
+  FORBID_TAGS: FORBIDDEN_FORM_TAGS,
 
   // Standard security precaution
   FORBID_ATTR: ["onerror", "onclick", "onload"],
@@ -49,10 +67,7 @@ const purifyConfigEmbed = {
   USE_PROFILES: { html: true, svg: true },
   ADD_TAGS: ["style"],
   ADD_ATTR: ["target", "rel"],
-  // link/base forbidden explicitly: <link> can issue an uncontrolled http
-  // request and <base> can reroute the embed's relative URLs, neither of which
-  // enforceHttpsMedia covers. No legitimate embed use for either.
-  FORBID_TAGS: ["form", "input", "select", "textarea", "iframe", "link", "base"],
+  FORBID_TAGS: FORBIDDEN_EMBED_TAGS,
   FORBID_ATTR: ["onerror", "onclick", "onload"],
   // Parse in a body context so a leading <style> is retained rather than being
   // hoisted into (and dropped with) an implicit <head>.
