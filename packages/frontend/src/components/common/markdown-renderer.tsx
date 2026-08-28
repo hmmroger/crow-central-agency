@@ -3,20 +3,12 @@ import mermaid from "mermaid";
 import { ensureMermaidInit } from "../../utils/mermaid-config";
 import { parseMarkdown } from "../../utils/marked-config";
 import { sanitizeSvg, sanitizeEmbedHtml } from "../../utils/html-sanitizer";
+import { HTMLVIEW_EMBED_STYLES } from "./htmlview-embed-styles";
 import { cn } from "../../utils/cn";
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 1.25;
-
-// Minimal base stylesheet injected into every htmlview shadow root. Keeps embeds
-// fluid-width with natural height; the full reading stylesheet is a later phase.
-const HTMLVIEW_BASE_STYLES = `
-  :host { display: block; max-width: 100%; }
-  *, *::before, *::after { box-sizing: border-box; }
-  img, picture, video, audio, canvas, svg, table { max-width: 100%; }
-  img, video { height: auto; }
-`;
 
 interface MarkdownRendererProps {
   content: string;
@@ -285,13 +277,16 @@ function mountHtmlviewEmbeds(container: HTMLElement): void {
     const shadow = element.attachShadow({ mode: "open" });
 
     const baseStyle = document.createElement("style");
-    baseStyle.textContent = HTMLVIEW_BASE_STYLES;
+    baseStyle.textContent = HTMLVIEW_EMBED_STYLES;
     shadow.appendChild(baseStyle);
 
     // Content is DOMPurify-sanitized; parse it and import the nodes so we never
-    // assign a markup string to innerHTML.
+    // assign a markup string to innerHTML. A leading <style> is hoisted into
+    // <head> by the HTML parser, so import head nodes (before body) too —
+    // otherwise a scoped author stylesheet at the top of the embed is dropped.
     const parsed = new DOMParser().parseFromString(sanitizeEmbedHtml(source), "text/html");
-    Array.from(parsed.body.childNodes).forEach((node) => {
+    const embedNodes = Array.from(parsed.head.childNodes).concat(Array.from(parsed.body.childNodes));
+    embedNodes.forEach((node) => {
       shadow.appendChild(document.importNode(node, true));
     });
 
