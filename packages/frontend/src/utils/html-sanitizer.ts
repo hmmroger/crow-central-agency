@@ -49,7 +49,10 @@ const purifyConfigEmbed = {
   USE_PROFILES: { html: true, svg: true },
   ADD_TAGS: ["style"],
   ADD_ATTR: ["target", "rel"],
-  FORBID_TAGS: ["form", "input", "select", "textarea", "iframe"],
+  // link/base forbidden explicitly: <link> can issue an uncontrolled http
+  // request and <base> can reroute the embed's relative URLs, neither of which
+  // enforceHttpsMedia covers. No legitimate embed use for either.
+  FORBID_TAGS: ["form", "input", "select", "textarea", "iframe", "link", "base"],
   FORBID_ATTR: ["onerror", "onclick", "onload"],
   // Parse in a body context so a leading <style> is retained rather than being
   // hoisted into (and dropped with) an implicit <head>.
@@ -123,8 +126,10 @@ function getEmbedPurify(): typeof DOMPurify {
   }
 
   const instance = DOMPurify(window);
-  instance.addHook("uponSanitizeElement", (node, data) => {
-    if (data.tagName !== "button" || !(node instanceof Element)) {
+  // afterSanitizeElements is DOMPurify's documented node-removal hook: it runs
+  // after the node is committed to the output tree, so removal is deterministic.
+  instance.addHook("afterSanitizeElements", (node) => {
+    if (!(node instanceof Element) || node.tagName !== "BUTTON") {
       return;
     }
 

@@ -275,7 +275,9 @@ function mountHtmlviewEmbeds(container: HTMLElement): void {
       return;
     }
 
-    const source = element.textContent ?? "";
+    // Read from the canonical source carrier, not the whole host subtree, so
+    // any future host-level affordance text is never fed to the sanitizer.
+    const source = element.querySelector(".htmlview-source")?.textContent ?? "";
     if (!source.trim()) {
       return;
     }
