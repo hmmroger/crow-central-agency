@@ -82,9 +82,18 @@ function isHttpsUrl(value: string): boolean {
  * is not https. Reuses isHttpsUrl so CSS and media attributes cannot drift.
  * Fails closed — a malformed `url(` leaves an unclosed function the browser
  * discards, and an unparseable candidate is dropped rather than kept.
+ *
+ * CSS character escapes are removed up front: `\75 rl(...)` decodes to `url(`
+ * in the browser but would slip past a literal-keyword regex, so we strip the
+ * escapes and emit the de-escaped text — the browser then sees a broken
+ * function and issues no request. Escaped glyphs in author CSS are dropped as
+ * an accepted cosmetic residual.
  */
 function sanitizeCssUrls(css: string): string {
-  const withoutImports = css.replace(/@import\b[^;]*;?/gi, "");
+  const deEscaped = css.replace(/\\[0-9a-fA-F]{1,6}\s?|\\./g, "");
+  // Terminate @import at a newline too, so a missing semicolon does not consume
+  // the following rule.
+  const withoutImports = deEscaped.replace(/@import\b[^;\n]*;?/gi, "");
   return withoutImports.replace(
     /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)'"\s]*))\s*\)/gi,
     (match, doubleQuoted, singleQuoted, unquoted) => {

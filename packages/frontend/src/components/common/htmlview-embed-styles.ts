@@ -8,6 +8,7 @@
 export const HTMLVIEW_EMBED_STYLES = `
   :host {
     --htmlview-measure: 68ch;
+    --htmlview-accent-border: 3px;
     display: block;
     max-width: 100%;
     color: var(--color-text-base);
@@ -40,13 +41,13 @@ export const HTMLVIEW_EMBED_STYLES = `
   h4, h5, h6 { font-size: var(--text-sm); }
 
   aside {
-    border-left: 3px solid var(--color-border);
+    border-left: var(--htmlview-accent-border) solid var(--color-border);
     padding-left: 1em;
     color: var(--color-text-neutral);
   }
 
   blockquote {
-    border-left: 3px solid var(--color-primary);
+    border-left: var(--htmlview-accent-border) solid var(--color-primary);
     padding-left: 1em;
     color: var(--color-text-neutral);
     font-style: italic;
