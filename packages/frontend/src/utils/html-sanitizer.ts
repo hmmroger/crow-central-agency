@@ -1,5 +1,10 @@
 import DOMPurify from "dompurify";
 
+const HTTPS_PROTOCOL = "https:";
+// Media elements whose src/srcset must be restricted to https inside embeds.
+const EMBED_MEDIA_TAGS = ["IMG", "SOURCE", "VIDEO", "AUDIO"];
+const BUTTON_SUBMIT_TYPE = "submit";
+
 /**
  * DOMPurify config for general markdown output
  */
@@ -34,6 +39,69 @@ const purifyConfigMermaid = {
   },
 };
 
+/**
+ * DOMPurify config for `htmlview` embeds rendered inside a shadow root.
+ * A separate profile from the general markdown output: it allows scoped
+ * `<style>` (safe because the shadow root isolates it) while forbidding the
+ * phishing-shaped form controls, and drops any non-https media source.
+ */
+const purifyConfigEmbed = {
+  USE_PROFILES: { html: true, svg: true },
+  ADD_TAGS: ["style"],
+  ADD_ATTR: ["target", "rel"],
+  FORBID_TAGS: ["form", "input", "select", "textarea", "iframe"],
+  FORBID_ATTR: ["onerror", "onclick", "onload"],
+  // Parse in a body context so a leading <style> is retained rather than being
+  // hoisted into (and dropped with) an implicit <head>.
+  FORCE_BODY: true,
+};
+
+function forceSafeAnchor(node: Element): void {
+  if (node.tagName === "A" && node.getAttribute("href")) {
+    node.setAttribute("target", "_blank");
+    node.setAttribute("rel", "noopener noreferrer");
+  }
+}
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value.trim()).protocol === HTTPS_PROTOCOL;
+  } catch {
+    // Relative and protocol-relative ("//host") URLs throw without a base and
+    // are rejected — embeds may only reference absolute https resources.
+    return false;
+  }
+}
+
+/**
+ * Restrict embed media to https sources. Any `src`/`srcset` candidate whose
+ * scheme is not https (including http, data, and protocol-relative) is dropped.
+ */
+function enforceHttpsMedia(node: Element): void {
+  if (!EMBED_MEDIA_TAGS.includes(node.tagName)) {
+    return;
+  }
+
+  const src = node.getAttribute("src");
+  if (src !== null && !isHttpsUrl(src)) {
+    node.removeAttribute("src");
+  }
+
+  const srcset = node.getAttribute("srcset");
+  if (srcset !== null) {
+    const keptCandidates = srcset
+      .split(",")
+      .map((candidate) => candidate.trim())
+      .filter((candidate) => candidate.length > 0 && isHttpsUrl(candidate.split(/\s+/)[0]));
+
+    if (keptCandidates.length === 0) {
+      node.removeAttribute("srcset");
+    } else {
+      node.setAttribute("srcset", keptCandidates.join(", "));
+    }
+  }
+}
+
 let anchorHookRegistered = false;
 
 function ensureAnchorHook(): void {
@@ -42,12 +110,37 @@ function ensureAnchorHook(): void {
   }
 
   anchorHookRegistered = true;
-  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
-    if (node.tagName === "A" && node.getAttribute("href")) {
-      node.setAttribute("target", "_blank");
-      node.setAttribute("rel", "noopener noreferrer");
+  DOMPurify.addHook("afterSanitizeAttributes", forceSafeAnchor);
+}
+
+let embedPurify: typeof DOMPurify | undefined;
+
+// Isolated DOMPurify instance so the embed-only media/button hooks never run
+// against the general markdown path.
+function getEmbedPurify(): typeof DOMPurify {
+  if (embedPurify) {
+    return embedPurify;
+  }
+
+  const instance = DOMPurify(window);
+  instance.addHook("uponSanitizeElement", (node, data) => {
+    if (data.tagName !== "button" || !(node instanceof Element)) {
+      return;
+    }
+
+    // A bare <button> defaults to type=submit; forbid the submit shape.
+    const buttonType = (node.getAttribute("type") ?? BUTTON_SUBMIT_TYPE).toLowerCase();
+    if (buttonType === BUTTON_SUBMIT_TYPE) {
+      node.parentNode?.removeChild(node);
     }
   });
+  instance.addHook("afterSanitizeAttributes", (node) => {
+    forceSafeAnchor(node);
+    enforceHttpsMedia(node);
+  });
+
+  embedPurify = instance;
+  return embedPurify;
 }
 
 export function sanitizeHtml(html: string): string {
@@ -59,4 +152,8 @@ export function sanitizeHtml(html: string): string {
 export function sanitizeSvg(svg: string): string {
   const safeSvg = DOMPurify.sanitize(svg, purifyConfigMermaid);
   return safeSvg;
+}
+
+export function sanitizeEmbedHtml(html: string): string {
+  return getEmbedPurify().sanitize(html, purifyConfigEmbed);
 }

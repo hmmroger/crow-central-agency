@@ -370,6 +370,18 @@
       @apply my-3 flex justify-center rounded-md border border-border bg-surface p-2;
     }
 
+    & .htmlview-container {
+      @apply my-3;
+      display: block;
+      max-width: 100%;
+    }
+
+    /* Suppress the pre-attach flash of raw source; the shadow root renders the
+       embed once mounted. */
+    & .htmlview-container > .htmlview-source {
+      display: none;
+    }
+
     & .mermaid-viewport {
       position: relative;
       width: 100%;

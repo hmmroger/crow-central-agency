@@ -2,12 +2,21 @@ import { useMemo, useEffect, useRef, useState, useCallback } from "react";
 import mermaid from "mermaid";
 import { ensureMermaidInit } from "../../utils/mermaid-config";
 import { parseMarkdown } from "../../utils/marked-config";
-import { sanitizeSvg } from "../../utils/html-sanitizer";
+import { sanitizeSvg, sanitizeEmbedHtml } from "../../utils/html-sanitizer";
 import { cn } from "../../utils/cn";
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 1.25;
+
+// Minimal base stylesheet injected into every htmlview shadow root. Keeps embeds
+// fluid-width with natural height; the full reading stylesheet is a later phase.
+const HTMLVIEW_BASE_STYLES = `
+  :host { display: block; max-width: 100%; }
+  *, *::before, *::after { box-sizing: border-box; }
+  img, picture, video, audio, canvas, svg, table { max-width: 100%; }
+  img, video { height: auto; }
+`;
 
 interface MarkdownRendererProps {
   content: string;
@@ -88,6 +97,19 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
 
     renderDiagrams();
   }, [html, isStreaming]);
+
+  // Mount htmlview embeds into shadow roots. Depends on renderedHtml (not html)
+  // so it re-runs after the mermaid re-serialization at :85 rewrites the
+  // container's innerHTML — that drops the (non-serialized) shadow root, and
+  // this pass re-attaches from the escaped source preserved in light DOM.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (isStreaming || !container) {
+      return;
+    }
+
+    mountHtmlviewEmbeds(container);
+  }, [renderedHtml, isStreaming]);
 
   // Non-passive native wheel listener so Ctrl/Cmd+wheel can zoom without
   // scrolling the page. React's synthetic onWheel is passive.
@@ -238,6 +260,41 @@ function injectCopyButtons(html: string): string {
     /<pre([^>]*)>(\s*<code)/g,
     '<pre$1><button class="code-copy-btn" aria-label="Copy code to clipboard">Copy</button>$2'
   );
+}
+
+/**
+ * Attach a shadow root to each htmlview container and render its sanitized
+ * source inside. Guarded on an existing shadowRoot rather than a light-DOM
+ * marker: attachShadow throws on a host that already has one, and the marker
+ * (unlike the shadow root) survives innerHTML re-serialization.
+ */
+function mountHtmlviewEmbeds(container: HTMLElement): void {
+  const embeds = container.querySelectorAll<HTMLElement>(".htmlview-container");
+  embeds.forEach((element) => {
+    if (element.shadowRoot) {
+      return;
+    }
+
+    const source = element.textContent ?? "";
+    if (!source.trim()) {
+      return;
+    }
+
+    const shadow = element.attachShadow({ mode: "open" });
+
+    const baseStyle = document.createElement("style");
+    baseStyle.textContent = HTMLVIEW_BASE_STYLES;
+    shadow.appendChild(baseStyle);
+
+    // Content is DOMPurify-sanitized; parse it and import the nodes so we never
+    // assign a markup string to innerHTML.
+    const parsed = new DOMParser().parseFromString(sanitizeEmbedHtml(source), "text/html");
+    Array.from(parsed.body.childNodes).forEach((node) => {
+      shadow.appendChild(document.importNode(node, true));
+    });
+
+    element.setAttribute("data-rendered", "true");
+  });
 }
 
 function createZoomButton(action: string, label: string, symbol: string): HTMLButtonElement {
