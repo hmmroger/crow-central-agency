@@ -4,11 +4,27 @@ import { ensureMermaidInit } from "../../utils/mermaid-config";
 import { parseMarkdown } from "../../utils/marked-config";
 import { sanitizeSvg, sanitizeEmbedHtml } from "../../utils/html-sanitizer";
 import { HTMLVIEW_EMBED_STYLES } from "./htmlview-embed-styles";
+import { MarkdownViewerDialog } from "./dialogs/markdown-viewer-dialog";
+import { useModalDialog } from "../../providers/modal-dialog-provider";
 import { cn } from "../../utils/cn";
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 1.25;
+
+const HTMLVIEW_LANG = "htmlview";
+const HTMLVIEW_COPY_ACTION = "copy";
+const HTMLVIEW_EXPAND_ACTION = "expand";
+
+// Host chrome for an embed. Injected into light DOM (after sanitization, like
+// the code-copy button) so it survives the innerHTML re-serialization and is
+// never fed to the sanitizer — mountHtmlviewEmbeds reads only .htmlview-source.
+const HTMLVIEW_CHROME = [
+  `<div class="htmlview-chrome">`,
+  `<button type="button" class="htmlview-btn" data-htmlview-action="${HTMLVIEW_COPY_ACTION}" aria-label="Copy source">Copy</button>`,
+  `<button type="button" class="htmlview-btn" data-htmlview-action="${HTMLVIEW_EXPAND_ACTION}" aria-label="Expand view">Expand</button>`,
+  `</div>`,
+].join("");
 
 interface MarkdownRendererProps {
   content: string;
@@ -34,9 +50,10 @@ ensureMermaidInit();
 export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<PanDragState | null>(null);
+  const { showDialog } = useModalDialog();
 
-  // Memoize parsed HTML with copy buttons injected
-  const html = useMemo(() => injectCopyButtons(parseMarkdown(content)), [content]);
+  // Memoize parsed HTML with copy buttons and embed chrome injected
+  const html = useMemo(() => injectHtmlviewChrome(injectCopyButtons(parseMarkdown(content))), [content]);
   const [renderedHtml, setRenderedHtml] = useState(html);
 
   // Render mermaid diagrams after mount (skip during streaming)
@@ -134,45 +151,71 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
     return () => container.removeEventListener("wheel", handleWheel);
   }, []);
 
-  // Event delegation: handles copy buttons and mermaid zoom buttons.
-  const handleContainerClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
+  // Event delegation: handles code-copy, mermaid zoom, and embed chrome buttons.
+  const handleContainerClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement;
 
-    const zoomBtn = target.closest<HTMLElement>(".mermaid-zoom-btn");
-    if (zoomBtn) {
-      const action = zoomBtn.dataset.zoomAction;
-      const viewport = zoomBtn.closest<HTMLElement>(".mermaid-viewport");
-      if (action && viewport) {
-        zoomViewport(viewport, action);
+      const zoomBtn = target.closest<HTMLElement>(".mermaid-zoom-btn");
+      if (zoomBtn) {
+        const action = zoomBtn.dataset.zoomAction;
+        const viewport = zoomBtn.closest<HTMLElement>(".mermaid-viewport");
+        if (action && viewport) {
+          zoomViewport(viewport, action);
+        }
+
+        return;
       }
 
-      return;
-    }
+      const htmlviewBtn = target.closest<HTMLElement>(".htmlview-btn");
+      if (htmlviewBtn) {
+        // Copy the authored source (what the agent wrote), not the sanitized
+        // shadow output; expand renders the same embed larger via the dialog.
+        const container = htmlviewBtn.closest<HTMLElement>(".htmlview-container");
+        const source = container?.querySelector(".htmlview-source")?.textContent ?? "";
+        if (source) {
+          if (htmlviewBtn.dataset.htmlviewAction === HTMLVIEW_EXPAND_ACTION) {
+            showDialog({
+              id: `htmlview-expand-${Date.now()}`,
+              component: MarkdownViewerDialog,
+              componentProps: { content: toHtmlviewFence(source) },
+              title: "HTML view",
+              className: "w-[95vw] md:w-3xl h-[80vh] flex flex-col",
+            });
+          } else {
+            copyHtmlviewSource(htmlviewBtn, source);
+          }
+        }
 
-    if (!target.classList.contains("code-copy-btn")) {
-      return;
-    }
+        return;
+      }
 
-    const pre = target.closest("pre");
-    if (!pre) {
-      return;
-    }
+      if (!target.classList.contains("code-copy-btn")) {
+        return;
+      }
 
-    const code = pre.querySelector("code");
-    const text = code?.textContent ?? pre.textContent ?? "";
+      const pre = target.closest("pre");
+      if (!pre) {
+        return;
+      }
 
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        target.textContent = "Copied!";
-        setTimeout(() => {
-          target.textContent = "Copy";
-        }, 2000);
-      })
-      .catch(() => {
-        console.warn("Clipboard not available.");
-      });
-  }, []);
+      const code = pre.querySelector("code");
+      const text = code?.textContent ?? pre.textContent ?? "";
+
+      navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          target.textContent = "Copied!";
+          setTimeout(() => {
+            target.textContent = "Copy";
+          }, 2000);
+        })
+        .catch(() => {
+          console.warn("Clipboard not available.");
+        });
+    },
+    [showDialog]
+  );
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
@@ -255,13 +298,46 @@ function injectCopyButtons(html: string): string {
 }
 
 /**
+ * Append host chrome after each embed as a sibling of the shadow host, so it
+ * renders (shadow-host light children do not) and survives re-serialization.
+ * The escaped source cannot contain a literal `</pre>`, so the lazy match ends
+ * exactly at the embed's own closing tags.
+ */
+function injectHtmlviewChrome(html: string): string {
+  return html.replace(
+    /(<div class="htmlview-embed"><pre class="htmlview-source">[\s\S]*?<\/pre><\/div>)/g,
+    `$1${HTMLVIEW_CHROME}`
+  );
+}
+
+// Wrap authored source back into an htmlview fence so the expand dialog's
+// MarkdownRenderer renders it as the same isolated embed.
+function toHtmlviewFence(source: string): string {
+  return `\`\`\`${HTMLVIEW_LANG}\n${source}\n\`\`\``;
+}
+
+function copyHtmlviewSource(button: HTMLElement, source: string): void {
+  navigator.clipboard
+    .writeText(source)
+    .then(() => {
+      button.textContent = "Copied!";
+      setTimeout(() => {
+        button.textContent = "Copy";
+      }, 2000);
+    })
+    .catch(() => {
+      console.warn("Clipboard not available.");
+    });
+}
+
+/**
  * Attach a shadow root to each htmlview container and render its sanitized
  * source inside. Guarded on an existing shadowRoot rather than a light-DOM
  * marker: attachShadow throws on a host that already has one, and the marker
  * (unlike the shadow root) survives innerHTML re-serialization.
  */
 function mountHtmlviewEmbeds(container: HTMLElement): void {
-  const embeds = container.querySelectorAll<HTMLElement>(".htmlview-container");
+  const embeds = container.querySelectorAll<HTMLElement>(".htmlview-embed");
   embeds.forEach((element) => {
     if (element.shadowRoot) {
       return;

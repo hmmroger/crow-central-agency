@@ -28,9 +28,11 @@ const codeBlockExtension: TokenizerAndRendererExtension = {
     }
 
     // Emit the escaped source in light DOM; the shadow mount reads it back and
-    // renders it in an isolated shadow root.
+    // renders it in an isolated shadow root. The inner .htmlview-embed is the
+    // shadow host, so host chrome can live as a sibling in .htmlview-container
+    // and still render (a shadow host's own light children do not).
     if (HTMLVIEW_LANGS.includes(token.lang)) {
-      return `<div class="htmlview-container"><pre class="htmlview-source">${escapeHtml(token.text)}</pre></div>`;
+      return `<div class="htmlview-container"><div class="htmlview-embed"><pre class="htmlview-source">${escapeHtml(token.text)}</pre></div></div>`;
     }
 
     // Fall back to default renderer for other code blocks

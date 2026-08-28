@@ -371,15 +371,75 @@
     }
 
     & .htmlview-container {
+      /* Component-scoped cap: embeds keep natural height up to this bound, then
+         scroll, with the expand affordance as the escape hatch. vh so it is
+         generous on large surfaces and moot in surfaces that clip first. */
+      --htmlview-max-height: 75vh;
       @apply my-3;
+      position: relative;
       display: block;
       max-width: 100%;
     }
 
+    /* The shadow host. Caps runaway height without a fixed-px canvas. */
+    & .htmlview-embed {
+      max-height: var(--htmlview-max-height);
+      overflow: auto;
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
+    }
+
     /* Suppress the pre-attach flash of raw source; the shadow root renders the
        embed once mounted. */
-    & .htmlview-container > .htmlview-source {
+    & .htmlview-source {
       display: none;
+    }
+
+    /* Host chrome (our UI) — overlaid, revealed on hover/focus like the mermaid
+       controls, so it stays out of the way on small surfaces. */
+    & .htmlview-chrome {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      display: flex;
+      gap: 0.25rem;
+      padding: 0.25rem;
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--color-surface-elevated) 85%, transparent);
+      border: 1px solid var(--color-border);
+      opacity: 0;
+      transition: opacity var(--duration-fast);
+    }
+
+    & .htmlview-container:hover .htmlview-chrome,
+    & .htmlview-chrome:focus-within {
+      opacity: 1;
+    }
+
+    & .htmlview-btn {
+      padding: 0.15rem 0.5rem;
+      font-size: var(--text-2xs);
+      line-height: 1.4;
+      color: var(--color-text-neutral);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition:
+        color var(--duration-fast),
+        background var(--duration-fast),
+        border-color var(--duration-fast);
+    }
+
+    & .htmlview-btn:hover {
+      color: var(--color-text-base);
+      background: var(--color-surface-hover);
+      border-color: var(--color-border-focus);
+    }
+
+    & .htmlview-btn:focus-visible {
+      outline: 2px solid var(--color-border-focus);
+      outline-offset: 1px;
     }
 
     & .mermaid-viewport {
