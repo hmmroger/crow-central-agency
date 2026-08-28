@@ -5,10 +5,12 @@ const HTTPS_PROTOCOL = "https:";
 const EMBED_MEDIA_TAGS = ["IMG", "SOURCE", "VIDEO", "AUDIO"];
 const BUTTON_SUBMIT_TYPE = "submit";
 
-// Form controls are forbidden on every sanitized path. The real agent-HTML risk
-// is prompt-injection-driven phishing (per design-gmail-body-format.md), which
-// sanitization does not otherwise mitigate, so the credential-harvest shape is
-// removed outright rather than merely defanged.
+// Form controls are forbidden on all agent-HTML sanitizer paths (general prose
+// and htmlview embed). The real risk is prompt-injection-driven phishing (per
+// design-gmail-body-format.md), which sanitization does not otherwise mitigate,
+// so the credential-harvest shape is removed outright rather than merely
+// defanged. purifyConfigMermaid is excluded: it emits SVG from structured
+// diagram definitions, not agent-authored HTML.
 const FORBIDDEN_FORM_TAGS = ["form", "input", "select", "textarea"];
 
 // Embeds additionally forbid these: <iframe> executes, <link> can issue an
