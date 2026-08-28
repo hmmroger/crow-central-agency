@@ -39,6 +39,16 @@ import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 import { GMAIL_MCP_SERVER_NAME } from "../mcp/gmail/gmail-mcp-server.js";
 import { CONNECTOR_ID } from "../connectors/connector-manager.types.js";
 
+// Appended to every agent's system prompt (all templates, both providers) so
+// agents can render structured output as a styled embed. Kept deliberately
+// tight — it is paid on every turn — and states WHEN as firmly as HOW, because
+// over-triggering (wrapping ordinary replies) is the dominant failure mode.
+const HTMLVIEW_OUTPUT_INSTRUCTION = [
+  "## Rich HTML views",
+  "Put HTML inside a ```htmlview fenced block to render it as a styled, isolated view instead of as source. Write plain semantic HTML — it is typeset with sensible reading defaults, so there is no class system to learn; add your own scoped `<style>` only if you want a specific look. The view is sanitized: scripts, iframes, forms and inputs are removed, and image and CSS `url()` sources must be https — anything else is dropped.",
+  "Reserve it for output where structure genuinely helps — multi-section reports, comparisons, dashboards, or content with real internal structure. Do NOT wrap ordinary replies, short answers, or anything that already reads well as plain markdown. Plain markdown is the default; treat ```htmlview as the exception, not the habit.",
+].join("\n");
+
 const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
   role: MessageRoles.system,
   content: [
@@ -548,7 +558,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
       )
     );
 
-    return content;
+    return `${content}\n\n${HTMLVIEW_OUTPUT_INSTRUCTION}`;
   }
 
   private selectSystemPromptTemplate(): MessageTemplate {
