@@ -216,7 +216,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
           console.warn("Clipboard not available.");
         });
     },
-    [modalDialog]
+    [modalDialog?.showDialog]
   );
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
