@@ -77,6 +77,24 @@ function isHttpsUrl(value: string): boolean {
 }
 
 /**
+ * Sanitize URL channels inside embed CSS (both `<style>` text and `style=`
+ * attribute values): strip `@import` entirely and drop any `url()` whose scheme
+ * is not https. Reuses isHttpsUrl so CSS and media attributes cannot drift.
+ * Fails closed — a malformed `url(` leaves an unclosed function the browser
+ * discards, and an unparseable candidate is dropped rather than kept.
+ */
+function sanitizeCssUrls(css: string): string {
+  const withoutImports = css.replace(/@import\b[^;]*;?/gi, "");
+  return withoutImports.replace(
+    /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)'"\s]*))\s*\)/gi,
+    (match, doubleQuoted, singleQuoted, unquoted) => {
+      const candidate = doubleQuoted ?? singleQuoted ?? unquoted ?? "";
+      return isHttpsUrl(candidate) ? match : "";
+    }
+  );
+}
+
+/**
  * Restrict embed media to https sources. Any `src`/`srcset` candidate whose
  * scheme is not https (including http, data, and protocol-relative) is dropped.
  */
@@ -129,19 +147,35 @@ function getEmbedPurify(): typeof DOMPurify {
   // afterSanitizeElements is DOMPurify's documented node-removal hook: it runs
   // after the node is committed to the output tree, so removal is deterministic.
   instance.addHook("afterSanitizeElements", (node) => {
-    if (!(node instanceof Element) || node.tagName !== "BUTTON") {
+    if (!(node instanceof Element)) {
       return;
     }
 
-    // A bare <button> defaults to type=submit; forbid the submit shape.
-    const buttonType = (node.getAttribute("type") ?? BUTTON_SUBMIT_TYPE).toLowerCase();
-    if (buttonType === BUTTON_SUBMIT_TYPE) {
-      node.parentNode?.removeChild(node);
+    if (node.tagName === "BUTTON") {
+      // A bare <button> defaults to type=submit; forbid the submit shape.
+      const buttonType = (node.getAttribute("type") ?? BUTTON_SUBMIT_TYPE).toLowerCase();
+      if (buttonType === BUTTON_SUBMIT_TYPE) {
+        node.parentNode?.removeChild(node);
+      }
+
+      return;
+    }
+
+    if (node.tagName === "STYLE") {
+      node.textContent = sanitizeCssUrls(node.textContent ?? "");
     }
   });
   instance.addHook("afterSanitizeAttributes", (node) => {
     forceSafeAnchor(node);
     enforceHttpsMedia(node);
+
+    const styleAttr = node.getAttribute("style");
+    if (styleAttr !== null) {
+      const cleaned = sanitizeCssUrls(styleAttr);
+      if (cleaned !== styleAttr) {
+        node.setAttribute("style", cleaned);
+      }
+    }
   });
 
   embedPurify = instance;
