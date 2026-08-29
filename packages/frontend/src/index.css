@@ -371,49 +371,28 @@
     }
 
     & .htmlview-container {
-      /* Component-scoped cap: embeds keep natural height up to this bound, then
-         scroll, with the expand affordance as the escape hatch. vh so it is
-         generous on large surfaces and moot in surfaces that clip first. */
-      --htmlview-max-height: 75vh;
       @apply my-3;
-      position: relative;
       display: block;
       max-width: 100%;
     }
 
-    /* The shadow host. Caps runaway height without a fixed-px canvas. */
     & .htmlview-embed {
-      max-height: var(--htmlview-max-height);
-      overflow: auto;
+      @apply px-4 py-2;
+      overflow: hidden;
       border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
+      border-radius: 0 0 var(--radius-md) var(--radius-md);
     }
 
-    /* Suppress the pre-attach flash of raw source; the shadow root renders the
-       embed once mounted. */
-    & .htmlview-source {
-      display: none;
-    }
-
-    /* Host chrome (our UI) — overlaid, revealed on hover/focus like the mermaid
-       controls, so it stays out of the way on small surfaces. */
     & .htmlview-chrome {
-      position: absolute;
-      top: 0.5rem;
-      right: 0.5rem;
       display: flex;
+      justify-content: flex-end;
       gap: 0.25rem;
-      padding: 0.25rem;
-      border-radius: var(--radius-sm);
-      background: color-mix(in srgb, var(--color-surface-elevated) 85%, transparent);
-      border: 1px solid var(--color-border);
-      opacity: 0;
-      transition: opacity var(--duration-fast);
-    }
-
-    & .htmlview-container:hover .htmlview-chrome,
-    & .htmlview-chrome:focus-within {
-      opacity: 1;
+      padding: 0.25rem 0.5rem;
+      background: var(--color-surface-elevated);
+      border: 1px solid var(--color-border-subtle);
+      border-bottom: none;
+      border-top-left-radius: var(--radius-md);
+      border-top-right-radius: var(--radius-md);
     }
 
     & .htmlview-btn {

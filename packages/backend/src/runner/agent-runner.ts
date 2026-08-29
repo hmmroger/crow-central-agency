@@ -4,6 +4,7 @@ import {
   MESSAGE_SOURCE_TYPE,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
   CROW_WORLD_BUILDER_AGENT_ID,
+  HTMLVIEW_FENCE_LANG,
   type AgentConfig,
   type AgentStatus,
   type PendingInstructionReminder,
@@ -38,16 +39,6 @@ import { ADD_REMINDER_TOOL_NAME } from "../mcp/reminders/add-reminder.js";
 import type { CrowMcpServerConfig } from "../mcp/crow-mcp-manager.types.js";
 import { GMAIL_MCP_SERVER_NAME } from "../mcp/gmail/gmail-mcp-server.js";
 import { CONNECTOR_ID } from "../connectors/connector-manager.types.js";
-
-// Appended to every agent's system prompt (all templates, both providers) so
-// agents can render structured output as a styled embed. Kept deliberately
-// tight — it is paid on every turn — and states WHEN as firmly as HOW, because
-// over-triggering (wrapping ordinary replies) is the dominant failure mode.
-const HTMLVIEW_OUTPUT_INSTRUCTION = [
-  "## Rich HTML views",
-  "Put HTML inside a ```htmlview fenced block to render it as a styled, isolated view instead of as source. Write plain semantic HTML — it is typeset with sensible reading defaults, so there is no class system to learn; add your own scoped `<style>` only if you want a specific look. The view is sanitized: scripts, iframes, forms and inputs are removed, and image and CSS `url()` sources must be https — anything else is dropped.",
-  "Reserve it for output where structure genuinely helps — multi-section reports, comparisons, dashboards, or content with real internal structure. Do NOT wrap ordinary replies, short answers, or anything that already reads well as plain markdown. Plain markdown is the default; treat ```htmlview as the exception, not the habit.",
-].join("\n");
 
 const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
   role: MessageRoles.system,
@@ -107,15 +98,20 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
       keys: ["hasFeedMcp"],
     },
     {
+      content: [
+        "## Rich HTML views",
+        `Put HTML inside a \`\`\`${HTMLVIEW_FENCE_LANG} fenced block to render it as a styled, isolated view instead of as source.`,
+        "Write plain semantic HTML - it is typeset with sensible reading defaults; add your own scoped `<style>` only if you want a specific look.",
+        "The view already inherits the app's typeface - do not set font-family unless a different font is genuinely intentional.",
+        "It renders on dark-themed canvas so set `color` and `background` together or neither. NEVER set a light `background` without `color`.",
+        "Treat it as HTML fragment so do not use or try to style 'body'.",
+        "Use it when the point is presentation markdown can't produce — layout, a styled card, an elegantly set piece — even a short snippet. Not for what markdown already renders well, including plain tables. Markdown is the default.",
+        "",
+      ],
+    },
+    {
       content: ["## AGENT.md", "", "{agentMd}"],
       keys: ["agentMd"],
-    },
-    {
-      content: ["", "## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."],
-    },
-    {
-      content: ["{sensorReadings}"],
-      keys: ["sensorReadings"],
     },
     {
       content: [
@@ -132,6 +128,13 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
     {
       content: ["", "{fragmentCues}"],
       keys: ["fragmentCues"],
+    },
+    {
+      content: ["", "## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."],
+    },
+    {
+      content: ["{sensorReadings}"],
+      keys: ["sensorReadings"],
     },
   ],
   keys: [
@@ -200,11 +203,16 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
       keys: ["hasFeedMcp"],
     },
     {
-      content: ["", "## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."],
-    },
-    {
-      content: ["{sensorReadings}"],
-      keys: ["sensorReadings"],
+      content: [
+        "## Rich HTML views",
+        `Put HTML inside a \`\`\`${HTMLVIEW_FENCE_LANG} fenced block to render it as a styled, isolated view instead of as source.`,
+        "Write plain semantic HTML - it is typeset with sensible reading defaults; add your own scoped `<style>` only if you want a specific look.",
+        "The view already inherits the app's typeface - do not set font-family unless a different font is genuinely intentional.",
+        "It renders on dark-themed canvas so set `color` and `background` together or neither. NEVER set a light `background` without `color`.",
+        "Treat it as HTML fragment so do not use or try to style 'body'.",
+        "Use it when the point is presentation markdown can't produce — layout, a styled card, an elegantly set piece — even a short snippet. Not for what markdown already renders well, including plain tables. Markdown is the default.",
+        "",
+      ],
     },
     {
       content: [
@@ -221,6 +229,13 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
     {
       content: ["", "{fragmentCues}"],
       keys: ["fragmentCues"],
+    },
+    {
+      content: ["", "## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."],
+    },
+    {
+      content: ["{sensorReadings}"],
+      keys: ["sensorReadings"],
     },
   ],
   keys: [
@@ -558,7 +573,7 @@ export abstract class AgentRunner extends EventBus<AgentRunnerEvents> {
       )
     );
 
-    return `${content}\n\n${HTMLVIEW_OUTPUT_INSTRUCTION}`;
+    return content;
   }
 
   private selectSystemPromptTemplate(): MessageTemplate {

@@ -1,13 +1,9 @@
 import { marked, Renderer, type Tokens, type TokenizerAndRendererExtension } from "marked";
 import { sanitizeHtml } from "./html-sanitizer";
+import { HTMLVIEW_FENCE_LANG } from "@crow-central-agency/shared";
 
 type MarkedRenderer = Renderer;
 const renderDefaultTable = Renderer.prototype.table;
-
-// `htmlview` (plus aliases) declares an agent-authored HTML embed. Bare `html`
-// is intentionally excluded so genuine "show me this HTML source" listings keep
-// rendering as escaped code.
-const HTMLVIEW_LANGS = ["htmlview", "html-view", "htmlpreview", "html_view"];
 
 function escapeHtml(value: string): string {
   return value
@@ -27,12 +23,8 @@ const codeBlockExtension: TokenizerAndRendererExtension = {
       return `<div class="mermaid-container">${token.text}</div>`;
     }
 
-    // Emit the escaped source in light DOM; the shadow mount reads it back and
-    // renders it in an isolated shadow root. The inner .htmlview-embed is the
-    // shadow host, so host chrome can live as a sibling in .htmlview-container
-    // and still render (a shadow host's own light children do not).
-    if (HTMLVIEW_LANGS.includes(token.lang)) {
-      return `<div class="htmlview-container"><div class="htmlview-embed"><pre class="htmlview-source">${escapeHtml(token.text)}</pre></div></div>`;
+    if (token.lang === HTMLVIEW_FENCE_LANG) {
+      return `<div class="htmlview-container"><div class="htmlview-embed"><template class="htmlview-source">${escapeHtml(token.text)}</template></div></div>`;
     }
 
     // Fall back to default renderer for other code blocks
