@@ -1,16 +1,30 @@
 import { marked, Renderer, type Tokens, type TokenizerAndRendererExtension } from "marked";
 import { sanitizeHtml } from "./html-sanitizer";
+import { HTMLVIEW_FENCE_LANG } from "@crow-central-agency/shared";
 
 type MarkedRenderer = Renderer;
 const renderDefaultTable = Renderer.prototype.table;
 
-const mermaidExtension: TokenizerAndRendererExtension = {
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Custom code-block renderer covering mermaid diagrams and htmlview embeds.
+const codeBlockExtension: TokenizerAndRendererExtension = {
   name: "code",
   level: "block",
   renderer(token) {
-    // Only customize rendering for mermaid code blocks
     if (token.lang === "mermaid") {
       return `<div class="mermaid-container">${token.text}</div>`;
+    }
+
+    if (token.lang === HTMLVIEW_FENCE_LANG) {
+      return `<div class="htmlview-container"><div class="htmlview-embed"><template class="htmlview-source">${escapeHtml(token.text)}</template></div></div>`;
     }
 
     // Fall back to default renderer for other code blocks
@@ -42,7 +56,7 @@ const renderer = {
 marked.use({
   gfm: true,
   breaks: true,
-  extensions: [mermaidExtension],
+  extensions: [codeBlockExtension],
   renderer,
 });
 

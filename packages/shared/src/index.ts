@@ -1,3 +1,4 @@
+export { HTMLVIEW_FENCE_LANG } from "./constants/markdown-constants.js";
 export {
   CLAUDE_MODELS,
   GITHUB_COPILOT_MODELS,

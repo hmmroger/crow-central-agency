@@ -4,6 +4,7 @@ import {
   MESSAGE_SOURCE_TYPE,
   CROW_NARRATIVE_ARCHITECT_AGENT_ID,
   CROW_WORLD_BUILDER_AGENT_ID,
+  HTMLVIEW_FENCE_LANG,
   type AgentConfig,
   type AgentStatus,
   type PendingInstructionReminder,
@@ -97,15 +98,20 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
       keys: ["hasFeedMcp"],
     },
     {
+      content: [
+        "## Rich HTML views",
+        `Put HTML inside a \`\`\`${HTMLVIEW_FENCE_LANG} fenced block to render it as a styled, isolated view instead of as source.`,
+        "Write plain semantic HTML - it is typeset with sensible reading defaults; add your own scoped `<style>` only if you want a specific look.",
+        "The view already inherits the app's typeface - do not set font-family unless a different font is genuinely intentional.",
+        "It renders on dark-themed canvas so set `color` and `background` together or neither. NEVER set a light `background` without `color`.",
+        "Treat it as HTML fragment so do not use or try to style 'body'.",
+        "Use it when the point is presentation markdown can't produce — layout, a styled card, an elegantly set piece — even a short snippet. Not for what markdown already renders well, including plain tables. Markdown is the default.",
+        "",
+      ],
+    },
+    {
       content: ["## AGENT.md", "", "{agentMd}"],
       keys: ["agentMd"],
-    },
-    {
-      content: ["", "## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."],
-    },
-    {
-      content: ["{sensorReadings}"],
-      keys: ["sensorReadings"],
     },
     {
       content: [
@@ -122,6 +128,13 @@ const DEFAULT_SYSTEM_PROMPT: MessageTemplate = {
     {
       content: ["", "{fragmentCues}"],
       keys: ["fragmentCues"],
+    },
+    {
+      content: ["", "## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."],
+    },
+    {
+      content: ["{sensorReadings}"],
+      keys: ["sensorReadings"],
     },
   ],
   keys: [
@@ -190,11 +203,16 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
       keys: ["hasFeedMcp"],
     },
     {
-      content: ["", "## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."],
-    },
-    {
-      content: ["{sensorReadings}"],
-      keys: ["sensorReadings"],
+      content: [
+        "## Rich HTML views",
+        `Put HTML inside a \`\`\`${HTMLVIEW_FENCE_LANG} fenced block to render it as a styled, isolated view instead of as source.`,
+        "Write plain semantic HTML - it is typeset with sensible reading defaults; add your own scoped `<style>` only if you want a specific look.",
+        "The view already inherits the app's typeface - do not set font-family unless a different font is genuinely intentional.",
+        "It renders on dark-themed canvas so set `color` and `background` together or neither. NEVER set a light `background` without `color`.",
+        "Treat it as HTML fragment so do not use or try to style 'body'.",
+        "Use it when the point is presentation markdown can't produce — layout, a styled card, an elegantly set piece — even a short snippet. Not for what markdown already renders well, including plain tables. Markdown is the default.",
+        "",
+      ],
     },
     {
       content: [
@@ -211,6 +229,13 @@ const CROW_SYSTEM_PROMPT: MessageTemplate = {
     {
       content: ["", "{fragmentCues}"],
       keys: ["fragmentCues"],
+    },
+    {
+      content: ["", "## Environment", "", "The current date is {currentDate}", "The current time is {currentTime}."],
+    },
+    {
+      content: ["{sensorReadings}"],
+      keys: ["sensorReadings"],
     },
   ],
   keys: [
