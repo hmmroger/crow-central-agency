@@ -3,6 +3,7 @@ import { AGENT_STATUS } from "@crow-central-agency/shared";
 import { parseToolActivity } from "./tool-activity-parser.js";
 import { AGENT_STREAM_EVENT_TYPE, type AgentStreamEvent } from "./agent-runner.types.js";
 import { logger } from "../utils/logger.js";
+import { copilotToolEventArgumentsToRecord } from "./tool-activity-parser-utils.js";
 
 const log = logger.child({ context: "github-copilot-stream-processor" });
 
@@ -140,13 +141,13 @@ function mapToolEvent(context: CopilotEventContext, event: ToolEvent): AgentStre
     case "tool.user_requested":
       context.toolCalls.set(event.data.toolCallId, {
         toolName: event.data.toolName,
-        input: event.data.arguments ?? {},
+        input: copilotToolEventArgumentsToRecord(event.data.arguments),
       });
       return [];
 
     case "tool.execution_start": {
       const toolName = event.data.toolName;
-      const input = event.data.arguments ?? {};
+      const input = copilotToolEventArgumentsToRecord(event.data.arguments);
       context.toolCalls.set(event.data.toolCallId, {
         toolName,
         input,
