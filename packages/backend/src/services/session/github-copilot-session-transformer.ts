@@ -5,6 +5,7 @@ import { INSTRUCTION_REMINDER_PATTERN, USER_AGENT_MESSAGE_PATTERN } from "../../
 import { logger } from "../../utils/logger.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
+import { copilotToolEventArgumentsToRecord } from "../../runner/tool-activity-parser-utils.js";
 
 const log = logger.child({ context: "github-copilot-session-transformer" });
 
@@ -48,7 +49,7 @@ function transformAssistantMessage(event: AssistantMessageEvent, timestamp: numb
 
   const toolRequests = event.data.toolRequests ?? [];
   for (const toolRequest of toolRequests) {
-    const toolInput: Record<string, unknown> = toolRequest.arguments ?? {};
+    const toolInput = copilotToolEventArgumentsToRecord(toolRequest.arguments);
     messages.push({
       id: toolRequest.toolCallId,
       role: AGENT_MESSAGE_ROLE.SYSTEM,
