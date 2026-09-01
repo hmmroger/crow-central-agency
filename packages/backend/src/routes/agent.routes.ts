@@ -260,10 +260,11 @@ export async function registerAgentRoutes(
       const agentId = validateAgentIdParam(request.params.id);
 
       try {
+        const sessionId = SessionHistorySchema.shape.sessionId.parse(request.params.sessionId);
         const { label } = RenameSessionRequestSchema.parse(request.body);
-        await runtimeManager.renameSession(agentId, request.params.sessionId, label);
+        await runtimeManager.renameSession(agentId, sessionId, label);
 
-        return { success: true, data: { sessionId: request.params.sessionId, label } };
+        return { success: true, data: { sessionId, label } };
       } catch (error) {
         return wrapZodError(error);
       }

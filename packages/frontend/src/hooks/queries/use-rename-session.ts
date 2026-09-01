@@ -17,13 +17,7 @@ export interface RenameSession {
   isPending: boolean;
 }
 
-/**
- * Rename an agent's session via REST.
- * PATCHes /agents/:id/sessions/:sessionId. Nothing is invalidated here: a rename always broadcasts
- * agent_sessions_updated, which the sessions query already subscribes to.
- *
- * @param agentId - The agent owning the session
- */
+/** Nothing is invalidated on success: a rename broadcasts agent_sessions_updated, which the query follows. */
 export function useRenameSession(agentId: string): RenameSession {
   const renameSessionMutation = useMutation<void, ApiError, RenameSessionInput>({
     mutationFn: async ({ sessionId, label }: RenameSessionInput) => {
