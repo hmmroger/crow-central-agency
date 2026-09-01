@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   CLIENT_MESSAGE_TYPE,
   PERMISSION_DECISION,
@@ -9,8 +9,8 @@ import {
 } from "@crow-central-agency/shared";
 import { useWs } from "../use-ws.js";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
-import { agentKeys } from "../../services/query-keys.js";
 import { useAgentStatesContext } from "../../providers/agent-states-provider.js";
+import { useBranchInFlight } from "../../stores/compose-draft-store.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
 /** Return type of useAgentActions */
@@ -39,21 +39,21 @@ export interface AgentActions {
 
 export function useAgentActions(agentId: string): AgentActions {
   const { send } = useWs();
-  const queryClient = useQueryClient();
   const { appendInputHistory } = useAgentStatesContext();
+  const { markBranchInFlight } = useBranchInFlight(agentId);
 
   const sendMessage = useCallback(
     (text: string, branchPoint?: BranchPoint) => {
       send({ type: CLIENT_MESSAGE_TYPE.SEND_MESSAGE, agentId, message: text, branchPoint });
       appendInputHistory(agentId, text);
 
-      // A branch rewrites the transcript and starts a new session; the agent_message events
-      // that follow the fork then rebuild it — invalidate so a stale list is not re-shown.
+      // The fork the backend runs for a branch is asynchronous and unacknowledged, so refetching
+      // here would race it. useAgentMessagesQuery refetches once the fork is observably durable.
       if (branchPoint) {
-        void queryClient.invalidateQueries({ queryKey: agentKeys.messages(agentId) });
+        markBranchInFlight();
       }
     },
-    [send, agentId, appendInputHistory, queryClient]
+    [send, agentId, appendInputHistory, markBranchInFlight]
   );
 
   const injectMessage = useCallback(
