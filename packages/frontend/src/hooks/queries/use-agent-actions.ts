@@ -1,16 +1,17 @@
 import { useCallback } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CLIENT_MESSAGE_TYPE,
   PERMISSION_DECISION,
   QUESTION_SUBMISSION_KIND,
+  SERVER_MESSAGE_TYPE,
   type BranchPoint,
   type QuestionAnswer,
 } from "@crow-central-agency/shared";
 import { useWs } from "../use-ws.js";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
+import { agentKeys } from "../../services/query-keys.js";
 import { useAgentStatesContext } from "../../providers/agent-states-provider.js";
-import { useBranchInFlight } from "../../stores/compose-draft-store.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
 /** Return type of useAgentActions */
@@ -38,22 +39,36 @@ export interface AgentActions {
 }
 
 export function useAgentActions(agentId: string): AgentActions {
-  const { send } = useWs();
+  const { send, onMessage } = useWs();
+  const queryClient = useQueryClient();
   const { appendInputHistory } = useAgentStatesContext();
-  const { markBranchInFlight } = useBranchInFlight(agentId);
 
   const sendMessage = useCallback(
     (text: string, branchPoint?: BranchPoint) => {
       send({ type: CLIENT_MESSAGE_TYPE.SEND_MESSAGE, agentId, message: text, branchPoint });
       appendInputHistory(agentId, text);
 
-      // The fork the backend runs for a branch is asynchronous and unacknowledged, so refetching
-      // here would race it. useAgentMessagesQuery refetches once the fork is observably durable.
-      if (branchPoint) {
-        markBranchInFlight();
+      if (!branchPoint) {
+        return;
       }
+
+      // send_message is unacknowledged and the fork behind it is asynchronous, so the truncated
+      // transcript only becomes readable once the agent emits the branch's own message — it runs
+      // one turn at a time and branches only while idle, so that is necessarily the next one. A
+      // rejected branch emits an error instead and never a message, so it closes the listener.
+      const unregister = onMessage((message) => {
+        if (message.type === SERVER_MESSAGE_TYPE.AGENT_MESSAGE && message.agentId === agentId) {
+          unregister();
+          void queryClient.invalidateQueries({ queryKey: agentKeys.messages(agentId) });
+          return;
+        }
+
+        if (message.type === SERVER_MESSAGE_TYPE.ERROR && message.agentId === agentId) {
+          unregister();
+        }
+      });
     },
-    [send, agentId, appendInputHistory, markBranchInFlight]
+    [send, onMessage, agentId, appendInputHistory, queryClient]
   );
 
   const injectMessage = useCallback(

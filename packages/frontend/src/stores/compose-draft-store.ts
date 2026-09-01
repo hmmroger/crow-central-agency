@@ -17,12 +17,6 @@ interface ComposeDraftState {
   setPendingBranchAnchorId: (agentId: string, branchAnchorId: string) => void;
   /** Drop an agent's anchor (cancelled, consumed by a send, or invalidated by a run starting). */
   clearPendingBranchAnchorId: (agentId: string) => void;
-  /** Agents whose branch has been sent but whose fork has not been observed landing yet. */
-  branchInFlightAgentIds: Record<string, boolean>;
-  /** Record that an agent's in-flight send is a branch. */
-  markBranchInFlight: (agentId: string) => void;
-  /** Clear an agent's in-flight branch, reporting whether one was set. */
-  consumeBranchInFlight: (agentId: string) => boolean;
 }
 
 /** Shape of the state persisted to localStorage. */
@@ -39,15 +33,13 @@ const COMPOSE_DRAFT_STORAGE_KEY = "crow-compose-drafts";
  * client-only ephemeral UI state describing an unsent message; once sent it becomes
  * backend-owned history. Draft text is inert, so it persists across reloads. A branch anchor is
  * not: it is paired with the agent's session id at send time and changes what that send does, so
- * it is kept out of the persisted slice and the composer clears it on unmount. The in-flight
- * branch flag is likewise transient — it only bridges a send to the fork it triggers.
+ * it is kept out of the persisted slice and the composer clears it on unmount.
  */
 export const useComposeDraftStore = create<ComposeDraftState>()(
   persist(
     (set) => ({
       drafts: {},
       pendingBranchAnchorIds: {},
-      branchInFlightAgentIds: {},
 
       setDraft: (agentId: string, text: string) =>
         set((state) => {
@@ -111,28 +103,6 @@ export const useComposeDraftStore = create<ComposeDraftState>()(
           delete nextPendingBranchAnchorIds[agentId];
           return { pendingBranchAnchorIds: nextPendingBranchAnchorIds };
         }),
-
-      markBranchInFlight: (agentId: string) =>
-        set((state) => ({
-          branchInFlightAgentIds: { ...state.branchInFlightAgentIds, [agentId]: true },
-        })),
-
-      consumeBranchInFlight: (agentId: string) => {
-        let wasInFlight = false;
-
-        set((state) => {
-          if (!state.branchInFlightAgentIds[agentId]) {
-            return state;
-          }
-
-          wasInFlight = true;
-          const nextBranchInFlightAgentIds = { ...state.branchInFlightAgentIds };
-          delete nextBranchInFlightAgentIds[agentId];
-          return { branchInFlightAgentIds: nextBranchInFlightAgentIds };
-        });
-
-        return wasInFlight;
-      },
     }),
     {
       name: COMPOSE_DRAFT_STORAGE_KEY,
@@ -180,30 +150,4 @@ export function usePendingBranchAnchor(agentId: string): {
   );
 
   return { pendingBranchAnchorId, setPendingBranchAnchorId, clearPendingBranchAnchorId };
-}
-
-/**
- * Bind the in-flight branch flag to a single agent.
- * Returns stable callbacks to mark a branch as sent and to consume that mark exactly once.
- * The flag is read only through `consumeBranchInFlight`, never subscribed to, so marking a branch
- * does not re-render the composer that set it.
- */
-export function useBranchInFlight(agentId: string): {
-  markBranchInFlight: () => void;
-  consumeBranchInFlight: () => boolean;
-} {
-  const markBranchInFlightForAgent = useComposeDraftStore((state) => state.markBranchInFlight);
-  const consumeBranchInFlightForAgent = useComposeDraftStore((state) => state.consumeBranchInFlight);
-
-  const markBranchInFlight = useCallback(
-    () => markBranchInFlightForAgent(agentId),
-    [markBranchInFlightForAgent, agentId]
-  );
-
-  const consumeBranchInFlight = useCallback(
-    () => consumeBranchInFlightForAgent(agentId),
-    [consumeBranchInFlightForAgent, agentId]
-  );
-
-  return { markBranchInFlight, consumeBranchInFlight };
 }
