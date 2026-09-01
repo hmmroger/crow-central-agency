@@ -125,6 +125,16 @@ export function assertSwitchTarget(sessionHistory: SessionHistory[] | undefined,
   }
 }
 
+/** Resolve the entry a rename targets. Renaming touches only the ledger, so there is nothing else to gate on. */
+export function findRenameTarget(sessionHistory: SessionHistory[] | undefined, sessionId: string): SessionHistory {
+  const targetEntry = sessionHistory?.find((entry) => entry.sessionId === sessionId);
+  if (!targetEntry) {
+    throw new AppError(`Session ${sessionId} is no longer available to rename.`, APP_ERROR_CODES.SESSION_NOT_FOUND);
+  }
+
+  return targetEntry;
+}
+
 function resolveParentLinks(entries: SessionHistory[]): Map<string, string> {
   const ledgerSessionIds = new Set(entries.map((entry) => entry.sessionId));
   const parentBySessionId = new Map<string, string>();

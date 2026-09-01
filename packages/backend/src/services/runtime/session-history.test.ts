@@ -13,6 +13,7 @@ import {
   assertSwitchTarget,
   buildSessionTree,
   deriveSessionLabel,
+  findRenameTarget,
   updateSessionHistory,
 } from "./session-history.js";
 import type { SessionHistoryUpdate, UpdatedSessionHistory } from "./session-history.types.js";
@@ -399,6 +400,23 @@ describe("assertSwitchTarget", () => {
   it("rejects when the ledger is empty", () => {
     expectAppErrorCode(() => assertSwitchTarget([], "target"), APP_ERROR_CODES.SESSION_NOT_FOUND);
     expectAppErrorCode(() => assertSwitchTarget(undefined, "target"), APP_ERROR_CODES.SESSION_NOT_FOUND);
+  });
+});
+
+describe("findRenameTarget", () => {
+  it("returns the entry the session names", () => {
+    const history = makeHistory();
+
+    expect(findRenameTarget(history, "target")).toBe(history.find((entry) => entry.sessionId === "target"));
+  });
+
+  it("rejects a session that names no ledger entry", () => {
+    expectAppErrorCode(() => findRenameTarget(makeHistory(), "unknown"), APP_ERROR_CODES.SESSION_NOT_FOUND);
+  });
+
+  it("rejects when the ledger is empty", () => {
+    expectAppErrorCode(() => findRenameTarget([], "target"), APP_ERROR_CODES.SESSION_NOT_FOUND);
+    expectAppErrorCode(() => findRenameTarget(undefined, "target"), APP_ERROR_CODES.SESSION_NOT_FOUND);
   });
 });
 
