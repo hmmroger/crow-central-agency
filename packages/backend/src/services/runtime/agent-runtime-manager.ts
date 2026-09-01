@@ -26,9 +26,8 @@ import { PermissionHandler } from "./permission-handler.js";
 import { QuestionHandler } from "./question-handler.js";
 import {
   assertBranchSource,
-  assertSwitchTarget,
   buildSessionTree,
-  findRenameTarget,
+  getSessionHistoryEntry,
   updateSessionHistory,
 } from "./session-history.js";
 import type { SessionHistoryUpdate } from "./session-history.types.js";
@@ -283,7 +282,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
 
     const agent = this.registry.getAgent(agentId);
-    assertSwitchTarget(state.sessionHistory, sessionId);
+    getSessionHistoryEntry(state.sessionHistory, sessionId);
     if (!(await this.sessionManager.isSessionValid(agent.type, sessionId))) {
       throw new AppError(
         `Session ${sessionId} no longer has a transcript to return to.`,
@@ -312,7 +311,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   /** Overwrite the label of one of the agent's ledger entries. Nothing else about the entry moves. */
   public async renameSession(agentId: string, sessionId: string, label: string): Promise<void> {
     const state = this.ensureState(agentId);
-    const targetEntry = findRenameTarget(state.sessionHistory, sessionId);
+    const targetEntry = getSessionHistoryEntry(state.sessionHistory, sessionId);
     targetEntry.label = label;
 
     this.sessionTrees.set(agentId, buildSessionTree(state.sessionHistory));

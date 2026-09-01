@@ -96,6 +96,19 @@ function evictSessionFamilies(entries: SessionHistory[]): SessionHistory[] {
   return entries.filter((_unused, index) => retainedRoots.has(familyRoots[index]));
 }
 
+/** Resolve the ledger entry a session id names. Absent from the ledger means no longer addressable. */
+export function getSessionHistoryEntry(
+  sessionHistory: SessionHistory[] | undefined,
+  sessionId: string
+): SessionHistory {
+  const entry = sessionHistory?.find((candidate) => candidate.sessionId === sessionId);
+  if (!entry) {
+    throw new AppError(`Session ${sessionId} is no longer available.`, APP_ERROR_CODES.SESSION_NOT_FOUND);
+  }
+
+  return entry;
+}
+
 /** Reject a branch the agent cannot make. The caller owns the runner, so it gates on IDLE itself. */
 export function assertBranchSource(
   agent: AgentConfig,
@@ -109,30 +122,7 @@ export function assertBranchSource(
     );
   }
 
-  const sourceEntry = sessionHistory?.find((entry) => entry.sessionId === branchPoint.sessionId);
-  if (!sourceEntry) {
-    throw new AppError(
-      `Session ${branchPoint.sessionId} is no longer available to branch from.`,
-      APP_ERROR_CODES.SESSION_NOT_FOUND
-    );
-  }
-}
-
-export function assertSwitchTarget(sessionHistory: SessionHistory[] | undefined, sessionId: string): void {
-  const targetEntry = sessionHistory?.find((entry) => entry.sessionId === sessionId);
-  if (!targetEntry) {
-    throw new AppError(`Session ${sessionId} is no longer available to switch to.`, APP_ERROR_CODES.SESSION_NOT_FOUND);
-  }
-}
-
-/** Resolve the entry a rename targets. Renaming touches only the ledger, so there is nothing else to gate on. */
-export function findRenameTarget(sessionHistory: SessionHistory[] | undefined, sessionId: string): SessionHistory {
-  const targetEntry = sessionHistory?.find((entry) => entry.sessionId === sessionId);
-  if (!targetEntry) {
-    throw new AppError(`Session ${sessionId} is no longer available to rename.`, APP_ERROR_CODES.SESSION_NOT_FOUND);
-  }
-
-  return targetEntry;
+  getSessionHistoryEntry(sessionHistory, branchPoint.sessionId);
 }
 
 function resolveParentLinks(entries: SessionHistory[]): Map<string, string> {
