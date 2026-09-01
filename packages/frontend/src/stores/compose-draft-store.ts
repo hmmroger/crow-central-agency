@@ -44,7 +44,7 @@ const COMPOSE_DRAFT_STORAGE_KEY = "crow-compose-drafts";
  */
 export const useComposeDraftStore = create<ComposeDraftState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       drafts: {},
       pendingBranchAnchorIds: {},
       branchInFlightAgentIds: {},
@@ -118,17 +118,20 @@ export const useComposeDraftStore = create<ComposeDraftState>()(
         })),
 
       consumeBranchInFlight: (agentId: string) => {
-        if (!get().branchInFlightAgentIds[agentId]) {
-          return false;
-        }
+        let wasInFlight = false;
 
         set((state) => {
+          if (!state.branchInFlightAgentIds[agentId]) {
+            return state;
+          }
+
+          wasInFlight = true;
           const nextBranchInFlightAgentIds = { ...state.branchInFlightAgentIds };
           delete nextBranchInFlightAgentIds[agentId];
           return { branchInFlightAgentIds: nextBranchInFlightAgentIds };
         });
 
-        return true;
+        return wasInFlight;
       },
     }),
     {
