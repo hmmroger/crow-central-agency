@@ -29,17 +29,15 @@ export function useAgentMessagesQuery(agentId: string) {
   });
 
   useWsSubscription(agentId, (message) => {
-    // The session-history broadcast is the first signal that a branch's fork has resolved and the
-    // agent's session id has repointed, so it is the earliest point a refetch reads the fork.
-    if (message.type === SERVER_MESSAGE_TYPE.AGENT_SESSIONS_UPDATED) {
-      if (consumeBranchInFlight()) {
-        void queryClient.invalidateQueries({ queryKey: agentKeys.messages(agentId) });
-      }
-
+    if (message.type !== SERVER_MESSAGE_TYPE.AGENT_MESSAGE) {
       return;
     }
 
-    if (message.type !== SERVER_MESSAGE_TYPE.AGENT_MESSAGE) {
+    // An agent runs one turn at a time and only branches while idle, so the first agent_message
+    // after a branch is that branch's own user message, broadcast once the fork resolved and the
+    // session id repointed. The refetch already contains it, so it is not merged here.
+    if (consumeBranchInFlight()) {
+      void queryClient.invalidateQueries({ queryKey: agentKeys.messages(agentId) });
       return;
     }
 
