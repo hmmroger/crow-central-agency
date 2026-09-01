@@ -1,6 +1,8 @@
+import { useCallback } from "react";
 import { AGENT_STATUS } from "@crow-central-agency/shared";
 import { useAgentSessionsQuery } from "../../../hooks/queries/use-agent-sessions-query.js";
 import { useAgentState } from "../../../hooks/use-agent-state.js";
+import { useRenameSession } from "../../../hooks/queries/use-rename-session.js";
 import { useSwitchSession } from "../../../hooks/queries/use-switch-session.js";
 import { SessionHistoryItem } from "./session-history-item.js";
 
@@ -12,9 +14,16 @@ interface SessionHistoryTabProps {
 export function SessionHistoryTab({ agentId }: SessionHistoryTabProps) {
   const { data: sessions = [], isLoading, isError } = useAgentSessionsQuery(agentId);
   const agentState = useAgentState(agentId);
-  const { switchSession, error, isPending } = useSwitchSession(agentId);
+  const { switchSession, error: switchError, isPending } = useSwitchSession(agentId);
+  const { renameSession, error: renameError } = useRenameSession(agentId);
 
   const isIdle = (agentState?.status ?? AGENT_STATUS.IDLE) === AGENT_STATUS.IDLE;
+  const error = switchError ?? renameError;
+
+  const handleRename = useCallback(
+    (sessionId: string, label: string) => renameSession({ sessionId, label }),
+    [renameSession]
+  );
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -41,6 +50,7 @@ export function SessionHistoryTab({ agentId }: SessionHistoryTabProps) {
               isCurrent={isCurrent}
               disabled={isCurrent || !isIdle || isPending}
               onSelect={switchSession}
+              onRename={handleRename}
             />
           );
         })}

@@ -10,9 +10,9 @@ import {
 import {
   SESSION_LABEL_MAX_WORDS,
   assertBranchSource,
-  assertSwitchTarget,
   buildSessionTree,
   deriveSessionLabel,
+  getSessionHistoryEntry,
   updateSessionHistory,
 } from "./session-history.js";
 import type { SessionHistoryUpdate, UpdatedSessionHistory } from "./session-history.types.js";
@@ -373,12 +373,14 @@ describe("assertBranchSource", () => {
   });
 });
 
-describe("assertSwitchTarget", () => {
-  it("accepts a session the ledger holds", () => {
-    expect(() => assertSwitchTarget(makeHistory(), "target")).not.toThrow();
+describe("getSessionHistoryEntry", () => {
+  it("returns the entry the session names", () => {
+    const history = makeHistory();
+
+    expect(getSessionHistoryEntry(history, "target")).toBe(history.find((entry) => entry.sessionId === "target"));
   });
 
-  it("accepts a branched entry like any other", () => {
+  it("resolves a branched entry like any other", () => {
     const history: SessionHistory[] = [
       ...makeHistory(),
       {
@@ -389,16 +391,16 @@ describe("assertSwitchTarget", () => {
       },
     ];
 
-    expect(() => assertSwitchTarget(history, "branched")).not.toThrow();
+    expect(getSessionHistoryEntry(history, "branched").sessionId).toBe("branched");
   });
 
   it("rejects a session that names no ledger entry", () => {
-    expectAppErrorCode(() => assertSwitchTarget(makeHistory(), "unknown"), APP_ERROR_CODES.SESSION_NOT_FOUND);
+    expectAppErrorCode(() => getSessionHistoryEntry(makeHistory(), "unknown"), APP_ERROR_CODES.SESSION_NOT_FOUND);
   });
 
   it("rejects when the ledger is empty", () => {
-    expectAppErrorCode(() => assertSwitchTarget([], "target"), APP_ERROR_CODES.SESSION_NOT_FOUND);
-    expectAppErrorCode(() => assertSwitchTarget(undefined, "target"), APP_ERROR_CODES.SESSION_NOT_FOUND);
+    expectAppErrorCode(() => getSessionHistoryEntry([], "target"), APP_ERROR_CODES.SESSION_NOT_FOUND);
+    expectAppErrorCode(() => getSessionHistoryEntry(undefined, "target"), APP_ERROR_CODES.SESSION_NOT_FOUND);
   });
 });
 

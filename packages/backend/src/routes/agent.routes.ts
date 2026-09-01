@@ -5,6 +5,7 @@ import type { SessionManager } from "../services/session/session-manager.js";
 import {
   AGENT_STATUS,
   AgentConfigTemplateSchema,
+  RenameSessionRequestSchema,
   SessionHistorySchema,
   type AgentRuntimeState,
 } from "@crow-central-agency/shared";
@@ -230,7 +231,9 @@ export async function registerAgentRoutes(
   /** List runtime states for every registered agent, filling defaults for agents with no state yet. */
   server.get("/api/agents/states", async () => {
     const knownStates = new Map(runtimeManager.getAllStates().map((state) => [state.agentId, state]));
-    const states = registry.getAllAgents().map((agent) => knownStates.get(agent.id) ?? buildDefaultRuntimeState(agent.id));
+    const states = registry
+      .getAllAgents()
+      .map((agent) => knownStates.get(agent.id) ?? buildDefaultRuntimeState(agent.id));
 
     return { success: true, data: states };
   });
@@ -249,6 +252,24 @@ export async function registerAgentRoutes(
 
     return { success: true, data: runtimeManager.getSessionTree(agentId) };
   });
+
+  /** Rename one of an agent's ledger entries. Touches the label only, so there is no idle requirement. */
+  server.patch<{ Params: { id: string; sessionId: string }; Body: { label?: unknown } }>(
+    "/api/agents/:id/sessions/:sessionId",
+    async (request) => {
+      const agentId = validateAgentIdParam(request.params.id);
+
+      try {
+        const sessionId = SessionHistorySchema.shape.sessionId.parse(request.params.sessionId);
+        const { label } = RenameSessionRequestSchema.parse(request.body);
+        await runtimeManager.renameSession(agentId, sessionId, label);
+
+        return { success: true, data: { sessionId, label } };
+      } catch (error) {
+        return wrapZodError(error);
+      }
+    }
+  );
 
   /** Get persisted activities for an agent, oldest first */
   server.get<{ Params: { id: string } }>("/api/agents/:id/activities", async (request) => {

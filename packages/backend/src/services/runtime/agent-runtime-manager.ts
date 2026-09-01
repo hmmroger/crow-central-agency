@@ -24,7 +24,12 @@ import type { AgentRegistry } from "../agent-registry.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
 import { PermissionHandler } from "./permission-handler.js";
 import { QuestionHandler } from "./question-handler.js";
-import { assertBranchSource, assertSwitchTarget, buildSessionTree, updateSessionHistory } from "./session-history.js";
+import {
+  assertBranchSource,
+  buildSessionTree,
+  getSessionHistoryEntry,
+  updateSessionHistory,
+} from "./session-history.js";
 import type { SessionHistoryUpdate } from "./session-history.types.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
@@ -277,7 +282,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
 
     const agent = this.registry.getAgent(agentId);
-    assertSwitchTarget(state.sessionHistory, sessionId);
+    getSessionHistoryEntry(state.sessionHistory, sessionId);
     if (!(await this.sessionManager.isSessionValid(agent.type, sessionId))) {
       throw new AppError(
         `Session ${sessionId} no longer has a transcript to return to.`,
@@ -301,6 +306,18 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     };
 
     await this.persistAgentState(agentId);
+  }
+
+  /** Overwrite the label of one of the agent's ledger entries. Nothing else about the entry moves. */
+  public async renameSession(agentId: string, sessionId: string, label: string): Promise<void> {
+    const state = this.ensureState(agentId);
+    const targetEntry = getSessionHistoryEntry(state.sessionHistory, sessionId);
+    targetEntry.label = label;
+
+    this.sessionTrees.set(agentId, buildSessionTree(state.sessionHistory));
+    await this.persistAgentState(agentId);
+    // Unconditional: a rename leaves the ordering untouched, so the INIT path's tree check would never fire.
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_SESSIONS_UPDATED, agentId });
   }
 
   public async ensureValidSession(agentId: string): Promise<string | undefined> {
