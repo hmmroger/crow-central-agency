@@ -41,6 +41,7 @@ import { McpServersSection } from "./mcp-servers-section.js";
 import { GmailNotificationSection } from "./gmail-notification-section.js";
 import { SensorsSection } from "./sensors-section.js";
 import { FeedsSection } from "./feeds-section.js";
+import { AgentSchedulesSection } from "./agent-schedules-section.js";
 import { AgentMdEditor } from "./agentmd-editor.js";
 import { DiscordConfigSection } from "./discord-config-section.js";
 import { ConnectorsSection } from "./connectors-section.js";
@@ -505,6 +506,8 @@ export function AgentEditorDialogContent({
               onToggle={editorForm.toggleFeed}
               onToggleNotify={editorForm.toggleFeedNotify}
             />
+
+            <AgentSchedulesSection agentId={agentId} />
 
             <DiscordConfigSection
               enabled={form.discordEnabled}

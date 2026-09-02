@@ -1,21 +1,12 @@
 import { useMemo } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
-import type { Schedule } from "@crow-central-agency/shared";
 import { useSchedulesQuery } from "../../hooks/queries/use-schedules-query.js";
 import { useOpenScheduleEditor } from "../../hooks/dialogs/use-open-schedule-editor.js";
+import { compareSchedules } from "../../utils/schedule-utils.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { EmptyState } from "../common/empty-state.js";
 import { ScheduleCard } from "./schedule-card.js";
-
-/** Enabled schedules first, then alphabetical within each group */
-function compareSchedules(scheduleA: Schedule, scheduleB: Schedule): number {
-  if (scheduleA.enabled !== scheduleB.enabled) {
-    return scheduleA.enabled ? -1 : 1;
-  }
-
-  return scheduleA.name.localeCompare(scheduleB.name);
-}
 
 /**
  * Schedules view — top-level view for managing schedules that fan out to agents.
