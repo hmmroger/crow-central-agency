@@ -4,6 +4,7 @@ import {
   CLIENT_MESSAGE_TYPE,
   PERMISSION_DECISION,
   QUESTION_SUBMISSION_KIND,
+  SERVER_MESSAGE_TYPE,
   type BranchPoint,
   type QuestionAnswer,
 } from "@crow-central-agency/shared";
@@ -38,7 +39,7 @@ export interface AgentActions {
 }
 
 export function useAgentActions(agentId: string): AgentActions {
-  const { send } = useWs();
+  const { send, onMessage } = useWs();
   const queryClient = useQueryClient();
   const { appendInputHistory } = useAgentStatesContext();
 
@@ -47,13 +48,27 @@ export function useAgentActions(agentId: string): AgentActions {
       send({ type: CLIENT_MESSAGE_TYPE.SEND_MESSAGE, agentId, message: text, branchPoint });
       appendInputHistory(agentId, text);
 
-      // A branch rewrites the transcript and starts a new session; the agent_message events
-      // that follow the fork then rebuild it — invalidate so a stale list is not re-shown.
-      if (branchPoint) {
-        void queryClient.invalidateQueries({ queryKey: agentKeys.messages(agentId) });
+      if (!branchPoint) {
+        return;
       }
+
+      // send_message is unacknowledged and the fork behind it is asynchronous, so the truncated
+      // transcript only becomes readable once the agent emits the branch's own message — it runs
+      // one turn at a time and branches only while idle, so that is necessarily the next one. A
+      // rejected branch emits an error instead and never a message, so it closes the listener.
+      const unregister = onMessage((message) => {
+        if (message.type === SERVER_MESSAGE_TYPE.AGENT_MESSAGE && message.agentId === agentId) {
+          unregister();
+          void queryClient.invalidateQueries({ queryKey: agentKeys.messages(agentId) });
+          return;
+        }
+
+        if (message.type === SERVER_MESSAGE_TYPE.ERROR && message.agentId === agentId) {
+          unregister();
+        }
+      });
     },
-    [send, agentId, appendInputHistory, queryClient]
+    [send, onMessage, agentId, appendInputHistory, queryClient]
   );
 
   const injectMessage = useCallback(
