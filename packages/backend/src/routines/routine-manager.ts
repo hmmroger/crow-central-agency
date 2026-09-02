@@ -48,7 +48,6 @@ export class RoutineManager {
     taskManager.on("taskUpdated", ({ task }) => this.onTaskUpdated(task));
     taskManager.on("taskAssigned", ({ task }) => this.onTaskAssigned(task));
     taskManager.on("taskStateChanged", ({ task, previousState }) => this.onTaskStateChanged(task, previousState));
-    scheduler.on("loopTick", ({ agentId, prompt }) => this.onLoopTick(agentId, prompt));
     scheduler.on("reminderFired", ({ reminder }) => this.onReminderFired(reminder));
     scheduleManager.on("scheduleFired", ({ schedule }) => this.onScheduleFired(schedule));
     feedManager.on("feedAdded", ({ feed }) => this.onFeedAdded(feed));
@@ -156,12 +155,6 @@ export class RoutineManager {
   private async onTaskStateChanged(task: AgentTaskItem, previousState: AgentTaskState): Promise<void> {
     for (const routine of this.routines) {
       await this.safeCall(routine, () => routine.onTaskStateChanged?.(task, previousState));
-    }
-  }
-
-  private async onLoopTick(agentId: string, prompt: string): Promise<void> {
-    for (const routine of this.routines) {
-      await this.safeCall(routine, () => routine.onLoopTick?.(agentId, prompt));
     }
   }
 

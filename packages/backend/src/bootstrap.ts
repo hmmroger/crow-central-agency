@@ -46,7 +46,6 @@ import { shutdownTelemetry } from "./telemetry/setup.js";
 import { registerShutdownHandlers } from "./server/graceful-shutdown.js";
 import { createInterAgentTaskRoutine } from "./routines/inter-agent-task-routine.js";
 import { createTaskDispatchRoutine } from "./routines/task-dispatch-routine.js";
-import { createAgentLoopRoutine } from "./routines/agent-loop-routine.js";
 import { createAgentScheduleRoutine } from "./routines/agent-schedule-routine.js";
 import { createAgentReminderRoutine } from "./routines/agent-reminder-routine.js";
 import { createFeedCleanupRoutine } from "./routines/feed-cleanup-routine.js";
@@ -176,8 +175,6 @@ export async function bootstrap(options: BootstrapOptions) {
   routineManager.addRoutine(interAgentRoutine);
   const taskDispatchRoutine = createTaskDispatchRoutine(runtimeManager);
   routineManager.addRoutine(taskDispatchRoutine);
-  const agentLoopRoutine = createAgentLoopRoutine(taskManager);
-  routineManager.addRoutine(agentLoopRoutine);
   const agentScheduleRoutine = createAgentScheduleRoutine(taskManager);
   routineManager.addRoutine(agentScheduleRoutine);
   const agentReminderRoutine = createAgentReminderRoutine(taskManager);

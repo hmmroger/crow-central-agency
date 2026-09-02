@@ -26,7 +26,6 @@ export interface Routine {
   onTaskUpdated?: (task: AgentTaskItem) => Promise<void>;
   onTaskAssigned?: (task: AgentTaskItem) => Promise<void>;
   onTaskStateChanged?: (task: AgentTaskItem, previousState: AgentTaskState) => Promise<void>;
-  onLoopTick?: (agentId: string, prompt: string) => Promise<void>;
   onScheduleFired?: (schedule: Schedule) => Promise<void>;
   onReminderFired?: (reminder: AgentReminder) => Promise<void>;
   onFeedAdded?: (feed: Feed) => Promise<void>;

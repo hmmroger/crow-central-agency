@@ -28,6 +28,5 @@ export interface ScheduledWork {
 
 /** Events emitted by the CrowScheduler */
 export interface CrowSchedulerEvents extends EventMap {
-  loopTick: { agentId: string; prompt: string };
   reminderFired: { reminder: AgentReminder };
 }
