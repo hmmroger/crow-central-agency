@@ -41,6 +41,19 @@ export const CreateScheduleInputSchema = ScheduleSchema.omit({
 
 export type CreateScheduleInput = z.infer<typeof CreateScheduleInputSchema>;
 
-export const UpdateScheduleInputSchema = CreateScheduleInputSchema.partial();
+/**
+ * Every field optional so a partial edit (e.g. an enable/disable toggle) touches nothing else.
+ * Declared explicitly rather than as CreateScheduleInputSchema.partial(): partial() keeps the
+ * field defaults, so an absent key would parse back as its default and clobber the stored value.
+ */
+export const UpdateScheduleInputSchema = z.object({
+  name: z.string().min(1).max(SCHEDULE_NAME_MAX_LENGTH).optional(),
+  message: z.string().min(1).optional(),
+  enabled: z.boolean().optional(),
+  agentIds: z.array(z.string()).optional(),
+  daysOfWeek: z.array(DayOfWeekSchema).optional(),
+  timeMode: TimeModeSchema.optional(),
+  times: z.array(SchedulerTimeSchema).min(1).max(MAX_SCHEDULE_TIMES).optional(),
+});
 
 export type UpdateScheduleInput = z.infer<typeof UpdateScheduleInputSchema>;
