@@ -1,8 +1,11 @@
 import {
   CreateScheduleInputSchema,
+  SCHEDULE_NAME_MAX_LENGTH,
   ScheduleSchema,
   UpdateScheduleInputSchema,
+  type AgentConfig,
   type CreateScheduleInput,
+  type LoopConfig,
   type Schedule,
   type UpdateScheduleInput,
 } from "@crow-central-agency/shared";
@@ -33,7 +36,7 @@ export class ScheduleManager extends EventBus<ScheduleManagerEvents> {
   constructor(
     private readonly store: ObjectStoreProvider,
     private readonly scheduler: CrowScheduler,
-    registry: AgentRegistry
+    private readonly registry: AgentRegistry
   ) {
     super();
     registry.on("agentDeleted", ({ agentId }) => {
@@ -58,6 +61,8 @@ export class ScheduleManager extends EventBus<ScheduleManagerEvents> {
 
       this.schedules.set(parsed.data.id, parsed.data);
     }
+
+    await this.migrateAgentLoops();
 
     for (const schedule of this.schedules.values()) {
       this.registerSchedule(schedule);
@@ -92,10 +97,7 @@ export class ScheduleManager extends EventBus<ScheduleManagerEvents> {
     const now = new Date().toISOString();
     const schedule: Schedule = { ...validated, id: generateId(), createdAt: now, updatedAt: now };
 
-    // Persist before publishing to memory and the scheduler: a failed write must not leave a
-    // phantom schedule firing tasks until the next restart.
-    await this.store.set(SCHEDULES_STORE_TABLE, schedule.id, schedule);
-    this.schedules.set(schedule.id, schedule);
+    await this.storeSchedule(schedule);
     this.registerSchedule(schedule);
 
     log.info({ scheduleId: schedule.id, name: schedule.name, enabled: schedule.enabled }, "Schedule created");
@@ -165,6 +167,66 @@ export class ScheduleManager extends EventBus<ScheduleManagerEvents> {
     log.info({ scheduleId, name: fired.name, agentCount: fired.agentIds.length }, "Schedule fired");
 
     return fired;
+  }
+
+  /**
+   * Convert every legacy agent loop into a schedule and clear the loop it came from.
+   * Runs before registration so a migrated schedule is registered by the caller's normal pass.
+   */
+  private async migrateAgentLoops(): Promise<void> {
+    let migratedCount = 0;
+
+    for (const agent of this.registry.getAllAgents(true)) {
+      const loop = agent.loop;
+      if (!loop?.prompt) {
+        continue;
+      }
+
+      try {
+        if (!this.findMigratedSchedule(agent.id)) {
+          await this.storeSchedule(this.toMigratedSchedule(agent, loop));
+          migratedCount++;
+        }
+
+        await this.registry.clearAgentLoop(agent.id);
+      } catch (error) {
+        log.error({ agentId: agent.id, error }, "Failed to migrate agent loop — retrying on next startup");
+      }
+    }
+
+    if (migratedCount > 0) {
+      log.info({ count: migratedCount }, "Migrated agent loops to schedules");
+    }
+  }
+
+  /** Build the schedule that replaces an agent's loop, carrying its timing over verbatim */
+  private toMigratedSchedule(agent: AgentConfig, loop: LoopConfig): Schedule {
+    const now = new Date().toISOString();
+
+    return ScheduleSchema.parse({
+      id: generateId(),
+      name: agent.name.slice(0, SCHEDULE_NAME_MAX_LENGTH),
+      message: loop.prompt,
+      enabled: loop.enabled,
+      agentIds: [agent.id],
+      daysOfWeek: loop.daysOfWeek,
+      timeMode: loop.timeMode,
+      times: loop.times,
+      createdAt: now,
+      updatedAt: now,
+      migratedFromAgentId: agent.id,
+    });
+  }
+
+  /** The schedule a previous migration created for this agent, if any */
+  private findMigratedSchedule(agentId: string): Schedule | undefined {
+    return this.getAllSchedules().find((schedule) => schedule.migratedFromAgentId === agentId);
+  }
+
+  /** Persist a schedule, then publish it to memory — a failed write must not leave a phantom entry */
+  private async storeSchedule(schedule: Schedule): Promise<void> {
+    await this.store.set(SCHEDULES_STORE_TABLE, schedule.id, schedule);
+    this.schedules.set(schedule.id, schedule);
   }
 
   /** Register a schedule with the scheduler; a schedule that cannot fire is left unregistered */

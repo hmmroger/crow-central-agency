@@ -1,7 +1,15 @@
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AgentConfigSchema, TIME_MODE, type AgentConfig, type Schedule } from "@crow-central-agency/shared";
+import {
+  AgentConfigSchema,
+  DAY_OF_WEEK,
+  SCHEDULE_NAME_MAX_LENGTH,
+  TIME_MODE,
+  type AgentConfig,
+  type LoopConfig,
+  type Schedule,
+} from "@crow-central-agency/shared";
 import { AgentRegistry, AGENT_STORE_TABLE } from "./agent-registry.js";
 import { AgentCircleManager } from "./agent-circle-manager.js";
 import { RelationshipManager } from "./relationship-manager.js";
@@ -30,7 +38,6 @@ interface Harness {
   scheduler: CrowScheduler;
   scheduleManager: ScheduleManager;
   firedSchedules: Schedule[];
-  loopTicks: { agentId: string; prompt: string }[];
 }
 
 function makePersistedAgent(agentId: string, overrides: Partial<AgentConfig> = {}): AgentConfig {
@@ -40,6 +47,25 @@ function makePersistedAgent(agentId: string, overrides: Partial<AgentConfig> = {
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
+  });
+}
+
+/** An agent carrying the legacy loop config the migration converts */
+function makeLoopAgent(
+  loopOverrides: Partial<LoopConfig> = {},
+  agentOverrides: Partial<AgentConfig> = {}
+): AgentConfig {
+  return makePersistedAgent(AGENT_ID_A, {
+    name: "Looping Agent",
+    loop: {
+      enabled: true,
+      daysOfWeek: [],
+      timeMode: TIME_MODE.EVERY,
+      times: [{ minute: 1 }],
+      prompt: "Loop work",
+      ...loopOverrides,
+    },
+    ...agentOverrides,
   });
 }
 
@@ -73,11 +99,19 @@ async function createHarness(persistedAgents: AgentConfig[] = []): Promise<Harne
   await scheduleManager.initialize();
 
   const firedSchedules: Schedule[] = [];
-  const loopTicks: { agentId: string; prompt: string }[] = [];
   scheduleManager.on("scheduleFired", ({ schedule }) => firedSchedules.push(schedule));
-  scheduler.on("loopTick", (tick) => loopTicks.push(tick));
 
-  return { store, registry, scheduler, scheduleManager, firedSchedules, loopTicks };
+  return { store, registry, scheduler, scheduleManager, firedSchedules };
+}
+
+/** Bring a fresh ScheduleManager up over the harness's store, as a server restart would. */
+async function restartScheduleManager(harness: Harness): Promise<ScheduleManager> {
+  const scheduler = new CrowScheduler(harness.store, harness.registry);
+  await scheduler.initialize();
+  const scheduleManager = new ScheduleManager(harness.store, scheduler, harness.registry);
+  await scheduleManager.initialize();
+
+  return scheduleManager;
 }
 
 /**
@@ -220,29 +254,91 @@ describe("ScheduleManager firing", () => {
     expect(harness.scheduleManager.getSchedule(schedule.id).enabled).toBe(false);
   });
 
-  it("still fires a legacy agent loop alongside a schedule", async () => {
-    const loopAgent = makePersistedAgent(AGENT_ID_A, {
-      loop: { enabled: true, daysOfWeek: [], timeMode: TIME_MODE.EVERY, times: [{ minute: 1 }], prompt: "Loop work" },
-    });
-    const harness = await createHarness([loopAgent]);
+  it("fires a schedule migrated from an agent loop", async () => {
+    const harness = await createHarness([makeLoopAgent()]);
     useSchedulerFakeTimers();
-
-    await harness.scheduleManager.createSchedule({
-      name: "Schedule work",
-      message: "Schedule message",
-      enabled: true,
-      agentIds: [AGENT_ID_B],
-      daysOfWeek: [],
-      timeMode: TIME_MODE.EVERY,
-      times: [{ minute: 1 }],
-    });
     harness.scheduler.start();
 
-    await advanceMinutes(3);
-    await waitForCondition(() => harness.loopTicks.length > 0 && harness.firedSchedules.length > 0);
+    await advanceMinutes(1);
+    await waitForCondition(() => harness.firedSchedules.length > 0);
 
-    expect(harness.loopTicks).toContainEqual({ agentId: AGENT_ID_A, prompt: "Loop work" });
-    expect(harness.firedSchedules.length).toBeGreaterThan(0);
+    expect(harness.firedSchedules[0]?.agentIds).toEqual([AGENT_ID_A]);
+    expect(harness.firedSchedules[0]?.message).toBe("Loop work");
+  });
+});
+
+describe("ScheduleManager loop migration", () => {
+  it("converts an agent loop into a schedule and clears the loop", async () => {
+    const harness = await createHarness([makeLoopAgent({ daysOfWeek: [DAY_OF_WEEK.MONDAY] })]);
+
+    const migrated = harness.scheduleManager.getAllSchedules();
+
+    expect(migrated).toHaveLength(1);
+    expect(migrated[0]).toMatchObject({
+      name: "Looping Agent",
+      message: "Loop work",
+      enabled: true,
+      agentIds: [AGENT_ID_A],
+      daysOfWeek: ["monday"],
+      timeMode: TIME_MODE.EVERY,
+      times: [{ minute: 1 }],
+      migratedFromAgentId: AGENT_ID_A,
+    });
+    expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeUndefined();
+  });
+
+  it("carries over the longest agent name the schedule name limit allows", async () => {
+    const longestName = "L".repeat(SCHEDULE_NAME_MAX_LENGTH);
+    const harness = await createHarness([makeLoopAgent({}, { name: longestName })]);
+
+    expect(harness.scheduleManager.getAllSchedules()[0]?.name).toBe(longestName);
+  });
+
+  it("creates no duplicate schedule on a second startup", async () => {
+    const harness = await createHarness([makeLoopAgent()]);
+    const migratedId = harness.scheduleManager.getAllSchedules()[0]?.id;
+
+    const restarted = await restartScheduleManager(harness);
+
+    expect(restarted.getAllSchedules().map((schedule) => schedule.id)).toEqual([migratedId]);
+  });
+
+  it("does not recreate the schedule when clearing the loop failed", async () => {
+    const harness = await createHarness();
+    await harness.store.set(AGENT_STORE_TABLE, AGENT_ID_A, makeLoopAgent());
+    await harness.registry.initialize();
+
+    const clearSpy = vi
+      .spyOn(harness.registry, "clearAgentLoop")
+      .mockRejectedValueOnce(new Error("Simulated store write failure"));
+    const afterFailure = await restartScheduleManager(harness);
+
+    expect(afterFailure.getAllSchedules()).toHaveLength(1);
+    expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeDefined();
+
+    clearSpy.mockRestore();
+    const afterRetry = await restartScheduleManager(harness);
+
+    expect(afterRetry.getAllSchedules()).toHaveLength(1);
+    expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeUndefined();
+  });
+
+  it("keeps the loop when the schedule could not be stored", async () => {
+    const harness = await createHarness();
+    await harness.store.set(AGENT_STORE_TABLE, AGENT_ID_A, makeLoopAgent());
+    await harness.registry.initialize();
+
+    const setSpy = vi.spyOn(harness.store, "set").mockRejectedValueOnce(new Error("Simulated store write failure"));
+    const afterFailure = await restartScheduleManager(harness);
+    setSpy.mockRestore();
+
+    expect(afterFailure.getAllSchedules()).toHaveLength(0);
+    expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeDefined();
+
+    const afterRetry = await restartScheduleManager(harness);
+
+    expect(afterRetry.getAllSchedules()).toHaveLength(1);
+    expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeUndefined();
   });
 });
 
