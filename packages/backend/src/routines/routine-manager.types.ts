@@ -1,4 +1,4 @@
-import type { AgentConfig, AgentStatus, AgentTaskItem, AgentTaskState } from "@crow-central-agency/shared";
+import type { AgentConfig, AgentStatus, AgentTaskItem, AgentTaskState, Schedule } from "@crow-central-agency/shared";
 import type { MessageSource } from "../services/message-queue-manager.types.js";
 import type { AgentReminder } from "../services/crow-scheduler.types.js";
 import type { ArtifactRecord } from "../services/runtime/agent-runtime-manager.types.js";
@@ -27,6 +27,7 @@ export interface Routine {
   onTaskAssigned?: (task: AgentTaskItem) => Promise<void>;
   onTaskStateChanged?: (task: AgentTaskItem, previousState: AgentTaskState) => Promise<void>;
   onLoopTick?: (agentId: string, prompt: string) => Promise<void>;
+  onScheduleFired?: (schedule: Schedule) => Promise<void>;
   onReminderFired?: (reminder: AgentReminder) => Promise<void>;
   onFeedAdded?: (feed: Feed) => Promise<void>;
   onFeedRemoved?: (feedId: string) => Promise<void>;

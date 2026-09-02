@@ -4,11 +4,13 @@ import {
   type AgentTaskState,
   type AgentStatus,
   type AgentConfig,
+  type Schedule,
 } from "@crow-central-agency/shared";
 import { logger } from "../utils/logger.js";
 import type { AgentTaskManager } from "../services/agent-task-manager.js";
 import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
 import type { CrowScheduler } from "../services/crow-scheduler.js";
+import type { ScheduleManager } from "../services/schedule-manager.js";
 import type { AgentReminder } from "../services/crow-scheduler.types.js";
 import type { MessageSource } from "../services/message-queue-manager.types.js";
 import type { Routine } from "./routine-manager.types.js";
@@ -29,6 +31,7 @@ export class RoutineManager {
     runtimeManager: AgentRuntimeManager,
     taskManager: AgentTaskManager,
     private readonly scheduler: CrowScheduler,
+    scheduleManager: ScheduleManager,
     feedManager: SimplyFeedManager
   ) {
     registry.on("agentCreated", ({ agent }) => this.onAgentCreated(agent));
@@ -47,6 +50,7 @@ export class RoutineManager {
     taskManager.on("taskStateChanged", ({ task, previousState }) => this.onTaskStateChanged(task, previousState));
     scheduler.on("loopTick", ({ agentId, prompt }) => this.onLoopTick(agentId, prompt));
     scheduler.on("reminderFired", ({ reminder }) => this.onReminderFired(reminder));
+    scheduleManager.on("scheduleFired", ({ schedule }) => this.onScheduleFired(schedule));
     feedManager.on("feedAdded", ({ feed }) => this.onFeedAdded(feed));
     feedManager.on("feedRemoved", ({ feedId }) => this.onFeedRemoved(feedId));
     feedManager.on("newFeedItems", ({ feed, items }) => this.onNewFeedItems(feed, items));
@@ -158,6 +162,12 @@ export class RoutineManager {
   private async onLoopTick(agentId: string, prompt: string): Promise<void> {
     for (const routine of this.routines) {
       await this.safeCall(routine, () => routine.onLoopTick?.(agentId, prompt));
+    }
+  }
+
+  private async onScheduleFired(schedule: Schedule): Promise<void> {
+    for (const routine of this.routines) {
+      await this.safeCall(routine, () => routine.onScheduleFired?.(schedule));
     }
   }
 

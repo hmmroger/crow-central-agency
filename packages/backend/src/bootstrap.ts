@@ -26,6 +26,7 @@ import { getSuperTasksMcpServerDefinition } from "./mcp/tasks/super-tasks-mcp-se
 import { getRemindersMcpServerDefinition } from "./mcp/reminders/reminders-mcp-server.js";
 import { FileObjectStoreProvider } from "./core/store/file-object-store-provider.js";
 import { CrowScheduler } from "./services/crow-scheduler.js";
+import { ScheduleManager } from "./services/schedule-manager.js";
 import { SystemSettingsManager } from "./services/system-settings-manager.js";
 import { MessageQueueManager } from "./services/message-queue-manager.js";
 import { AgentTaskManager } from "./services/agent-task-manager.js";
@@ -46,6 +47,7 @@ import { registerShutdownHandlers } from "./server/graceful-shutdown.js";
 import { createInterAgentTaskRoutine } from "./routines/inter-agent-task-routine.js";
 import { createTaskDispatchRoutine } from "./routines/task-dispatch-routine.js";
 import { createAgentLoopRoutine } from "./routines/agent-loop-routine.js";
+import { createAgentScheduleRoutine } from "./routines/agent-schedule-routine.js";
 import { createAgentReminderRoutine } from "./routines/agent-reminder-routine.js";
 import { createFeedCleanupRoutine } from "./routines/feed-cleanup-routine.js";
 import { createFeedNewItemsRoutine } from "./routines/feed-new-items-routine.js";
@@ -107,6 +109,8 @@ export async function bootstrap(options: BootstrapOptions) {
   await registry.initialize();
   const crowScheduler = new CrowScheduler(storeProvider, registry);
   await crowScheduler.initialize();
+  const scheduleManager = new ScheduleManager(storeProvider, crowScheduler, registry);
+  await scheduleManager.initialize();
   const taskManager = new AgentTaskManager(storeProvider, broadcaster, circleManager);
   await taskManager.initialize();
   const feedManager = new SimplyFeedManager(storeProvider, folderFileProvider, crowScheduler);
@@ -159,13 +163,22 @@ export async function bootstrap(options: BootstrapOptions) {
     broadcaster
   );
 
-  const routineManager = new RoutineManager(registry, runtimeManager, taskManager, crowScheduler, feedManager);
+  const routineManager = new RoutineManager(
+    registry,
+    runtimeManager,
+    taskManager,
+    crowScheduler,
+    scheduleManager,
+    feedManager
+  );
   const interAgentRoutine = createInterAgentTaskRoutine(registry, runtimeManager, taskManager);
   routineManager.addRoutine(interAgentRoutine);
   const taskDispatchRoutine = createTaskDispatchRoutine(runtimeManager);
   routineManager.addRoutine(taskDispatchRoutine);
   const agentLoopRoutine = createAgentLoopRoutine(taskManager);
   routineManager.addRoutine(agentLoopRoutine);
+  const agentScheduleRoutine = createAgentScheduleRoutine(taskManager);
+  routineManager.addRoutine(agentScheduleRoutine);
   const agentReminderRoutine = createAgentReminderRoutine(taskManager);
   routineManager.addRoutine(agentReminderRoutine);
   const feedCleanupRoutine = createFeedCleanupRoutine(registry, systemSettingsManager);
