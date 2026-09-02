@@ -73,9 +73,12 @@ export class RoutineManager {
     }
 
     const scheduleId = `${ROUTINE_INTERVAL_SCHEDULE_PREFIX}${routine.id}`;
-    this.scheduler.scheduleWork(scheduleId, TIME_MODE.EVERY, [{ minute: routine.intervalInMinutes }], () =>
-      this.safeCall(routine, () => routine.onInterval?.())
-    );
+    this.scheduler.scheduleWork({
+      id: scheduleId,
+      timeMode: TIME_MODE.EVERY,
+      times: [{ minute: routine.intervalInMinutes }],
+      callback: () => this.safeCall(routine, () => routine.onInterval?.()),
+    });
 
     log.info(
       { routineId: routine.id, scheduleId, intervalInMinutes: routine.intervalInMinutes },

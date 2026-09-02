@@ -79,12 +79,12 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
       );
     }
 
-    this.crowScheduler.scheduleWork(
-      REFRESH_FEEDS_WORK_ID,
-      TIME_MODE.EVERY,
-      [{ minute: env.FEED_REFRESH_IN_MINUTES ?? DEFAULT_FEED_REFRESH_IN_MINUTES }],
-      () => this.refreshAllFeeds()
-    );
+    this.crowScheduler.scheduleWork({
+      id: REFRESH_FEEDS_WORK_ID,
+      timeMode: TIME_MODE.EVERY,
+      times: [{ minute: env.FEED_REFRESH_IN_MINUTES ?? DEFAULT_FEED_REFRESH_IN_MINUTES }],
+      callback: () => this.refreshAllFeeds(),
+    });
   }
 
   /** Load or rebuild the search index. Wire before serving search queries. */

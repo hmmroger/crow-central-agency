@@ -1,11 +1,13 @@
-import { TIME_MODE, type AgentConfig, type SchedulerTime, type TimeModeType } from "@crow-central-agency/shared";
+import {
+  DAY_OF_WEEK,
+  TIME_MODE,
+  type AgentConfig,
+  type DayOfWeek,
+  type SchedulerTime,
+  type TimeModeType,
+} from "@crow-central-agency/shared";
 import { EventBus } from "../core/event-bus/event-bus.js";
-import type {
-  AgentReminder,
-  CrowSchedulerEvents,
-  ScheduledWork,
-  ScheduledWorkCallback,
-} from "./crow-scheduler.types.js";
+import type { AgentReminder, CrowSchedulerEvents, ScheduledWork } from "./crow-scheduler.types.js";
 import type { AgentRegistry } from "./agent-registry.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 import { REMINDERS_STORE_TABLE } from "../config/constants.js";
@@ -18,6 +20,17 @@ const ONE_MINUTE_MS = 60 * 1000;
 
 /** One hour in milliseconds */
 const ONE_HOUR_MS = 60 * ONE_MINUTE_MS;
+
+/** Day names indexed by Date.getDay() */
+const DAY_NAMES_BY_DATE_INDEX: DayOfWeek[] = [
+  DAY_OF_WEEK.SUNDAY,
+  DAY_OF_WEEK.MONDAY,
+  DAY_OF_WEEK.TUESDAY,
+  DAY_OF_WEEK.WEDNESDAY,
+  DAY_OF_WEEK.THURSDAY,
+  DAY_OF_WEEK.FRIDAY,
+  DAY_OF_WEEK.SATURDAY,
+];
 
 /**
  * Crow scheduler - manages agent loops, one-shot reminders, and scheduled work callbacks.
@@ -132,23 +145,19 @@ export class CrowScheduler extends EventBus<CrowSchedulerEvents> {
   /**
    * Register a recurring scheduled work callback.
    * The callback is invoked with the schedule ID when the time condition is met.
+   * An empty or omitted daysOfWeek means the work may fire on any day.
    */
-  public scheduleWork(
-    id: string,
-    timeMode: TimeModeType,
-    times: SchedulerTime[],
-    callback: ScheduledWorkCallback
-  ): void {
-    if (this.scheduledWork.has(id)) {
-      log.warn({ scheduleId: id }, "Replacing existing scheduled work");
+  public scheduleWork(work: ScheduledWork): void {
+    if (this.scheduledWork.has(work.id)) {
+      log.warn({ scheduleId: work.id }, "Replacing existing scheduled work");
     }
 
-    this.scheduledWork.set(id, { id, timeMode, times, callback });
-    if (timeMode === TIME_MODE.EVERY) {
-      this.lastWorkTickTime.set(id, Date.now());
+    this.scheduledWork.set(work.id, work);
+    if (work.timeMode === TIME_MODE.EVERY) {
+      this.lastWorkTickTime.set(work.id, Date.now());
     }
 
-    log.info({ scheduleId: id, timeMode }, "Scheduled work registered");
+    log.info({ scheduleId: work.id, timeMode: work.timeMode }, "Scheduled work registered");
   }
 
   /** Remove a scheduled work entry by ID */
@@ -191,6 +200,10 @@ export class CrowScheduler extends EventBus<CrowSchedulerEvents> {
   private checkScheduledWork(): void {
     const now = new Date();
     for (const work of this.scheduledWork.values()) {
+      if (!this.matchesDaysOfWeek(work.daysOfWeek, now)) {
+        continue;
+      }
+
       if (!this.shouldFireSchedule(work.id, work.timeMode, work.times, this.lastWorkTickTime, now)) {
         continue;
       }
@@ -305,16 +318,21 @@ export class CrowScheduler extends EventBus<CrowSchedulerEvents> {
       return false;
     }
 
-    // Check day of week
-    if (loop.daysOfWeek.length > 0) {
-      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
-      const todayName = dayNames[now.getDay()];
-      if (!loop.daysOfWeek.includes(todayName)) {
-        return false;
-      }
+    if (!this.matchesDaysOfWeek(loop.daysOfWeek, now)) {
+      return false;
     }
 
     return this.shouldFireSchedule(agent.id, loop.timeMode, loop.times, this.lastTickTime, now);
+  }
+
+  /** Check whether the current day is allowed; an empty or omitted list allows every day */
+  private matchesDaysOfWeek(daysOfWeek: DayOfWeek[] | undefined, now: Date): boolean {
+    if (!daysOfWeek || daysOfWeek.length === 0) {
+      return true;
+    }
+
+    const todayName = DAY_NAMES_BY_DATE_INDEX[now.getDay()];
+    return todayName !== undefined && daysOfWeek.includes(todayName);
   }
 
   /**
