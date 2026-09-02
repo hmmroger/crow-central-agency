@@ -50,7 +50,13 @@ export class ScheduleManager extends EventBus<ScheduleManagerEvents> {
   public async initialize(): Promise<void> {
     const entries = await this.store.getAll<Schedule>(SCHEDULES_STORE_TABLE);
     for (const entry of entries) {
-      this.schedules.set(entry.value.id, entry.value);
+      const parsed = ScheduleSchema.safeParse(entry.value);
+      if (!parsed.success) {
+        log.error({ error: parsed.error }, "Skipping schedule that failed validation on restore");
+        continue;
+      }
+
+      this.schedules.set(parsed.data.id, parsed.data);
     }
 
     for (const schedule of this.schedules.values()) {
@@ -86,8 +92,10 @@ export class ScheduleManager extends EventBus<ScheduleManagerEvents> {
     const now = new Date().toISOString();
     const schedule: Schedule = { ...validated, id: generateId(), createdAt: now, updatedAt: now };
 
-    this.schedules.set(schedule.id, schedule);
+    // Persist before publishing to memory and the scheduler: a failed write must not leave a
+    // phantom schedule firing tasks until the next restart.
     await this.store.set(SCHEDULES_STORE_TABLE, schedule.id, schedule);
+    this.schedules.set(schedule.id, schedule);
     this.registerSchedule(schedule);
 
     log.info({ scheduleId: schedule.id, name: schedule.name, enabled: schedule.enabled }, "Schedule created");
@@ -104,8 +112,8 @@ export class ScheduleManager extends EventBus<ScheduleManagerEvents> {
     const validated = UpdateScheduleInputSchema.parse(input);
     const updated = ScheduleSchema.parse({ ...existing, ...validated, updatedAt: new Date().toISOString() });
 
-    this.schedules.set(scheduleId, updated);
     await this.store.set(SCHEDULES_STORE_TABLE, scheduleId, updated);
+    this.schedules.set(scheduleId, updated);
     this.scheduler.unscheduleWork(this.toWorkId(scheduleId));
     this.registerSchedule(updated);
     this.emit("scheduleUpdated", { schedule: updated });
@@ -119,9 +127,9 @@ export class ScheduleManager extends EventBus<ScheduleManagerEvents> {
   public async deleteSchedule(scheduleId: string): Promise<void> {
     const existing = this.getSchedule(scheduleId);
 
+    await this.store.delete(SCHEDULES_STORE_TABLE, scheduleId);
     this.scheduler.unscheduleWork(this.toWorkId(scheduleId));
     this.schedules.delete(scheduleId);
-    await this.store.delete(SCHEDULES_STORE_TABLE, scheduleId);
 
     log.info({ scheduleId, name: existing.name }, "Schedule deleted");
   }
@@ -150,8 +158,8 @@ export class ScheduleManager extends EventBus<ScheduleManagerEvents> {
     }
 
     const fired: Schedule = { ...schedule, lastFiredTimestamp: Date.now() };
-    this.schedules.set(scheduleId, fired);
     await this.store.set(SCHEDULES_STORE_TABLE, scheduleId, fired);
+    this.schedules.set(scheduleId, fired);
     this.emit("scheduleFired", { schedule: fired });
 
     log.info({ scheduleId, name: fired.name, agentCount: fired.agentIds.length }, "Schedule fired");
@@ -196,12 +204,12 @@ export class ScheduleManager extends EventBus<ScheduleManagerEvents> {
         updatedAt: new Date().toISOString(),
       };
 
+      await this.store.set(SCHEDULES_STORE_TABLE, pruned.id, pruned);
       if (isEmpty) {
         this.scheduler.unscheduleWork(this.toWorkId(schedule.id));
       }
 
       this.schedules.set(pruned.id, pruned);
-      await this.store.set(SCHEDULES_STORE_TABLE, pruned.id, pruned);
       this.emit("scheduleUpdated", { schedule: pruned });
 
       log.info({ scheduleId: pruned.id, agentId, disabled: isEmpty }, "Pruned deleted agent from schedule");

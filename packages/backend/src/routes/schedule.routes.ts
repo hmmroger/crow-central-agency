@@ -68,7 +68,7 @@ export async function registerScheduleRoutes(server: FastifyInstance, scheduleMa
 
     const fired = await scheduleManager.fireSchedule(schedule.id, { ignoreEnabled: true });
     if (!fired) {
-      throw new AppError(`Schedule ${schedule.id} could not be run`, APP_ERROR_CODES.NOT_FOUND);
+      throw new AppError(`Schedule ${schedule.id} could not be run`, APP_ERROR_CODES.UNKNOWN);
     }
 
     return { success: true, data: fired };

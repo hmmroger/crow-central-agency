@@ -311,6 +311,26 @@ describe("ScheduleManager mutations", () => {
     expect(harness.scheduleManager.getSchedule(created.id).message).toBe("Daily standup");
   });
 
+  it("skips a persisted schedule that fails validation without dropping the valid ones", async () => {
+    const harness = await createHarness();
+    const valid = await harness.scheduleManager.createSchedule({
+      name: "Valid",
+      message: "Still loadable",
+      enabled: false,
+      agentIds: [AGENT_ID_A],
+      daysOfWeek: [],
+      timeMode: TIME_MODE.EVERY,
+      times: [{ minute: 30 }],
+    });
+    await harness.store.set(SCHEDULES_STORE_TABLE, "broken-entry", { id: "not-a-uuid", name: "Broken" });
+
+    const restartedScheduler = new CrowScheduler(harness.store, harness.registry);
+    const restartedManager = new ScheduleManager(harness.store, restartedScheduler, harness.registry);
+    await restartedManager.initialize();
+
+    expect(restartedManager.getAllSchedules().map((schedule) => schedule.id)).toEqual([valid.id]);
+  });
+
   it("restores persisted schedules and re-registers the enabled ones", async () => {
     const harness = await createHarness();
     const created = await harness.scheduleManager.createSchedule({
