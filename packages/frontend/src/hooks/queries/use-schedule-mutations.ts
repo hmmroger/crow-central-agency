@@ -5,6 +5,12 @@ import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { scheduleKeys } from "../../services/query-keys.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
+/** Target schedule plus the fields to change */
+interface UpdateScheduleVariables {
+  scheduleId: string;
+  input: UpdateScheduleInput;
+}
+
 /** Create a schedule. Invalidates the list on success. */
 export function useCreateSchedule() {
   const queryClient = useQueryClient();
@@ -20,16 +26,34 @@ export function useCreateSchedule() {
   });
 }
 
-/** Apply a partial update to a schedule. Invalidates the list on success. */
-export function useUpdateSchedule(scheduleId: string) {
+/**
+ * Apply a partial update to a schedule. The list is patched optimistically so the
+ * card toggle does not bounce back while the request is in flight.
+ */
+export function useUpdateSchedule() {
   const queryClient = useQueryClient();
 
-  return useMutation<Schedule, ApiError, UpdateScheduleInput>({
-    mutationFn: async (input) => {
+  return useMutation<Schedule, ApiError, UpdateScheduleVariables, { previous: Schedule[] | undefined }>({
+    mutationFn: async ({ scheduleId, input }) => {
       const response = await apiClient.patch<Schedule>(`/schedules/${scheduleId}`, input);
+
       return unwrapResponse(response);
     },
-    onSuccess: () => {
+    onMutate: async ({ scheduleId, input }) => {
+      await queryClient.cancelQueries({ queryKey: scheduleKeys.list() });
+      const previous = queryClient.getQueryData<Schedule[]>(scheduleKeys.list());
+      queryClient.setQueryData<Schedule[]>(scheduleKeys.list(), (old) =>
+        old?.map((schedule) => (schedule.id === scheduleId ? { ...schedule, ...input } : schedule))
+      );
+
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(scheduleKeys.list(), context.previous);
+      }
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: scheduleKeys.list() });
     },
   });

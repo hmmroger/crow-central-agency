@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Pencil, Play, Trash2 } from "lucide-react";
 import type { Schedule } from "@crow-central-agency/shared";
 import { useAgentsContext } from "../../providers/agents-provider.js";
@@ -9,16 +9,16 @@ import { formatScheduleTiming } from "../../utils/format-schedule-timing.js";
 import { cn } from "../../utils/cn.js";
 import { Toggle } from "../common/toggle.js";
 
+interface ScheduleCardProps {
+  schedule: Schedule;
+  onEdit: () => void;
+}
+
 /** Agent chips rendered inline before collapsing the rest into a +N chip */
 const MAX_VISIBLE_AGENT_CHIPS = 4;
 
 const ICON_BUTTON_CLASS =
   "p-1.5 rounded text-text-muted hover:text-text-base hover:bg-surface-elevated transition-colors disabled:opacity-40";
-
-interface ScheduleCardProps {
-  schedule: Schedule;
-  onEdit: () => void;
-}
 
 /**
  * Card for a single schedule in the schedules list.
@@ -28,7 +28,7 @@ export function ScheduleCard({ schedule, onEdit }: ScheduleCardProps) {
   const { agents } = useAgentsContext();
   const confirm = useConfirmDialog();
 
-  const updateSchedule = useUpdateSchedule(schedule.id);
+  const updateSchedule = useUpdateSchedule();
   const runSchedule = useRunSchedule(schedule.id);
   const { deleteFn, isPending: isDeleting } = useDeleteSchedule(schedule.id);
 
@@ -40,23 +40,24 @@ export function ScheduleCard({ schedule, onEdit }: ScheduleCardProps) {
   const visibleAgentNames = agentNames.slice(0, MAX_VISIBLE_AGENT_CHIPS);
   const hiddenAgentCount = agentNames.length - visibleAgentNames.length;
 
-  const handleToggleEnabled = (enabled: boolean) => {
-    updateSchedule.mutate({ enabled });
-  };
+  const handleToggleEnabled = useCallback(
+    (enabled: boolean) => updateSchedule.mutate({ scheduleId: schedule.id, input: { enabled } }),
+    [updateSchedule, schedule.id]
+  );
 
-  const handleRun = () => {
-    runSchedule.mutate();
-  };
+  const handleRun = useCallback(() => runSchedule.mutate(), [runSchedule]);
 
-  const handleDelete = () => {
-    confirm({
-      title: "Delete Schedule",
-      message: `Delete "${schedule.name}"? This cannot be undone.`,
-      confirmLabel: "Delete",
-      destructive: true,
-      onConfirm: deleteFn,
-    });
-  };
+  const handleDelete = useCallback(
+    () =>
+      confirm({
+        title: "Delete Schedule",
+        message: `Delete "${schedule.name}"? This cannot be undone.`,
+        confirmLabel: "Delete",
+        destructive: true,
+        onConfirm: deleteFn,
+      }),
+    [confirm, schedule.name, deleteFn]
+  );
 
   return (
     <div
@@ -93,10 +94,18 @@ export function ScheduleCard({ schedule, onEdit }: ScheduleCardProps) {
             onClick={handleRun}
             disabled={runSchedule.isPending || isDeleting || schedule.agentIds.length === 0}
             title="Run now"
+            aria-label={`Run ${schedule.name} now`}
           >
             <Play className="h-3.5 w-3.5" />
           </button>
-          <button type="button" className={ICON_BUTTON_CLASS} onClick={onEdit} disabled={isDeleting} title="Edit">
+          <button
+            type="button"
+            className={ICON_BUTTON_CLASS}
+            onClick={onEdit}
+            disabled={isDeleting}
+            title="Edit"
+            aria-label={`Edit ${schedule.name}`}
+          >
             <Pencil className="h-3.5 w-3.5" />
           </button>
           <button
@@ -105,6 +114,7 @@ export function ScheduleCard({ schedule, onEdit }: ScheduleCardProps) {
             onClick={handleDelete}
             disabled={isDeleting}
             title="Delete"
+            aria-label={`Delete ${schedule.name}`}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>

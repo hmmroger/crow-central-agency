@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { Plus, X } from "lucide-react";
 import { TIME_MODE, type DayOfWeek, type SchedulerTime, type TimeModeType } from "@crow-central-agency/shared";
 import { DAY_LABELS, WEEK_ORDER } from "../../utils/day-of-week-display.js";
@@ -20,6 +21,19 @@ const INACTIVE_BUTTON = "bg-surface-inset text-text-muted border-border-subtle h
 const TIME_INPUT_CLASS =
   "w-14 px-2 py-1 rounded bg-surface-inset border border-border-subtle text-text-base text-sm focus:outline-none focus:border-border-focus";
 
+function toggleDayIn(daysOfWeek: DayOfWeek[], day: DayOfWeek): DayOfWeek[] {
+  return daysOfWeek.includes(day) ? daysOfWeek.filter((selectedDay) => selectedDay !== day) : [...daysOfWeek, day];
+}
+
+function withTimeFieldAt(
+  times: SchedulerTime[],
+  index: number,
+  field: keyof SchedulerTime,
+  value: number | undefined
+): SchedulerTime[] {
+  return times.map((time, timeIndex) => (timeIndex === index ? { ...time, [field]: value } : time));
+}
+
 /**
  * Active days, At/Every mode, and the time entries behind them.
  * Shared by the Schedule editor and the agent Loop panel.
@@ -36,26 +50,25 @@ export function ScheduleTimingPanel({
   const isAtMode = timeMode === TIME_MODE.AT;
   const canAddTime = isAtMode && times.length < maxTimes;
 
-  const toggleDay = (day: DayOfWeek) => {
-    if (daysOfWeek.includes(day)) {
-      onDaysChange(daysOfWeek.filter((selectedDay) => selectedDay !== day));
-    } else {
-      onDaysChange([...daysOfWeek, day]);
-    }
-  };
+  const toggleDay = useCallback(
+    (day: DayOfWeek) => onDaysChange(toggleDayIn(daysOfWeek, day)),
+    [daysOfWeek, onDaysChange]
+  );
 
-  const updateTimeAt = (index: number, field: keyof SchedulerTime, rawValue: string) => {
-    const value = rawValue ? Number(rawValue) : undefined;
-    onTimesChange((prev) => prev.map((time, idx) => (idx === index ? { ...time, [field]: value } : time)));
-  };
+  const updateTimeAt = useCallback(
+    (index: number, field: keyof SchedulerTime, rawValue: string) => {
+      const value = rawValue ? Number(rawValue) : undefined;
+      onTimesChange((prev) => withTimeFieldAt(prev, index, field, value));
+    },
+    [onTimesChange]
+  );
 
-  const addTime = () => {
-    onTimesChange((prev) => [...prev, {}]);
-  };
+  const addTime = useCallback(() => onTimesChange((prev) => [...prev, {}]), [onTimesChange]);
 
-  const removeTime = (index: number) => {
-    onTimesChange((prev) => prev.filter((_, idx) => idx !== index));
-  };
+  const removeTime = useCallback(
+    (index: number) => onTimesChange((prev) => prev.filter((_, timeIndex) => timeIndex !== index)),
+    [onTimesChange]
+  );
 
   return (
     <div className="space-y-3">
@@ -130,6 +143,7 @@ export function ScheduleTimingPanel({
                     className="p-1 rounded text-text-muted hover:text-error hover:bg-error/10 transition-colors"
                     onClick={() => removeTime(index)}
                     title="Remove time"
+                    aria-label={`Remove time ${index + 1}`}
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -147,6 +161,7 @@ export function ScheduleTimingPanel({
                 max={23}
                 value={times[0]?.hour ?? ""}
                 onChange={(event) => updateTimeAt(0, "hour", event.target.value)}
+                aria-label="Interval hours"
                 className={TIME_INPUT_CLASS}
               />
             </div>
@@ -158,6 +173,7 @@ export function ScheduleTimingPanel({
                 max={59}
                 value={times[0]?.minute ?? ""}
                 onChange={(event) => updateTimeAt(0, "minute", event.target.value)}
+                aria-label="Interval minutes"
                 className={TIME_INPUT_CLASS}
               />
             </div>

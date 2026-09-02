@@ -85,11 +85,7 @@ export function formatScheduleDays(daysOfWeek: DayOfWeek[]): string | undefined 
   const labels = runs.map((run) => {
     const first = run[0];
     const last = run[run.length - 1];
-    if (!first || !last) {
-      return "";
-    }
-
-    if (run.length >= MIN_RUN_LENGTH_FOR_RANGE) {
+    if (first && last && run.length >= MIN_RUN_LENGTH_FOR_RANGE) {
       return `${DAY_LABELS[first]}–${DAY_LABELS[last]}`;
     }
 

@@ -32,7 +32,7 @@ export function ScheduleEditorDialogContent({ scheduleId, onClose, ref }: Schedu
   const existingSchedule = isEditing ? schedules.find((schedule) => schedule.id === scheduleId) : undefined;
 
   const createSchedule = useCreateSchedule();
-  const updateSchedule = useUpdateSchedule(scheduleId ?? "");
+  const updateSchedule = useUpdateSchedule();
   const saveMutation = isEditing ? updateSchedule : createSchedule;
   const isSaving = saveMutation.isPending;
   const mutationError = saveMutation.error?.message;
@@ -63,8 +63,8 @@ export function ScheduleEditorDialogContent({ scheduleId, onClose, ref }: Schedu
     };
 
     try {
-      if (isEditing) {
-        await updateSchedule.mutateAsync(input);
+      if (scheduleId !== undefined) {
+        await updateSchedule.mutateAsync({ scheduleId, input });
       } else {
         await createSchedule.mutateAsync(input);
       }
@@ -73,7 +73,7 @@ export function ScheduleEditorDialogContent({ scheduleId, onClose, ref }: Schedu
     } catch {
       // Error surfaced via mutation.error
     }
-  }, [form, isEditing, updateSchedule, createSchedule, onClose]);
+  }, [form, scheduleId, updateSchedule, createSchedule, onClose]);
 
   const handleCancel = useCallback(async () => {
     const allowed = await confirmDiscard();
