@@ -32,9 +32,12 @@ const ONE_MINUTE_MS = 60 * 1000;
 /** Flush rounds allowed while waiting for deferred listeners in a fake-timer test */
 const MAX_FLUSH_ATTEMPTS = 20;
 
-interface Harness {
+interface RegistryStack {
   store: InMemoryObjectStore;
   registry: AgentRegistry;
+}
+
+interface Harness extends RegistryStack {
   scheduler: CrowScheduler;
   scheduleManager: ScheduleManager;
   firedSchedules: Schedule[];
@@ -69,8 +72,8 @@ function makeLoopAgent(
   });
 }
 
-/** Bring the scheduler stack up in the same order the composition root uses. */
-async function createHarness(persistedAgents: AgentConfig[] = []): Promise<Harness> {
+/** Bring up everything the ScheduleManager depends on, leaving the manager itself to the caller. */
+async function createRegistryStack(persistedAgents: AgentConfig[] = []): Promise<RegistryStack> {
   const store = new InMemoryObjectStore();
   const templateStore = new InMemoryObjectStore();
   const broadcaster = new WsBroadcaster();
@@ -93,6 +96,13 @@ async function createHarness(persistedAgents: AgentConfig[] = []): Promise<Harne
   await fragmentManager.initialize();
   await registry.initialize();
 
+  return { store, registry };
+}
+
+/** Bring the scheduler stack up in the same order the composition root uses. */
+async function createHarness(persistedAgents: AgentConfig[] = []): Promise<Harness> {
+  const { store, registry } = await createRegistryStack(persistedAgents);
+
   const scheduler = new CrowScheduler(store, registry);
   await scheduler.initialize();
   const scheduleManager = new ScheduleManager(store, scheduler, registry);
@@ -104,11 +114,11 @@ async function createHarness(persistedAgents: AgentConfig[] = []): Promise<Harne
   return { store, registry, scheduler, scheduleManager, firedSchedules };
 }
 
-/** Bring a fresh ScheduleManager up over the harness's store, as a server restart would. */
-async function restartScheduleManager(harness: Harness): Promise<ScheduleManager> {
-  const scheduler = new CrowScheduler(harness.store, harness.registry);
+/** Bring a fresh ScheduleManager up over an existing store, as a server restart would. */
+async function startScheduleManager(stack: RegistryStack): Promise<ScheduleManager> {
+  const scheduler = new CrowScheduler(stack.store, stack.registry);
   await scheduler.initialize();
-  const scheduleManager = new ScheduleManager(harness.store, scheduler, harness.registry);
+  const scheduleManager = new ScheduleManager(stack.store, scheduler, stack.registry);
   await scheduleManager.initialize();
 
   return scheduleManager;
@@ -294,51 +304,61 @@ describe("ScheduleManager loop migration", () => {
     expect(harness.scheduleManager.getAllSchedules()[0]?.name).toBe(longestName);
   });
 
+  it("carries a disabled loop over as a disabled schedule", async () => {
+    const harness = await createHarness([makeLoopAgent({ enabled: false })]);
+
+    expect(harness.scheduleManager.getAllSchedules()[0]?.enabled).toBe(false);
+    expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeUndefined();
+  });
+
+  it("migrates a background agent's loop", async () => {
+    const harness = await createHarness([makeLoopAgent({}, { isBackgroundAgent: true })]);
+
+    expect(harness.scheduleManager.getAllSchedules()).toHaveLength(1);
+    expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeUndefined();
+  });
+
   it("creates no duplicate schedule on a second startup", async () => {
     const harness = await createHarness([makeLoopAgent()]);
     const migratedId = harness.scheduleManager.getAllSchedules()[0]?.id;
 
-    const restarted = await restartScheduleManager(harness);
+    const restarted = await startScheduleManager(harness);
 
     expect(restarted.getAllSchedules().map((schedule) => schedule.id)).toEqual([migratedId]);
   });
 
   it("does not recreate the schedule when clearing the loop failed", async () => {
-    const harness = await createHarness();
-    await harness.store.set(AGENT_STORE_TABLE, AGENT_ID_A, makeLoopAgent());
-    await harness.registry.initialize();
+    const stack = await createRegistryStack([makeLoopAgent()]);
 
     const clearSpy = vi
-      .spyOn(harness.registry, "clearAgentLoop")
+      .spyOn(stack.registry, "clearAgentLoop")
       .mockRejectedValueOnce(new Error("Simulated store write failure"));
-    const afterFailure = await restartScheduleManager(harness);
+    const afterFailure = await startScheduleManager(stack);
 
     expect(afterFailure.getAllSchedules()).toHaveLength(1);
-    expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeDefined();
+    expect(stack.registry.getAgent(AGENT_ID_A).loop).toBeDefined();
 
     clearSpy.mockRestore();
-    const afterRetry = await restartScheduleManager(harness);
+    const afterRetry = await startScheduleManager(stack);
 
     expect(afterRetry.getAllSchedules()).toHaveLength(1);
-    expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeUndefined();
+    expect(stack.registry.getAgent(AGENT_ID_A).loop).toBeUndefined();
   });
 
   it("keeps the loop when the schedule could not be stored", async () => {
-    const harness = await createHarness();
-    await harness.store.set(AGENT_STORE_TABLE, AGENT_ID_A, makeLoopAgent());
-    await harness.registry.initialize();
+    const stack = await createRegistryStack([makeLoopAgent()]);
 
-    const setSpy = vi.spyOn(harness.store, "set").mockRejectedValueOnce(new Error("Simulated store write failure"));
-    const afterFailure = await restartScheduleManager(harness);
+    const setSpy = vi.spyOn(stack.store, "set").mockRejectedValueOnce(new Error("Simulated store write failure"));
+    const afterFailure = await startScheduleManager(stack);
     setSpy.mockRestore();
 
     expect(afterFailure.getAllSchedules()).toHaveLength(0);
-    expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeDefined();
+    expect(stack.registry.getAgent(AGENT_ID_A).loop).toBeDefined();
 
-    const afterRetry = await restartScheduleManager(harness);
+    const afterRetry = await startScheduleManager(stack);
 
     expect(afterRetry.getAllSchedules()).toHaveLength(1);
-    expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeUndefined();
+    expect(stack.registry.getAgent(AGENT_ID_A).loop).toBeUndefined();
   });
 });
 

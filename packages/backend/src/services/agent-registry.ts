@@ -392,6 +392,12 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
    */
   public async clearAgentLoop(agentId: string): Promise<void> {
     const existing = this.getAgent(agentId);
+    try {
+      this.assertMutable(existing);
+    } catch {
+      return;
+    }
+
     if (!existing.loop) {
       return;
     }
