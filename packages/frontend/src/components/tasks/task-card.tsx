@@ -7,19 +7,28 @@ import {
   type AgentTaskSourceType,
   type AgentConfig,
 } from "@crow-central-agency/shared";
-import { useCallback } from "react";
-import { Clock, User, Bot, RotateCw, FileText, Cog, Bell } from "lucide-react";
+import { useCallback, useMemo } from "react";
+import { Clock, User, Bot, CalendarClock, FileText, Cog, Bell } from "lucide-react";
 import { cn } from "../../utils/cn.js";
 import { getTaskStateLabel } from "../../utils/task-utils.js";
 import { useModalDialog } from "../../providers/modal-dialog-provider.js";
 import { useOpenTaskDetail } from "../../hooks/dialogs/use-open-task-detail.js";
 import { MarkdownViewerDialog } from "../common/dialogs/markdown-viewer-dialog.js";
 import { TaskActions } from "./task-actions.js";
+import { resolveTaskSourceName, type TaskSourceLookup } from "./task-source-name.js";
 import { formatRelativeTime } from "../../utils/format-utils.js";
 
 interface TaskCardProps {
   task: AgentTaskItem;
   agents: AgentConfig[];
+  /** Schedule names by id, resolved once by the list */
+  scheduleNames: ReadonlyMap<string, string>;
+}
+
+interface SourceBadgeProps {
+  label: string;
+  source: AgentTaskSource;
+  lookup: TaskSourceLookup;
 }
 
 /** Badge background per task state */
@@ -35,7 +44,7 @@ const STATE_BADGE_STYLE: Record<AgentTaskState, string> = {
  * Task card — compact panel with left-edge state indicator,
  * task content, metadata badges, and relative timestamps.
  */
-export function TaskCard({ task, agents }: TaskCardProps) {
+export function TaskCard({ task, agents, scheduleNames }: TaskCardProps) {
   const { showDialog } = useModalDialog();
   const isClosed = task.state === AGENT_TASK_STATE.CLOSED;
   const isActive = task.state === AGENT_TASK_STATE.ACTIVE;
@@ -56,11 +65,7 @@ export function TaskCard({ task, agents }: TaskCardProps) {
     });
   }, [showDialog, task.id, task.taskResult]);
 
-  /** Resolve an agent ID to display name, falling back to truncated ID */
-  const resolveAgentName = (agentId: string): string => {
-    const agent = agents.find((agentItem) => agentItem.id === agentId);
-    return agent?.name ?? agentId.slice(0, 8);
-  };
+  const sourceLookup = useMemo(() => ({ agents, scheduleNames }), [agents, scheduleNames]);
 
   return (
     <div
@@ -133,12 +138,10 @@ export function TaskCard({ task, agents }: TaskCardProps) {
       {/* Metadata row: source + owner */}
       <div className="flex items-center gap-3 flex-wrap">
         {/* Origin source */}
-        <SourceBadge label="From" source={task.originateSource} resolveAgentName={resolveAgentName} />
+        <SourceBadge label="From" source={task.originateSource} lookup={sourceLookup} />
 
         {/* Owner (assigned agent) */}
-        {task.ownerSource && (
-          <SourceBadge label="Owner" source={task.ownerSource} resolveAgentName={resolveAgentName} />
-        )}
+        {task.ownerSource && <SourceBadge label="Owner" source={task.ownerSource} lookup={sourceLookup} />}
 
         {/* Created time — only show if different from updated */}
         {task.createdTimestamp !== task.updatedTimestamp && (
@@ -152,48 +155,19 @@ export function TaskCard({ task, agents }: TaskCardProps) {
   );
 }
 
-/** Resolve display name from a task source using discriminant narrowing */
-function resolveSourceName(source: AgentTaskSource, resolveAgentName: (id: string) => string): string {
-  if (source.sourceType === AGENT_TASK_SOURCE_TYPE.AGENT) {
-    return resolveAgentName(source.agentId);
-  }
-
-  switch (source.sourceType) {
-    case AGENT_TASK_SOURCE_TYPE.LOOP:
-      return "Loop";
-
-    case AGENT_TASK_SOURCE_TYPE.REMINDER:
-      return "Reminder";
-
-    case AGENT_TASK_SOURCE_TYPE.SYSTEM:
-      return "System";
-
-    case AGENT_TASK_SOURCE_TYPE.USER:
-      return "User";
-  }
-}
-
 /** Map source type to icon — declared outside render to avoid ESLint static-components rule */
 const SOURCE_TYPE_ICON: Record<AgentTaskSourceType, typeof Bot> = {
   [AGENT_TASK_SOURCE_TYPE.AGENT]: Bot,
-  [AGENT_TASK_SOURCE_TYPE.LOOP]: RotateCw,
+  [AGENT_TASK_SOURCE_TYPE.LOOP]: CalendarClock,
   [AGENT_TASK_SOURCE_TYPE.REMINDER]: Bell,
   [AGENT_TASK_SOURCE_TYPE.USER]: User,
   [AGENT_TASK_SOURCE_TYPE.SYSTEM]: Cog,
 };
 
 /** Small metadata badge showing source type + name */
-function SourceBadge({
-  label,
-  source,
-  resolveAgentName,
-}: {
-  label: string;
-  source: AgentTaskSource;
-  resolveAgentName: (id: string) => string;
-}) {
+function SourceBadge({ label, source, lookup }: SourceBadgeProps) {
   const Icon = SOURCE_TYPE_ICON[source.sourceType];
-  const name = resolveSourceName(source, resolveAgentName);
+  const name = resolveTaskSourceName(source, lookup);
 
   return (
     <span className="flex items-center gap-1.5 text-3xs text-text-muted">
