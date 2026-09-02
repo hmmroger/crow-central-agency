@@ -8,6 +8,7 @@ export const VIEW_MODE = {
   AGENTS: "agents",
   AGENT_BUILDER: "agent-builder",
   TASKS: "tasks",
+  SCHEDULES: "schedules",
   GRAPH: "graph",
   SETTINGS: "settings",
 } as const;
@@ -58,6 +59,8 @@ interface AppState {
   setClientLocation: (location: string | undefined) => void;
   /** Navigate to tasks view with an optional state filter pre-selected */
   goToTasksView: (filter?: AgentTaskState) => void;
+  /** Navigate to the schedules view */
+  goToSchedulesView: () => void;
   /** Clear the transient task filter (called by tasks view after consuming) */
   clearInitialTaskFilter: () => void;
   /** Toggle collapsed state for a dashboard circle section */
@@ -141,6 +144,8 @@ export const useAppStore = create<AppState>()(
       setClientLocation: (location: string | undefined) => set({ clientLocation: location }),
 
       goToTasksView: (filter?: AgentTaskState) => set({ viewMode: VIEW_MODE.TASKS, initialTaskFilter: filter }),
+
+      goToSchedulesView: () => set({ viewMode: VIEW_MODE.SCHEDULES }),
 
       clearInitialTaskFilter: () => set({ initialTaskFilter: undefined }),
 
