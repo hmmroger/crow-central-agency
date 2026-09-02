@@ -68,6 +68,7 @@ import { createGmailNotificationRoutine } from "./routines/gmail-notification-ro
 import { FolderFileStoreProvider } from "./core/store/folder-file-store-provider.js";
 import { SimplyFeedManager } from "./feed/simply-feed-manager.js";
 import { registerFeedRoutes } from "./routes/feed.routes.js";
+import { registerScheduleRoutes } from "./routes/schedule.routes.js";
 import { registerSystemSettingsRoutes } from "./routes/system-settings.routes.js";
 import { getFeedMcpServerDefinition } from "./mcp/feed/feed-mcp-server.js";
 import { getAudioMcpServerDefinition } from "./mcp/audio/audio-mcp-server.js";
@@ -270,6 +271,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerFragmentRoutes(server, fragmentManager, registry, relationshipManager);
   await registerGraphRoutes(server, circleManager, registry, runtimeManager, fragmentManager, relationshipManager);
   await registerFeedRoutes(server, feedManager);
+  await registerScheduleRoutes(server, scheduleManager);
   await registerSystemSettingsRoutes(server, systemSettingsManager);
   await registerConnectorsRoutes(server, connectorManager);
 
