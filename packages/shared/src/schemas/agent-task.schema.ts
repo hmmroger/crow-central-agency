@@ -29,6 +29,8 @@ const AgentSourceSchema = z.object({
 
 const LoopSourceSchema = z.object({
   sourceType: z.literal(AGENT_TASK_SOURCE_TYPE.LOOP),
+  /** Set when the task originated from a top-level schedule rather than a legacy agent loop */
+  scheduleId: z.string().optional(),
 });
 
 const ReminderSourceSchema = z.object({
