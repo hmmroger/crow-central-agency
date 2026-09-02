@@ -466,7 +466,6 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
       mcpServerIds: agent.mcpServerIds,
       configuredFeeds: agent.configuredFeeds,
       sensorIds: agent.sensorIds,
-      loop: agent.loop,
       agentMd,
     });
 

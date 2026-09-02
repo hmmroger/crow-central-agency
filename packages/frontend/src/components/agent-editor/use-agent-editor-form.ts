@@ -6,18 +6,14 @@ import {
   DEFAULT_SETTING_SOURCES,
   PERMISSION_MODE,
   TOOL_MODE,
-  TIME_MODE,
   type AgentConfigTemplate,
   type AgentThinkingConfig,
   type AgentType,
   type ContextAutoCompactionConfig,
   type ConfiguredFeed,
-  type DayOfWeek,
   type ReasoningEffort,
-  type SchedulerTime,
   type PermissionMode,
   type SettingSource,
-  type TimeModeType,
   type ToolMode,
 } from "@crow-central-agency/shared";
 import type { AgentDetailData, AgentEditorFormState } from "./agent-editor.types.js";
@@ -50,11 +46,6 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   mcpServerIds: [],
   sensorIds: [],
   configuredFeeds: [],
-  loopEnabled: false,
-  loopDays: [],
-  loopTimeMode: TIME_MODE.EVERY,
-  loopTimes: [{}],
-  loopPrompt: "",
   discordEnabled: false,
   discordBotToken: "",
   discordChannelIds: [],
@@ -108,11 +99,6 @@ function formStateFromTemplate(template: AgentConfigTemplate): AgentEditorFormSt
     mcpServerIds: template.mcpServerIds ?? [],
     sensorIds: template.sensorIds ?? [],
     configuredFeeds: template.configuredFeeds ?? [],
-    loopEnabled: template.loop?.enabled ?? false,
-    loopDays: template.loop?.daysOfWeek ?? [],
-    loopTimeMode: template.loop?.timeMode ?? TIME_MODE.EVERY,
-    loopTimes: template.loop?.times ?? [{}],
-    loopPrompt: template.loop?.prompt ?? "",
     agentMd: template.agentMd ?? "",
   };
 }
@@ -144,11 +130,6 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     mcpServerIds: agent.mcpServerIds ?? [],
     sensorIds: agent.sensorIds ?? [],
     configuredFeeds: agent.configuredFeeds ?? [],
-    loopEnabled: agent.loop?.enabled ?? false,
-    loopDays: agent.loop?.daysOfWeek ?? [],
-    loopTimeMode: agent.loop?.timeMode ?? TIME_MODE.EVERY,
-    loopTimes: agent.loop?.times ?? [{}],
-    loopPrompt: agent.loop?.prompt ?? "",
     discordEnabled: agent.discordConfig?.enabled ?? false,
     discordBotToken: agent.discordConfig?.botToken ?? "",
     discordChannelIds: agent.discordConfig?.channelIds ?? [],
@@ -179,10 +160,6 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     formA.contextAutoCompactionThreshold === formB.contextAutoCompactionThreshold &&
     formA.permissionMode === formB.permissionMode &&
     formA.toolMode === formB.toolMode &&
-    formA.loopEnabled === formB.loopEnabled &&
-    formA.loopTimeMode === formB.loopTimeMode &&
-    loopTimesEqual(formA.loopTimes, formB.loopTimes) &&
-    formA.loopPrompt === formB.loopPrompt &&
     formA.agentMd === formB.agentMd &&
     arraysEqual(formA.settingSources, formB.settingSources) &&
     // instructionSources is runtime-managed (not user-editable), so it is intentionally excluded here.
@@ -197,7 +174,6 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     arraysEqual(formA.mcpServerIds, formB.mcpServerIds) &&
     arraysEqual(formA.sensorIds, formB.sensorIds) &&
     configuredFeedsEqual(formA.configuredFeeds, formB.configuredFeeds) &&
-    arraysEqual(formA.loopDays, formB.loopDays) &&
     formA.discordEnabled === formB.discordEnabled &&
     formA.discordBotToken === formB.discordBotToken &&
     formA.discordRespondToMentionsOnly === formB.discordRespondToMentionsOnly &&
@@ -210,15 +186,6 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     formA.voiceName === formB.voiceName &&
     formA.voiceStylePrompt === formB.voiceStylePrompt
   );
-}
-
-/** Deep equality check for SchedulerTime arrays (order-sensitive) */
-function loopTimesEqual(timesA: SchedulerTime[], timesB: SchedulerTime[]): boolean {
-  if (timesA.length !== timesB.length) {
-    return false;
-  }
-
-  return timesA.every((time, index) => time.hour === timesB[index].hour && time.minute === timesB[index].minute);
 }
 
 /** Deep equality check for ConfiguredFeed arrays (order-independent, keyed by feedId) */
@@ -406,26 +373,6 @@ export function useAgentEditorForm(
     []
   );
 
-  // Loop setters
-  const setLoopEnabled = useCallback((value: boolean) => setForm((prev) => ({ ...prev, loopEnabled: value })), []);
-  const setLoopDays = useCallback((value: DayOfWeek[]) => setForm((prev) => ({ ...prev, loopDays: value })), []);
-  const setLoopTimeMode = useCallback(
-    (value: TimeModeType) =>
-      setForm((prev) => ({
-        ...prev,
-        loopTimeMode: value,
-        // EVERY only uses the first entry; trim excess when switching modes
-        loopTimes: value === TIME_MODE.EVERY ? [prev.loopTimes[0] ?? {}] : prev.loopTimes,
-      })),
-    []
-  );
-  const setLoopTimes = useCallback(
-    (updater: (prev: SchedulerTime[]) => SchedulerTime[]) =>
-      setForm((prev) => ({ ...prev, loopTimes: updater(prev.loopTimes) })),
-    []
-  );
-  const setLoopPrompt = useCallback((value: string) => setForm((prev) => ({ ...prev, loopPrompt: value })), []);
-
   // Discord setters
   const setDiscordEnabled = useCallback(
     (value: boolean) => setForm((prev) => ({ ...prev, discordEnabled: value })),
@@ -533,11 +480,6 @@ export function useAgentEditorForm(
     toggleSensor,
     toggleFeed,
     toggleFeedNotify,
-    setLoopEnabled,
-    setLoopDays,
-    setLoopTimeMode,
-    setLoopTimes,
-    setLoopPrompt,
     setDiscordEnabled,
     setDiscordBotToken,
     addDiscordChannelId,

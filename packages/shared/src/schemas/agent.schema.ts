@@ -422,6 +422,7 @@ export const AgentConfigSchema = z.object({
   mcpServerIds: z.array(z.string()).optional(),
   configuredFeeds: z.array(ConfiguredFeedSchema).optional(),
   sensorIds: z.array(z.string()).optional(),
+  /** @deprecated Legacy agent loop. Read only by ScheduleManager.migrateAgentLoops; no write path remains. */
   loop: LoopConfigSchema.optional(),
   discordConfig: DiscordConfigSchema.optional(),
   persistSession: z.boolean().optional(),
@@ -459,7 +460,6 @@ export const CreateAgentInputSchema = z.object({
   mcpServerIds: z.array(z.string()).optional(),
   configuredFeeds: z.array(ConfiguredFeedSchema).optional(),
   sensorIds: z.array(z.string()).optional(),
-  loop: LoopConfigSchema.optional(),
   discordConfig: DiscordConfigSchema.optional(),
   excludeClaudeCodeSystemPrompt: z.boolean().optional(),
   enableGmailNotification: z.boolean().optional(),
@@ -488,7 +488,6 @@ export const UpdateAgentInputSchema = z.object({
   mcpServerIds: z.array(z.string()).optional(),
   configuredFeeds: z.array(ConfiguredFeedSchema).optional(),
   sensorIds: z.array(z.string()).optional(),
-  loop: LoopConfigSchema.optional(),
   discordConfig: DiscordConfigSchema.optional(),
   isPinned: z.boolean().optional(),
   excludeClaudeCodeSystemPrompt: z.boolean().optional(),
@@ -514,7 +513,6 @@ export const AgentConfigTemplateSchema = AgentConfigSchema.pick({
   mcpServerIds: true,
   configuredFeeds: true,
   sensorIds: true,
-  loop: true,
 }).extend({
   templateId: z.uuid(),
   templateName: z.string().min(1).max(64),

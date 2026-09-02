@@ -41,7 +41,6 @@ import { McpServersSection } from "./mcp-servers-section.js";
 import { GmailNotificationSection } from "./gmail-notification-section.js";
 import { SensorsSection } from "./sensors-section.js";
 import { FeedsSection } from "./feeds-section.js";
-import { LoopConfigPanel } from "./loop-config-panel.js";
 import { AgentMdEditor } from "./agentmd-editor.js";
 import { DiscordConfigSection } from "./discord-config-section.js";
 import { ConnectorsSection } from "./connectors-section.js";
@@ -168,14 +167,6 @@ export function AgentEditorDialogContent({
 
   /** Save - create or update */
   const handleSave = useCallback(async () => {
-    const loopConfig = {
-      enabled: form.loopEnabled,
-      daysOfWeek: form.loopDays,
-      timeMode: form.loopTimeMode,
-      times: form.loopTimes,
-      prompt: form.loopPrompt,
-    };
-
     const discordConfig = {
       enabled: form.discordEnabled,
       botToken: form.discordBotToken,
@@ -242,7 +233,6 @@ export function AgentEditorDialogContent({
           mcpServerIds: form.mcpServerIds,
           sensorIds: form.sensorIds,
           configuredFeeds: form.configuredFeeds,
-          loop: loopConfig,
           discordConfig,
           excludeClaudeCodeSystemPrompt: form.excludeClaudeCodeSystemPrompt,
           enableGmailNotification: form.enableGmailNotification,
@@ -274,7 +264,6 @@ export function AgentEditorDialogContent({
           mcpServerIds: form.mcpServerIds,
           sensorIds: form.sensorIds,
           configuredFeeds: form.configuredFeeds,
-          loop: loopConfig,
           discordConfig: discordConfig,
           excludeClaudeCodeSystemPrompt: form.excludeClaudeCodeSystemPrompt ? true : undefined,
           enableGmailNotification: form.enableGmailNotification ? true : undefined,
@@ -515,19 +504,6 @@ export function AgentEditorDialogContent({
               configuredFeeds={form.configuredFeeds}
               onToggle={editorForm.toggleFeed}
               onToggleNotify={editorForm.toggleFeedNotify}
-            />
-
-            <LoopConfigPanel
-              enabled={form.loopEnabled}
-              daysOfWeek={form.loopDays}
-              timeMode={form.loopTimeMode}
-              times={form.loopTimes}
-              prompt={form.loopPrompt}
-              onEnabledChange={editorForm.setLoopEnabled}
-              onDaysChange={editorForm.setLoopDays}
-              onTimeModeChange={editorForm.setLoopTimeMode}
-              onTimesChange={editorForm.setLoopTimes}
-              onPromptChange={editorForm.setLoopPrompt}
             />
 
             <DiscordConfigSection
