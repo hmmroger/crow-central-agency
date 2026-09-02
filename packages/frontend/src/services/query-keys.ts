@@ -155,6 +155,16 @@ export const mcpConfigKeys = {
 };
 
 /**
+ * Query key factory for schedule queries.
+ */
+export const scheduleKeys = {
+  /** Root key for all schedule queries */
+  all: ["schedules"] as const,
+  /** Schedule list */
+  list: () => [...scheduleKeys.all, "list"] as const,
+};
+
+/**
  * Query key factory for agent-builder queries.
  */
 export const agentBuilderKeys = {
