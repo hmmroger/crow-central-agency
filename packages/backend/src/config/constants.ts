@@ -54,6 +54,9 @@ export const DEFAULT_PROJECT_DIR_NAME = "default-project";
 /** Object store table name for agent reminders */
 export const REMINDERS_STORE_TABLE = "reminders";
 
+/** Object store table name for top-level schedules */
+export const SCHEDULES_STORE_TABLE = "schedules";
+
 export const CLIENT_STORE_TABLE = "client";
 export const CLIENT_STORE_TIMEZONE_KEY = "timezone";
 export const CLIENT_STORE_LOCATION_KEY = "location";
