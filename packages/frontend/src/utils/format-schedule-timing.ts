@@ -1,10 +1,5 @@
-import {
-  DAY_OF_WEEK,
-  TIME_MODE,
-  type DayOfWeek,
-  type SchedulerTime,
-  type TimeModeType,
-} from "@crow-central-agency/shared";
+import { TIME_MODE, type DayOfWeek, type SchedulerTime, type TimeModeType } from "@crow-central-agency/shared";
+import { DAY_LABELS, WEEK_ORDER } from "./day-of-week-display.js";
 
 /** The "when" fields of a schedule, as held by both a saved schedule and the editor form. */
 export interface ScheduleTiming {
@@ -12,27 +7,6 @@ export interface ScheduleTiming {
   times: SchedulerTime[];
   daysOfWeek: DayOfWeek[];
 }
-
-const DAY_LABELS: Record<DayOfWeek, string> = {
-  [DAY_OF_WEEK.MONDAY]: "Mon",
-  [DAY_OF_WEEK.TUESDAY]: "Tue",
-  [DAY_OF_WEEK.WEDNESDAY]: "Wed",
-  [DAY_OF_WEEK.THURSDAY]: "Thu",
-  [DAY_OF_WEEK.FRIDAY]: "Fri",
-  [DAY_OF_WEEK.SATURDAY]: "Sat",
-  [DAY_OF_WEEK.SUNDAY]: "Sun",
-};
-
-/** Week order used for rendering and for collapsing contiguous runs */
-const WEEK_ORDER: DayOfWeek[] = [
-  DAY_OF_WEEK.MONDAY,
-  DAY_OF_WEEK.TUESDAY,
-  DAY_OF_WEEK.WEDNESDAY,
-  DAY_OF_WEEK.THURSDAY,
-  DAY_OF_WEEK.FRIDAY,
-  DAY_OF_WEEK.SATURDAY,
-  DAY_OF_WEEK.SUNDAY,
-];
 
 /** Shortest run length rendered as a range rather than a comma list */
 const MIN_RUN_LENGTH_FOR_RANGE = 3;
