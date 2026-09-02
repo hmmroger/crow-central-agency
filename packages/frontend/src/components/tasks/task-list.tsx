@@ -27,7 +27,6 @@ export function TaskList({ tasks, agents }: TaskListProps) {
   const columns = useContainerColumns({ containerRef: scrollRef });
   const { data: schedules = [] } = useSchedulesQuery();
 
-  // Resolved once for the whole list rather than per card.
   const scheduleNames = useMemo(() => new Map(schedules.map((schedule) => [schedule.id, schedule.name])), [schedules]);
 
   const sortedTasks = useMemo(

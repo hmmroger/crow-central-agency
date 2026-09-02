@@ -1,12 +1,10 @@
 import { AGENT_TASK_SOURCE_TYPE, type AgentConfig, type AgentTaskSource } from "@crow-central-agency/shared";
 
-/** Backend-provided data a task source is resolved to a display name against */
 export interface TaskSourceLookup {
   agents: AgentConfig[];
   scheduleNames: ReadonlyMap<string, string>;
 }
 
-/** Resolve an agent ID to display name, falling back to truncated ID */
 function resolveAgentName(agents: AgentConfig[], agentId: string): string {
   const agent = agents.find((agentItem) => agentItem.id === agentId);
   return agent?.name ?? agentId.slice(0, 8);
@@ -19,8 +17,7 @@ export function resolveTaskSourceName(source: AgentTaskSource, lookup: TaskSourc
   }
 
   switch (source.sourceType) {
-    // Tasks predating top-level schedules carry no scheduleId, and a schedule can be deleted
-    // after the tasks it produced — both fall back to the bare label.
+    // A pre-schedules task has no scheduleId, and a schedule can be deleted while its tasks remain.
     case AGENT_TASK_SOURCE_TYPE.LOOP: {
       const scheduleName = source.scheduleId ? lookup.scheduleNames.get(source.scheduleId) : undefined;
       return scheduleName ? `Schedule · ${scheduleName}` : "Schedule";

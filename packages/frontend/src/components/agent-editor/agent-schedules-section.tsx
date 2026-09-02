@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { Schedule } from "@crow-central-agency/shared";
 import { useSchedulesQuery } from "../../hooks/queries/use-schedules-query.js";
 import { formatScheduleTiming } from "../../utils/format-schedule-timing.js";
@@ -9,29 +9,30 @@ import { FieldGroup } from "./field-group.js";
 interface AgentSchedulesSectionProps {
   /** Undefined while creating a new agent */
   agentId: string | undefined;
+  /** Closes the editor and switches to the Schedules view, confirming discard when dirty */
+  onOpenSchedulesView: () => void;
 }
 
 interface AgentSchedulesSectionBodyProps {
   agentId: string;
+  onOpenSchedulesView: () => void;
 }
 
 interface AgentScheduleRowProps {
   schedule: Schedule;
+  onOpen: () => void;
 }
 
-/**
- * Read-only list of the schedules that target the agent being edited.
- * Schedules are created and changed in the Schedules view, never from here.
- */
-export function AgentSchedulesSection({ agentId }: AgentSchedulesSectionProps) {
+/** Read-only list of the schedules targeting the agent being edited */
+export function AgentSchedulesSection({ agentId, onOpenSchedulesView }: AgentSchedulesSectionProps) {
   if (!agentId) {
     return null;
   }
 
-  return <AgentSchedulesSectionBody agentId={agentId} />;
+  return <AgentSchedulesSectionBody agentId={agentId} onOpenSchedulesView={onOpenSchedulesView} />;
 }
 
-function AgentSchedulesSectionBody({ agentId }: AgentSchedulesSectionBodyProps) {
+function AgentSchedulesSectionBody({ agentId, onOpenSchedulesView }: AgentSchedulesSectionBodyProps) {
   const { data: schedules = [], isLoading, error } = useSchedulesQuery();
 
   const targetingSchedules = useMemo(() => selectSchedulesForAgent(schedules, agentId), [schedules, agentId]);
@@ -52,7 +53,7 @@ function AgentSchedulesSectionBody({ agentId }: AgentSchedulesSectionBodyProps) 
       {targetingSchedules.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {targetingSchedules.map((schedule) => (
-            <AgentScheduleRow key={schedule.id} schedule={schedule} />
+            <AgentScheduleRow key={schedule.id} schedule={schedule} onOpen={onOpenSchedulesView} />
           ))}
         </div>
       )}
@@ -60,19 +61,25 @@ function AgentSchedulesSectionBody({ agentId }: AgentSchedulesSectionBodyProps) 
   );
 }
 
-function AgentScheduleRow({ schedule }: AgentScheduleRowProps) {
+function AgentScheduleRow({ schedule, onOpen }: AgentScheduleRowProps) {
+  const handleClick = useCallback(() => onOpen(), [onOpen]);
+
   return (
-    <div
+    <button
+      type="button"
       className={cn(
-        "flex items-center gap-2 px-3 py-2 rounded-lg border border-border-subtle/60 bg-surface",
+        "w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-border-subtle/60 bg-surface text-left",
+        "cursor-pointer transition-colors hover:border-border/80 hover:bg-surface-elevated/60",
         !schedule.enabled && "opacity-50"
       )}
+      onClick={handleClick}
+      aria-label={`Open ${schedule.name} in the Schedules view`}
     >
       <span className="flex-1 min-w-0 text-xs font-medium text-text-base truncate">{schedule.name}</span>
       <span className="shrink-0 px-1.5 py-0.5 rounded text-3xs font-mono text-text-muted bg-surface-elevated border border-border-subtle">
         {formatScheduleTiming(schedule)}
       </span>
       {!schedule.enabled && <span className="shrink-0 text-3xs text-warning">paused</span>}
-    </div>
+    </button>
   );
 }

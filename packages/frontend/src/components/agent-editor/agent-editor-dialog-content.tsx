@@ -26,6 +26,7 @@ import {
 } from "../../hooks/queries/use-agent-mutations.js";
 import { useMcpConfigsQuery } from "../../hooks/queries/use-mcp-configs-query.js";
 import { useAgentMcpConfigsQuery } from "../../hooks/queries/use-agent-mcp-configs-query.js";
+import { useAppStore } from "../../stores/app-store.js";
 import type { ModalDialogHandle } from "../../providers/modal-dialog-provider.types.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { useAgentEditorForm } from "./use-agent-editor-form.js";
@@ -74,6 +75,7 @@ export function AgentEditorDialogContent({
 }: AgentEditorDialogContentProps) {
   const confirm = useConfirmDialog();
   const prompt = usePromptDialog();
+  const goToSchedulesView = useAppStore((state) => state.goToSchedulesView);
   const isEditing = agentId !== undefined;
 
   // Query for loading existing agent when editing
@@ -337,6 +339,15 @@ export function AgentEditorDialogContent({
     }
   }, [confirmDiscard, onClose]);
 
+  /** Leave the editor for the Schedules view, under the same discard guard as Cancel */
+  const handleOpenSchedulesView = useCallback(async () => {
+    const allowed = await confirmDiscard();
+    if (allowed) {
+      onClose();
+      goToSchedulesView();
+    }
+  }, [confirmDiscard, onClose, goToSchedulesView]);
+
   const canSave = !isSaving && !!form.name.trim() && !!(form.description ?? "").trim() && (isEditing ? isDirty : true);
 
   // System agents are immutable — redirect to dashboard
@@ -507,7 +518,7 @@ export function AgentEditorDialogContent({
               onToggleNotify={editorForm.toggleFeedNotify}
             />
 
-            <AgentSchedulesSection agentId={agentId} />
+            <AgentSchedulesSection agentId={agentId} onOpenSchedulesView={handleOpenSchedulesView} />
 
             <DiscordConfigSection
               enabled={form.discordEnabled}

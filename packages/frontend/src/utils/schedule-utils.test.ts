@@ -42,14 +42,13 @@ describe("selectSchedulesForAgent", () => {
     expect(selectSchedulesForAgent([dailyDigest, analystOnly], OBSERVER_ID)).toEqual([]);
   });
 
-  it("orders enabled schedules first, then by name", () => {
+  it("orders enabled schedules first, then by name within each group", () => {
     const zebra = makeSchedule("66666666-6666-4666-8666-666666666666", "Zebra sweep", true, [ANALYST_ID]);
     const alpha = makeSchedule("77777777-7777-4777-8777-777777777777", "Alpha sweep", true, [ANALYST_ID]);
+    const bravo = makeSchedule("88888888-8888-4888-8888-888888888888", "Bravo sweep", false, [ANALYST_ID]);
 
-    expect(selectSchedulesForAgent([analystOnly, zebra, alpha], ANALYST_ID).map((schedule) => schedule.name)).toEqual([
-      "Alpha sweep",
-      "Zebra sweep",
-      "Analyst only",
-    ]);
+    expect(
+      selectSchedulesForAgent([analystOnly, zebra, bravo, alpha], ANALYST_ID).map((schedule) => schedule.name)
+    ).toEqual(["Alpha sweep", "Zebra sweep", "Analyst only", "Bravo sweep"]);
   });
 });
