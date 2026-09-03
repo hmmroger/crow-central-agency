@@ -63,7 +63,7 @@ export function SchedulesView() {
     <div className="flex flex-col h-full">
       <HeaderPortal title="Schedules" />
 
-      <div className="px-6 pt-4 pb-2">
+      <div className="px-6 pt-4 pb-4">
         <div className={cn(CONTENT_WIDTH_CLASS, "flex items-center justify-between")}>
           <span className="flex items-center gap-1.5 text-3xs text-text-muted font-mono tabular-nums">
             <CalendarClock className="h-3.5 w-3.5" />
