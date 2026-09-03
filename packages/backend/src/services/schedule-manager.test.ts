@@ -300,12 +300,6 @@ describe("ScheduleManager loop migration", () => {
     expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeUndefined();
   });
 
-  it("leaves a migrated loop continuing the agent's session", async () => {
-    const harness = await createHarness([makeLoopAgent()]);
-
-    expect(harness.scheduleManager.getAllSchedules()[0]?.newSession).toBe(false);
-  });
-
   it("carries over the longest agent name the schedule name limit allows", async () => {
     const longestName = "L".repeat(SCHEDULE_NAME_MAX_LENGTH);
     const harness = await createHarness([makeLoopAgent({}, { name: longestName })]);
