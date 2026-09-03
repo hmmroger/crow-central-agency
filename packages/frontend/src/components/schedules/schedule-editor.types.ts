@@ -9,4 +9,5 @@ export interface ScheduleEditorFormState {
   daysOfWeek: DayOfWeek[];
   timeMode: TimeModeType;
   times: SchedulerTime[];
+  newSession: boolean;
 }

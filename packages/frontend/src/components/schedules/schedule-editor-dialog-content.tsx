@@ -60,6 +60,7 @@ export function ScheduleEditorDialogContent({ scheduleId, onClose, ref }: Schedu
       daysOfWeek: form.daysOfWeek,
       timeMode: form.timeMode,
       times: form.times,
+      newSession: form.newSession,
     };
 
     try {
@@ -131,7 +132,10 @@ export function ScheduleEditorDialogContent({ scheduleId, onClose, ref }: Schedu
           <ScheduleAgentSelect selectedAgentIds={form.agentIds} onToggle={editorForm.toggleAgent} />
         </FieldGroup>
 
-        <Toggle checked={form.enabled} onChange={editorForm.setEnabled} label="Enabled" />
+        <div className="flex flex-col gap-2">
+          <Toggle checked={form.enabled} onChange={editorForm.setEnabled} label="Enabled" />
+          <Toggle checked={form.newSession} onChange={editorForm.setNewSession} label="Run in a new session" />
+        </div>
       </div>
 
       <div className="flex items-center justify-end gap-2 px-3 py-2 bg-surface-elevated">

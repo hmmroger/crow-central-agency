@@ -17,6 +17,9 @@ interface ScheduleCardProps {
 /** Agent chips rendered inline before collapsing the rest into a +N chip */
 const MAX_VISIBLE_AGENT_CHIPS = 4;
 
+const BADGE_CLASS =
+  "shrink-0 px-1.5 py-0.5 rounded text-3xs text-text-muted bg-surface-elevated border border-border-subtle";
+
 const ICON_BUTTON_CLASS =
   "p-1.5 rounded text-text-muted hover:text-text-base hover:bg-surface-elevated transition-colors disabled:opacity-40";
 
@@ -76,9 +79,8 @@ export function ScheduleCard({ schedule, onEdit }: ScheduleCardProps) {
 
         <div className="flex-1 min-w-0 flex items-center gap-2">
           <span className="text-sm font-medium text-text-base truncate">{schedule.name}</span>
-          <span className="shrink-0 px-1.5 py-0.5 rounded text-3xs font-mono text-text-muted bg-surface-elevated border border-border-subtle">
-            {formatScheduleTiming(schedule)}
-          </span>
+          <span className={cn(BADGE_CLASS, "font-mono")}>{formatScheduleTiming(schedule)}</span>
+          {schedule.newSession && <span className={BADGE_CLASS}>new session</span>}
           {!schedule.enabled && <span className="shrink-0 text-3xs text-warning">paused</span>}
           {schedule.lastFiredTimestamp !== undefined && (
             <span className="shrink-0 text-3xs text-text-muted">

@@ -18,6 +18,7 @@ const DEFAULT_FORM_STATE: ScheduleEditorFormState = {
   daysOfWeek: [],
   timeMode: TIME_MODE.EVERY,
   times: [{}],
+  newSession: false,
 };
 
 function formStateFromSchedule(schedule: Schedule): ScheduleEditorFormState {
@@ -29,6 +30,7 @@ function formStateFromSchedule(schedule: Schedule): ScheduleEditorFormState {
     daysOfWeek: schedule.daysOfWeek,
     timeMode: schedule.timeMode,
     times: schedule.times,
+    newSession: schedule.newSession,
   };
 }
 
@@ -45,6 +47,7 @@ function isFormEqual(formA: ScheduleEditorFormState, formB: ScheduleEditorFormSt
     formA.name === formB.name &&
     formA.message === formB.message &&
     formA.enabled === formB.enabled &&
+    formA.newSession === formB.newSession &&
     formA.timeMode === formB.timeMode &&
     arraysEqual(formA.agentIds, formB.agentIds) &&
     arraysEqual(formA.daysOfWeek, formB.daysOfWeek) &&
@@ -79,6 +82,8 @@ export function useScheduleEditorForm(schedule?: Schedule) {
 
   const setEnabled = useCallback((value: boolean) => setForm((prev) => ({ ...prev, enabled: value })), []);
 
+  const setNewSession = useCallback((value: boolean) => setForm((prev) => ({ ...prev, newSession: value })), []);
+
   const toggleAgent = useCallback(
     (agentId: string) =>
       setForm((prev) => ({
@@ -109,5 +114,16 @@ export function useScheduleEditorForm(schedule?: Schedule) {
     []
   );
 
-  return { form, isDirty, setName, setMessage, setEnabled, toggleAgent, setDaysOfWeek, setTimeMode, setTimes };
+  return {
+    form,
+    isDirty,
+    setName,
+    setMessage,
+    setEnabled,
+    setNewSession,
+    toggleAgent,
+    setDaysOfWeek,
+    setTimeMode,
+    setTimes,
+  };
 }

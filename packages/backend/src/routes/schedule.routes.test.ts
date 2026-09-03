@@ -57,6 +57,7 @@ function createSchedulePayload(overrides: Partial<CreateScheduleInput> = {}): Cr
     daysOfWeek: [],
     timeMode: TIME_MODE.EVERY,
     times: [{ minute: 30 }],
+    newSession: false,
     ...overrides,
   };
 }

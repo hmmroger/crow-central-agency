@@ -23,7 +23,11 @@ class AgentScheduleRoutine {
   }
 
   private async onScheduleFired(schedule: Schedule): Promise<void> {
-    const scheduleSource = { sourceType: AGENT_TASK_SOURCE_TYPE.LOOP, scheduleId: schedule.id };
+    const scheduleSource = {
+      sourceType: AGENT_TASK_SOURCE_TYPE.LOOP,
+      scheduleId: schedule.id,
+      newSession: schedule.newSession,
+    };
 
     // A failing agent is logged and skipped so it cannot abort the rest of the fan-out.
     for (const agentId of schedule.agentIds) {

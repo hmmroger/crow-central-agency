@@ -31,6 +31,7 @@ import {
   updateSessionHistory,
 } from "./session-history.js";
 import type { SessionHistoryUpdate } from "./session-history.types.js";
+import { requestsNewSession } from "./session-selection.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
 import { MESSAGE_SOURCE_TYPE, type MessageSource, type QueuedMessage } from "../message-queue-manager.types.js";
@@ -493,7 +494,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
         message,
         source,
         state.activeDomainFragmentIds,
-        state.sessionId,
+        requestsNewSession(source) ? undefined : state.sessionId,
         instructionReminder
       );
       for await (const event of eventStream) {

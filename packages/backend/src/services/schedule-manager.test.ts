@@ -169,6 +169,7 @@ describe("ScheduleManager firing", () => {
       daysOfWeek: [],
       timeMode: TIME_MODE.EVERY,
       times: [{ minute: 1 }],
+      newSession: false,
     });
     harness.scheduler.start();
 
@@ -194,6 +195,7 @@ describe("ScheduleManager firing", () => {
       daysOfWeek: [],
       timeMode: TIME_MODE.EVERY,
       times: [{ minute: 1 }],
+      newSession: false,
     });
     harness.scheduler.start();
 
@@ -214,6 +216,7 @@ describe("ScheduleManager firing", () => {
       daysOfWeek: [],
       timeMode: TIME_MODE.EVERY,
       times: [{ minute: 1 }],
+      newSession: false,
     });
     harness.scheduler.start();
 
@@ -235,6 +238,7 @@ describe("ScheduleManager firing", () => {
       daysOfWeek: ["tuesday"],
       timeMode: TIME_MODE.EVERY,
       times: [{ minute: 1 }],
+      newSession: false,
     });
     harness.scheduler.start();
 
@@ -253,6 +257,7 @@ describe("ScheduleManager firing", () => {
       daysOfWeek: [],
       timeMode: TIME_MODE.EVERY,
       times: [{ minute: 30 }],
+      newSession: false,
     });
 
     const fired = await harness.scheduleManager.fireSchedule(schedule.id, { ignoreEnabled: true });
@@ -293,6 +298,12 @@ describe("ScheduleManager loop migration", () => {
       migratedFromAgentId: AGENT_ID_A,
     });
     expect(harness.registry.getAgent(AGENT_ID_A).loop).toBeUndefined();
+  });
+
+  it("leaves a migrated loop continuing the agent's session", async () => {
+    const harness = await createHarness([makeLoopAgent()]);
+
+    expect(harness.scheduleManager.getAllSchedules()[0]?.newSession).toBe(false);
   });
 
   it("carries over the longest agent name the schedule name limit allows", async () => {
@@ -371,6 +382,7 @@ describe("ScheduleManager mutations", () => {
       daysOfWeek: ["monday", "friday"],
       timeMode: TIME_MODE.AT,
       times: [{ hour: 9 }, { hour: 17 }],
+      newSession: false,
     });
 
     const updated = await harness.scheduleManager.updateSchedule(created.id, { enabled: true });
@@ -383,6 +395,7 @@ describe("ScheduleManager mutations", () => {
       daysOfWeek: ["monday", "friday"],
       timeMode: TIME_MODE.AT,
       times: [{ hour: 9 }, { hour: 17 }],
+      newSession: false,
     });
   });
 
@@ -397,6 +410,7 @@ describe("ScheduleManager mutations", () => {
       daysOfWeek: [],
       timeMode: TIME_MODE.EVERY,
       times: [{ minute: 30 }],
+      newSession: false,
     });
 
     await harness.registry.deleteAgent(AGENT_ID_A);
@@ -416,6 +430,7 @@ describe("ScheduleManager mutations", () => {
       daysOfWeek: [],
       timeMode: TIME_MODE.EVERY,
       times: [{ minute: 30 }],
+      newSession: false,
     });
 
     await harness.registry.deleteAgent(AGENT_ID_A);
@@ -435,6 +450,7 @@ describe("ScheduleManager mutations", () => {
       daysOfWeek: [],
       timeMode: TIME_MODE.EVERY,
       times: [{ minute: 30 }],
+      newSession: false,
     });
     await harness.store.set(SCHEDULES_STORE_TABLE, "broken-entry", { id: "not-a-uuid", name: "Broken" });
 
@@ -455,6 +471,7 @@ describe("ScheduleManager mutations", () => {
       daysOfWeek: [],
       timeMode: TIME_MODE.EVERY,
       times: [{ minute: 1 }],
+      newSession: false,
     });
 
     const restartedScheduler = new CrowScheduler(harness.store, harness.registry);
