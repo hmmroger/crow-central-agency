@@ -9,7 +9,7 @@ import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js"
 import { EmptyState } from "../common/empty-state.js";
 import { ScheduleCard } from "./schedule-card.js";
 
-/** Keeps the toolbar and the cards on one centered column instead of stretching edge to edge */
+/** Shared so the toolbar and the grid cap at the same width and cannot drift out of alignment */
 const CONTENT_WIDTH_CLASS = "w-full max-w-6xl mx-auto";
 
 /**

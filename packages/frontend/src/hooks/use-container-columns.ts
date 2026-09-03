@@ -26,6 +26,10 @@ const DEFAULT_BREAKPOINTS: Breakpoint[] = [
  * Observes a container's width and returns the column count
  * based on the matching breakpoint. Only recalculates when
  * the column count actually changes.
+ *
+ * The container must be rendered on the caller's first render — the observer is
+ * attached once, so a caller that returns early while loading and mounts the
+ * container later stays stuck on the first breakpoint's column count.
  */
 export function useContainerColumns({
   containerRef,
