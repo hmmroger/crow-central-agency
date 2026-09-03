@@ -1,12 +1,23 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 import { useSchedulesQuery } from "../../hooks/queries/use-schedules-query.js";
 import { useOpenScheduleEditor } from "../../hooks/dialogs/use-open-schedule-editor.js";
+import { useContainerColumns } from "../../hooks/use-container-columns.js";
 import { compareSchedules } from "../../utils/schedule-utils.js";
+import { cn } from "../../utils/cn.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { EmptyState } from "../common/empty-state.js";
 import { ScheduleCard } from "./schedule-card.js";
+
+/** Schedule cards stop at two columns — narrower than that the row actions and chips crowd the name */
+const SCHEDULE_GRID_BREAKPOINTS = [
+  { minWidth: 0, columns: 1 },
+  { minWidth: 1024, columns: 2 },
+];
+
+/** Caps the content column so the list does not stretch edge to edge on a wide screen */
+const CONTENT_WIDTH_CLASS = "w-full max-w-6xl mx-auto";
 
 /**
  * Schedules view — top-level view for managing schedules that fan out to agents.
@@ -14,6 +25,8 @@ import { ScheduleCard } from "./schedule-card.js";
 export function SchedulesView() {
   const { data: schedules = [], isLoading, error, refetch } = useSchedulesQuery();
   const openScheduleEditor = useOpenScheduleEditor();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const columns = useContainerColumns({ containerRef: scrollRef, breakpoints: SCHEDULE_GRID_BREAKPOINTS });
 
   const sortedSchedules = useMemo(() => schedules.toSorted(compareSchedules), [schedules]);
 
@@ -59,23 +72,30 @@ export function SchedulesView() {
     <div className="flex flex-col h-full">
       <HeaderPortal title="Schedules" />
 
-      <div className="flex items-center justify-between px-6 pt-4 pb-2">
-        <span className="flex items-center gap-1.5 text-3xs text-text-muted font-mono tabular-nums">
-          <CalendarClock className="h-3.5 w-3.5" />
-          {sortedSchedules.length} schedule{sortedSchedules.length !== 1 ? "s" : ""}
-        </span>
-        <ActionButton
-          icon={Plus}
-          label="New Schedule"
-          onClick={() => openScheduleEditor()}
-          variant={ACTION_BUTTON_VARIANT.PRIMARY_SOLID}
-        />
+      <div className="px-6 pt-4 pb-2">
+        <div className={cn(CONTENT_WIDTH_CLASS, "flex items-center justify-between")}>
+          <span className="flex items-center gap-1.5 text-3xs text-text-muted font-mono tabular-nums">
+            <CalendarClock className="h-3.5 w-3.5" />
+            {sortedSchedules.length} schedule{sortedSchedules.length !== 1 ? "s" : ""}
+          </span>
+          <ActionButton
+            icon={Plus}
+            label="New Schedule"
+            onClick={() => openScheduleEditor()}
+            variant={ACTION_BUTTON_VARIANT.PRIMARY_SOLID}
+          />
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pb-6 flex flex-col gap-2">
-        {sortedSchedules.map((schedule) => (
-          <ScheduleCard key={schedule.id} schedule={schedule} onEdit={() => openScheduleEditor(schedule.id)} />
-        ))}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 pb-6">
+        <div
+          className={cn(CONTENT_WIDTH_CLASS, "grid items-stretch gap-3")}
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        >
+          {sortedSchedules.map((schedule) => (
+            <ScheduleCard key={schedule.id} schedule={schedule} onEdit={() => openScheduleEditor(schedule.id)} />
+          ))}
+        </div>
       </div>
     </div>
   );
