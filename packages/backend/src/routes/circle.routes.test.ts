@@ -1,5 +1,3 @@
-import { rm } from "node:fs/promises";
-import path from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -19,8 +17,7 @@ import { FragmentManager } from "../services/fragment/fragment-manager.js";
 import { WsBroadcaster } from "../services/ws-broadcaster.js";
 import { InMemoryObjectStore } from "../core/store/in-memory-object-store.mock.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
-import { AGENTS_DIR_NAME } from "../config/constants.js";
-import { env } from "../config/env.js";
+import { clearTempSystemPath } from "../utils/test-system-path.mock.js";
 
 const AGENT_ID_A = "11111111-1111-4111-8111-111111111111";
 const AGENT_ID_B = "22222222-2222-4222-8222-222222222222";
@@ -88,9 +85,7 @@ function associationId(harness: Harness, agentId: string, fragmentId: string): s
   return association.id;
 }
 
-afterEach(async () => {
-  await rm(path.join(env.CROW_SYSTEM_PATH, AGENTS_DIR_NAME), { recursive: true, force: true });
-});
+afterEach(clearTempSystemPath);
 
 describe("POST /api/relationships", () => {
   it("creates a MEMBERSHIP edge for an agent joining a circle", async () => {
