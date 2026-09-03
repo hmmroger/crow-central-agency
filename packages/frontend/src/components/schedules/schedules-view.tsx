@@ -1,8 +1,7 @@
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 import { useSchedulesQuery } from "../../hooks/queries/use-schedules-query.js";
 import { useOpenScheduleEditor } from "../../hooks/dialogs/use-open-schedule-editor.js";
-import { useContainerColumns } from "../../hooks/use-container-columns.js";
 import { compareSchedules } from "../../utils/schedule-utils.js";
 import { cn } from "../../utils/cn.js";
 import { HeaderPortal } from "../layout/header-portal.js";
@@ -10,13 +9,7 @@ import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js"
 import { EmptyState } from "../common/empty-state.js";
 import { ScheduleCard } from "./schedule-card.js";
 
-/** Schedule cards stop at two columns — narrower than that the row actions and chips crowd the name */
-const SCHEDULE_GRID_BREAKPOINTS = [
-  { minWidth: 0, columns: 1 },
-  { minWidth: 1024, columns: 2 },
-];
-
-/** Caps the content column so the list does not stretch edge to edge on a wide screen */
+/** Keeps the toolbar and the cards on one centered column instead of stretching edge to edge */
 const CONTENT_WIDTH_CLASS = "w-full max-w-6xl mx-auto";
 
 /**
@@ -25,8 +18,6 @@ const CONTENT_WIDTH_CLASS = "w-full max-w-6xl mx-auto";
 export function SchedulesView() {
   const { data: schedules = [], isLoading, error, refetch } = useSchedulesQuery();
   const openScheduleEditor = useOpenScheduleEditor();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const columns = useContainerColumns({ containerRef: scrollRef, breakpoints: SCHEDULE_GRID_BREAKPOINTS });
 
   const sortedSchedules = useMemo(() => schedules.toSorted(compareSchedules), [schedules]);
 
@@ -87,11 +78,8 @@ export function SchedulesView() {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 pb-6">
-        <div
-          className={cn(CONTENT_WIDTH_CLASS, "grid items-stretch gap-3")}
-          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-        >
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className={cn(CONTENT_WIDTH_CLASS, "grid grid-cols-1 lg:grid-cols-2 gap-3")}>
           {sortedSchedules.map((schedule) => (
             <ScheduleCard key={schedule.id} schedule={schedule} onEdit={() => openScheduleEditor(schedule.id)} />
           ))}
