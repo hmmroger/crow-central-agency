@@ -1,5 +1,3 @@
-import { rm } from "node:fs/promises";
-import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AgentConfigSchema,
@@ -18,8 +16,8 @@ import { WsBroadcaster } from "./ws-broadcaster.js";
 import { CrowScheduler } from "./crow-scheduler.js";
 import { ScheduleManager } from "./schedule-manager.js";
 import { InMemoryObjectStore } from "../core/store/in-memory-object-store.mock.js";
-import { AGENTS_DIR_NAME, SCHEDULES_STORE_TABLE } from "../config/constants.js";
-import { env } from "../config/env.js";
+import { SCHEDULES_STORE_TABLE } from "../config/constants.js";
+import { clearTempSystemPath } from "../utils/test-system-path.mock.js";
 
 const AGENT_ID_A = "11111111-1111-4111-8111-111111111111";
 const AGENT_ID_B = "22222222-2222-4222-8222-222222222222";
@@ -155,7 +153,7 @@ async function waitForCondition(condition: () => boolean): Promise<void> {
 
 afterEach(async () => {
   vi.useRealTimers();
-  await rm(path.join(env.CROW_SYSTEM_PATH, AGENTS_DIR_NAME), { recursive: true, force: true });
+  await clearTempSystemPath();
 });
 
 describe("ScheduleManager firing", () => {
