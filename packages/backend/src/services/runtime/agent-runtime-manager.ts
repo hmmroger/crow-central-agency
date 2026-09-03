@@ -31,7 +31,6 @@ import {
   updateSessionHistory,
 } from "./session-history.js";
 import type { SessionHistoryUpdate } from "./session-history.types.js";
-import { requestsNewSession } from "./session-selection.js";
 import type { SessionManager } from "../session/session-manager.js";
 import type { MessageQueueManager } from "../message-queue-manager.js";
 import { MESSAGE_SOURCE_TYPE, type MessageSource, type QueuedMessage } from "../message-queue-manager.types.js";
@@ -74,6 +73,14 @@ const log = logger.child({ context: "agent-runtime-manager" });
 
 /** Object store table name for agent runtime manager states */
 export const AGENT_RUNTIME_MANAGER_STORE_TABLE = "orchestrator-state";
+
+/**
+ * Whether this message asks to run in a fresh session instead of the agent's current one.
+ * Answered at the message's turn, so it holds however long the message was queued.
+ */
+function requestsNewSession(source: MessageSource): boolean {
+  return source.sourceType === MESSAGE_SOURCE_TYPE.TASK && source.newSession === true;
+}
 
 /**
  * Agent runtime manager - central state machine that owns agent runtimes.
