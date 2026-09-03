@@ -17,9 +17,6 @@ interface ScheduleCardProps {
 /** Agent chips rendered inline before collapsing the rest into a +N chip */
 const MAX_VISIBLE_AGENT_CHIPS = 4;
 
-const BADGE_CLASS =
-  "shrink-0 px-1.5 py-0.5 rounded text-3xs text-text-muted bg-surface-elevated border border-border-subtle";
-
 const ICON_BUTTON_CLASS =
   "p-1.5 rounded text-text-muted hover:text-text-base hover:bg-surface-elevated transition-colors disabled:opacity-40";
 
@@ -77,19 +74,16 @@ export function ScheduleCard({ schedule, onEdit }: ScheduleCardProps) {
           ariaLabel={schedule.enabled ? `Pause ${schedule.name}` : `Resume ${schedule.name}`}
         />
 
-        <div className="flex-1 min-w-0 flex items-center gap-2">
-          <span className="text-sm font-medium text-text-base truncate">{schedule.name}</span>
-          <span className={cn(BADGE_CLASS, "font-mono")}>{formatScheduleTiming(schedule)}</span>
-          {schedule.newSession && <span className={BADGE_CLASS}>new session</span>}
+        <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
+          <span className="text-sm font-medium text-text-base truncate min-w-32">{schedule.name}</span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
           {!schedule.enabled && <span className="shrink-0 text-3xs text-warning">paused</span>}
           {schedule.lastFiredTimestamp !== undefined && (
             <span className="shrink-0 text-3xs text-text-muted">
               fired {formatRelativeTime(schedule.lastFiredTimestamp)}
             </span>
           )}
-        </div>
-
-        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             className={ICON_BUTTON_CLASS}
@@ -120,6 +114,11 @@ export function ScheduleCard({ schedule, onEdit }: ScheduleCardProps) {
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
+        </div>
+      </div>
+      <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
+        <div className="px-1.5 py-0.5 rounded text-3xs text-text-muted bg-surface-elevated border border-border-subtle font-mono">
+          {formatScheduleTiming(schedule)}
         </div>
       </div>
 

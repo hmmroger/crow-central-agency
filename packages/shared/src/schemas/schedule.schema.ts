@@ -21,7 +21,6 @@ export const ScheduleSchema = z.object({
   daysOfWeek: z.array(DayOfWeekSchema).default([]),
   timeMode: TimeModeSchema.default(TIME_MODE.EVERY),
   times: z.array(SchedulerTimeSchema).min(1).max(MAX_SCHEDULE_TIMES).default([{}]),
-  /** Deliver each run in a fresh agent session instead of continuing the agent's current one */
   newSession: z.boolean().default(false),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),

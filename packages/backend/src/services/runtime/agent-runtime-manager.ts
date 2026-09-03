@@ -75,14 +75,6 @@ const log = logger.child({ context: "agent-runtime-manager" });
 export const AGENT_RUNTIME_MANAGER_STORE_TABLE = "orchestrator-state";
 
 /**
- * Whether this message asks to run in a fresh session instead of the agent's current one.
- * Answered at the message's turn, so it holds however long the message was queued.
- */
-function requestsNewSession(source: MessageSource): boolean {
-  return source.sourceType === MESSAGE_SOURCE_TYPE.TASK && source.newSession === true;
-}
-
-/**
  * Agent runtime manager - central state machine that owns agent runtimes.
  */
 export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
@@ -497,11 +489,12 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       await this.ensureValidSession(agentId);
 
       const instructionReminder = state.pendingInstructionReminder;
+      const useNewSession = source.sourceType === MESSAGE_SOURCE_TYPE.TASK && source.newSession;
       const eventStream = agentRunner.sendMessage(
         message,
         source,
         state.activeDomainFragmentIds,
-        requestsNewSession(source) ? undefined : state.sessionId,
+        useNewSession ? undefined : state.sessionId,
         instructionReminder
       );
       for await (const event of eventStream) {

@@ -24,7 +24,6 @@ export const MessageSourceSchema = z.discriminatedUnion("sourceType", [
   z.object({
     sourceType: z.literal(MESSAGE_SOURCE_TYPE.TASK),
     taskId: z.string(),
-    /** Asks the runtime to run this turn in a fresh session instead of the agent's current one */
     newSession: z.boolean().optional(),
   }),
   z.object({ sourceType: z.literal(MESSAGE_SOURCE_TYPE.TASK_RESULT), taskId: z.string() }),
