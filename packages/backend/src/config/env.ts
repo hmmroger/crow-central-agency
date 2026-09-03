@@ -25,6 +25,26 @@ function resolvePlacesSource(key: string): PlacesSource {
   return process.env[key]?.trim().toUpperCase() === PLACES_SOURCE.GOOGLE ? PLACES_SOURCE.GOOGLE : PLACES_SOURCE.OSM;
 }
 
+/**
+ * The home-directory default holds the user's real data, so a test run must never inherit it.
+ * Vitest sets VITEST in every worker; NODE_ENV is not reliable, it stays whatever the shell had.
+ */
+function resolveCrowSystemPath(): string {
+  const configured = getOptional("CROW_SYSTEM_PATH");
+  if (configured) {
+    return configured;
+  }
+
+  if (process.env.VITEST) {
+    throw new Error(
+      "CROW_SYSTEM_PATH is not set under test. Refusing to fall back to the home directory — " +
+        "tests must run against a temp directory they own (see vitest.setup.ts)."
+    );
+  }
+
+  return path.join(os.homedir(), ".crow");
+}
+
 function readRequired(key: string): string {
   const value = process.env[key]?.trim();
   if (!value) {
@@ -41,7 +61,7 @@ const port = getOptionalNumber("PORT") ?? 3101;
 // Default value for single-box deployment.
 const backendOrigin = `http://${host}:${port}`;
 const corsOrigins = getOptional("CORS_ORIGINS") ?? backendOrigin;
-const crowSysPath = getOptional("CROW_SYSTEM_PATH") ?? path.join(os.homedir(), ".crow");
+const crowSysPath = resolveCrowSystemPath();
 
 let cachedAccessKey: string | undefined;
 
