@@ -25,10 +25,7 @@ function resolvePlacesSource(key: string): PlacesSource {
   return process.env[key]?.trim().toUpperCase() === PLACES_SOURCE.GOOGLE ? PLACES_SOURCE.GOOGLE : PLACES_SOURCE.OSM;
 }
 
-/**
- * The home-directory default holds the user's real data, so a test run must never inherit it.
- * Vitest sets VITEST in every worker; NODE_ENV is not reliable, it stays whatever the shell had.
- */
+/** A test run must never inherit the user's real data: VITEST is set per worker, NODE_ENV is not reliable. */
 function resolveCrowSystemPath(): string {
   const configured = getOptional("CROW_SYSTEM_PATH");
   if (configured) {

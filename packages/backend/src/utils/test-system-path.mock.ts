@@ -9,10 +9,7 @@ const ownedPaths = new Set<string>();
 
 let tempSystemPath: string | undefined;
 
-/**
- * Create a temp directory for this test file and point CROW_SYSTEM_PATH at it.
- * Must run before config/env.js is imported, which captures the variable at module load.
- */
+/** Must run before config/env.js is imported — that module captures CROW_SYSTEM_PATH at load time. */
 export async function useTempSystemPath(): Promise<string> {
   const created = path.resolve(await mkdtemp(path.join(os.tmpdir(), TEMP_DIR_PREFIX)));
 
@@ -43,9 +40,12 @@ export async function clearTempSystemPath(): Promise<void> {
 export async function removeTempSystemPath(): Promise<void> {
   const target = assertOwned(getTempSystemPath());
 
-  await rm(target, { recursive: true, force: true });
-  ownedPaths.delete(target);
-  tempSystemPath = undefined;
+  try {
+    await rm(target, { recursive: true, force: true });
+  } finally {
+    ownedPaths.delete(target);
+    tempSystemPath = undefined;
+  }
 }
 
 function assertOwned(target: string): string {
