@@ -1,6 +1,7 @@
 import { useMemo, useRef } from "react";
 import type { AgentTaskItem, AgentConfig } from "@crow-central-agency/shared";
 import { getTaskStateOrder } from "../../utils/task-utils.js";
+import { useSchedulesQuery } from "../../hooks/queries/use-schedules-query.js";
 import { useContainerColumns } from "../../hooks/use-container-columns.js";
 import { useVirtualList } from "../../hooks/use-virtual-list.js";
 import { TaskCard } from "./task-card.js";
@@ -24,6 +25,9 @@ const GRID_GAP = 16;
 export function TaskList({ tasks, agents }: TaskListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const columns = useContainerColumns({ containerRef: scrollRef });
+  const { data: schedules = [] } = useSchedulesQuery();
+
+  const scheduleNames = useMemo(() => new Map(schedules.map((schedule) => [schedule.id, schedule.name])), [schedules]);
 
   const sortedTasks = useMemo(
     () =>
@@ -84,7 +88,7 @@ export function TaskList({ tasks, agents }: TaskListProps) {
                 }}
               >
                 {rowTasks.map((task) => (
-                  <TaskCard key={task.id} task={task} agents={agents} />
+                  <TaskCard key={task.id} task={task} agents={agents} scheduleNames={scheduleNames} />
                 ))}
               </div>
             </div>

@@ -1,5 +1,3 @@
-import { rm } from "node:fs/promises";
-import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   AGENT_TYPE,
@@ -23,8 +21,7 @@ import { WsBroadcaster } from "./ws-broadcaster.js";
 import { InMemoryObjectStore } from "../core/store/in-memory-object-store.mock.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
-import { AGENTS_DIR_NAME } from "../config/constants.js";
-import { env } from "../config/env.js";
+import { clearTempSystemPath } from "../utils/test-system-path.mock.js";
 
 const AGENT_ID_A = "11111111-1111-4111-8111-111111111111";
 const AGENT_ID_B = "22222222-2222-4222-8222-222222222222";
@@ -77,9 +74,7 @@ async function initialize(harness: Harness): Promise<void> {
   await harness.registry.initialize();
 }
 
-afterEach(async () => {
-  await rm(path.join(env.CROW_SYSTEM_PATH, AGENTS_DIR_NAME), { recursive: true, force: true });
-});
+afterEach(clearTempSystemPath);
 
 describe("AgentRegistry.initialize", () => {
   it("loads a valid persisted agent from the store", async () => {

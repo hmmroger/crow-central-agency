@@ -26,6 +26,7 @@ import {
 } from "../../hooks/queries/use-agent-mutations.js";
 import { useMcpConfigsQuery } from "../../hooks/queries/use-mcp-configs-query.js";
 import { useAgentMcpConfigsQuery } from "../../hooks/queries/use-agent-mcp-configs-query.js";
+import { useAppStore } from "../../stores/app-store.js";
 import type { ModalDialogHandle } from "../../providers/modal-dialog-provider.types.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { useAgentEditorForm } from "./use-agent-editor-form.js";
@@ -41,7 +42,7 @@ import { McpServersSection } from "./mcp-servers-section.js";
 import { GmailNotificationSection } from "./gmail-notification-section.js";
 import { SensorsSection } from "./sensors-section.js";
 import { FeedsSection } from "./feeds-section.js";
-import { LoopConfigPanel } from "./loop-config-panel.js";
+import { AgentSchedulesSection } from "./agent-schedules-section.js";
 import { AgentMdEditor } from "./agentmd-editor.js";
 import { DiscordConfigSection } from "./discord-config-section.js";
 import { ConnectorsSection } from "./connectors-section.js";
@@ -74,6 +75,7 @@ export function AgentEditorDialogContent({
 }: AgentEditorDialogContentProps) {
   const confirm = useConfirmDialog();
   const prompt = usePromptDialog();
+  const goToSchedulesView = useAppStore((state) => state.goToSchedulesView);
   const isEditing = agentId !== undefined;
 
   // Query for loading existing agent when editing
@@ -168,14 +170,6 @@ export function AgentEditorDialogContent({
 
   /** Save - create or update */
   const handleSave = useCallback(async () => {
-    const loopConfig = {
-      enabled: form.loopEnabled,
-      daysOfWeek: form.loopDays,
-      timeMode: form.loopTimeMode,
-      times: form.loopTimes,
-      prompt: form.loopPrompt,
-    };
-
     const discordConfig = {
       enabled: form.discordEnabled,
       botToken: form.discordBotToken,
@@ -242,7 +236,6 @@ export function AgentEditorDialogContent({
           mcpServerIds: form.mcpServerIds,
           sensorIds: form.sensorIds,
           configuredFeeds: form.configuredFeeds,
-          loop: loopConfig,
           discordConfig,
           excludeClaudeCodeSystemPrompt: form.excludeClaudeCodeSystemPrompt,
           enableGmailNotification: form.enableGmailNotification,
@@ -274,7 +267,6 @@ export function AgentEditorDialogContent({
           mcpServerIds: form.mcpServerIds,
           sensorIds: form.sensorIds,
           configuredFeeds: form.configuredFeeds,
-          loop: loopConfig,
           discordConfig: discordConfig,
           excludeClaudeCodeSystemPrompt: form.excludeClaudeCodeSystemPrompt ? true : undefined,
           enableGmailNotification: form.enableGmailNotification ? true : undefined,
@@ -346,6 +338,15 @@ export function AgentEditorDialogContent({
       onClose();
     }
   }, [confirmDiscard, onClose]);
+
+  /** Leave the editor for the Schedules view, under the same discard guard as Cancel */
+  const handleOpenSchedulesView = useCallback(async () => {
+    const allowed = await confirmDiscard();
+    if (allowed) {
+      onClose();
+      goToSchedulesView();
+    }
+  }, [confirmDiscard, onClose, goToSchedulesView]);
 
   const canSave = !isSaving && !!form.name.trim() && !!(form.description ?? "").trim() && (isEditing ? isDirty : true);
 
@@ -517,18 +518,7 @@ export function AgentEditorDialogContent({
               onToggleNotify={editorForm.toggleFeedNotify}
             />
 
-            <LoopConfigPanel
-              enabled={form.loopEnabled}
-              daysOfWeek={form.loopDays}
-              timeMode={form.loopTimeMode}
-              times={form.loopTimes}
-              prompt={form.loopPrompt}
-              onEnabledChange={editorForm.setLoopEnabled}
-              onDaysChange={editorForm.setLoopDays}
-              onTimeModeChange={editorForm.setLoopTimeMode}
-              onTimesChange={editorForm.setLoopTimes}
-              onPromptChange={editorForm.setLoopPrompt}
-            />
+            <AgentSchedulesSection agentId={agentId} onOpenSchedulesView={handleOpenSchedulesView} />
 
             <DiscordConfigSection
               enabled={form.discordEnabled}

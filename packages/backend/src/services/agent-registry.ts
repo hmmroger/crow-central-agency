@@ -131,9 +131,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
   /** Resolve agent workspace, falling back to the default project directory */
   public resolveWorkspace(agent: AgentConfig): string {
-    return agent.workspace
-      ? expandPath(agent.workspace)
-      : path.join(env.CROW_SYSTEM_PATH, DEFAULT_PROJECT_DIR_NAME);
+    return agent.workspace ? expandPath(agent.workspace) : path.join(env.CROW_SYSTEM_PATH, DEFAULT_PROJECT_DIR_NAME);
   }
 
   /**
@@ -387,6 +385,38 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     });
   }
 
+  /**
+   * Drop the legacy loop config once it has been migrated to a top-level schedule.
+   * Deliberately bypasses updateAgent: that path returns system agents unchanged, and
+   * a one-way migration step should not depend on how the update schema treats an absent key.
+   */
+  public async clearAgentLoop(agentId: string): Promise<void> {
+    const existing = this.getAgent(agentId);
+    try {
+      this.assertMutable(existing);
+    } catch {
+      return;
+    }
+
+    if (!existing.loop) {
+      return;
+    }
+
+    const { loop: _loop, ...withoutLoop } = existing;
+    const updated: AgentConfig = { ...withoutLoop, updatedAt: new Date().toISOString() };
+
+    await this.store.set(AGENT_STORE_TABLE, agentId, updated);
+    this.agents.set(agentId, updated);
+
+    log.info({ agentId, name: updated.name }, "Agent loop cleared");
+    this.emit("agentUpdated", { agent: updated, previousAgent: existing, agentMdChanged: false });
+    this.broadcaster.broadcast({
+      type: SERVER_MESSAGE_TYPE.AGENT_UPDATED,
+      agentId,
+      config: sanitizeAgentConfig(updated),
+    });
+  }
+
   /** Delete an agent and its folder - system agents cannot be deleted */
   public async deleteAgent(agentId: string): Promise<void> {
     const existing = this.getAgent(agentId);
@@ -442,7 +472,6 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
       mcpServerIds: agent.mcpServerIds,
       configuredFeeds: agent.configuredFeeds,
       sensorIds: agent.sensorIds,
-      loop: agent.loop,
       agentMd,
     });
 

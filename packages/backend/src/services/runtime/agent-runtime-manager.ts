@@ -489,11 +489,12 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       await this.ensureValidSession(agentId);
 
       const instructionReminder = state.pendingInstructionReminder;
+      const useNewSession = source.sourceType === MESSAGE_SOURCE_TYPE.TASK && source.newSession;
       const eventStream = agentRunner.sendMessage(
         message,
         source,
         state.activeDomainFragmentIds,
-        state.sessionId,
+        useNewSession ? undefined : state.sessionId,
         instructionReminder
       );
       for await (const event of eventStream) {

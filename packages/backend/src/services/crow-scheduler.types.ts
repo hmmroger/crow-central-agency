@@ -1,4 +1,4 @@
-import type { SchedulerTime, TimeModeType } from "@crow-central-agency/shared";
+import type { DayOfWeek, SchedulerTime, TimeModeType } from "@crow-central-agency/shared";
 import type { EventMap } from "../core/event-bus/event-bus.types.js";
 
 /** A scheduled reminder for an agent */
@@ -21,11 +21,12 @@ export interface ScheduledWork {
   id: string;
   timeMode: TimeModeType;
   times: SchedulerTime[];
+  /** Days the work may fire on; empty or omitted means every day */
+  daysOfWeek?: DayOfWeek[];
   callback: ScheduledWorkCallback;
 }
 
 /** Events emitted by the CrowScheduler */
 export interface CrowSchedulerEvents extends EventMap {
-  loopTick: { agentId: string; prompt: string };
   reminderFired: { reminder: AgentReminder };
 }

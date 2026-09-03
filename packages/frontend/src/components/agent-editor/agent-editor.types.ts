@@ -1,13 +1,10 @@
 import type {
   AgentThinkingConfig,
   ConfiguredFeed,
-  DayOfWeek,
   DiscoveredSkill,
   ReasoningEffort,
-  SchedulerTime,
   PermissionMode,
   SettingSource,
-  TimeModeType,
   ToolMode,
 } from "@crow-central-agency/shared";
 
@@ -39,11 +36,6 @@ export interface AgentEditorFormState {
   mcpServerIds: string[];
   sensorIds: string[];
   configuredFeeds: ConfiguredFeed[];
-  loopEnabled: boolean;
-  loopDays: DayOfWeek[];
-  loopTimeMode: TimeModeType;
-  loopTimes: SchedulerTime[];
-  loopPrompt: string;
   discordEnabled: boolean;
   discordBotToken: string;
   discordChannelIds: string[];

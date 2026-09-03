@@ -41,8 +41,13 @@ export class ConnectorManager {
     crowScheduler: CrowScheduler
   ) {
     this.pendingStateTtlMs = env.OAUTH_PENDING_STATE_TTL_MS ?? DEFAULT_PENDING_STATE_TTL_MS;
-    crowScheduler.scheduleWork(PENDING_STATE_SWEEP_WORK_ID, TIME_MODE.EVERY, [{ minute: 1 }], () => {
-      this.sweepExpiredPendingStates();
+    crowScheduler.scheduleWork({
+      id: PENDING_STATE_SWEEP_WORK_ID,
+      timeMode: TIME_MODE.EVERY,
+      times: [{ minute: 1 }],
+      callback: () => {
+        this.sweepExpiredPendingStates();
+      },
     });
   }
 
