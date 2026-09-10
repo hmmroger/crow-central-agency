@@ -1,5 +1,8 @@
 import type { Schedule } from "@crow-central-agency/shared";
 
+/** Label for an agent id in a schedule that resolves to no agent, e.g. after the agent was deleted */
+export const UNKNOWN_AGENT_LABEL = "Unknown agent";
+
 /** Enabled schedules first, then alphabetical within each group */
 export function compareSchedules(scheduleA: Schedule, scheduleB: Schedule): number {
   if (scheduleA.enabled !== scheduleB.enabled) {

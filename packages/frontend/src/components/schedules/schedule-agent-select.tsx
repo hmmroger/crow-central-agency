@@ -16,6 +16,12 @@ interface ScheduleAgentSelectProps {
   emptyText?: string;
 }
 
+interface SelectedAgent {
+  agentId: string;
+  /** Undefined when the id resolves to no agent */
+  name?: string;
+}
+
 /**
  * Type-ahead picker for the agents a schedule targets. Typing narrows the option list and the
  * chevron browses every agent; Enter/Tab toggles the highlighted option and Backspace on an empty
@@ -36,11 +42,8 @@ export function ScheduleAgentSelect({
 
   const options = useMemo(() => agents.filter((agent) => agent.name.toLowerCase().includes(needle)), [agents, needle]);
 
-  const selectedAgents = useMemo(
-    () =>
-      selectedAgentIds
-        .map((agentId) => agents.find((agent) => agent.id === agentId))
-        .filter((agent) => agent !== undefined),
+  const selectedAgents = useMemo<SelectedAgent[]>(
+    () => selectedAgentIds.map((agentId) => ({ agentId, name: agents.find((agent) => agent.id === agentId)?.name })),
     [selectedAgentIds, agents]
   );
 
@@ -112,8 +115,6 @@ export function ScheduleAgentSelect({
     return <p className="text-xs text-text-muted">{isLoading ? "Loading agents..." : emptyText}</p>;
   }
 
-  const emptyMessage = "No agents match the filter.";
-
   return (
     <div className="space-y-1.5">
       <div
@@ -153,7 +154,7 @@ export function ScheduleAgentSelect({
           floatingStyles={floatingStyles}
           floatingProps={floatingProps}
           isEmpty={options.length === 0}
-          emptyMessage={emptyMessage}
+          emptyMessage="No agents match the filter."
         >
           {options.map((agent, index) => (
             <ComboboxOption
@@ -172,8 +173,13 @@ export function ScheduleAgentSelect({
 
       {selectedAgents.length > 0 && (
         <div className="flex flex-wrap items-center gap-1">
-          {selectedAgents.map((agent) => (
-            <ScheduleAgentChip key={agent.id} agentId={agent.id} name={agent.name} onRemove={onToggle} />
+          {selectedAgents.map((selected) => (
+            <ScheduleAgentChip
+              key={selected.agentId}
+              agentId={selected.agentId}
+              name={selected.name}
+              onRemove={onToggle}
+            />
           ))}
         </div>
       )}
