@@ -18,8 +18,9 @@ interface ScheduleAgentSelectProps {
 
 /**
  * Type-ahead picker for the agents a schedule targets. Typing narrows the option list and the
- * chevron browses every agent; Enter/Tab commits the highlighted option and Backspace on an empty
- * input removes the last selection. Selected agents render as removable chips below the input.
+ * chevron browses every agent; Enter/Tab toggles the highlighted option and Backspace on an empty
+ * input removes the last selection. Selected agents stay in the list with a selected marker and
+ * also render as removable chips below the input.
  * Renders its own content only — the caller owns the surrounding label / layout.
  */
 export function ScheduleAgentSelect({
@@ -33,10 +34,7 @@ export function ScheduleAgentSelect({
 
   const needle = inputValue.trim().toLowerCase();
 
-  const options = useMemo(
-    () => agents.filter((agent) => !selectedAgentIds.includes(agent.id) && agent.name.toLowerCase().includes(needle)),
-    [agents, selectedAgentIds, needle]
-  );
+  const options = useMemo(() => agents.filter((agent) => agent.name.toLowerCase().includes(needle)), [agents, needle]);
 
   const selectedAgents = useMemo(
     () =>
@@ -54,7 +52,6 @@ export function ScheduleAgentSelect({
       }
 
       onToggle(option.id);
-      setInputValue("");
       inputRef.current?.focus();
     },
     [options, onToggle]
@@ -74,7 +71,11 @@ export function ScheduleAgentSelect({
     floatingRef,
     floatingProps,
     floatingStyles,
-  } = useComboboxDropdown({ optionCount: options.length, onCommitOption: selectOption });
+  } = useComboboxDropdown({
+    optionCount: options.length,
+    onCommitOption: selectOption,
+    keepActiveIndexOnCommit: true,
+  });
 
   const handleInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -111,7 +112,7 @@ export function ScheduleAgentSelect({
     return <p className="text-xs text-text-muted">{isLoading ? "Loading agents..." : emptyText}</p>;
   }
 
-  const emptyMessage = needle.length > 0 ? "No agents match the filter." : "All agents selected.";
+  const emptyMessage = "No agents match the filter.";
 
   return (
     <div className="space-y-1.5">
@@ -159,6 +160,7 @@ export function ScheduleAgentSelect({
               key={agent.id}
               index={index}
               isActive={index === activeIndex}
+              isSelected={selectedAgentIds.includes(agent.id)}
               onActivate={setActiveIndex}
               onCommit={commitOption}
             >
