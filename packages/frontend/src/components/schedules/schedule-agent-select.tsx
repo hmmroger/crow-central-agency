@@ -111,44 +111,50 @@ export function ScheduleAgentSelect({
     }
   }, [isOpen, toggle]);
 
-  if (isLoading || agents.length === 0) {
-    return <p className="text-xs text-text-muted">{isLoading ? "Loading agents..." : emptyText}</p>;
+  if (isLoading) {
+    return <p className="text-xs text-text-muted">Loading agents...</p>;
   }
+
+  const hasAgents = agents.length > 0;
 
   return (
     <div className="space-y-1.5">
-      <div
-        ref={referenceRef}
-        {...referenceProps}
-        onBlur={handleContainerBlur}
-        className={cn(
-          "flex items-center gap-1.5 rounded border bg-surface-inset px-2 py-1 transition-colors",
-          isOpen ? "border-border-focus" : "border-border-subtle"
-        )}
-      >
-        <Users className="h-3 w-3 shrink-0 text-text-muted" />
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onFocus={open}
-          placeholder="Search agents by name..."
-          aria-label="Search agents to target by name"
-          className="min-w-0 flex-1 bg-transparent text-xs text-text-base placeholder:text-text-muted focus:outline-none"
-        />
-        <button
-          type="button"
-          onClick={handleToggleOpen}
-          aria-label={isOpen ? "Hide agents" : "Browse agents"}
-          className="shrink-0 text-text-muted hover:text-text-neutral transition-colors"
+      {hasAgents ? (
+        <div
+          ref={referenceRef}
+          {...referenceProps}
+          onBlur={handleContainerBlur}
+          className={cn(
+            "flex items-center gap-1.5 rounded border bg-surface-inset px-2 py-1 transition-colors",
+            isOpen ? "border-border-focus" : "border-border-subtle"
+          )}
         >
-          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} />
-        </button>
-      </div>
+          <Users className="h-3 w-3 shrink-0 text-text-muted" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onFocus={open}
+            placeholder="Search agents by name..."
+            aria-label="Search agents to target by name"
+            className="min-w-0 flex-1 bg-transparent text-xs text-text-base placeholder:text-text-muted focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={handleToggleOpen}
+            aria-label={isOpen ? "Hide agents" : "Browse agents"}
+            className="shrink-0 text-text-muted hover:text-text-neutral transition-colors"
+          >
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} />
+          </button>
+        </div>
+      ) : (
+        <p className="text-xs text-text-muted">{emptyText}</p>
+      )}
 
-      {isOpen && (
+      {isOpen && hasAgents && (
         <ComboboxDropdown
           floatingRef={floatingRef}
           floatingStyles={floatingStyles}
