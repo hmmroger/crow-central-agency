@@ -165,7 +165,7 @@ export function ScheduleAgentSelect({
               onActivate={setActiveIndex}
               onCommit={commitOption}
             >
-              <span className="truncate">{agent.name}</span>
+              <span className="min-w-0 flex-1 truncate">{agent.name}</span>
             </ComboboxOption>
           ))}
         </ComboboxDropdown>

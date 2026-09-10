@@ -180,12 +180,12 @@ export function TagCombobox({
               {option.isNew ? (
                 <>
                   <Plus className="h-3 w-3 shrink-0 text-text-muted" />
-                  <span className="truncate font-mono">
+                  <span className="min-w-0 flex-1 truncate font-mono">
                     Create <span className="text-text-base">{option.tag}</span>
                   </span>
                 </>
               ) : (
-                <span className="truncate font-mono">{option.tag}</span>
+                <span className="min-w-0 flex-1 truncate font-mono">{option.tag}</span>
               )}
             </ComboboxOption>
           ))}
