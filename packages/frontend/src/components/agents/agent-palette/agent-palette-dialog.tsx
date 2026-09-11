@@ -101,7 +101,7 @@ export function AgentPaletteDialog({ onClose }: AgentPaletteDialogProps) {
         id={AGENT_PALETTE_LIST_ID}
         role="listbox"
         aria-labelledby={AGENT_PALETTE_LABEL_ID}
-        className="flex flex-col gap-0.5 max-h-80 overflow-y-auto px-2 pb-2"
+        className="flex flex-col gap-0.5 max-h-80 overflow-y-auto px-2 py-2"
       >
         {list.entries.map((entry, index) => (
           <AgentPaletteRow

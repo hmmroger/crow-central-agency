@@ -53,7 +53,7 @@ export function AgentPaletteRow({ entry, index, rowId, isActive, onActivate, onH
       onClick={handleClick}
       className={cn(
         "flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors",
-        isActive ? "bg-surface-elevated ring-1 ring-border-focus" : "hover:bg-surface-elevated"
+        isActive ? "bg-surface-accent ring-1 ring-border-focus" : "hover:bg-surface-elevated"
       )}
     >
       <span
