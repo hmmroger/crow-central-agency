@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useCallback, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { ChevronDown, Plus, Tag } from "lucide-react";
 import { cn } from "../../../utils/cn.js";
 import { ComboboxDropdown } from "../../common/combobox-dropdown.js";
@@ -32,9 +32,9 @@ function canonicalizeTag(value: string): string {
 
 /**
  * Type-ahead combobox for selecting tags. Typing narrows the autosuggest list and
- * the chevron browses every available tag; Enter/Tab toggles the highlighted option
- * and Backspace on an empty input removes the last selection. Selected tags stay in
- * the list with a selected marker and also render as removable chips below the input.
+ * the chevron browses every available tag; Enter/Tab toggles the highlighted option.
+ * Selected tags stay in the list with a selected marker and also render as removable
+ * chips below the input.
  * With `allowCreate`, a typed value that is not an existing tag can be added as a new tag.
  *
  * Selection/filter semantics are owned by the consumer via `onToggle`.
@@ -80,7 +80,7 @@ export function TagCombobox({
     commitOption,
     open,
     toggle,
-    handleKeyDown: handleDropdownKeyDown,
+    handleKeyDown,
     handleContainerBlur,
     referenceRef,
     referenceProps,
@@ -100,21 +100,6 @@ export function TagCombobox({
       open();
     },
     [setActiveIndex, open]
-  );
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "Backspace") {
-        if (inputValue === "" && selectedTags.length > 0) {
-          onToggle(selectedTags[selectedTags.length - 1]);
-        }
-
-        return;
-      }
-
-      handleDropdownKeyDown(event);
-    },
-    [inputValue, selectedTags, onToggle, handleDropdownKeyDown]
   );
 
   const handleToggleOpen = useCallback(() => {
