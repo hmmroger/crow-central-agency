@@ -40,7 +40,7 @@ export function AgentPaletteRow({ entry, index, rowId, isActive, onActivate, onH
 
   const handleClick = useCallback(() => onActivate(index), [onActivate, index]);
 
-  const handleMouseMove = useCallback(() => onHover(index), [onHover, index]);
+  const handleMouseEnter = useCallback(() => onHover(index), [onHover, index]);
 
   return (
     <div
@@ -49,14 +49,17 @@ export function AgentPaletteRow({ entry, index, rowId, isActive, onActivate, onH
       role="option"
       aria-selected={isActive}
       onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
+      onMouseEnter={handleMouseEnter}
       onClick={handleClick}
       className={cn(
         "flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors",
         isActive ? "bg-surface-elevated ring-1 ring-border-focus" : "hover:bg-surface-elevated"
       )}
     >
-      <span className="shrink-0 flex items-center justify-center w-8 h-8 rounded-xs border border-border-subtle font-mono text-3xs text-text-muted">
+      <span
+        aria-hidden="true"
+        className="shrink-0 flex items-center justify-center w-8 h-8 rounded-xs border border-border-subtle font-mono text-3xs text-text-muted"
+      >
         {getAgentAbbreviation(agent.name)}
       </span>
 

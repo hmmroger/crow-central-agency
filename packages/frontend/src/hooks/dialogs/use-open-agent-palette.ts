@@ -6,11 +6,6 @@ import {
   AGENT_PALETTE_LABEL_ID,
 } from "../../components/agents/agent-palette/agent-palette.types.js";
 
-/**
- * Hook to open the agent palette as a modal dialog.
- *
- * @returns A function that opens the palette.
- */
 export function useOpenAgentPalette() {
   const { showDialog } = useModalDialog();
 
