@@ -1,8 +1,12 @@
-import { useMemo, useState } from "react";
-import { Bell, BellOff } from "lucide-react";
+import { useCallback, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { ChevronDown, Rss } from "lucide-react";
 import type { ConfiguredFeed } from "@crow-central-agency/shared";
 import { useFeedsQuery } from "../../hooks/queries/use-feeds-query.js";
 import { cn } from "../../utils/cn.js";
+import { ComboboxDropdown } from "./combobox-dropdown.js";
+import { ComboboxOption } from "./combobox-option.js";
+import { useComboboxDropdown } from "./use-combobox-dropdown.js";
+import { FeedChip } from "./feed-chip.js";
 
 interface FeedMultiSelectProps {
   /** Feeds currently configured for the agent (selection + per-feed isNotify) */
@@ -11,19 +15,23 @@ interface FeedMultiSelectProps {
   onToggle: (feedId: string) => void;
   /** Fired when the user toggles a selected feed's isNotify flag */
   onToggleNotify: (feedId: string) => void;
-  /** Copy shown above the filter input */
+  /** Copy shown above the input */
   helperText?: string;
   /** Text shown when no feeds are configured */
   emptyText?: string;
-  /** Optional className passed to the outer container */
-  className?: string;
+}
+
+interface SelectedFeed {
+  feedId: string;
+  title: string;
+  isNotify: boolean;
 }
 
 /**
- * Filterable, scrollable, bounded checkbox list of subscribed feeds.
- * Renders a per-row notify toggle for selected feeds so the agent editor
- * can configure isNotify alongside the selection.
- *
+ * Type-ahead picker for the feeds an agent reads from. Typing narrows the option list and the
+ * chevron browses every feed; Enter/Tab toggles the highlighted option. Selected feeds stay in the
+ * list with a selected marker and also render as removable chips below the input, each carrying its
+ * own new-item notification toggle.
  * Renders its own content only — the caller owns the surrounding label / layout.
  */
 export function FeedMultiSelect({
@@ -32,99 +40,163 @@ export function FeedMultiSelect({
   onToggleNotify,
   helperText,
   emptyText = "No feeds available.",
-  className,
 }: FeedMultiSelectProps) {
   const { data: feeds, isLoading } = useFeedsQuery();
-  const [filter, setFilter] = useState("");
+  const [inputValue, setInputValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const configuredByFeedId = useMemo(() => {
-    const map = new Map<string, ConfiguredFeed>();
+  const needle = inputValue.trim().toLowerCase();
+
+  const sortedFeeds = useMemo(
+    () => (feeds ? feeds.slice().sort((feedA, feedB) => feedA.title.localeCompare(feedB.title)) : []),
+    [feeds]
+  );
+
+  const options = useMemo(
+    () => sortedFeeds.filter((feed) => feed.title.toLowerCase().includes(needle)),
+    [sortedFeeds, needle]
+  );
+
+  const selectedFeedIds = useMemo(() => new Set(configuredFeeds.map((entry) => entry.feedId)), [configuredFeeds]);
+
+  const selectedFeeds = useMemo<SelectedFeed[]>(() => {
+    const titleByFeedId = new Map(sortedFeeds.map((feed): [string, string] => [feed.id, feed.title]));
+    const resolved: SelectedFeed[] = [];
     for (const entry of configuredFeeds) {
-      map.set(entry.feedId, entry);
+      const title = titleByFeedId.get(entry.feedId);
+      if (title !== undefined) {
+        resolved.push({ feedId: entry.feedId, title, isNotify: entry.isNotify === true });
+      }
     }
 
-    return map;
-  }, [configuredFeeds]);
+    return resolved;
+  }, [configuredFeeds, sortedFeeds]);
 
-  const filteredFeeds = useMemo(() => {
-    if (!feeds) {
-      return [];
+  const selectOption = useCallback(
+    (index: number) => {
+      const option = options[index];
+      if (!option) {
+        return;
+      }
+
+      onToggle(option.id);
+      inputRef.current?.focus();
+    },
+    [options, onToggle]
+  );
+
+  const {
+    isOpen,
+    activeIndex,
+    setActiveIndex,
+    commitOption,
+    open,
+    toggle,
+    handleKeyDown,
+    handleContainerBlur,
+    referenceRef,
+    referenceProps,
+    floatingRef,
+    floatingProps,
+    floatingStyles,
+  } = useComboboxDropdown({
+    optionCount: options.length,
+    onCommitOption: selectOption,
+    keepActiveIndexOnCommit: true,
+  });
+
+  const handleInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setInputValue(event.target.value);
+      setActiveIndex(0);
+      open();
+    },
+    [setActiveIndex, open]
+  );
+
+  const handleToggleOpen = useCallback(() => {
+    toggle();
+    if (!isOpen) {
+      inputRef.current?.focus();
     }
-
-    const needle = filter.trim().toLowerCase();
-    if (!needle) {
-      return feeds;
-    }
-
-    return feeds.filter((feed) => feed.title.toLowerCase().includes(needle));
-  }, [feeds, filter]);
+  }, [isOpen, toggle]);
 
   if (isLoading || !feeds || feeds.length === 0) {
     return <p className="text-xs text-text-muted">{isLoading ? "Loading feeds..." : emptyText}</p>;
   }
 
   return (
-    <div className={className}>
-      {helperText && <p className="text-xs text-text-muted mb-2">{helperText}</p>}
-      <input
-        type="text"
-        value={filter}
-        onChange={(event) => setFilter(event.target.value)}
-        placeholder="Filter by title..."
-        aria-label="Filter feeds by title"
-        className="w-full mb-1.5 px-2 py-1 rounded border border-border-subtle bg-surface-inset text-xs text-text-base placeholder:text-text-muted focus:outline-none focus:border-border-focus"
-      />
-      <div className="max-h-48 overflow-y-auto rounded border border-border-subtle/40 bg-surface-inset/40 p-2">
-        {filteredFeeds.length === 0 ? (
-          <p className="text-xs text-text-muted">No feeds match the filter.</p>
-        ) : (
-          <div className="flex flex-col gap-1.5">
-            {filteredFeeds.map((feed) => {
-              const configured = configuredByFeedId.get(feed.id);
-              const isSelected = configured !== undefined;
-              const isNotify = configured?.isNotify === true;
-              return (
-                <div key={feed.id} className="flex items-center gap-2 min-w-0">
-                  <label className="flex items-center gap-2 cursor-pointer min-w-0 flex-1">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => onToggle(feed.id)}
-                      className="rounded border-border-subtle bg-surface-inset text-primary focus:ring-primary/30 shrink-0"
-                    />
-                    <span className="text-xs text-text-neutral truncate">{feed.title}</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => onToggleNotify(feed.id)}
-                    disabled={!isSelected}
-                    aria-pressed={isNotify}
-                    aria-label={
-                      isNotify
-                        ? `Disable new-item notifications for ${feed.title}`
-                        : `Enable new-item notifications for ${feed.title}`
-                    }
-                    title={isNotify ? "Notify on new items" : "Do not notify on new items"}
-                    className={cn(
-                      "shrink-0 p-1 rounded transition-colors",
-                      isSelected ? "hover:bg-surface-elevated" : "opacity-30 cursor-not-allowed",
-                      isSelected && isNotify ? "text-primary" : "text-text-muted"
-                    )}
-                  >
-                    {isNotify ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+    <div className="space-y-1.5">
+      {helperText && <p className="text-xs text-text-muted">{helperText}</p>}
+
+      <div
+        ref={referenceRef}
+        {...referenceProps}
+        onBlur={handleContainerBlur}
+        className={cn(
+          "flex items-center gap-1.5 rounded border bg-surface-inset px-2 py-1 transition-colors",
+          isOpen ? "border-border-focus" : "border-border-subtle"
         )}
+      >
+        <Rss className="h-3 w-3 shrink-0 text-text-muted" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onFocus={open}
+          placeholder="Search feeds by title..."
+          aria-label="Search feeds by title"
+          className="min-w-0 flex-1 bg-transparent text-xs text-text-base placeholder:text-text-muted focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={handleToggleOpen}
+          aria-label={isOpen ? "Hide feeds" : "Browse feeds"}
+          className="shrink-0 text-text-muted hover:text-text-neutral transition-colors"
+        >
+          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} />
+        </button>
       </div>
+
+      {isOpen && (
+        <ComboboxDropdown
+          floatingRef={floatingRef}
+          floatingStyles={floatingStyles}
+          floatingProps={floatingProps}
+          isEmpty={options.length === 0}
+          emptyMessage="No feeds match the filter."
+        >
+          {options.map((feed, index) => (
+            <ComboboxOption
+              key={feed.id}
+              index={index}
+              isActive={index === activeIndex}
+              isSelected={selectedFeedIds.has(feed.id)}
+              onActivate={setActiveIndex}
+              onCommit={commitOption}
+            >
+              <span className="min-w-0 flex-1 truncate">{feed.title}</span>
+            </ComboboxOption>
+          ))}
+        </ComboboxDropdown>
+      )}
+
+      {selectedFeeds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          {selectedFeeds.map((selected) => (
+            <FeedChip
+              key={selected.feedId}
+              feedId={selected.feedId}
+              title={selected.title}
+              isNotify={selected.isNotify}
+              onToggleNotify={onToggleNotify}
+              onRemove={onToggle}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
-}
-
-/** Render-ready "N / total selected" label, undefined while feeds are still loading. */
-export function useSelectedFeedCountLabel(selectedCount: number): string | undefined {
-  const { data: feeds } = useFeedsQuery();
-  return feeds ? `${selectedCount} / ${feeds.length} selected` : undefined;
 }
