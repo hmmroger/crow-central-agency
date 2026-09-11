@@ -1,7 +1,8 @@
 import { useCallback, useMemo, type MouseEvent } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { CrowIcon } from "../common/icons/crow.js";
 import { useHeader } from "../../hooks/use-header.js";
+import { useOpenAgentPalette } from "../../hooks/dialogs/use-open-agent-palette.js";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
 import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import type { HeaderAction } from "../../providers/header-provider.types.js";
@@ -21,6 +22,7 @@ const LOGO_NAV_MENU_ID = "header-logo-nav";
 export function AppHeader() {
   const { title, dropdown, actions } = useHeader();
   const { toggleMenu, isMenuOpen } = useContextMenu();
+  const openAgentPalette = useOpenAgentPalette();
   const viewMode = useAppStore((state) => state.viewMode);
   const setViewMode = useAppStore((state) => state.setViewMode);
   const isDropdownOpen = dropdown ? isMenuOpen(dropdown.menuId) : false;
@@ -158,6 +160,16 @@ export function AppHeader() {
       </div>
 
       {renderedActions}
+
+      <button
+        type="button"
+        onClick={openAgentPalette}
+        title="Find agent"
+        aria-label="Find agent"
+        className="mr-1 p-1.5 rounded-md text-text-muted hover:text-text-base hover:bg-surface-hover transition-colors"
+      >
+        <Search className="h-4 w-4" />
+      </button>
 
       <div className="hidden lg:flex items-center">
         <ConnectionStatus />
