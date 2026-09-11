@@ -13,6 +13,7 @@
   --color-surface-elevated: oklch(19.85% 0.01197 285.24);
   --color-surface-inset: oklch(11% 0.018 285);
   --color-surface-hover: oklch(21.85% 0.01197 285.24);
+  --color-surface-accent: oklch(28% 0.046 70.697);
 
   --color-primary: oklch(75.35% 0.138 232.6);
   --color-secondary: oklch(68% 0.12 295);

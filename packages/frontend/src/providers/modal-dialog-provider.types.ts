@@ -47,4 +47,6 @@ export interface ModalDialogContextValue {
   /** Dismiss the topmost dialog, or a specific dialog by id */
   hideDialog: (id?: string) => void;
   isDialogOpen: (id: string) => boolean;
+  /** Ids of every open dialog, in stack order from bottom to top */
+  openDialogIds: readonly string[];
 }
