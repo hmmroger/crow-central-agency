@@ -12,7 +12,8 @@ export const CLAUDE_MODELS = {
   OPUS_4_7: "claude-opus-4-7",
   OPUS_4_6: "claude-opus-4-6",
   OPUS_4_5: "claude-opus-4-5",
-  FABLE: "claude-fable-5",
+  FABLE: "claude-fable-5-1",
+  FABLE_5: "claude-fable-5",
 } as const;
 
 export type ClaudeModel = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];
@@ -130,6 +131,18 @@ export const CLAUDE_CODE_MODEL_OPTIONS: readonly ModelOption[] = [
   { value: CLAUDE_MODELS.HAIKU, label: "Claude Haiku 4.5" },
   {
     value: CLAUDE_MODELS.FABLE,
+    label: "Claude Fable 5.1",
+    supportedEfforts: [
+      REASONING_EFFORT.LOW,
+      REASONING_EFFORT.MEDIUM,
+      REASONING_EFFORT.HIGH,
+      REASONING_EFFORT.XHIGH,
+      REASONING_EFFORT.MAX,
+    ],
+    supportsAdaptiveThinking: true,
+  },
+  {
+    value: CLAUDE_MODELS.FABLE_5,
     label: "Claude Fable 5",
     supportedEfforts: [
       REASONING_EFFORT.LOW,
