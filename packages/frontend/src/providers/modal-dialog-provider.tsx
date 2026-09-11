@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useRef } from "react";
+import { createContext, useContext, useState, useCallback, useMemo, useRef } from "react";
 import { FloatingPortal, FloatingTree } from "@floating-ui/react";
 import { AnimatePresence } from "framer-motion";
 import { ModalDialogRenderer } from "../components/common/modal-dialog-renderer";
@@ -55,8 +55,10 @@ export function ModalDialogProvider({ children }: { children: React.ReactNode })
 
   const isDialogOpen = useCallback((id: string) => stack.some((entry) => entry.id === id), [stack]);
 
+  const openDialogIds = useMemo(() => stack.map((entry) => entry.id), [stack]);
+
   return (
-    <ModalDialogContext.Provider value={{ showDialog, hideDialog, isDialogOpen }}>
+    <ModalDialogContext.Provider value={{ showDialog, hideDialog, isDialogOpen, openDialogIds }}>
       {children}
       <FloatingPortal>
         <FloatingTree>

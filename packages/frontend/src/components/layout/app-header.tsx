@@ -164,8 +164,8 @@ export function AppHeader() {
       <button
         type="button"
         onClick={openAgentPalette}
-        title="Find agent"
-        aria-label="Find agent"
+        title="Find agent (Ctrl/⌘+E)"
+        aria-label="Find agent (Ctrl/⌘+E)"
         className="mr-1 p-1.5 rounded-md text-text-muted hover:text-text-base hover:bg-surface-hover transition-colors"
       >
         <Search className="h-4 w-4" />
