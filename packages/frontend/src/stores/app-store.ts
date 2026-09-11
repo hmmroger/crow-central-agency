@@ -45,7 +45,7 @@ interface AppState {
   initialTaskFilter: AgentTaskState | undefined;
   /** Ids of recently visited agent consoles, most recent first */
   recentAgentIds: string[];
-  /** Switch view mode via sidebar. Switching to AGENTS clears selectedAgentId */
+  /** Switch view mode via sidebar. Falls selectedAgentId back to the Crow system agent when nothing is selected */
   setViewMode: (mode: ViewMode) => void;
   /** Select an agent in the Agents view to show its console */
   selectAgent: (agentId: string) => void;
@@ -118,7 +118,7 @@ export const useAppStore = create<AppState>()(
 
           return {
             viewMode: mode,
-            // Always clear selection on sidebar switch; goToAgentConsole sets it explicitly
+            // Keep any existing selection; goToAgentConsole sets it explicitly
             selectedAgentId: state.selectedAgentId ?? CROW_SYSTEM_AGENT_ID,
           };
         }),
