@@ -6,6 +6,7 @@ import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-
 import { useAppStore } from "../../stores/app-store.js";
 import { useFullPanel } from "../../hooks/use-full-panel.js";
 import { useOpenAgentEditor } from "../../hooks/dialogs/use-open-agent-editor.js";
+import { useRecordAgentVisit } from "../../hooks/use-record-agent-visit.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { AgentCommandStrip } from "./agent-command-strip.js";
 import { AgentConsole } from "./console/agent-console.js";
@@ -31,6 +32,7 @@ export function AgentsView() {
   const headerTitle = selectedAgent?.name ?? "Agents";
   const { show, hide, isOpen } = useFullPanel();
   const openAgentEditor = useOpenAgentEditor();
+  useRecordAgentVisit(selectedAgentId);
 
   const handleOpenAgentSettings = useCallback(() => {
     if (!selectedAgentId) {

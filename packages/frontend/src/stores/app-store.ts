@@ -21,6 +21,8 @@ const DEFAULT_SIDE_PANEL_WIDTH = 300;
 export const SIDE_PANEL_MIN_WIDTH = 300;
 /** Maximum side panel width in pixels */
 export const SIDE_PANEL_MAX_WIDTH = 480;
+/** Maximum number of recently visited agent ids kept */
+const RECENT_AGENT_IDS_MAX = 12;
 
 interface AppState {
   /** Current view mode - controlled by sidebar */
@@ -41,6 +43,8 @@ interface AppState {
   dashboardTopCollapsed: boolean;
   /** Transient task state filter — set before navigating to tasks view, consumed once */
   initialTaskFilter: AgentTaskState | undefined;
+  /** Ids of recently visited agent consoles, most recent first */
+  recentAgentIds: string[];
   /** Switch view mode via sidebar. Switching to AGENTS clears selectedAgentId */
   setViewMode: (mode: ViewMode) => void;
   /** Select an agent in the Agents view to show its console */
@@ -67,6 +71,8 @@ interface AppState {
   toggleCircleCollapsed: (circleId: string) => void;
   /** Toggle collapsed state for the dashboard top overview panel */
   toggleDashboardTopCollapsed: () => void;
+  /** Record an agent console visit, moving the agent to the front of the recents list */
+  recordAgentVisit: (agentId: string) => void;
 }
 
 /** Shape of the state that is persisted to localStorage */
@@ -79,6 +85,7 @@ interface PersistedAppState {
   clientLocation?: string;
   collapsedCircles?: Record<string, boolean>;
   dashboardTopCollapsed?: boolean;
+  recentAgentIds?: string[];
 }
 
 /** localStorage key for persisted app state */
@@ -101,6 +108,7 @@ export const useAppStore = create<AppState>()(
       collapsedCircles: {},
       dashboardTopCollapsed: false,
       initialTaskFilter: undefined,
+      recentAgentIds: [],
 
       setViewMode: (mode: ViewMode) =>
         set((state) => {
@@ -155,6 +163,16 @@ export const useAppStore = create<AppState>()(
         })),
 
       toggleDashboardTopCollapsed: () => set((state) => ({ dashboardTopCollapsed: !state.dashboardTopCollapsed })),
+
+      recordAgentVisit: (agentId: string) =>
+        set((state) => {
+          if (state.recentAgentIds[0] === agentId) {
+            return state;
+          }
+
+          const remaining = state.recentAgentIds.filter((recentId) => recentId !== agentId);
+          return { recentAgentIds: [agentId, ...remaining].slice(0, RECENT_AGENT_IDS_MAX) };
+        }),
     }),
     {
       name: APP_STORE_STORAGE_KEY,
@@ -168,6 +186,7 @@ export const useAppStore = create<AppState>()(
         clientLocation: state.clientLocation,
         collapsedCircles: state.collapsedCircles,
         dashboardTopCollapsed: state.dashboardTopCollapsed,
+        recentAgentIds: state.recentAgentIds,
       }),
     }
   )
