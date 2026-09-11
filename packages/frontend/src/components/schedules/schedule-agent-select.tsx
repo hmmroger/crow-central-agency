@@ -1,5 +1,11 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { ChevronDown, Users } from "lucide-react";
+import { cn } from "../../utils/cn.js";
+import { ComboboxDropdown } from "../common/combobox-dropdown.js";
+import { ComboboxOption } from "../common/combobox-option.js";
+import { useComboboxDropdown } from "../common/use-combobox-dropdown.js";
 import { useAgentsContext } from "../../providers/agents-provider.js";
+import { ScheduleAgentChip } from "./schedule-agent-chip.js";
 
 interface ScheduleAgentSelectProps {
   /** Ids of the agents the schedule targets */
@@ -10,8 +16,17 @@ interface ScheduleAgentSelectProps {
   emptyText?: string;
 }
 
+interface SelectedAgent {
+  agentId: string;
+  /** Undefined when the id resolves to no agent */
+  name?: string;
+}
+
 /**
- * Filterable, scrollable, bounded checkbox list of agents a schedule can target.
+ * Type-ahead picker for the agents a schedule targets. Typing narrows the option list and the
+ * chevron browses every agent; Enter/Tab toggles the highlighted option and Backspace on an empty
+ * input removes the last selection. Selected agents stay in the list with a selected marker and
+ * also render as removable chips below the input.
  * Renders its own content only — the caller owns the surrounding label / layout.
  */
 export function ScheduleAgentSelect({
@@ -20,53 +35,160 @@ export function ScheduleAgentSelect({
   emptyText = "No agents available.",
 }: ScheduleAgentSelectProps) {
   const { agents, isLoading } = useAgentsContext();
-  const [filter, setFilter] = useState("");
+  const [inputValue, setInputValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const filteredAgents = useMemo(() => {
-    const needle = filter.trim().toLowerCase();
-    if (!needle) {
-      return agents;
+  const needle = inputValue.trim().toLowerCase();
+
+  const options = useMemo(() => agents.filter((agent) => agent.name.toLowerCase().includes(needle)), [agents, needle]);
+
+  const selectedAgents = useMemo<SelectedAgent[]>(
+    () => selectedAgentIds.map((agentId) => ({ agentId, name: agents.find((agent) => agent.id === agentId)?.name })),
+    [selectedAgentIds, agents]
+  );
+
+  const selectOption = useCallback(
+    (index: number) => {
+      const option = options[index];
+      if (!option) {
+        return;
+      }
+
+      onToggle(option.id);
+      inputRef.current?.focus();
+    },
+    [options, onToggle]
+  );
+
+  const {
+    isOpen,
+    activeIndex,
+    setActiveIndex,
+    commitOption,
+    open,
+    toggle,
+    handleKeyDown: handleDropdownKeyDown,
+    handleContainerBlur,
+    referenceRef,
+    referenceProps,
+    floatingRef,
+    floatingProps,
+    floatingStyles,
+  } = useComboboxDropdown({
+    optionCount: options.length,
+    onCommitOption: selectOption,
+    keepActiveIndexOnCommit: true,
+  });
+
+  const handleInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setInputValue(event.target.value);
+      setActiveIndex(0);
+      open();
+    },
+    [setActiveIndex, open]
+  );
+
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Backspace") {
+        if (inputValue === "" && selectedAgentIds.length > 0) {
+          onToggle(selectedAgentIds[selectedAgentIds.length - 1]);
+        }
+
+        return;
+      }
+
+      handleDropdownKeyDown(event);
+    },
+    [inputValue, selectedAgentIds, onToggle, handleDropdownKeyDown]
+  );
+
+  const handleToggleOpen = useCallback(() => {
+    toggle();
+    if (!isOpen) {
+      inputRef.current?.focus();
     }
+  }, [isOpen, toggle]);
 
-    return agents.filter((agent) => agent.name.toLowerCase().includes(needle));
-  }, [agents, filter]);
-
-  if (isLoading || agents.length === 0) {
-    return <p className="text-xs text-text-muted">{isLoading ? "Loading agents..." : emptyText}</p>;
+  if (isLoading) {
+    return <p className="text-xs text-text-muted">Loading agents...</p>;
   }
 
+  const hasAgents = agents.length > 0;
+
   return (
-    <div>
-      <input
-        type="text"
-        value={filter}
-        onChange={(event) => setFilter(event.target.value)}
-        placeholder="Filter by name..."
-        aria-label="Filter agents by name"
-        className="w-full mb-1.5 px-2 py-1 rounded border border-border-subtle bg-surface-inset text-xs text-text-base placeholder:text-text-muted focus:outline-none focus:border-border-focus"
-      />
-      <div className="max-h-48 overflow-y-auto rounded border border-border-subtle/40 bg-surface-inset/40 p-2">
-        {filteredAgents.length === 0 ? (
-          <p className="text-xs text-text-muted">No agents match the filter.</p>
-        ) : (
-          <div className="flex flex-col gap-1.5">
-            {filteredAgents.map((agent) => (
-              <label key={agent.id} className="flex items-center gap-2 cursor-pointer min-w-0">
-                <input
-                  type="checkbox"
-                  checked={selectedAgentIds.includes(agent.id)}
-                  onChange={() => onToggle(agent.id)}
-                  className="rounded border-border-subtle bg-surface-inset text-primary focus:ring-primary/30 shrink-0"
-                />
-                <span className="text-xs text-text-neutral truncate">{agent.name}</span>
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-      <p className="text-3xs text-text-muted mt-1">
-        {selectedAgentIds.length} / {agents.length} selected
-      </p>
+    <div className="space-y-1.5">
+      {hasAgents ? (
+        <div
+          ref={referenceRef}
+          {...referenceProps}
+          onBlur={handleContainerBlur}
+          className={cn(
+            "flex items-center gap-1.5 rounded border bg-surface-inset px-2 py-1 transition-colors",
+            isOpen ? "border-border-focus" : "border-border-subtle"
+          )}
+        >
+          <Users className="h-3 w-3 shrink-0 text-text-muted" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onFocus={open}
+            placeholder="Search agents by name..."
+            aria-label="Search agents to target by name"
+            className="min-w-0 flex-1 bg-transparent text-xs text-text-base placeholder:text-text-muted focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={handleToggleOpen}
+            aria-label={isOpen ? "Hide agents" : "Browse agents"}
+            className="shrink-0 text-text-muted hover:text-text-neutral transition-colors"
+          >
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} />
+          </button>
+        </div>
+      ) : (
+        <p className="text-xs text-text-muted">{emptyText}</p>
+      )}
+
+      {isOpen && hasAgents && (
+        <ComboboxDropdown
+          floatingRef={floatingRef}
+          floatingStyles={floatingStyles}
+          floatingProps={floatingProps}
+          isEmpty={options.length === 0}
+          emptyMessage="No agents match the filter."
+        >
+          {options.map((agent, index) => (
+            <ComboboxOption
+              key={agent.id}
+              index={index}
+              isActive={index === activeIndex}
+              isSelected={selectedAgentIds.includes(agent.id)}
+              onActivate={setActiveIndex}
+              onCommit={commitOption}
+            >
+              <span className="min-w-0 flex-1 truncate">{agent.name}</span>
+            </ComboboxOption>
+          ))}
+        </ComboboxDropdown>
+      )}
+
+      {selectedAgents.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          {selectedAgents.map((selected) => (
+            <ScheduleAgentChip
+              key={selected.agentId}
+              agentId={selected.agentId}
+              name={selected.name}
+              onRemove={onToggle}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

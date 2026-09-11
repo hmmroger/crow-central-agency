@@ -1,6 +1,6 @@
 import { useCallback } from "react";
-import { X } from "lucide-react";
 import { cn } from "../../../utils/cn.js";
+import { Chip } from "../../common/chip.js";
 
 interface TagChipProps {
   label: string;
@@ -17,24 +17,11 @@ export function TagChip({ label, onRemove, className }: TagChipProps) {
   const handleRemove = useCallback(() => onRemove?.(label), [onRemove, label]);
 
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 max-w-full rounded-sm border border-border bg-surface-elevated py-0.5 font-mono text-2xs text-accent",
-        onRemove ? "pl-1.5 pr-0.5" : "px-1.5",
-        className
-      )}
-    >
-      <span className="truncate">{label}</span>
-      {onRemove && (
-        <button
-          type="button"
-          onClick={handleRemove}
-          className="shrink-0 rounded-xs p-0.5 text-text-muted hover:text-error transition-colors"
-          aria-label={`Remove tag ${label}`}
-        >
-          <X className="h-2.5 w-2.5" />
-        </button>
-      )}
-    </span>
+    <Chip
+      label={label}
+      onRemove={onRemove ? handleRemove : undefined}
+      removeAriaLabel={`Remove tag ${label}`}
+      className={cn("font-mono text-accent", className)}
+    />
   );
 }

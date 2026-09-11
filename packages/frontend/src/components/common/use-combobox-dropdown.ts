@@ -17,6 +17,8 @@ interface UseComboboxDropdownParams {
   onCommitOption: (index: number) => void;
   /** Tab. Defaults to onCommitOption when omitted. */
   onCompleteOption?: (index: number) => void;
+  /** Multi-select opt-out of the active-index reset that follows a commit. */
+  keepActiveIndexOnCommit?: boolean;
 }
 
 export interface ComboboxFloatingBindings {
@@ -52,6 +54,7 @@ export function useComboboxDropdown({
   optionCount,
   onCommitOption,
   onCompleteOption,
+  keepActiveIndexOnCommit = false,
 }: UseComboboxDropdownParams): ComboboxDropdownControls {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -87,22 +90,30 @@ export function useComboboxDropdown({
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen((current) => !current), []);
 
-  // Both paths change what the consumer filters on, so the highlight returns to the top rather
-  // than landing on an unrelated neighbour in the surviving list.
+  // Single-select consumers change what they filter on when they commit, so the highlight returns to
+  // the top rather than landing on an unrelated neighbour in the surviving list. Multi-select
+  // consumers keep their list stable across a commit and opt out, so the highlight stays on the row
+  // that was just toggled.
+  const resetActiveIndexOnCommit = useCallback(() => {
+    if (!keepActiveIndexOnCommit) {
+      setActiveIndex(0);
+    }
+  }, [keepActiveIndexOnCommit]);
+
   const commitOption = useCallback(
     (index: number) => {
-      setActiveIndex(0);
+      resetActiveIndexOnCommit();
       onCommitOption(index);
     },
-    [onCommitOption]
+    [resetActiveIndexOnCommit, onCommitOption]
   );
 
   const completeOption = useCallback(
     (index: number) => {
-      setActiveIndex(0);
+      resetActiveIndexOnCommit();
       (onCompleteOption ?? onCommitOption)(index);
     },
-    [onCompleteOption, onCommitOption]
+    [resetActiveIndexOnCommit, onCompleteOption, onCommitOption]
   );
 
   const handleKeyDown = useCallback(

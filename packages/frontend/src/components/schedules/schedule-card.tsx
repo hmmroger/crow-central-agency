@@ -6,6 +6,7 @@ import { useConfirmDialog } from "../../hooks/dialogs/use-confirm-dialog.js";
 import { useDeleteSchedule, useRunSchedule, useUpdateSchedule } from "../../hooks/queries/use-schedule-mutations.js";
 import { formatRelativeTime } from "../../utils/format-utils.js";
 import { formatScheduleTiming } from "../../utils/format-schedule-timing.js";
+import { UNKNOWN_AGENT_LABEL } from "../../utils/schedule-utils.js";
 import { cn } from "../../utils/cn.js";
 import { Toggle } from "../common/toggle.js";
 
@@ -33,7 +34,7 @@ export function ScheduleCard({ schedule, onEdit }: ScheduleCardProps) {
   const { deleteFn, isPending: isDeleting } = useDeleteSchedule(schedule.id);
 
   const agentNames = useMemo(
-    () => schedule.agentIds.map((agentId) => agents.find((agent) => agent.id === agentId)?.name ?? "Unknown agent"),
+    () => schedule.agentIds.map((agentId) => agents.find((agent) => agent.id === agentId)?.name ?? UNKNOWN_AGENT_LABEL),
     [schedule.agentIds, agents]
   );
 

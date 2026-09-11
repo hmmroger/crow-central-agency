@@ -32,10 +32,10 @@ function canonicalizeTag(value: string): string {
 
 /**
  * Type-ahead combobox for selecting tags. Typing narrows the autosuggest list and
- * the chevron browses every available tag; Enter/Tab completes the highlighted
- * option and Backspace on an empty input removes the last selection. Selected tags
- * render as removable chips below the input. With `allowCreate`, a typed value that
- * is not an existing tag can be added as a new tag.
+ * the chevron browses every available tag; Enter/Tab toggles the highlighted option
+ * and Backspace on an empty input removes the last selection. Selected tags stay in
+ * the list with a selected marker and also render as removable chips below the input.
+ * With `allowCreate`, a typed value that is not an existing tag can be added as a new tag.
  *
  * Selection/filter semantics are owned by the consumer via `onToggle`.
  */
@@ -53,12 +53,9 @@ export function TagCombobox({
   const candidate = canonicalizeTag(inputValue);
 
   const options = useMemo<TagOption[]>(() => {
-    const matches = availableTags
-      .filter((tag) => !selectedTags.includes(tag) && tag.includes(candidate))
-      .map((tag) => ({ tag, isNew: false }));
-
-    const canCreate =
-      allowCreate && candidate.length > 0 && !availableTags.includes(candidate) && !selectedTags.includes(candidate);
+    const knownTags = availableTags.concat(selectedTags.filter((tag) => !availableTags.includes(tag)));
+    const matches = knownTags.filter((tag) => tag.includes(candidate)).map((tag) => ({ tag, isNew: false }));
+    const canCreate = allowCreate && candidate.length > 0 && !knownTags.includes(candidate);
 
     return canCreate ? [...matches, { tag: candidate, isNew: true }] : matches;
   }, [availableTags, selectedTags, candidate, allowCreate]);
@@ -71,7 +68,6 @@ export function TagCombobox({
       }
 
       onToggle(option.tag);
-      setInputValue("");
       inputRef.current?.focus();
     },
     [options, onToggle]
@@ -91,7 +87,11 @@ export function TagCombobox({
     floatingRef,
     floatingProps,
     floatingStyles,
-  } = useComboboxDropdown({ optionCount: options.length, onCommitOption: selectOption });
+  } = useComboboxDropdown({
+    optionCount: options.length,
+    onCommitOption: selectOption,
+    keepActiveIndexOnCommit: true,
+  });
 
   const handleInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -125,13 +125,7 @@ export function TagCombobox({
   }, [isOpen, toggle]);
 
   const emptyMessage =
-    candidate.length > 0
-      ? "No matching tags"
-      : allowCreate
-        ? "Type to add a tag"
-        : availableTags.length > 0 && availableTags.every((tag) => selectedTags.includes(tag))
-          ? "All tags selected"
-          : "No tags available";
+    candidate.length > 0 ? "No matching tags" : allowCreate ? "Type to add a tag" : "No tags available";
 
   return (
     <div className="space-y-1.5">
@@ -179,18 +173,19 @@ export function TagCombobox({
               key={option.isNew ? `create:${option.tag}` : `existing:${option.tag}`}
               index={index}
               isActive={index === activeIndex}
+              isSelected={selectedTags.includes(option.tag)}
               onActivate={setActiveIndex}
               onCommit={commitOption}
             >
               {option.isNew ? (
                 <>
                   <Plus className="h-3 w-3 shrink-0 text-text-muted" />
-                  <span className="truncate font-mono">
+                  <span className="min-w-0 flex-1 truncate font-mono">
                     Create <span className="text-text-base">{option.tag}</span>
                   </span>
                 </>
               ) : (
-                <span className="truncate font-mono">{option.tag}</span>
+                <span className="min-w-0 flex-1 truncate font-mono">{option.tag}</span>
               )}
             </ComboboxOption>
           ))}
