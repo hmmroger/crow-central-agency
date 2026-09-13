@@ -1,8 +1,11 @@
+import type { ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "../../utils/cn.js";
 
 interface ChipProps {
   label: string;
+  /** Secondary control rendered before the label, for a selection carrying more than membership */
+  leadingControl?: ReactNode;
   /** When provided, renders a trailing remove button */
   onRemove?: () => void;
   /** Accessible name for the remove button; defaults to `Remove {label}` */
@@ -11,16 +14,18 @@ interface ChipProps {
   className?: string;
 }
 
-/** Compact bordered label pill, optionally removable. */
-export function Chip({ label, onRemove, removeAriaLabel, className }: ChipProps) {
+/** Compact bordered label pill, optionally removable and optionally carrying a leading control. */
+export function Chip({ label, leadingControl, onRemove, removeAriaLabel, className }: ChipProps) {
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 max-w-full rounded-sm border border-border bg-surface-elevated py-0.5 text-2xs",
-        onRemove ? "pl-1.5 pr-0.5" : "px-1.5",
+        leadingControl ? "pl-0.5" : "pl-1.5",
+        onRemove ? "pr-0.5" : "pr-1.5",
         className
       )}
     >
+      {leadingControl && <span className="shrink-0">{leadingControl}</span>}
       <span className="truncate">{label}</span>
       {onRemove && (
         <button

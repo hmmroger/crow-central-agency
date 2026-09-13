@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useCallback, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { ChevronDown, Users } from "lucide-react";
 import { cn } from "../../utils/cn.js";
 import { ComboboxDropdown } from "../common/combobox-dropdown.js";
@@ -24,9 +24,8 @@ interface SelectedAgent {
 
 /**
  * Type-ahead picker for the agents a schedule targets. Typing narrows the option list and the
- * chevron browses every agent; Enter/Tab toggles the highlighted option and Backspace on an empty
- * input removes the last selection. Selected agents stay in the list with a selected marker and
- * also render as removable chips below the input.
+ * chevron browses every agent; Enter/Tab toggles the highlighted option. Selected agents stay in
+ * the list with a selected marker and also render as removable chips below the input.
  * Renders its own content only — the caller owns the surrounding label / layout.
  */
 export function ScheduleAgentSelect({
@@ -67,7 +66,7 @@ export function ScheduleAgentSelect({
     commitOption,
     open,
     toggle,
-    handleKeyDown: handleDropdownKeyDown,
+    handleKeyDown,
     handleContainerBlur,
     referenceRef,
     referenceProps,
@@ -87,21 +86,6 @@ export function ScheduleAgentSelect({
       open();
     },
     [setActiveIndex, open]
-  );
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "Backspace") {
-        if (inputValue === "" && selectedAgentIds.length > 0) {
-          onToggle(selectedAgentIds[selectedAgentIds.length - 1]);
-        }
-
-        return;
-      }
-
-      handleDropdownKeyDown(event);
-    },
-    [inputValue, selectedAgentIds, onToggle, handleDropdownKeyDown]
   );
 
   const handleToggleOpen = useCallback(() => {
