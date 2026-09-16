@@ -2,7 +2,7 @@ import path from "node:path";
 import { z } from "zod";
 import { env } from "../../config/env.js";
 import type { AgentRegistry } from "../../services/agent-registry.js";
-import { assertWithinBase, expandPath, readTextFile, statFile } from "../../utils/fs-utils.js";
+import { assertWithinBase, expandPath, readTextFile, resolveRealPath, statFile } from "../../utils/fs-utils.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, processTextContent, textToolResult } from "../tool-utils.js";
 import {
@@ -40,32 +40,33 @@ const isWithinBase = (targetPath: string, base: string): boolean => {
 };
 
 /** Workspace allow outranks the state-directory deny, which outranks the temp-directory allow. */
-const assertReadableJsonPath = (filePath: string, resolvedPath: string, agentWorkspace: string): void => {
-  if (isWithinBase(resolvedPath, agentWorkspace)) {
+const assertReadableJsonPath = async (filePath: string, realPath: string, agentWorkspace: string): Promise<void> => {
+  if (isWithinBase(realPath, await resolveRealPath(agentWorkspace))) {
     return;
   }
 
-  if (isWithinBase(resolvedPath, env.CROW_SYSTEM_PATH)) {
+  if (isWithinBase(realPath, await resolveRealPath(env.CROW_SYSTEM_PATH))) {
     throw new Error(
-      `File path "${filePath}" resolves to "${resolvedPath}", which is inside the platform state directory "${env.CROW_SYSTEM_PATH}" and is never readable through this tool.`
+      `File path "${filePath}" resolves to "${realPath}", which is inside the platform state directory "${env.CROW_SYSTEM_PATH}" and is never readable through this tool.`
     );
   }
 
   const allowedBases = getInspectJsonAllowedBases(agentWorkspace);
-  if (!allowedBases.some((base) => isWithinBase(resolvedPath, base))) {
+  const realAllowedBases = await Promise.all(allowedBases.map(resolveRealPath));
+  if (!realAllowedBases.some((base) => isWithinBase(realPath, base))) {
     throw new Error(
-      `File path "${filePath}" resolves to "${resolvedPath}", which is outside the directories this tool may read (${allowedBases.join(", ")}). Read the file with your own file tool and pass its text as "json" instead.`
+      `File path "${filePath}" resolves to "${realPath}", which is outside the directories this tool may read (${allowedBases.join(", ")}). Read the file with your own file tool and pass its text as "json" instead.`
     );
   }
 };
 
 const readJsonSourceText = async (filePath: string, agentWorkspace: string): Promise<string> => {
-  const resolvedPath = resolveRequestedPath(filePath, agentWorkspace);
-  assertReadableJsonPath(filePath, resolvedPath, agentWorkspace);
+  const realPath = await resolveRealPath(resolveRequestedPath(filePath, agentWorkspace));
+  await assertReadableJsonPath(filePath, realPath, agentWorkspace);
 
-  const stats = await statFile(resolvedPath);
+  const stats = await statFile(realPath);
   if (!stats.isFile()) {
-    throw new Error(`File path "${filePath}" resolves to "${resolvedPath}", which is not a file.`);
+    throw new Error(`File path "${filePath}" resolves to "${realPath}", which is not a file.`);
   }
 
   if (stats.size > MAX_INSPECT_JSON_FILE_BYTES) {
@@ -74,7 +75,7 @@ const readJsonSourceText = async (filePath: string, agentWorkspace: string): Pro
     );
   }
 
-  return readTextFile(resolvedPath);
+  return readTextFile(realPath);
 };
 
 const parseJsonDocument = (jsonText: string): JsonValue => {
