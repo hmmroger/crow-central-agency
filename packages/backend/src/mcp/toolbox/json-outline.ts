@@ -3,7 +3,7 @@ import {
   MAX_INSPECT_JSON_ARRAY_ITEMS,
   MAX_INSPECT_JSON_VALUE_LENGTH,
 } from "./inspect-json.constants.js";
-import type { JsonValue, RenderJsonOutlineOptions } from "./inspect-json.types.js";
+import type { JsonScalar, JsonValue, RenderJsonOutlineOptions } from "./inspect-json.types.js";
 import { appendJsonPathIndex, appendJsonPathKey } from "./json-path.js";
 
 interface OutlineBudget {
@@ -16,7 +16,7 @@ const OBJECT_MARKER = "{}";
 const ARRAY_MARKER = "[]";
 const ARRAY_REMAINDER_MARKER = `[${TRUNCATION_ELLIPSIS}]`;
 
-const formatScalarValue = (value: JsonValue, maxValueLength: number): string => {
+const formatScalarValue = (value: JsonScalar, maxValueLength: number): string => {
   if (typeof value === "string") {
     if (value.length <= maxValueLength) {
       return JSON.stringify(value);

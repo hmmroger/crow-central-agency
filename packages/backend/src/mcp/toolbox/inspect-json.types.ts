@@ -1,4 +1,6 @@
-export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+export type JsonScalar = string | number | boolean | null;
+
+export type JsonValue = JsonScalar | JsonValue[] | { [key: string]: JsonValue };
 
 export const JSON_PATH_SEGMENT_TYPE = {
   KEY: "key",
