@@ -9,6 +9,8 @@ interface TimeInterpretation {
   description: string;
 }
 
+type TimeUnit = (typeof TIME_UNIT_VALUES)[number];
+
 export const CONVERT_TIME_TOOL_NAME = "convert_time";
 
 const TIME_UNIT = {
@@ -16,7 +18,7 @@ const TIME_UNIT = {
   MILLISECONDS: "milliseconds",
 } as const;
 
-const TIME_UNIT_VALUES = [TIME_UNIT.SECONDS, TIME_UNIT.MILLISECONDS];
+const TIME_UNIT_VALUES = [TIME_UNIT.SECONDS, TIME_UNIT.MILLISECONDS] as const;
 const EPOCH_PATTERN = /^-?\d+$/;
 const EPOCH_SECONDS_LIMIT = 1e11;
 const MILLISECONDS_PER_SECOND = 1000;
@@ -38,7 +40,7 @@ const isRepresentableEpoch = (epochMs: number): boolean => Number.isFinite(new D
 
 const interpretTimeValue = (
   value: string,
-  unit: string | undefined,
+  unit: TimeUnit | undefined,
   timezone: string
 ): TimeInterpretation | undefined => {
   const trimmedValue = value.trim();
@@ -88,6 +90,7 @@ export function getConvertTimeToolConfig(sensorManager: SensorManager) {
       ),
     timezone: z
       .string()
+      .min(1)
       .optional()
       .describe(`IANA timezone name (e.g. ${TIMEZONE_EXAMPLE}). Omit to use the user's timezone.`),
   };
