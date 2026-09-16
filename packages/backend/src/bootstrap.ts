@@ -232,7 +232,7 @@ export async function bootstrap(options: BootstrapOptions) {
   mcpManager.registerMcpServer(getSuperAgentMcpServerDefinition(registry, runtimeManager, sessionManager));
   mcpManager.registerMcpServer(getBuilderAgentMcpServerDefinition(registry, mcpManager));
   mcpManager.registerMcpServer(getRemindersMcpServerDefinition(crowScheduler, sensorManager));
-  mcpManager.registerMcpServer(getToolboxMcpServerDefinition(sensorManager));
+  mcpManager.registerMcpServer(getToolboxMcpServerDefinition(sensorManager, registry));
   mcpManager.registerMcpServer(getGmailMcpServerDefinition(connectorManager, sensorManager));
   mcpManager.registerMcpServer(getGoogleCalendarMcpServerDefinition(connectorManager, sensorManager));
   mcpManager.registerMcpServer(getGoogleContactsMcpServerDefinition(connectorManager, sensorManager));
