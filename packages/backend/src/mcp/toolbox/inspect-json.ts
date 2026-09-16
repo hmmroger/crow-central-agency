@@ -30,31 +30,38 @@ const ROOT_MATCH_LABEL = "the document root";
 const resolveRequestedPath = (filePath: string, agentWorkspace: string): string =>
   path.isAbsolute(filePath) || filePath.startsWith("~") ? expandPath(filePath) : path.resolve(agentWorkspace, filePath);
 
-const isWithinAnyBase = (targetPath: string, bases: string[]): boolean =>
-  bases.some((base) => {
-    try {
-      assertWithinBase(targetPath, base);
-      return true;
-    } catch {
-      return false;
-    }
-  });
+const isWithinBase = (targetPath: string, base: string): boolean => {
+  try {
+    assertWithinBase(targetPath, base);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
-const readJsonSourceText = async (filePath: string, agentWorkspace: string): Promise<string> => {
-  const resolvedPath = resolveRequestedPath(filePath, agentWorkspace);
-  const allowedBases = getInspectJsonAllowedBases(agentWorkspace);
-
-  if (!isWithinAnyBase(resolvedPath, allowedBases)) {
-    throw new Error(
-      `File path "${filePath}" resolves to "${resolvedPath}", which is outside the directories this tool may read (${allowedBases.join(", ")}). Read the file with your own file tool and pass its text as "json" instead.`
-    );
+/** Workspace allow outranks the state-directory deny, which outranks the temp-directory allow. */
+const assertReadableJsonPath = (filePath: string, resolvedPath: string, agentWorkspace: string): void => {
+  if (isWithinBase(resolvedPath, agentWorkspace)) {
+    return;
   }
 
-  if (isWithinAnyBase(resolvedPath, [env.CROW_SYSTEM_PATH])) {
+  if (isWithinBase(resolvedPath, env.CROW_SYSTEM_PATH)) {
     throw new Error(
       `File path "${filePath}" resolves to "${resolvedPath}", which is inside the platform state directory "${env.CROW_SYSTEM_PATH}" and is never readable through this tool.`
     );
   }
+
+  const allowedBases = getInspectJsonAllowedBases(agentWorkspace);
+  if (!allowedBases.some((base) => isWithinBase(resolvedPath, base))) {
+    throw new Error(
+      `File path "${filePath}" resolves to "${resolvedPath}", which is outside the directories this tool may read (${allowedBases.join(", ")}). Read the file with your own file tool and pass its text as "json" instead.`
+    );
+  }
+};
+
+const readJsonSourceText = async (filePath: string, agentWorkspace: string): Promise<string> => {
+  const resolvedPath = resolveRequestedPath(filePath, agentWorkspace);
+  assertReadableJsonPath(filePath, resolvedPath, agentWorkspace);
 
   const stats = await statFile(resolvedPath);
   if (!stats.isFile()) {
