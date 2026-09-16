@@ -21,6 +21,18 @@ export function expandPath(filePath: string): string {
 }
 
 /**
+ * Resolve symlinks to the real location. Falls back to the given path when it cannot be resolved
+ * (a missing file), so the caller still reports against the path that was asked for.
+ */
+export async function resolveRealPath(filePath: string): Promise<string> {
+  try {
+    return await fs.realpath(filePath);
+  } catch {
+    return filePath;
+  }
+}
+
+/**
  * Validate that a resolved path is within the allowed base directory.
  * Prevents path traversal attacks.
  */
