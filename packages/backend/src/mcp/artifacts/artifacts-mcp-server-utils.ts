@@ -6,6 +6,11 @@ import { formatVersionToken, processTextContent, textToolResult, type ReadLineOp
 import { last } from "es-toolkit";
 import type { ArtifactContentFindResult } from "../../services/artifact/artifact-manager.types.js";
 
+export interface LineEditResult {
+  content: string;
+  insertedLineCount: number;
+}
+
 export const ARTIFACT_TYPE_VALUES = Object.values(ARTIFACT_TYPE);
 export const ARTIFACT_CONTENT_TYPE_VALUES = Object.values(ARTIFACT_CONTENT_TYPE);
 
@@ -29,7 +34,7 @@ export function applyLineEdit(
   mode: EditArtifactMode,
   startLine: number,
   endLine?: number
-): string {
+): LineEditResult {
   const existingLines = existingContent.split("\n");
   const totalLines = existingLines.length;
 
@@ -66,7 +71,31 @@ export function applyLineEdit(
   }
 
   const updatedContent = preContent.concat(newContent).concat(postContent).join("\n");
-  return updatedContent;
+  return { content: updatedContent, insertedLineCount: newContent.length };
+}
+
+function formatLineShift(shift: number): string {
+  return shift === 0 ? "later lines unchanged" : `later lines shifted by ${shift > 0 ? "+" : ""}${shift}`;
+}
+
+/** Describe what an applied line edit did to the caller's line map, so it can keep using it without re-reading. */
+export function buildEditArtifactNote(
+  mode: EditArtifactMode,
+  startLine: number,
+  endLine: number | undefined,
+  insertedLineCount: number
+): string {
+  if (mode === EDIT_ARTIFACT_MODE.INSERT) {
+    return `inserted ${insertedLineCount} line(s) before line ${startLine}; ${formatLineShift(insertedLineCount)}`;
+  }
+
+  const replacedLineCount = (endLine ?? startLine) - startLine + 1;
+  const shift = insertedLineCount - replacedLineCount;
+  if (insertedLineCount === 0) {
+    return `lines ${startLine}-${endLine ?? startLine} removed; ${formatLineShift(shift)}`;
+  }
+
+  return `lines ${startLine}-${startLine + insertedLineCount - 1} now hold your content; ${formatLineShift(shift)}`;
 }
 
 /** Image extensions that Claude can process natively via base64 */
