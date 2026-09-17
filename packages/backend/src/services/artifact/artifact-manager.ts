@@ -26,7 +26,6 @@ import type { AgentRegistry } from "../agent-registry.js";
 import type { AgentCircleManager } from "../agent-circle-manager.js";
 import { getMimeTypeByFilename, DOCX_MIME_TYPE } from "../../utils/mime-type.js";
 import { EventBus } from "../../core/event-bus/event-bus.js";
-import { formatVersionToken } from "../../mcp/tool-utils.js";
 import { ARTIFACT_WRITE_PRECONDITION } from "./artifact-manager.types.js";
 import type {
   ArtifactAdapter,
@@ -341,15 +340,12 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
     return { content: buf, metadata };
   }
 
-  private assertVersionMatches(existing: ArtifactMetadata, expectedUpdatedTimestamp: number): void {
-    if (existing.updatedTimestamp === expectedUpdatedTimestamp) {
+  private assertVersionMatches(currentUpdatedTimestamp: number, expectedUpdatedTimestamp: number): void {
+    if (currentUpdatedTimestamp === expectedUpdatedTimestamp) {
       return;
     }
 
-    throw new AppError(
-      `Artifact was modified since it was read (current ${formatVersionToken(existing.updatedTimestamp)}). Retry with this Version, or re-read the artifact first.`,
-      APP_ERROR_CODES.CONFLICT
-    );
+    throw new AppError("Artifact was modified since it was read.", APP_ERROR_CODES.CONFLICT);
   }
 
   private assertWritePrecondition(
@@ -361,10 +357,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
   ): void {
     if (precondition.kind === ARTIFACT_WRITE_PRECONDITION.CREATE_ONLY) {
       if (existing) {
-        throw new AppError(
-          `Artifact ${normalizedFilename} already exists (${existing.size} bytes, ${formatVersionToken(existing.updatedTimestamp)}). Pass version: ${existing.updatedTimestamp} to replace it wholesale.`,
-          APP_ERROR_CODES.CONFLICT
-        );
+        throw new AppError(`Artifact ${normalizedFilename} already exists.`, APP_ERROR_CODES.CONFLICT);
       }
 
       return;
@@ -378,7 +371,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
         );
       }
 
-      this.assertVersionMatches(existing, precondition.expectedUpdatedTimestamp);
+      this.assertVersionMatches(existing.updatedTimestamp, precondition.expectedUpdatedTimestamp);
     }
   }
 
@@ -461,7 +454,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
     }
 
     if (options.expectedUpdatedTimestamp !== undefined) {
-      this.assertVersionMatches(existing.value, options.expectedUpdatedTimestamp);
+      this.assertVersionMatches(existing.value.updatedTimestamp, options.expectedUpdatedTimestamp);
     }
 
     let newSize = existing.value.size;
