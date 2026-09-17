@@ -1,12 +1,18 @@
 import { z } from "zod";
 import { AGENT_TASK_SOURCE_TYPE, ARTIFACT_CONTENT_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactManager } from "../../services/artifact/artifact-manager.js";
-import { ARTIFACT_WRITE_PRECONDITION } from "../../services/artifact/artifact-manager.types.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
-import { formatVersionToken, getErrorToolResult, textToolResult } from "../tool-utils.js";
+import { formatVersionToken, textToolResult } from "../tool-utils.js";
 import { formatLocalDateTime } from "../../utils/date-utils.js";
-import { ARTIFACT_CONTENT_TYPE_VALUES, ARTIFACT_TYPE_VALUES } from "./artifacts-mcp-server-utils.js";
+import { EDIT_ARTIFACT_TOOL_NAME } from "./edit-artifact.js";
+import {
+  ARTIFACT_CONTENT_TYPE_VALUES,
+  ARTIFACT_TYPE_VALUES,
+  buildWritePrecondition,
+  getWriteArtifactErrorResult,
+  WRITE_ARTIFACT_VERSION_DESCRIPTION,
+} from "./artifacts-mcp-server-utils.js";
 
 export const WRITE_ARTIFACT_TOOL_NAME = "write_artifact";
 
@@ -38,6 +44,7 @@ export function getWriteArtifactToolConfig(
       .array(z.string())
       .optional()
       .describe("Tags to attach to the artifact. Fully replaces existing tags; omit to leave the artifact untagged."),
+    version: z.number().optional().describe(WRITE_ARTIFACT_VERSION_DESCRIPTION),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async ({
@@ -46,6 +53,7 @@ export function getWriteArtifactToolConfig(
     type,
     content_type,
     tags,
+    version,
   }) => {
     const filename = rawFilename.trim();
     try {
@@ -62,7 +70,7 @@ export function getWriteArtifactToolConfig(
         contentType: content_type,
         tags,
         createdBy: { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId },
-        precondition: { kind: ARTIFACT_WRITE_PRECONDITION.UPSERT },
+        precondition: buildWritePrecondition(version),
       });
       const userTimezone = await sensorManager.getUserTimezone();
       const normalizedNote =
@@ -74,14 +82,14 @@ export function getWriteArtifactToolConfig(
         `Artifact written: ${metadata.filename}${normalizedNote} (type: ${metadata.type}, modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)}) [${formatVersionToken(metadata.updatedTimestamp)}]`,
       ]);
     } catch (error) {
-      return getErrorToolResult(error, "Failed to write artifact.");
+      return getWriteArtifactErrorResult(error, version, EDIT_ARTIFACT_TOOL_NAME, "Failed to write artifact.");
     }
   };
 
   const config: McpToolConfig<typeof inputSchema> = {
     name: WRITE_ARTIFACT_TOOL_NAME,
     description:
-      "Save a file to your own artifacts folder, creating it or replacing the existing file at that name. Other agents can read your artifacts to collaborate. Use edit_artifact for surgical line-level changes to a TEXT artifact.",
+      "Save a file to your own artifacts folder. Creates a new artifact; replacing the existing file at that name requires passing its current Version. Other agents can read your artifacts to collaborate. Use edit_artifact for surgical line-level changes to a TEXT artifact.",
     inputSchema,
     handler,
   };

@@ -2,9 +2,21 @@ import path from "node:path";
 import { ARTIFACT_CONTENT_TYPE, ARTIFACT_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { formatLocalDateTime } from "../../utils/date-utils.js";
-import { formatVersionToken, processTextContent, textToolResult, type ReadLineOptions } from "../tool-utils.js";
+import {
+  formatVersionToken,
+  getErrorToolResult,
+  processTextContent,
+  textToolResult,
+  type ReadLineOptions,
+} from "../tool-utils.js";
 import { last } from "es-toolkit";
-import type { ArtifactContentFindResult } from "../../services/artifact/artifact-manager.types.js";
+import { AppError } from "../../core/error/app-error.js";
+import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
+import { ARTIFACT_WRITE_PRECONDITION } from "../../services/artifact/artifact-manager.types.js";
+import type {
+  ArtifactContentFindResult,
+  ArtifactWritePrecondition,
+} from "../../services/artifact/artifact-manager.types.js";
 
 export interface LineEditResult {
   content: string;
@@ -16,6 +28,28 @@ export const ARTIFACT_CONTENT_TYPE_VALUES = Object.values(ARTIFACT_CONTENT_TYPE)
 
 /** Default cap on lines returned by read artifact tools to avoid flooding the context with large text artifacts. */
 export const DEFAULT_READ_ARTIFACT_LINE_LIMIT = 100;
+
+export const WRITE_ARTIFACT_VERSION_DESCRIPTION =
+  "Required to replace an existing artifact: the Version token from your most recent read. Omit to create a new artifact — omitting it against an existing filename is a conflict.";
+
+export const buildWritePrecondition = (version?: number): ArtifactWritePrecondition =>
+  version === undefined
+    ? { kind: ARTIFACT_WRITE_PRECONDITION.CREATE_ONLY }
+    : { kind: ARTIFACT_WRITE_PRECONDITION.MATCH_VERSION, expectedUpdatedTimestamp: version };
+
+/** A create-only conflict is the one write failure with a tool-specific remedy; every other failure passes through. */
+export function getWriteArtifactErrorResult(
+  error: unknown,
+  version: number | undefined,
+  editToolName: string,
+  fallbackMessage: string
+) {
+  if (version === undefined && error instanceof AppError && error.errorCode === APP_ERROR_CODES.CONFLICT) {
+    return textToolResult([`${error.message} Or use ${editToolName} to change part of it.`], true);
+  }
+
+  return getErrorToolResult(error, fallbackMessage);
+}
 
 export const EDIT_ARTIFACT_MODE = {
   INSERT: "insert",
