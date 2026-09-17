@@ -127,8 +127,8 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
       .map((server) => server.mcpToolPrefix);
     const systemPromptOption = systemPrompt
       ? agentConfig.excludeClaudeCodeSystemPrompt
-        ? systemPrompt
-        : { type: "preset" as const, preset: "claude_code" as const, append: systemPrompt }
+        ? { type: "custom" as const, prompt: systemPrompt, snapshot: false }
+        : { type: "preset" as const, preset: "claude_code" as const, append: systemPrompt, snapshot: false }
       : undefined;
 
     const toolsOption =
