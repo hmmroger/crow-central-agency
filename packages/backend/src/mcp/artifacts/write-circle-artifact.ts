@@ -3,9 +3,14 @@ import { AGENT_TASK_SOURCE_TYPE, ARTIFACT_CONTENT_TYPE } from "@crow-central-age
 import type { ArtifactManager } from "../../services/artifact/artifact-manager.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
-import { getErrorToolResult, textToolResult } from "../tool-utils.js";
+import { formatVersionToken, getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { formatLocalDateTime } from "../../utils/date-utils.js";
-import { ARTIFACT_CONTENT_TYPE_VALUES, ARTIFACT_TYPE_VALUES } from "./artifacts-mcp-server-utils.js";
+import {
+  ARTIFACT_CONTENT_TYPE_VALUES,
+  ARTIFACT_TYPE_VALUES,
+  buildWritePrecondition,
+  WRITE_ARTIFACT_VERSION_DESCRIPTION,
+} from "./artifacts-mcp-server-utils.js";
 
 export const WRITE_CIRCLE_ARTIFACT_TOOL_NAME = "write_circle_artifact";
 
@@ -38,6 +43,7 @@ export function getWriteCircleArtifactToolConfig(
       .array(z.string())
       .optional()
       .describe("Tags to attach to the artifact. Fully replaces existing tags; omit to leave the artifact untagged."),
+    version: z.number().optional().describe(WRITE_ARTIFACT_VERSION_DESCRIPTION),
   };
 
   const handler: ToolHandler<typeof inputSchema> = async ({
@@ -47,6 +53,7 @@ export function getWriteCircleArtifactToolConfig(
     type,
     content_type,
     tags,
+    version,
   }) => {
     if (!artifactManager.isDirectCircleMember(circle_id, agentId)) {
       return textToolResult(["You are not a direct member of this circle."], true);
@@ -67,6 +74,7 @@ export function getWriteCircleArtifactToolConfig(
         contentType: content_type,
         tags,
         createdBy: { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId },
+        precondition: buildWritePrecondition(version),
       });
       const userTimezone = await sensorManager.getUserTimezone();
       const normalizedNote =
@@ -75,7 +83,7 @@ export function getWriteCircleArtifactToolConfig(
           : "";
 
       return textToolResult([
-        `Circle artifact written: ${metadata.filename}${normalizedNote} (circle: ${circle_id}, type: ${metadata.type}, modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)})`,
+        `Circle artifact written: ${metadata.filename}${normalizedNote} (circle: ${circle_id}, type: ${metadata.type}, modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)}) [${formatVersionToken(metadata.updatedTimestamp)}]`,
       ]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to write circle artifact.");
@@ -85,7 +93,7 @@ export function getWriteCircleArtifactToolConfig(
   const config: McpToolConfig<typeof inputSchema> = {
     name: WRITE_CIRCLE_ARTIFACT_TOOL_NAME,
     description:
-      "Save a file to a circle's shared artifacts folder, creating it or replacing the existing file at that name. Only direct members of the circle can read and write circle artifacts. Use edit_circle_artifact for surgical line-level changes to a TEXT artifact.",
+      "Save a file to a circle's shared artifacts folder. Creates a new artifact; replacing the existing file at that name requires passing its current Version. Only direct members of the circle can read and write circle artifacts. Use edit_circle_artifact for surgical line-level changes to a TEXT artifact.",
     inputSchema,
     handler,
   };

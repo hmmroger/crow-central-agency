@@ -3,9 +3,14 @@ import { ARTIFACT_CONTENT_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactManager } from "../../services/artifact/artifact-manager.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
-import { getErrorToolResult, textToolResult } from "../tool-utils.js";
+import { formatVersionToken, getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { formatLocalDateTime } from "../../utils/date-utils.js";
-import { applyLineEdit, EDIT_ARTIFACT_MODE, EDIT_ARTIFACT_MODE_VALUES } from "./artifacts-mcp-server-utils.js";
+import {
+  applyLineEdit,
+  buildEditArtifactNote,
+  EDIT_ARTIFACT_MODE,
+  EDIT_ARTIFACT_MODE_VALUES,
+} from "./artifacts-mcp-server-utils.js";
 
 export const EDIT_CIRCLE_ARTIFACT_TOOL_NAME = "edit_circle_artifact";
 
@@ -69,7 +74,13 @@ export function getEditCircleArtifactToolConfig(
         );
       }
 
-      const nextContent = applyLineEdit(existingContent, content, mode, startLine, endLine);
+      const { content: nextContent, insertedLineCount } = applyLineEdit(
+        existingContent,
+        content,
+        mode,
+        startLine,
+        endLine
+      );
       const updated = await artifactManager.updateCircleArtifact(circle_id, filename, {
         content: nextContent,
         addTags,
@@ -77,13 +88,10 @@ export function getEditCircleArtifactToolConfig(
         expectedUpdatedTimestamp: version,
       });
       const userTimezone = await sensorManager.getUserTimezone();
-      const editNote =
-        mode === EDIT_ARTIFACT_MODE.REPLACE
-          ? `replaced lines ${startLine}-${endLine}`
-          : `inserted at line ${startLine}`;
+      const editNote = buildEditArtifactNote(mode, startLine, endLine, insertedLineCount);
 
       return textToolResult([
-        `Circle artifact edited: ${updated.filename} (circle: ${circle_id}, ${editNote}, size: ${updated.size} bytes, modified: ${formatLocalDateTime(new Date(updated.updatedTimestamp), userTimezone)}). Re-read the artifact before the next edit; line numbers and Version are now stale.`,
+        `Circle artifact edited: ${updated.filename} (circle: ${circle_id}, size: ${updated.size} bytes, modified: ${formatLocalDateTime(new Date(updated.updatedTimestamp), userTimezone)}) [${formatVersionToken(updated.updatedTimestamp)}] — ${editNote}`,
       ]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to edit circle artifact.");

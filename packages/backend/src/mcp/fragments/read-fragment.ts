@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { FragmentManager } from "../../services/fragment/fragment-manager.js";
 import type { AgentRuntimeManager } from "../../services/runtime/agent-runtime-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
-import { getErrorToolResult, textToolResult } from "../tool-utils.js";
+import { formatVersionToken, getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { signalActiveDomain } from "./active-domain-signal.js";
 import { assertFragmentAccessible } from "./fragment-tool-utils.js";
 
@@ -27,7 +27,7 @@ export function getReadFragmentToolConfig(
 
       const lines = [
         `[${fragment.kind}] ${fragment.cue}`,
-        `[Id: ${fragment.id} | Version: ${fragment.updatedTimestamp}]`,
+        `[Id: ${fragment.id} | ${formatVersionToken(fragment.updatedTimestamp)}]`,
         "--- BODY ---",
         fragment.body,
       ];

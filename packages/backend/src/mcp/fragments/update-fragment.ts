@@ -3,7 +3,7 @@ import { FRAGMENT_MAX_WORDS } from "@crow-central-agency/shared";
 import type { FragmentManager } from "../../services/fragment/fragment-manager.js";
 import type { AgentRuntimeManager } from "../../services/runtime/agent-runtime-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
-import { getErrorToolResult, textToolResult } from "../tool-utils.js";
+import { formatVersionToken, getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { signalActiveDomain } from "./active-domain-signal.js";
 import { assertFragmentAccessible } from "./fragment-tool-utils.js";
 
@@ -34,7 +34,7 @@ export function getUpdateFragmentToolConfig(
 
       assertFragmentAccessible(fragmentManager, agentId, id);
 
-      await fragmentManager.updateFragment(id, {
+      const fragment = await fragmentManager.updateFragment(id, {
         cue,
         body,
         expectedUpdatedTimestamp: version,
@@ -52,7 +52,7 @@ export function getUpdateFragmentToolConfig(
       await signalActiveDomain(agentId, id, fragmentManager, runtimeManager);
 
       return textToolResult([
-        `Fragment updated: ${id} (${changes.join(", ")}). Re-read the fragment before the next update; Version is now stale.`,
+        `Fragment updated: ${id} (${changes.join(", ")}) [${formatVersionToken(fragment.updatedTimestamp)}]`,
       ]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to update fragment.");

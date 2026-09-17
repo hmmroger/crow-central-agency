@@ -2,15 +2,32 @@ import path from "node:path";
 import { ARTIFACT_CONTENT_TYPE, ARTIFACT_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { formatLocalDateTime } from "../../utils/date-utils.js";
-import { processTextContent, textToolResult, type ReadLineOptions } from "../tool-utils.js";
+import { formatVersionToken, processTextContent, textToolResult, type ReadLineOptions } from "../tool-utils.js";
 import { last } from "es-toolkit";
-import type { ArtifactContentFindResult } from "../../services/artifact/artifact-manager.types.js";
+import { ARTIFACT_WRITE_PRECONDITION } from "../../services/artifact/artifact-manager.types.js";
+import type {
+  ArtifactContentFindResult,
+  ArtifactWritePrecondition,
+} from "../../services/artifact/artifact-manager.types.js";
+
+export interface LineEditResult {
+  content: string;
+  insertedLineCount: number;
+}
 
 export const ARTIFACT_TYPE_VALUES = Object.values(ARTIFACT_TYPE);
 export const ARTIFACT_CONTENT_TYPE_VALUES = Object.values(ARTIFACT_CONTENT_TYPE);
 
 /** Default cap on lines returned by read artifact tools to avoid flooding the context with large text artifacts. */
 export const DEFAULT_READ_ARTIFACT_LINE_LIMIT = 100;
+
+export const WRITE_ARTIFACT_VERSION_DESCRIPTION =
+  "Required to replace an existing artifact: the Version token from your most recent read. Omit to create a new artifact — omitting it against an existing filename is a conflict.";
+
+export const buildWritePrecondition = (version?: number): ArtifactWritePrecondition =>
+  version === undefined
+    ? { kind: ARTIFACT_WRITE_PRECONDITION.CREATE_ONLY }
+    : { kind: ARTIFACT_WRITE_PRECONDITION.MATCH_VERSION, expectedUpdatedTimestamp: version };
 
 export const EDIT_ARTIFACT_MODE = {
   INSERT: "insert",
@@ -29,7 +46,7 @@ export function applyLineEdit(
   mode: EditArtifactMode,
   startLine: number,
   endLine?: number
-): string {
+): LineEditResult {
   const existingLines = existingContent.split("\n");
   const totalLines = existingLines.length;
 
@@ -66,7 +83,31 @@ export function applyLineEdit(
   }
 
   const updatedContent = preContent.concat(newContent).concat(postContent).join("\n");
-  return updatedContent;
+  return { content: updatedContent, insertedLineCount: newContent.length };
+}
+
+function formatLineShift(shift: number): string {
+  return shift === 0 ? "later lines unchanged" : `later lines shifted by ${shift > 0 ? "+" : ""}${shift}`;
+}
+
+/** Describe what an applied line edit did to the caller's line map, so it can keep using it without re-reading. */
+export function buildEditArtifactNote(
+  mode: EditArtifactMode,
+  startLine: number,
+  endLine: number | undefined,
+  insertedLineCount: number
+): string {
+  if (mode === EDIT_ARTIFACT_MODE.INSERT) {
+    return `inserted ${insertedLineCount} line(s) before line ${startLine}; ${formatLineShift(insertedLineCount)}`;
+  }
+
+  const replacedLineCount = (endLine ?? startLine) - startLine + 1;
+  const shift = insertedLineCount - replacedLineCount;
+  if (insertedLineCount === 0) {
+    return `lines ${startLine}-${endLine ?? startLine} removed; ${formatLineShift(shift)}`;
+  }
+
+  return `lines ${startLine}-${startLine + insertedLineCount - 1} now hold your content; ${formatLineShift(shift)}`;
 }
 
 /** Image extensions that Claude can process natively via base64 */
@@ -90,7 +131,7 @@ export function buildReadArtifactResult(
 ) {
   const header = [
     `--- METADATA ---`,
-    `[Type: ${metadata.type} | Content: ${metadata.contentType} | Modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)} | Version: ${metadata.updatedTimestamp}]`,
+    `[Type: ${metadata.type} | Content: ${metadata.contentType} | Modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)} | ${formatVersionToken(metadata.updatedTimestamp)}]`,
   ];
   if (metadata.tags?.length) {
     header.push(`[Tags: ${metadata.tags.join(", ")}]`);

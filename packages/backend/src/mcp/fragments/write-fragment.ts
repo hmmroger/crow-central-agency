@@ -4,7 +4,7 @@ import type { FragmentManager } from "../../services/fragment/fragment-manager.j
 import type { FragmentParent } from "../../services/fragment/fragment-manager.types.js";
 import type { AgentRuntimeManager } from "../../services/runtime/agent-runtime-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
-import { getErrorToolResult, textToolResult } from "../tool-utils.js";
+import { formatVersionToken, getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { signalActiveDomain } from "./active-domain-signal.js";
 import { assertFragmentAccessible } from "./fragment-tool-utils.js";
 
@@ -47,7 +47,9 @@ export function getWriteFragmentToolConfig(
 
       await signalActiveDomain(agentId, fragment.id, fragmentManager, runtimeManager);
 
-      return textToolResult([`Fragment created: ${fragment.id} (${fragment.kind})`]);
+      return textToolResult([
+        `Fragment created: ${fragment.id} (${fragment.kind}) [${formatVersionToken(fragment.updatedTimestamp)}]`,
+      ]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to write fragment.");
     }
