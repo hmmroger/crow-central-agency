@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AGENT_TASK_SOURCE_TYPE, ARTIFACT_CONTENT_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactManager } from "../../services/artifact/artifact-manager.js";
+import { ARTIFACT_WRITE_PRECONDITION } from "../../services/artifact/artifact-manager.types.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { formatVersionToken, getErrorToolResult, textToolResult } from "../tool-utils.js";
@@ -61,6 +62,7 @@ export function getWriteArtifactToolConfig(
         contentType: content_type,
         tags,
         createdBy: { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId },
+        precondition: { kind: ARTIFACT_WRITE_PRECONDITION.UPSERT },
       });
       const userTimezone = await sensorManager.getUserTimezone();
       const normalizedNote =

@@ -33,8 +33,20 @@ export interface ReadArtifactResult {
   metadata: ArtifactMetadata;
 }
 
+export const ARTIFACT_WRITE_PRECONDITION = {
+  CREATE_ONLY: "createOnly",
+  MATCH_VERSION: "matchVersion",
+  UPSERT: "upsert",
+} as const;
+
+export type ArtifactWritePrecondition =
+  | { kind: typeof ARTIFACT_WRITE_PRECONDITION.CREATE_ONLY }
+  | { kind: typeof ARTIFACT_WRITE_PRECONDITION.MATCH_VERSION; expectedUpdatedTimestamp: number }
+  | { kind: typeof ARTIFACT_WRITE_PRECONDITION.UPSERT };
+
 export interface WriteArtifactOptions {
   createdBy: AgentTaskSource;
+  precondition: ArtifactWritePrecondition;
   type?: ArtifactType;
   contentType?: ArtifactContentType;
   tags?: string[];

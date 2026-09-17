@@ -26,6 +26,8 @@ import type { AgentRegistry } from "../agent-registry.js";
 import type { AgentCircleManager } from "../agent-circle-manager.js";
 import { getMimeTypeByFilename, DOCX_MIME_TYPE } from "../../utils/mime-type.js";
 import { EventBus } from "../../core/event-bus/event-bus.js";
+import { formatVersionToken } from "../../mcp/tool-utils.js";
+import { ARTIFACT_WRITE_PRECONDITION } from "./artifact-manager.types.js";
 import type {
   ArtifactAdapter,
   ArtifactContentFindResult,
@@ -33,6 +35,7 @@ import type {
   ArtifactListOptions,
   ArtifactLocation,
   ArtifactManagerEvents,
+  ArtifactWritePrecondition,
   MoveArtifactOptions,
   ReadArtifactOptions,
   ReadArtifactResult,
@@ -274,6 +277,8 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
         type: sourceMetadata.type,
         tags: sourceMetadata.tags,
         createdBy: options.movedBy,
+        // The destination-occupied check above already ran, with its own remedy wording.
+        precondition: { kind: ARTIFACT_WRITE_PRECONDITION.UPSERT },
       }
     );
 
@@ -336,10 +341,51 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
     return { content: buf, metadata };
   }
 
+  private assertVersionMatches(existing: ArtifactMetadata, expectedUpdatedTimestamp: number): void {
+    if (existing.updatedTimestamp === expectedUpdatedTimestamp) {
+      return;
+    }
+
+    throw new AppError(
+      `Artifact was modified since it was read (current ${formatVersionToken(existing.updatedTimestamp)}). Retry with this Version, or re-read the artifact first.`,
+      APP_ERROR_CODES.CONFLICT
+    );
+  }
+
+  private assertWritePrecondition(
+    precondition: ArtifactWritePrecondition,
+    existing: ArtifactMetadata | undefined,
+    normalizedFilename: string,
+    entityType: ArtifactEntityType,
+    entityId: string
+  ): void {
+    if (precondition.kind === ARTIFACT_WRITE_PRECONDITION.CREATE_ONLY) {
+      if (existing) {
+        throw new AppError(
+          `Artifact ${normalizedFilename} already exists (${existing.size} bytes, ${formatVersionToken(existing.updatedTimestamp)}). Pass version: ${existing.updatedTimestamp} to replace it wholesale.`,
+          APP_ERROR_CODES.CONFLICT
+        );
+      }
+
+      return;
+    }
+
+    if (precondition.kind === ARTIFACT_WRITE_PRECONDITION.MATCH_VERSION) {
+      if (!existing) {
+        throw new AppError(
+          `Artifact not found: ${normalizedFilename} (${entityType}/${entityId})`,
+          APP_ERROR_CODES.NOT_FOUND
+        );
+      }
+
+      this.assertVersionMatches(existing, precondition.expectedUpdatedTimestamp);
+    }
+  }
+
   /**
-   * Write an artifact end-to-end (upsert): normalize, reuse or mint id, write disk by id, set metadata.
-   * If the artifact already exists, content and metadata are replaced; id, createdTimestamp, and createdBy
-   * are preserved.
+   * Write an artifact end-to-end: normalize, check the caller's precondition, reuse or mint id, write disk by id,
+   * set metadata. When the artifact already exists and the precondition allows the write, content and metadata are
+   * replaced; id, createdTimestamp, and createdBy are preserved.
    */
   private async writeEntityArtifact(
     entityType: ArtifactEntityType,
@@ -351,6 +397,8 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
     const normalizedFilename = normalizeArtifactFilename(filename);
     const table = this.getStoreTable(entityType, entityId);
     const existing = await this.store.get<ArtifactMetadata>(table, normalizedFilename);
+    this.assertWritePrecondition(options.precondition, existing?.value, normalizedFilename, entityType, entityId);
+
     const id = existing?.value.id ?? generateId();
     const filePath = this.getEntityArtifactPath(entityType, entityId, id);
     await writeBinaryFile(filePath, content);
@@ -412,14 +460,8 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
       );
     }
 
-    if (
-      options.expectedUpdatedTimestamp !== undefined &&
-      existing.value.updatedTimestamp !== options.expectedUpdatedTimestamp
-    ) {
-      throw new AppError(
-        `Artifact was modified since it was read. Re-read the artifact and retry the edit.`,
-        APP_ERROR_CODES.CONFLICT
-      );
+    if (options.expectedUpdatedTimestamp !== undefined) {
+      this.assertVersionMatches(existing.value, options.expectedUpdatedTimestamp);
     }
 
     let newSize = existing.value.size;

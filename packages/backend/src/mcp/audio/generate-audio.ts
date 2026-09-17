@@ -5,6 +5,7 @@ import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import type { AgentRegistry } from "../../services/agent-registry.js";
 import type { ArtifactManager } from "../../services/artifact/artifact-manager.js";
+import { ARTIFACT_WRITE_PRECONDITION } from "../../services/artifact/artifact-manager.types.js";
 import { audioGeneration } from "../../services/content-generation/audio-generation-service.js";
 import type { VoiceConfig } from "../../services/content-generation/content-generation.types.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
@@ -108,6 +109,8 @@ export function getGenerateAudioToolConfig(agentId: string, registry: AgentRegis
       const metadata = await artifactManager.writeArtifact(agentId, filename, audioData, {
         contentType: ARTIFACT_CONTENT_TYPE.AUDIO,
         createdBy: { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId },
+        // The filename is timestamp-derived with no collision handling, so an occupied name means something is wrong.
+        precondition: { kind: ARTIFACT_WRITE_PRECONDITION.CREATE_ONLY },
       });
 
       const durationMs = response.message.durationMs;

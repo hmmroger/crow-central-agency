@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import multipart from "@fastify/multipart";
 import type { ArtifactManager } from "../services/artifact/artifact-manager.js";
+import { ARTIFACT_WRITE_PRECONDITION } from "../services/artifact/artifact-manager.types.js";
 import { validateAgentIdParam, validateCircleIdParam } from "../utils/validation.js";
 import {
   AGENT_TASK_SOURCE_TYPE,
@@ -100,6 +101,8 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
       contentType,
       tags,
       createdBy: { sourceType: AGENT_TASK_SOURCE_TYPE.USER },
+      // A user picking a file that replaces a same-named artifact is a UI-gated user action.
+      precondition: { kind: ARTIFACT_WRITE_PRECONDITION.UPSERT },
     });
 
     return { success: true, data: metadata };
@@ -175,6 +178,8 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
       contentType,
       tags,
       createdBy: { sourceType: AGENT_TASK_SOURCE_TYPE.USER },
+      // A user picking a file that replaces a same-named artifact is a UI-gated user action.
+      precondition: { kind: ARTIFACT_WRITE_PRECONDITION.UPSERT },
     });
 
     return { success: true, data: metadata };
