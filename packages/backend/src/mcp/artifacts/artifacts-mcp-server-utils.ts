@@ -2,7 +2,7 @@ import path from "node:path";
 import { ARTIFACT_CONTENT_TYPE, ARTIFACT_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { formatLocalDateTime } from "../../utils/date-utils.js";
-import { processTextContent, textToolResult, type ReadLineOptions } from "../tool-utils.js";
+import { formatVersionToken, processTextContent, textToolResult, type ReadLineOptions } from "../tool-utils.js";
 import { last } from "es-toolkit";
 import type { ArtifactContentFindResult } from "../../services/artifact/artifact-manager.types.js";
 
@@ -90,7 +90,7 @@ export function buildReadArtifactResult(
 ) {
   const header = [
     `--- METADATA ---`,
-    `[Type: ${metadata.type} | Content: ${metadata.contentType} | Modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)} | Version: ${metadata.updatedTimestamp}]`,
+    `[Type: ${metadata.type} | Content: ${metadata.contentType} | Modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)} | ${formatVersionToken(metadata.updatedTimestamp)}]`,
   ];
   if (metadata.tags?.length) {
     header.push(`[Tags: ${metadata.tags.join(", ")}]`);

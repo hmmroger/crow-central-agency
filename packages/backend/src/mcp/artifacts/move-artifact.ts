@@ -3,7 +3,7 @@ import { AGENT_TASK_SOURCE_TYPE, ENTITY_TYPE } from "@crow-central-agency/shared
 import type { ArtifactManager } from "../../services/artifact/artifact-manager.js";
 import type { ArtifactLocation } from "../../services/artifact/artifact-manager.types.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
-import { getErrorToolResult, textToolResult } from "../tool-utils.js";
+import { formatVersionToken, getErrorToolResult, textToolResult } from "../tool-utils.js";
 
 export const MOVE_ARTIFACT_TOOL_NAME = "move_artifact";
 
@@ -93,7 +93,7 @@ export function getMoveArtifactToolConfig(agentId: string, artifactManager: Arti
         ? `Renamed ${filename} to ${metadata.filename} in ${destinationLabel}${normalizedNote}`
         : `Moved ${filename} from ${sourceLabel} to ${destinationLabel} as ${metadata.filename}${normalizedNote}`;
 
-      return textToolResult([summary]);
+      return textToolResult([`${summary} [${formatVersionToken(metadata.updatedTimestamp)}]`]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to move artifact.");
     }

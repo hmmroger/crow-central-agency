@@ -39,6 +39,9 @@ export const textToolResult = (texts: string[], isError?: boolean) => {
   };
 };
 
+/** Single definition of the Version token rendering shared by read headers and mutation results. */
+export const formatVersionToken = (updatedTimestamp: number) => `Version: ${updatedTimestamp}`;
+
 /**
  * Creates an error tool result from an exception or error object.
  *

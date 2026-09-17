@@ -3,7 +3,7 @@ import { AGENT_TASK_SOURCE_TYPE, ARTIFACT_CONTENT_TYPE } from "@crow-central-age
 import type { ArtifactManager } from "../../services/artifact/artifact-manager.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
-import { getErrorToolResult, textToolResult } from "../tool-utils.js";
+import { formatVersionToken, getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { formatLocalDateTime } from "../../utils/date-utils.js";
 import { ARTIFACT_CONTENT_TYPE_VALUES, ARTIFACT_TYPE_VALUES } from "./artifacts-mcp-server-utils.js";
 
@@ -75,7 +75,7 @@ export function getWriteCircleArtifactToolConfig(
           : "";
 
       return textToolResult([
-        `Circle artifact written: ${metadata.filename}${normalizedNote} (circle: ${circle_id}, type: ${metadata.type}, modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)})`,
+        `Circle artifact written: ${metadata.filename}${normalizedNote} (circle: ${circle_id}, type: ${metadata.type}, modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)}) [${formatVersionToken(metadata.updatedTimestamp)}]`,
       ]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to write circle artifact.");
