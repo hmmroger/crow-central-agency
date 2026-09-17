@@ -85,7 +85,7 @@ export function getEditArtifactToolConfig(
       const editNote = buildEditArtifactNote(mode, startLine, endLine, insertedLineCount);
 
       return textToolResult([
-        `Artifact edited: ${updated.filename} (${editNote}, size: ${updated.size} bytes, modified: ${formatLocalDateTime(new Date(updated.updatedTimestamp), userTimezone)}) [${formatVersionToken(updated.updatedTimestamp)}]`,
+        `Artifact edited: ${updated.filename} (size: ${updated.size} bytes, modified: ${formatLocalDateTime(new Date(updated.updatedTimestamp), userTimezone)}) [${formatVersionToken(updated.updatedTimestamp)}] — ${editNote}`,
       ]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to edit artifact.");

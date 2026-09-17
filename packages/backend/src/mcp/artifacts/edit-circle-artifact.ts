@@ -91,7 +91,7 @@ export function getEditCircleArtifactToolConfig(
       const editNote = buildEditArtifactNote(mode, startLine, endLine, insertedLineCount);
 
       return textToolResult([
-        `Circle artifact edited: ${updated.filename} (circle: ${circle_id}, ${editNote}, size: ${updated.size} bytes, modified: ${formatLocalDateTime(new Date(updated.updatedTimestamp), userTimezone)}) [${formatVersionToken(updated.updatedTimestamp)}]`,
+        `Circle artifact edited: ${updated.filename} (circle: ${circle_id}, size: ${updated.size} bytes, modified: ${formatLocalDateTime(new Date(updated.updatedTimestamp), userTimezone)}) [${formatVersionToken(updated.updatedTimestamp)}] — ${editNote}`,
       ]);
     } catch (error) {
       return getErrorToolResult(error, "Failed to edit circle artifact.");
