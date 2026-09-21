@@ -82,6 +82,7 @@ export const env = {
   PORT: port,
   CORS_ORIGINS: corsOrigins.split(",").map((origin) => origin.trim()),
   CROW_SYSTEM_PATH: expandPath(crowSysPath),
+  CROW_NOTES_PATH: expandPath(getOptional("CROW_NOTES_PATH") ?? path.join(crowSysPath, "notes")),
   STATIC_PATH: expandPath(getOptional("STATIC_PATH") ?? DEFAULT_STATIC_DIR),
   CROW_SYSTEM_AGENT_NAME: getOptional("CROW_SYSTEM_AGENT_NAME"),
   CROW_SYSTEM_AGENT_PROVIDER: getOptional("CROW_SYSTEM_AGENT_PROVIDER")?.trim().toLowerCase(),
