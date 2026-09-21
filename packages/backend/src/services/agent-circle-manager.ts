@@ -9,7 +9,7 @@ import {
   type CreateAgentCircleInput,
   type UpdateAgentCircleInput,
   type CreateRelationshipInput,
-  type EntityType,
+  type RelationshipEntityType,
 } from "@crow-central-agency/shared";
 import { EventBus } from "../core/event-bus/event-bus.js";
 import type { AgentCircleManagerEvents } from "./agent-circle-manager.types.js";
@@ -230,7 +230,7 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
   // ---------------------------------------------------------------------------
 
   /** Get all circles that an entity is a member of */
-  public getCirclesForEntity(entityId: string, entityType: EntityType): AgentCircle[] {
+  public getCirclesForEntity(entityId: string, entityType: RelationshipEntityType): AgentCircle[] {
     const circles: AgentCircle[] = [];
 
     for (const relationship of this.queryRelationships({
@@ -253,11 +253,11 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
    */
   public getCircleMembers(
     circleId: string
-  ): Array<{ relationshipId: string; entityId: string; entityType: EntityType }> {
+  ): Array<{ relationshipId: string; entityId: string; entityType: RelationshipEntityType }> {
     this.getCircle(circleId);
 
     const memberIds = new Set<string>();
-    const members: Array<{ relationshipId: string; entityId: string; entityType: EntityType }> = [];
+    const members: Array<{ relationshipId: string; entityId: string; entityType: RelationshipEntityType }> = [];
 
     for (const relationship of this.queryRelationships({
       sourceEntityId: circleId,

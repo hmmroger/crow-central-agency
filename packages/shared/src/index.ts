@@ -264,6 +264,22 @@ export {
 } from "./schemas/artifact.schema.js";
 
 export {
+  NOTE_CONTENT_TYPE,
+  NoteEntityTypeSchema,
+  NoteContentTypeSchema,
+  NoteFolderMetadataSchema,
+  NoteFileMetadataSchema,
+  NoteMetadataSchema,
+  NoteContentSchema,
+  type NoteEntityType,
+  type NoteContentType,
+  type NoteFolderMetadata,
+  type NoteFileMetadata,
+  type NoteMetadata,
+  type NoteContent,
+} from "./schemas/note.schema.js";
+
+export {
   AGENT_TASK_STATE,
   AGENT_TASK_SOURCE_TYPE,
   AgentTaskStateSchema,
@@ -390,6 +406,7 @@ export {
   type DeleteRelationshipResult,
   type CircleMember,
   type EntityType,
+  type RelationshipEntityType,
   type RelationshipType,
 } from "./schemas/agent-circle.schema.js";
 

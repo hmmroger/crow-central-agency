@@ -5,7 +5,7 @@ import {
   CreateAgentCircleInputSchema,
   CreateRelationshipInputSchema,
   UpdateAgentCircleInputSchema,
-  type EntityType,
+  type RelationshipEntityType,
 } from "@crow-central-agency/shared";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
@@ -26,7 +26,7 @@ export async function registerCircleRoutes(
   registry: AgentRegistry,
   fragmentManager: FragmentManager
 ) {
-  const validateEntity = (entityId: string, entityType: EntityType): void => {
+  const validateEntity = (entityId: string, entityType: RelationshipEntityType): void => {
     switch (entityType) {
       case ENTITY_TYPE.AGENT:
         registry.getAgent(entityId);
