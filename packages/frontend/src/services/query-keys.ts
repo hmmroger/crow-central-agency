@@ -175,6 +175,18 @@ export const agentBuilderKeys = {
 };
 
 /**
+ * Query key factory for note queries.
+ */
+export const noteKeys = {
+  /** Root key for all note queries */
+  all: ["notes"] as const,
+  /** The live note tree */
+  tree: () => [...noteKeys.all, "tree"] as const,
+  /** Content of a single note */
+  content: (noteId: string) => [...noteKeys.all, "content", noteId] as const,
+};
+
+/**
  * Query key factory for connector queries.
  */
 export const connectorKeys = {

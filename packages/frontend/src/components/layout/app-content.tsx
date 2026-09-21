@@ -4,6 +4,7 @@ import { Dashboard } from "../dashboard/dashboard.js";
 import { AgentsView } from "../agents/agents-view.js";
 import { AgentBuilderView } from "../agent-builder/agent-builder-view.js";
 import { TasksView } from "../tasks/tasks-view.js";
+import { NotesView } from "../notes/notes-view.js";
 import { SchedulesView } from "../schedules/schedules-view.js";
 import { SettingsView } from "../settings/settings-view.js";
 import { GraphView } from "../graph/graph-view.js";
@@ -34,6 +35,10 @@ export function AppContent() {
 
     case VIEW_MODE.TASKS:
       view = <TasksView />;
+      break;
+
+    case VIEW_MODE.NOTES:
+      view = <NotesView />;
       break;
 
     case VIEW_MODE.SCHEDULES:

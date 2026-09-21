@@ -8,6 +8,7 @@ export const VIEW_MODE = {
   AGENTS: "agents",
   AGENT_BUILDER: "agent-builder",
   TASKS: "tasks",
+  NOTES: "notes",
   SCHEDULES: "schedules",
   GRAPH: "graph",
   SETTINGS: "settings",
