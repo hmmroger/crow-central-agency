@@ -178,6 +178,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         ),
         settingSources: agentConfig.settingSources,
         mcpServers,
+        strictMcpConfig: agentConfig.isSystemAgent || !env.CLAUDE_USE_ALL_MCP_CONFIG ? true : undefined,
         persistSession,
         agentProgressSummaries: true,
         pathToClaudeCodeExecutable: env.CLAUDE_CLI_PATH,

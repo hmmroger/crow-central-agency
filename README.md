@@ -102,6 +102,7 @@ See `.env.example` for the full list, including:
 - `CROW_SYSTEM_AGENT_COPILOT_MODEL` — model for system agents when `CROW_SYSTEM_AGENT_PROVIDER=copilot` (default: `auto`).
 - `STATIC_PATH` — override the directory served as frontend assets (auto-detected from the published bundle).
 - `CLAUDE_CLI_PATH` — explicit path to the Claude Code CLI binary when it is not on `PATH`.
+- `CLAUDE_USE_ALL_MCP_CONFIG` — set to `true` (or `1`) to let Claude Code agents also load MCP servers from your Claude Code settings (user / project / `.mcp.json`) in addition to the servers configured in Crow. Defaults to `false`, which runs agents with strict MCP config so only Crow-configured servers are available. Built-in system agents always use strict MCP config.
 - `DISABLE_GITHUB_COPILOT` — set to `true` (or `1`) to skip starting the Copilot SDK client at boot, so GitHub Copilot is reported unavailable everywhere. Defaults to `false`.
 - `COPILOT_CLI_PATH` — override the Copilot CLI runtime the SDK spawns (read directly by `@github/copilot-sdk`); leave unset to use the bundled runtime.
 - `CLOSED_TASK_RETENTION_DAYS` — how long to keep closed tasks before pruning on startup (default: `30`).
