@@ -1,15 +1,16 @@
-import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
   CreateNoteInput,
   DeletedResult,
   NoteFileMetadata,
   NoteMetadata,
+  ResolveWikilinkInput,
   UpdateNoteInput,
   WriteNoteContentInput,
 } from "@crow-central-agency/shared";
 import { apiClient, createNote, unwrapResponse } from "../../services/api-client.js";
-import { noteKeys } from "../../services/query-keys.js";
 import type { ApiError } from "../../services/api-client.types.js";
+import { upsertNoteQueryData } from "../../services/note-query-data.js";
 
 /** Target note plus the fields to change */
 interface UpdateNoteVariables {
@@ -29,28 +30,31 @@ function getNotePath(noteId: string): string {
   return `/notes/${encodeURIComponent(noteId)}`;
 }
 
-/** Trashing and restoring move a note between the two trees, so both are stale. */
-function invalidateNoteTrees(queryClient: QueryClient): void {
-  void queryClient.invalidateQueries({ queryKey: noteKeys.tree() });
-  void queryClient.invalidateQueries({ queryKey: noteKeys.trash() });
-}
-
-/** Create a folder or a text note. Invalidates the tree on success. */
+/** Create a folder or a text note. */
 export function useCreateNote() {
   const queryClient = useQueryClient();
 
   return useMutation<NoteMetadata, ApiError, CreateNoteInput>({
     mutationFn: async (input) => unwrapResponse(await createNote(input)),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: noteKeys.tree() });
+    onSuccess: (metadata) => {
+      upsertNoteQueryData(queryClient, metadata);
     },
   });
 }
 
-/**
- * Rename and/or move a note. A rename or move re-keys the note (and every
- * descendant of a folder), so the whole tree is invalidated rather than patched.
- */
+/** The note a wikilink names, created beside the source note when it names nothing yet. */
+export function useResolveWikilink() {
+  const queryClient = useQueryClient();
+
+  return useMutation<NoteMetadata, ApiError, ResolveWikilinkInput>({
+    mutationFn: async (input) => unwrapResponse(await apiClient.post<NoteMetadata>("/notes/resolve", input)),
+    onSuccess: (metadata) => {
+      upsertNoteQueryData(queryClient, metadata);
+    },
+  });
+}
+
+/** Rename and/or move a note. A new id is listed at once so the caller can open it. */
 export function useUpdateNote() {
   const queryClient = useQueryClient();
 
@@ -60,51 +64,39 @@ export function useUpdateNote() {
 
       return unwrapResponse(response);
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: noteKeys.tree() });
+    onSuccess: (metadata, { noteId }) => {
+      if (metadata.id !== noteId) {
+        upsertNoteQueryData(queryClient, metadata, noteId);
+      }
     },
   });
 }
 
-/**
- * Delete a note. The backend decides by location — a live note moves
- * to the trash, a trashed one is removed for good — so both trees are stale.
- */
+/** Delete a note. The backend decides by location — a live note moves to the trash, a trashed one is removed for good. */
 export function useDeleteNote() {
-  const queryClient = useQueryClient();
-
   return useMutation<void, ApiError, string>({
     mutationFn: async (noteId) => {
       unwrapResponse(await apiClient.del<DeletedResult>(getNotePath(noteId)));
     },
-    onSuccess: () => invalidateNoteTrees(queryClient),
   });
 }
 
 /** Restore a trashed note. The backend derives the path it came from. */
 export function useRestoreNote() {
-  const queryClient = useQueryClient();
-
   return useMutation<NoteMetadata, ApiError, string>({
     mutationFn: async (noteId) => {
       const response = await apiClient.post<NoteMetadata>(`${getNotePath(noteId)}/restore`);
 
       return unwrapResponse(response);
     },
-    onSuccess: () => invalidateNoteTrees(queryClient),
   });
 }
 
 /** Permanently remove everything in the trash. */
 export function useEmptyTrash() {
-  const queryClient = useQueryClient();
-
   return useMutation<void, ApiError, void>({
     mutationFn: async () => {
       unwrapResponse(await apiClient.del<DeletedResult>(TRASH_PATH));
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: noteKeys.trash() });
     },
   });
 }
@@ -115,16 +107,11 @@ export function useEmptyTrash() {
  * and chains the returned token into its next save.
  */
 export function useWriteNoteContent() {
-  const queryClient = useQueryClient();
-
   return useMutation<NoteFileMetadata, ApiError, WriteNoteContentVariables>({
     mutationFn: async ({ noteId, input }) => {
       const response = await apiClient.put<NoteFileMetadata>(`${getNotePath(noteId)}/content`, input);
 
       return unwrapResponse(response);
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: noteKeys.tree() });
     },
   });
 }

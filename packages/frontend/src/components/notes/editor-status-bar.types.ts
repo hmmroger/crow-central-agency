@@ -1,4 +1,4 @@
-import type { LivePreviewEditorHandle } from "./editor/live-preview-editor.types.js";
+import type { EditorStatus } from "./editor/markdown-editor.types.js";
 
 export const EDITOR_STATUS_TONE = {
   WARNING: "warning",
@@ -14,6 +14,6 @@ export interface EditorStatusAlert {
 }
 
 export interface EditorStatusBarProps {
-  editor: LivePreviewEditorHandle;
+  status: EditorStatus;
   alert?: EditorStatusAlert;
 }

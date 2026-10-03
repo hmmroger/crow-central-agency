@@ -5,22 +5,21 @@ import {
   MARKDOWN_WIKILINK_TARGET_ATTRIBUTE,
   type NoteMetadata,
 } from "@crow-central-agency/shared";
-import { resolveWikilinkTarget } from "../../../utils/wikilink-resolver.js";
-import { createImageElement, releaseImageElements } from "../../../utils/note-image/image-element.js";
-import { resolveEmbedTarget } from "../../../utils/note-image/resolved-image.js";
+import type { WikilinkResolutionMap } from "../../../hooks/queries/use-wikilink-resolve-query.types.js";
+import { createImageElement, releaseImageElements } from "../note-image/image-element.js";
 
 const UNRESOLVED_CLASS = "note-wikilink-unresolved";
 const OPEN_KEY = "Enter";
 
-function resolveOpenableNote(notes: NoteMetadata[], link: Element): NoteMetadata | undefined {
+function resolveOpenableNote(resolutions: WikilinkResolutionMap, link: Element): NoteMetadata | undefined {
   const target = link.getAttribute(MARKDOWN_WIKILINK_TARGET_ATTRIBUTE);
-  const note = target ? resolveWikilinkTarget(notes, target) : undefined;
+  const note = target === null ? undefined : resolutions.get(target);
 
   return note?.entityType === ENTITY_TYPE.NOTE ? note : undefined;
 }
 
-function markLink(notes: NoteMetadata[], link: HTMLElement): void {
-  const isOpenable = resolveOpenableNote(notes, link) !== undefined;
+function markLink(resolutions: WikilinkResolutionMap, link: HTMLElement): void {
+  const isOpenable = resolveOpenableNote(resolutions, link) !== undefined;
   link.classList.toggle(UNRESOLVED_CLASS, !isOpenable);
 
   if (isOpenable) {
@@ -33,13 +32,13 @@ function markLink(notes: NoteMetadata[], link: HTMLElement): void {
 }
 
 /** Replaces whatever the embed held, including a serialized copy of an earlier render, without releasing it. */
-function drawEmbed(notes: NoteMetadata[], embed: HTMLElement): HTMLElement | undefined {
+function drawEmbed(resolutions: WikilinkResolutionMap, embed: HTMLElement): HTMLElement | undefined {
   const target = embed.getAttribute(MARKDOWN_WIKILINK_TARGET_ATTRIBUTE);
   if (target === null) {
     return undefined;
   }
 
-  const image = createImageElement(resolveEmbedTarget(target, notes));
+  const image = createImageElement(resolutions.get(target), target);
   embed.replaceChildren(image);
 
   return image;
@@ -52,22 +51,22 @@ function findLinkEvent(event: Event, container: HTMLElement): Element | undefine
 }
 
 /**
- * Brings rendered wikilink placeholders to life: a link to a note opens it on click or Enter, an
- * unresolved link is styled and inert, and an embed draws its image. Returns the cleanup, which lets go of
- * the images.
+ * Brings rendered wikilink placeholders to life from the resolve answers: a link to a note opens it on
+ * click or Enter, an unresolved link is styled and inert, and an embed draws its image. Returns the
+ * cleanup, which lets go of the images.
  */
 export function renderMarkdownWikilinks(
   container: HTMLElement,
-  notes: NoteMetadata[],
+  resolutions: WikilinkResolutionMap,
   onOpenNote: (note: NoteMetadata) => void
 ): () => void {
   for (const link of Array.from(container.querySelectorAll<HTMLElement>(`.${MARKDOWN_WIKILINK_CLASS}`))) {
-    markLink(notes, link);
+    markLink(resolutions, link);
   }
 
   const images: HTMLElement[] = [];
   for (const embed of Array.from(container.querySelectorAll<HTMLElement>(`.${MARKDOWN_WIKI_EMBED_CLASS}`))) {
-    const image = drawEmbed(notes, embed);
+    const image = drawEmbed(resolutions, embed);
     if (image) {
       images.push(image);
     }
@@ -75,7 +74,7 @@ export function renderMarkdownWikilinks(
 
   const handleActivate = (event: MouseEvent | KeyboardEvent) => {
     const link = findLinkEvent(event, container);
-    const note = link ? resolveOpenableNote(notes, link) : undefined;
+    const note = link ? resolveOpenableNote(resolutions, link) : undefined;
 
     if (!note || (event instanceof KeyboardEvent && event.key !== OPEN_KEY)) {
       return;

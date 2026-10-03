@@ -36,14 +36,7 @@ export function buildNoteTree(notes: NoteMetadata[]): NoteTreeEntry[] {
  * The note itself is not included.
  */
 export function collectAncestorIds(notes: NoteMetadata[], noteId: string): string[] {
-  return collectAncestorIdsById(buildMetadataById(notes), noteId);
-}
-
-function buildMetadataById(notes: NoteMetadata[]): Map<string, NoteMetadata> {
-  return new Map(notes.map((metadata) => [metadata.id, metadata]));
-}
-
-function collectAncestorIdsById(metadataById: Map<string, NoteMetadata>, noteId: string): string[] {
+  const metadataById = new Map(notes.map((metadata) => [metadata.id, metadata]));
   const ancestorIds: string[] = [];
   let parentId = metadataById.get(noteId)?.parentId;
 
@@ -53,21 +46,6 @@ function collectAncestorIdsById(metadataById: Map<string, NoteMetadata>, noteId:
   }
 
   return ancestorIds;
-}
-
-/**
- * Folders a note may be moved into: every folder except the note itself and
- * its own descendants, which the backend rejects.
- */
-export function getMoveDestinations(notes: NoteMetadata[], movedNote: NoteMetadata): NoteMetadata[] {
-  const metadataById = buildMetadataById(notes);
-
-  return notes.filter(
-    (metadata) =>
-      metadata.entityType === ENTITY_TYPE.NOTE_FOLDER &&
-      metadata.id !== movedNote.id &&
-      !collectAncestorIdsById(metadataById, metadata.id).includes(movedNote.id)
-  );
 }
 
 /** Folders first, then by name — an order that does not shift as notes are edited. */

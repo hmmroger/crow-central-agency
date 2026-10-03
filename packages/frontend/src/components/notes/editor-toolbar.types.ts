@@ -1,22 +1,16 @@
 import type { ComponentType } from "react";
-import type { EditorState } from "@codemirror/state";
 import type { ActionButtonVariant } from "../common/action-button.js";
-import type { LivePreviewEditorHandle } from "./editor/live-preview-editor.types.js";
-import type { CommandTarget } from "./editor/markdown-commands.types.js";
+import type { EditorFormatState, MarkdownEditorHandle } from "./editor/markdown-editor.types.js";
 
-/**
- * A formatting control, resolved against the live editor rather than against
- * stored state, so the toolbar never has to mirror the document.
- */
+/** A formatting control, resolved against the formatting the editor reports at the cursor */
 export interface EditorCommand {
   label: string;
   icon: ComponentType<{ className?: string }>;
   /** Edits the markdown at the selection */
-  run: (target: CommandTarget) => boolean;
-  /** Reads the syntax tree at the cursor; must be a stable function */
-  isActive: (state: EditorState) => boolean;
-  /** Whether the command applies in this state; must be a stable function */
-  canRun: (state: EditorState) => boolean;
+  run: (editor: MarkdownEditorHandle) => void;
+  isActive: (formatState: EditorFormatState) => boolean;
+  /** Whether the command applies at the cursor */
+  canRun: (formatState: EditorFormatState) => boolean;
   variant?: ActionButtonVariant;
 }
 
@@ -27,19 +21,23 @@ export interface EditorCommandGroup {
 }
 
 export interface EditorToolbarProps {
-  editor: LivePreviewEditorHandle;
+  editor: MarkdownEditorHandle;
+  formatState: EditorFormatState;
 }
 
 export interface EditorToolbarButtonProps {
-  editor: LivePreviewEditorHandle;
+  editor: MarkdownEditorHandle;
+  formatState: EditorFormatState;
   command: EditorCommand;
 }
 
 export interface EditorLinkButtonProps {
-  editor: LivePreviewEditorHandle;
+  editor: MarkdownEditorHandle;
+  formatState: EditorFormatState;
 }
 
 export interface EditorTableGroupProps {
-  editor: LivePreviewEditorHandle;
+  editor: MarkdownEditorHandle;
+  formatState: EditorFormatState;
   className?: string;
 }

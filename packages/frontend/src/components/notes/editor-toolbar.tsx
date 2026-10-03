@@ -21,7 +21,7 @@ function keepEditorFocus(event: MouseEvent): void {
 }
 
 /** Always-visible formatting controls above the note canvas. */
-export function EditorToolbar({ editor }: EditorToolbarProps) {
+export function EditorToolbar({ editor, formatState }: EditorToolbarProps) {
   return (
     <div
       role="toolbar"
@@ -32,16 +32,16 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       {COMMAND_GROUPS.map((group) => (
         <div key={group.name} className={GROUP_CLASS} role="group" aria-label={group.name}>
           {group.commands.map((command) => (
-            <EditorToolbarButton key={command.label} editor={editor} command={command} />
+            <EditorToolbarButton key={command.label} editor={editor} formatState={formatState} command={command} />
           ))}
         </div>
       ))}
 
       <div className={GROUP_CLASS} role="group" aria-label="Link">
-        <EditorLinkButton editor={editor} />
+        <EditorLinkButton editor={editor} formatState={formatState} />
       </div>
 
-      <EditorTableGroup editor={editor} className={GROUP_CLASS} />
+      <EditorTableGroup editor={editor} formatState={formatState} className={GROUP_CLASS} />
     </div>
   );
 }

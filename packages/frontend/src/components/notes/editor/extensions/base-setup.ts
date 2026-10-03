@@ -5,8 +5,8 @@ import { languages } from "@codemirror/language-data";
 import type { Extension } from "@codemirror/state";
 import { EditorView, keymap, type Command, type KeyBinding } from "@codemirror/view";
 import { classHighlighter } from "@lezer/highlight";
-import { TagParser } from "./tag-parser.js";
-import { WikilinkParser } from "./wikilink-parser.js";
+import { TagParser } from "./markdown/tag-parser.js";
+import { WikilinkParser } from "./markdown/wikilink-parser.js";
 
 export const EDITOR_ROOT_CLASS = "md-live-editor";
 

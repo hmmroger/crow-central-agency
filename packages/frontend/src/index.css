@@ -662,7 +662,7 @@
 
     & > ul > li[aria-selected] {
       color: var(--color-text-base);
-      background: var(--color-surface-hover);
+      background: var(--color-surface-accent);
     }
 
     & .cm-completionDetail {

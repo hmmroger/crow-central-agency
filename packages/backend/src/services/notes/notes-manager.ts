@@ -3,12 +3,18 @@ import path from "node:path";
 import {
   ENTITY_TYPE,
   NOTE_CONTENT_TYPE,
+  SERVER_MESSAGE_TYPE,
   type NoteFileMetadata,
   type NoteFolderMetadata,
+  type NoteImageAsset,
   type NoteMetadata,
+  type SuggestWikilinksQuery,
   type UpdateNoteInput,
+  type WikilinkResolution,
+  type WikilinkSuggestion,
 } from "@crow-central-agency/shared";
 import { AppError } from "../../core/error/app-error.js";
+import { isAppErrorCode } from "../../core/error/app-error-utils.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import {
   assertRealPathWithinBase,
@@ -28,11 +34,26 @@ import {
   writeTextFile,
 } from "../../utils/fs-utils.js";
 import { logger } from "../../utils/logger.js";
+import type { WsBroadcaster } from "../ws-broadcaster.js";
 import { NOTE_ASSETS_FOLDER_NAME, toImageAssetExtension, toImageAssetFilename } from "./notes-asset.js";
 import { detectNoteContentType } from "./notes-content-detector.js";
-import { toNoteId, toNoteName, toRenamedNoteFilename } from "./notes-id.js";
+import {
+  isSameNoteName,
+  toComparableNoteName,
+  toNoteId,
+  toNoteName,
+  toRenamedNoteFilename,
+  toWikilinkTargetSegments,
+  WIKILINK_TARGET_SEPARATOR,
+} from "./notes-id.js";
 import { assertValidNoteName } from "./notes-validation.js";
-import type { ReadNoteResult, ResolvedNotePath } from "./notes-manager.types.js";
+import type {
+  ReadNoteResult,
+  ResolvedNotePath,
+  WikilinkMatch,
+  WikilinkPlacement,
+  WikilinkSuggestionMatch,
+} from "./notes-manager.types.js";
 
 const log = logger.child({ context: "notes-manager" });
 
@@ -45,32 +66,8 @@ const TRASH_DIRECTORY = ".trash";
 /** Bounds the `-n` suffix search for images saved in the same second */
 const MAX_ASSET_NAME_ATTEMPTS = 100;
 
-/** mtime carries sub-millisecond precision that would not survive a round trip through JSON */
-function toUpdatedTimestamp(mtimeMs: number): number {
-  return Math.trunc(mtimeMs);
-}
-
-/** Whether `candidatePath` is `ancestorPath` itself or sits underneath it */
-function isWithinRelativePath(candidatePath: string, ancestorPath: string): boolean {
-  return candidatePath === ancestorPath || candidatePath.startsWith(ancestorPath + path.sep);
-}
-
-/**
- * Where a trashed note goes back to: its path with the `.trash` prefix
- * stripped. Only ever call this with a path that carries the prefix — a trash
- * index entry — or the result climbs out of the notes root.
- */
-function toRestoredPath(trashedPath: string): string {
-  return path.relative(TRASH_DIRECTORY, trashedPath);
-}
-
-/** Read an indexed note off disk; the caller resolves the path within its own scope. */
-async function readNoteFile(metadata: NoteFileMetadata, notePath: string): Promise<ReadNoteResult> {
-  const content =
-    metadata.contentType === NOTE_CONTENT_TYPE.TEXT ? await readTextFile(notePath) : await readBinaryFile(notePath);
-
-  return { metadata, content };
-}
+const RECENT_SUGGESTION_LIMIT = 5;
+const MATCH_SUGGESTION_LIMIT = 10;
 
 /**
  * Manages the user's note tree, stored as plain files under the notes root.
@@ -88,7 +85,10 @@ export class NotesManager {
   private index = new Map<string, NoteMetadata>();
   private trashIndex = new Map<string, NoteMetadata>();
 
-  constructor(notesPath: string) {
+  constructor(
+    notesPath: string,
+    private readonly broadcaster: WsBroadcaster
+  ) {
     this.notesPath = notesPath;
     this.trashPath = path.join(notesPath, TRASH_DIRECTORY);
   }
@@ -96,7 +96,7 @@ export class NotesManager {
   /** Ensure the notes root exists and build both indexes from disk. */
   public async initialize(): Promise<void> {
     await ensureDir(this.notesPath);
-    await this.rebuildIndexes();
+    await this.loadIndexes();
   }
 
   /** The live note tree as a flat list; consumers compose it via `parentId`. */
@@ -122,7 +122,11 @@ export class NotesManager {
       throw new AppError(`Not a readable note: ${id}`, APP_ERROR_CODES.NOT_SUPPORTED);
     }
 
-    return readNoteFile(metadata, this.resolvePath(metadata.path));
+    const notePath = this.resolvePath(metadata.path);
+    const content =
+      metadata.contentType === NOTE_CONTENT_TYPE.TEXT ? await readTextFile(notePath) : await readBinaryFile(notePath);
+
+    return { metadata, content };
   }
 
   /**
@@ -131,9 +135,7 @@ export class NotesManager {
    */
   public async createFolder(parentId: string | undefined, name: string): Promise<NoteMetadata> {
     const target = await this.resolveNewTarget(parentId, name, name);
-    await ensureDir(target.absolutePath);
-
-    return this.reindexAndGet(target.id);
+    return this.createDirectoryEntry(target, parentId);
   }
 
   /**
@@ -142,19 +144,115 @@ export class NotesManager {
    */
   public async createTextNote(parentId: string | undefined, name: string, content = ""): Promise<NoteMetadata> {
     const target = await this.resolveNewTarget(parentId, name, `${name}${MARKDOWN_EXTENSION}`);
-    await writeTextFile(target.absolutePath, content);
+    if (!(await writeTextFile(target.absolutePath, content, { overwrite: false }))) {
+      await this.indexEntry(target, parentId);
 
-    return this.reindexAndGet(target.id);
+      throw new AppError(`A note or folder with id "${target.id}" already exists`, APP_ERROR_CODES.CONFLICT);
+    }
+
+    return this.requireIndexedEntry(target, parentId);
+  }
+
+  /** What each target names in the live tree; never creates. */
+  public resolveWikilinkBatch(targets: string[]): WikilinkResolution[] {
+    return targets.map((target) => ({ target, note: this.findWikilinkNote(target) }));
+  }
+
+  /**
+   * The note `target` names, created when it names nothing: a bare name beside
+   * the source note, `a/b/name` from the notes root with any missing folders.
+   * A create that loses a race looks the note up, so repeated calls return the same note.
+   * @throws AppError VALIDATION when the target is blank or names a folder.
+   */
+  public async resolveWikilink(target: string, sourceNoteId: string): Promise<NoteMetadata> {
+    const existing = this.findWikilinkNote(target);
+    if (existing?.entityType === ENTITY_TYPE.NOTE_FOLDER) {
+      throw new AppError(`"${target}" names a folder, not a note`, APP_ERROR_CODES.VALIDATION);
+    }
+
+    if (existing) {
+      return existing;
+    }
+
+    const placement = this.toWikilinkPlacement(target, this.requireLiveNote(sourceNoteId));
+    if (!placement) {
+      throw new AppError("A link needs a note name", APP_ERROR_CODES.VALIDATION);
+    }
+
+    let parentId = placement.parentId;
+    for (const folderName of placement.missingFolderNames) {
+      parentId = (await this.ensureFolder(parentId, folderName)).id;
+    }
+
+    try {
+      return await this.createTextNote(parentId, placement.noteName);
+    } catch (error) {
+      if (!isAppErrorCode(error, APP_ERROR_CODES.CONFLICT)) {
+        throw error;
+      }
+
+      const created = this.findWikilinkNote(target);
+      if (created?.entityType !== ENTITY_TYPE.NOTE) {
+        throw error;
+      }
+
+      return created;
+    }
+  }
+
+  /**
+   * The notes `[[` or `![[` offers: every note, or only images for an embed. With no query the
+   * most recently updated; otherwise those whose name (or path, for a query with `/`) contains the query,
+   * those starting with it first, then the most recent.
+   */
+  public suggestWikilinks(query: SuggestWikilinksQuery): WikilinkSuggestion[] {
+    const candidates: NoteFileMetadata[] = [];
+    for (const metadata of this.index.values()) {
+      if (
+        metadata.entityType === ENTITY_TYPE.NOTE &&
+        metadata.id !== query.excludeId &&
+        (!query.isEmbed || metadata.contentType === NOTE_CONTENT_TYPE.IMAGE)
+      ) {
+        candidates.push(metadata);
+      }
+    }
+
+    const needle = toComparableNoteName(query.query.trim());
+    const notes = needle
+      ? this.rankSuggestionMatches(candidates, needle)
+      : candidates
+          .sort((first, second) => second.updatedTimestamp - first.updatedTimestamp)
+          .slice(0, RECENT_SUGGESTION_LIMIT);
+
+    return notes.map((note) => ({
+      note,
+      folderPath: this.toFolderPath(note),
+      target: this.toShortestWikilinkTarget(note),
+    }));
+  }
+
+  /** Every live folder a note may move into: all but the note itself and its descendants. */
+  public getMoveDestinations(id: string): NoteFolderMetadata[] {
+    const note = this.requireLiveNote(id);
+    const destinations: NoteFolderMetadata[] = [];
+    for (const metadata of this.index.values()) {
+      if (metadata.entityType === ENTITY_TYPE.NOTE_FOLDER && !this.isWithinRelativePath(metadata.path, note.path)) {
+        destinations.push(metadata);
+      }
+    }
+
+    return destinations;
   }
 
   /**
    * Save an image into the `assets` folder beside a text note, under a
    * server-generated `image-YYYYMMDD-HHMMSS` name; nothing the client sends
-   * reaches the filesystem except the bytes.
+   * reaches the filesystem except the bytes. Returns the new note with the
+   * shortest target that embeds it.
    * @throws AppError NOT_SUPPORTED when the id names a folder or a read-only
    * note, VALIDATION when the MIME type is not an accepted image type.
    */
-  public async createImageAsset(noteId: string, mimeType: string, content: Buffer): Promise<NoteMetadata> {
+  public async createImageAsset(noteId: string, mimeType: string, content: Buffer): Promise<NoteImageAsset> {
     const metadata = this.requireNote(noteId);
     if (metadata.entityType !== ENTITY_TYPE.NOTE || metadata.isReadOnly) {
       throw new AppError(`Images can only be added to an editable note: ${noteId}`, APP_ERROR_CODES.NOT_SUPPORTED);
@@ -165,21 +263,25 @@ export class NotesManager {
       throw new AppError(`Unsupported image type: ${mimeType}`, APP_ERROR_CODES.VALIDATION);
     }
 
-    const assetsPath = await this.ensureAssetsFolder(metadata.parentId);
+    const assetsFolder = await this.ensureAssetsFolder(metadata.parentId);
     const createdAt = new Date();
     for (let attempt = 0; attempt < MAX_ASSET_NAME_ATTEMPTS; attempt++) {
-      const target = this.toNewTarget(assetsPath, toImageAssetFilename(createdAt, extension, attempt));
+      const target = this.toNewTarget(assetsFolder.path, toImageAssetFilename(createdAt, extension, attempt));
       if (this.index.has(target.id)) {
         continue;
       }
 
       await assertRealPathWithinBase(target.absolutePath, this.notesPath);
       if (await writeBinaryFile(target.absolutePath, content, { overwrite: false })) {
-        return this.reindexAndGet(target.id);
+        const note = await this.requireIndexedEntry(target, assetsFolder.id);
+
+        return { note, target: this.toShortestWikilinkTarget(note) };
       }
+
+      await this.indexEntry(target, assetsFolder.id);
     }
 
-    throw new AppError(`No free image name left in "${assetsPath}"`, APP_ERROR_CODES.CONFLICT);
+    throw new AppError(`No free image name left in "${assetsFolder.path}"`, APP_ERROR_CODES.CONFLICT);
   }
 
   /**
@@ -201,13 +303,14 @@ export class NotesManager {
 
     const notePath = this.resolvePath(metadata.path);
     const stats = await statFile(notePath);
-    if (toUpdatedTimestamp(stats.mtimeMs) !== updatedTimestamp) {
+    if (this.toUpdatedTimestamp(stats.mtimeMs) !== updatedTimestamp) {
       throw new AppError(`Note changed on disk since it was loaded: ${id}`, APP_ERROR_CODES.CONFLICT);
     }
 
     await writeTextFile(notePath, content);
     const updated = await this.buildNoteMetadata(notePath, path.basename(metadata.path), metadata.parentId);
     this.index.set(updated.id, updated);
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_UPDATED, noteId: updated.id, metadata: updated });
 
     return updated;
   }
@@ -235,7 +338,7 @@ export class NotesManager {
 
     assertValidNoteName(name);
 
-    if (isFolder && isWithinRelativePath(nextRelativePath, metadata.path)) {
+    if (isFolder && this.isWithinRelativePath(nextRelativePath, metadata.path)) {
       throw new AppError(`A folder cannot be moved into itself: ${id}`, APP_ERROR_CODES.VALIDATION);
     }
 
@@ -291,7 +394,7 @@ export class NotesManager {
   public async restoreNote(id: string): Promise<NoteMetadata> {
     const metadata = this.requireTrashedNote(id);
     const sourcePath = this.resolvePath(metadata.path);
-    const restoredPath = toRestoredPath(metadata.path);
+    const restoredPath = path.relative(TRASH_DIRECTORY, metadata.path);
     const targetPath = path.join(this.notesPath, restoredPath);
 
     await this.assertRestorable(sourcePath, targetPath);
@@ -426,7 +529,7 @@ export class NotesManager {
    * The `assets` folder beside a note, created when missing.
    * @throws AppError CONFLICT when a file already holds the folder's name.
    */
-  private async ensureAssetsFolder(parentId: string | undefined): Promise<string> {
+  private async ensureAssetsFolder(parentId: string | undefined): Promise<NoteMetadata> {
     const folder = this.toNewTarget(this.requireFolderPath(parentId), NOTE_ASSETS_FOLDER_NAME);
     const existing = this.index.get(folder.id);
     if (existing && existing.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
@@ -434,9 +537,74 @@ export class NotesManager {
     }
 
     await assertRealPathWithinBase(folder.absolutePath, this.notesPath);
-    await ensureDir(folder.absolutePath);
 
-    return folder.relativePath;
+    return this.createDirectoryEntry(folder, parentId);
+  }
+
+  /**
+   * Create the folder at `target` and index it.
+   * @throws AppError CONFLICT when something other than a folder already holds the path.
+   */
+  private async createDirectoryEntry(target: ResolvedNotePath, parentId: string | undefined): Promise<NoteMetadata> {
+    const stats = await getPathStats(target.absolutePath);
+    if (stats && !stats.isDirectory()) {
+      await this.indexEntry(target, parentId);
+
+      throw new AppError(`A note or folder with id "${target.id}" already exists`, APP_ERROR_CODES.CONFLICT);
+    }
+
+    await ensureDir(target.absolutePath);
+
+    return this.requireIndexedEntry(target, parentId);
+  }
+
+  /**
+   * The indexed entry at `target`, indexing that one path when it is on disk
+   * but not in the index yet; `undefined` when neither holds it.
+   */
+  private async indexEntry(target: ResolvedNotePath, parentId: string | undefined): Promise<NoteMetadata | undefined> {
+    const indexed = this.index.get(target.id);
+    if (indexed) {
+      return indexed;
+    }
+
+    const stats = await getPathStats(target.absolutePath);
+    const entryName = path.basename(target.relativePath);
+    let metadata: NoteMetadata | undefined;
+    if (stats?.isDirectory()) {
+      metadata = await this.buildFolderMetadata(target.absolutePath, entryName, parentId);
+    } else if (stats?.isFile()) {
+      metadata = await this.buildNoteMetadata(target.absolutePath, entryName, parentId);
+    }
+
+    const current = this.index.get(target.id);
+    if (current || !metadata) {
+      return current;
+    }
+
+    this.index.set(metadata.id, metadata);
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_CREATED, noteId: metadata.id, metadata });
+
+    return metadata;
+  }
+
+  private async requireIndexedEntry(target: ResolvedNotePath, parentId: string | undefined): Promise<NoteMetadata> {
+    const metadata = await this.indexEntry(target, parentId);
+    if (!metadata) {
+      throw new AppError(`Note not found: ${target.id}`, APP_ERROR_CODES.NOT_FOUND);
+    }
+
+    return metadata;
+  }
+
+  /** Whether `candidatePath` is `ancestorPath` itself or sits underneath it */
+  private isWithinRelativePath(candidatePath: string, ancestorPath: string): boolean {
+    return candidatePath === ancestorPath || candidatePath.startsWith(ancestorPath + path.sep);
+  }
+
+  /** mtime carries sub-millisecond precision that would not survive a round trip through JSON */
+  private toUpdatedTimestamp(mtimeMs: number): number {
+    return Math.trunc(mtimeMs);
   }
 
   /** A structural change re-keys descendants, so the index is rebuilt rather than patched. */
@@ -444,6 +612,181 @@ export class NotesManager {
     await this.rebuildIndexes();
 
     return this.requireLiveNote(id);
+  }
+
+  /**
+   * The last `/` segment is the note's name and any leading segments end its
+   * folder path. A root-anchored match wins; otherwise the first match by path,
+   * preferring a note over a folder. Never filters by content type.
+   */
+  private findWikilinkNote(target: string): NoteMetadata | undefined {
+    const matches = this.findWikilinkMatches(toWikilinkTargetSegments(target));
+    const preferred =
+      matches.find((match) => match.isRootAnchored) ??
+      matches.find((match) => match.note.entityType !== ENTITY_TYPE.NOTE_FOLDER) ??
+      matches[0];
+
+    return preferred?.note;
+  }
+
+  /** Every live note `segments` name, in path order. */
+  private findWikilinkMatches(segments: string[]): WikilinkMatch[] {
+    const matches: WikilinkMatch[] = [];
+    if (segments.length === 0) {
+      return matches;
+    }
+
+    for (const note of this.index.values()) {
+      const match = this.matchWikilinkSegments(note, segments);
+      if (match) {
+        matches.push(match);
+      }
+    }
+
+    return matches.sort((first, second) => (first.note.path < second.note.path ? -1 : 1));
+  }
+
+  /** `note` matches when the last segment is its name and the leading ones end its folder path. */
+  private matchWikilinkSegments(note: NoteMetadata, segments: string[]): WikilinkMatch | undefined {
+    const lastIndex = segments.length - 1;
+    if (!isSameNoteName(note.name, segments[lastIndex])) {
+      return undefined;
+    }
+
+    let parentId = note.parentId;
+    for (let segmentIndex = lastIndex - 1; segmentIndex >= 0; segmentIndex--) {
+      const parent = parentId === undefined ? undefined : this.index.get(parentId);
+      if (!parent || !isSameNoteName(parent.name, segments[segmentIndex])) {
+        return undefined;
+      }
+
+      parentId = parent.parentId;
+    }
+
+    return { note, isRootAnchored: parentId === undefined };
+  }
+
+  /**
+   * The shortest target that names exactly `note`: its bare name, qualified with
+   * one parent folder at a time until no other note matches. A full path always
+   * resolves back to `note` because root-anchored matches win.
+   */
+  private toShortestWikilinkTarget(note: NoteMetadata): string {
+    const segments = [note.name];
+    let parentId = note.parentId;
+
+    while (this.findWikilinkMatches(segments).length > 1) {
+      const parent = parentId === undefined ? undefined : this.index.get(parentId);
+      if (!parent) {
+        break;
+      }
+
+      segments.unshift(parent.name);
+      parentId = parent.parentId;
+    }
+
+    return segments.join(WIKILINK_TARGET_SEPARATOR);
+  }
+
+  /**
+   * Where to create the text note an unresolved target names. A bare name goes beside `sourceNote`;
+   * a qualified `a/b/name` goes at that path from the notes root, reusing the folders that exist.
+   */
+  private toWikilinkPlacement(target: string, sourceNote: NoteMetadata): WikilinkPlacement | undefined {
+    const segments = toWikilinkTargetSegments(target);
+    const noteName = segments.pop();
+    if (noteName === undefined) {
+      return undefined;
+    }
+
+    if (segments.length === 0) {
+      return { parentId: sourceNote.parentId, missingFolderNames: [], noteName };
+    }
+
+    let parentId: string | undefined;
+    let existingCount = 0;
+    for (const folderName of segments) {
+      const folder = this.findChildFolder(parentId, folderName);
+      if (!folder) {
+        break;
+      }
+
+      parentId = folder.id;
+      existingCount++;
+    }
+
+    return { parentId, missingFolderNames: segments.slice(existingCount), noteName };
+  }
+
+  private findChildFolder(parentId: string | undefined, name: string): NoteMetadata | undefined {
+    for (const metadata of this.index.values()) {
+      if (
+        metadata.entityType === ENTITY_TYPE.NOTE_FOLDER &&
+        metadata.parentId === parentId &&
+        isSameNoteName(metadata.name, name)
+      ) {
+        return metadata;
+      }
+    }
+
+    return undefined;
+  }
+
+  /** The folders above `note`, outermost first, or `undefined` at the notes root. */
+  private toFolderPath(note: NoteMetadata): string | undefined {
+    const folderNames: string[] = [];
+    let parentId = note.parentId;
+
+    while (parentId !== undefined) {
+      const parent = this.index.get(parentId);
+      if (!parent) {
+        break;
+      }
+
+      folderNames.unshift(parent.name);
+      parentId = parent.parentId;
+    }
+
+    return folderNames.length > 0 ? folderNames.join(WIKILINK_TARGET_SEPARATOR) : undefined;
+  }
+
+  /** A needle with a `/` matches against the folder path too, so `trip/pl` narrows to notes in `trip`. */
+  private rankSuggestionMatches(candidates: NoteFileMetadata[], needle: string): NoteFileMetadata[] {
+    const isPathQuery = needle.includes(WIKILINK_TARGET_SEPARATOR);
+    const matches: WikilinkSuggestionMatch[] = [];
+    for (const note of candidates) {
+      const folderPath = isPathQuery ? this.toFolderPath(note) : undefined;
+      const text = toComparableNoteName(
+        folderPath === undefined ? note.name : `${folderPath}${WIKILINK_TARGET_SEPARATOR}${note.name}`
+      );
+      if (text.includes(needle)) {
+        matches.push({ note, isPrefix: text.startsWith(needle) });
+      }
+    }
+
+    return matches
+      .sort(
+        (first, second) =>
+          Number(second.isPrefix) - Number(first.isPrefix) || second.note.updatedTimestamp - first.note.updatedTimestamp
+      )
+      .slice(0, MATCH_SUGGESTION_LIMIT)
+      .map((match) => match.note);
+  }
+
+  /** The folder `name` under `parentId`, created unless it exists or a concurrent create just made it. */
+  private async ensureFolder(parentId: string | undefined, name: string): Promise<NoteMetadata> {
+    try {
+      return await this.createFolder(parentId, name);
+    } catch (error) {
+      const existing = isAppErrorCode(error, APP_ERROR_CODES.CONFLICT)
+        ? this.index.get(toNoteId(path.join(this.requireFolderPath(parentId), name)))
+        : undefined;
+      if (existing?.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
+        throw error;
+      }
+
+      return existing;
+    }
   }
 
   /** Resolve a notes-root-relative path, refusing anything that escapes the root. */
@@ -454,15 +797,53 @@ export class NotesManager {
     return resolved;
   }
 
-  private async rebuildIndexes(): Promise<void> {
+  private async loadIndexes(): Promise<void> {
     this.index = await this.buildIndex(this.notesPath);
-    await this.rebuildTrashIndex();
+    this.trashIndex = await this.buildIndex(this.trashPath);
 
     log.info({ notesPath: this.notesPath, notes: this.index.size, trashed: this.trashIndex.size }, "Notes index built");
   }
 
+  private async rebuildIndexes(): Promise<void> {
+    const previousIndex = this.index;
+    const previousTrashIndex = this.trashIndex;
+    await this.loadIndexes();
+
+    this.broadcastIndexChanges(previousIndex, this.index);
+    this.broadcastIndexChanges(previousTrashIndex, this.trashIndex);
+  }
+
   private async rebuildTrashIndex(): Promise<void> {
+    const previousTrashIndex = this.trashIndex;
     this.trashIndex = await this.buildIndex(this.trashPath);
+
+    this.broadcastIndexChanges(previousTrashIndex, this.trashIndex);
+  }
+
+  /** One event per entry that left, joined or changed between two builds of the same index. */
+  private broadcastIndexChanges(
+    previous: ReadonlyMap<string, NoteMetadata>,
+    current: ReadonlyMap<string, NoteMetadata>
+  ): void {
+    for (const noteId of previous.keys()) {
+      if (!current.has(noteId)) {
+        this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_DELETED, noteId });
+      }
+    }
+
+    for (const [noteId, metadata] of current) {
+      const before = previous.get(noteId);
+      if (!before) {
+        this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_CREATED, noteId, metadata });
+      } else if (
+        before.path !== metadata.path ||
+        before.name !== metadata.name ||
+        before.parentId !== metadata.parentId ||
+        before.updatedTimestamp !== metadata.updatedTimestamp
+      ) {
+        this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_UPDATED, noteId, metadata });
+      }
+    }
   }
 
   /**
@@ -534,9 +915,9 @@ export class NotesManager {
       name: toNoteName(entryName, ENTITY_TYPE.NOTE_FOLDER),
       path: relativePath,
       parentId,
-      updatedTimestamp: toUpdatedTimestamp(stats.mtimeMs),
+      updatedTimestamp: this.toUpdatedTimestamp(stats.mtimeMs),
       isReadOnly: true,
-      isTrashed: isWithinRelativePath(relativePath, TRASH_DIRECTORY),
+      isTrashed: this.isWithinRelativePath(relativePath, TRASH_DIRECTORY),
     };
   }
 
@@ -548,7 +929,7 @@ export class NotesManager {
     const stats = await statFile(entryPath);
     const relativePath = path.relative(this.notesPath, entryPath);
     const contentType = detectNoteContentType(entryName);
-    const isTrashed = isWithinRelativePath(relativePath, TRASH_DIRECTORY);
+    const isTrashed = this.isWithinRelativePath(relativePath, TRASH_DIRECTORY);
 
     return {
       id: toNoteId(relativePath),
@@ -556,7 +937,7 @@ export class NotesManager {
       name: toNoteName(entryName, ENTITY_TYPE.NOTE),
       path: relativePath,
       parentId,
-      updatedTimestamp: toUpdatedTimestamp(stats.mtimeMs),
+      updatedTimestamp: this.toUpdatedTimestamp(stats.mtimeMs),
       isReadOnly: isTrashed || contentType !== NOTE_CONTENT_TYPE.TEXT,
       isTrashed,
       contentType,

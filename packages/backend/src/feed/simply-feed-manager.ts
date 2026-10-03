@@ -12,6 +12,7 @@ import { createMessageContentFromTemplate, createModelMessage } from "../utils/m
 import { container } from "../container.js";
 import { RequestError } from "../core/error/request-error.js";
 import { AppError } from "../core/error/app-error.js";
+import { isAppErrorCode } from "../core/error/app-error-utils.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import type { CrowScheduler } from "../services/crow-scheduler.js";
 import { TIME_MODE } from "@crow-central-agency/shared";
@@ -569,7 +570,7 @@ export class SimplyFeedManager extends EventBus<SimplyFeedManagerEvents> {
       const provider = container.feedTextGenProvider;
       return !!provider;
     } catch (error) {
-      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_SUPPORTED) {
+      if (isAppErrorCode(error, APP_ERROR_CODES.NOT_SUPPORTED)) {
         return false;
       }
 

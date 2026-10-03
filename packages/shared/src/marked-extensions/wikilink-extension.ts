@@ -12,7 +12,7 @@ const EMBED_PREFIX = "!";
 /** The editor parser's target rule: one line, no bare bracket, the same escapes. */
 const WIKILINK_PATTERN = new RegExp(String.raw`^(!?)\[\[(${WIKILINK_TARGET_CHAR_SOURCE}+)\]\]`);
 
-function isWikilinkToken(token: Tokens.Generic): token is WikilinkToken {
+export function isWikilinkToken(token: Tokens.Generic): token is WikilinkToken {
   return token.type === WIKILINK_TOKEN && typeof token.target === "string" && typeof token.isEmbed === "boolean";
 }
 

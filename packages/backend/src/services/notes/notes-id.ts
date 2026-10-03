@@ -7,8 +7,28 @@ import { detectNoteContentType } from "./notes-content-detector.js";
 /** Replaces the path separator in a note id — invalid in filenames, so it cannot collide */
 const NOTE_ID_SEPARATOR = ":";
 
+/** Separates the folder segments and the note name in a wikilink target */
+export const WIKILINK_TARGET_SEPARATOR = "/";
+
 function isTextNoteFilename(filename: string): boolean {
   return detectNoteContentType(filename) === NOTE_CONTENT_TYPE.TEXT;
+}
+
+/** The form note names compare in; names match case-insensitively. */
+export function toComparableNoteName(name: string): string {
+  return name.toLowerCase();
+}
+
+export function isSameNoteName(name: string, otherName: string): boolean {
+  return toComparableNoteName(name) === toComparableNoteName(otherName);
+}
+
+/** A wikilink target's `/`-separated segments, blank ones dropped; the last is the note's name. */
+export function toWikilinkTargetSegments(target: string): string[] {
+  return target
+    .split(WIKILINK_TARGET_SEPARATOR)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
 }
 
 /**

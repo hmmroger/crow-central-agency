@@ -20,7 +20,7 @@ export function showEditorError(view: EditorView, message: string): void {
   view.dispatch({ effects: setEditorError.of(message) });
 }
 
-/** Why the last editor action that works behind the scenes (an image paste, a link's note creation) failed. */
+/** Why the last editor action that works behind the scenes, an image paste, failed. */
 export function getEditorError(state: EditorState): string | undefined {
   return state.field(editorErrorField, false);
 }

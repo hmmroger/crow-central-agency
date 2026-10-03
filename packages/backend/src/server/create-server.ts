@@ -9,7 +9,7 @@ import { registerAuthHook } from "./auth-hook.js";
 import { registerRequestContextHook } from "./request-context-hook.js";
 import { fastifyOtelInstrumentation } from "../telemetry/setup.js";
 import { statFile } from "../utils/fs-utils.js";
-import { AppError } from "../core/error/app-error.js";
+import { isAppErrorCode } from "../core/error/app-error-utils.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 
 /**
@@ -67,7 +67,7 @@ async function setupStatic(server: FastifyInstance) {
   try {
     await statFile(staticPath);
   } catch (error) {
-    if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
+    if (isAppErrorCode(error, APP_ERROR_CODES.NOT_FOUND)) {
       logger.warn({ staticPath }, "Static path does not exist, skipping static file serving");
       return;
     }

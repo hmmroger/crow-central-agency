@@ -1,7 +1,14 @@
 import { WidgetType } from "@codemirror/view";
-import { createImageElement, releaseImageElements } from "../../../../utils/note-image/image-element.js";
-import { getResolvedImageKey } from "../../../../utils/note-image/resolved-image.js";
-import type { ResolvedImage } from "../../../../utils/note-image/resolved-image.types.js";
+import { createImageElement, releaseImageElements } from "../../../common/note-image/image-element.js";
+import type { ImageContent } from "../../../common/note-image/image-element.types.js";
+
+function toContentKey(content: ImageContent): string {
+  if (typeof content === "string") {
+    return `url:${content}`;
+  }
+
+  return content === undefined ? "missing" : `note:${content.id}:${content.updatedTimestamp}`;
+}
 
 /** An image, or a missing-image chip, standing in for its markdown; never revealed as text. */
 export class ImageWidget extends WidgetType {
@@ -9,13 +16,14 @@ export class ImageWidget extends WidgetType {
 
   constructor(
     private readonly source: string,
-    private readonly resolved: ResolvedImage
+    private readonly content: ImageContent,
+    private readonly label: string
   ) {
     super();
-    this.key = getResolvedImageKey(resolved);
+    this.key = toContentKey(content);
   }
 
-  /** Source plus what it resolves to, so neither a cursor move nor an unrelated edit reloads the image. */
+  /** Source plus what it draws, so neither a cursor move nor an unrelated edit reloads the image. */
   public eq(other: ImageWidget): boolean {
     return other.source === this.source && other.key === this.key;
   }
@@ -25,7 +33,7 @@ export class ImageWidget extends WidgetType {
   }
 
   public toDOM(): HTMLElement {
-    return createImageElement(this.resolved);
+    return createImageElement(this.content, this.label);
   }
 
   public destroy(dom: HTMLElement): void {

@@ -19,40 +19,20 @@ import {
   Table,
 } from "lucide-react";
 import type { ComponentType } from "react";
-import type { EditorState } from "@codemirror/state";
-import {
-  getHeadingLevel,
-  getListKind,
-  insertDivider,
-  isBlockquoteActive,
-  isCodeBlockActive,
-  isInlineFormatActive,
-  setParagraph,
-  toggleBlockquote,
-  toggleCodeBlock,
-  toggleHeading,
-  toggleInlineFormat,
-  toggleList,
-} from "./editor/markdown-commands.js";
 import { INLINE_FORMAT, LIST_KIND, type InlineFormat, type ListKind } from "./editor/markdown-commands.types.js";
+import type { EditorFormatState } from "./editor/markdown-editor.types.js";
 import { ACTION_BUTTON_VARIANT } from "../common/action-button.js";
-import { isTableCellActive } from "./editor/extensions/table-cell-state.js";
-import {
-  addTableColumn,
-  addTableRow,
-  canDeleteTableRow,
-  deleteTable,
-  deleteTableColumn,
-  deleteTableRow,
-  insertTable,
-} from "./editor/table-commands.js";
 import type { EditorCommand } from "./editor-toolbar.types.js";
 import { TableDeleteColumnIcon } from "../common/icons/table-delete-column.js";
 import { TableDeleteRowIcon } from "../common/icons/table-delete-row.js";
 
 /** Formatting edits the note's text, so it is off while a table cell is being edited. */
-export function isOutsideTableCell(state: EditorState): boolean {
-  return !isTableCellActive(state);
+export function isOutsideTableCell(formatState: EditorFormatState): boolean {
+  return !formatState.isInTableCell;
+}
+
+function isInTableCell(formatState: EditorFormatState): boolean {
+  return formatState.isInTableCell;
 }
 
 function isNeverActive(): boolean {
@@ -71,9 +51,9 @@ const HEADING_ICONS: Record<(typeof HEADING_LEVELS)[number], ComponentType<{ cla
 const HEADING_COMMANDS: EditorCommand[] = HEADING_LEVELS.map((level) => ({
   label: `Heading ${level}`,
   icon: HEADING_ICONS[level],
-  isActive: (state) => getHeadingLevel(state) === level,
+  isActive: (formatState) => formatState.headingLevel === level,
   canRun: isOutsideTableCell,
-  run: (target) => toggleHeading(target, level),
+  run: (editor) => editor.toggleHeading(level),
 }));
 
 function createInlineFormatCommand(
@@ -84,18 +64,18 @@ function createInlineFormatCommand(
   return {
     label,
     icon,
-    isActive: (state) => isInlineFormatActive(state, format),
+    isActive: (formatState) => formatState.inlineFormats.includes(format),
     canRun: isOutsideTableCell,
-    run: (target) => toggleInlineFormat(target, format),
+    run: (editor) => editor.toggleInlineFormat(format),
   };
 }
 
 const PARAGRAPH_COMMAND: EditorCommand = {
   label: "Paragraph",
   icon: Pilcrow,
-  isActive: (state) => getHeadingLevel(state) === undefined,
+  isActive: (formatState) => formatState.headingLevel === undefined,
   canRun: isOutsideTableCell,
-  run: setParagraph,
+  run: (editor) => editor.setParagraph(),
 };
 
 export const BLOCK_TYPE_COMMANDS: EditorCommand[] = [PARAGRAPH_COMMAND].concat(HEADING_COMMANDS);
@@ -104,9 +84,9 @@ function createListCommand(label: string, icon: ComponentType<{ className?: stri
   return {
     label,
     icon,
-    isActive: (state) => getListKind(state) === kind,
+    isActive: (formatState) => formatState.listKind === kind,
     canRun: isOutsideTableCell,
-    run: (target) => toggleList(target, kind),
+    run: (editor) => editor.toggleList(kind),
   };
 }
 
@@ -117,16 +97,34 @@ export const LIST_COMMANDS: EditorCommand[] = [
 ];
 
 export const BLOCK_COMMANDS: EditorCommand[] = [
-  { label: "Quote", icon: Quote, isActive: isBlockquoteActive, canRun: isOutsideTableCell, run: toggleBlockquote },
+  {
+    label: "Quote",
+    icon: Quote,
+    isActive: (formatState) => formatState.isBlockquote,
+    canRun: isOutsideTableCell,
+    run: (editor) => editor.toggleBlockquote(),
+  },
   {
     label: "Code block",
     icon: SquareCode,
-    isActive: isCodeBlockActive,
+    isActive: (formatState) => formatState.isCodeBlock,
     canRun: isOutsideTableCell,
-    run: toggleCodeBlock,
+    run: (editor) => editor.toggleCodeBlock(),
   },
-  { label: "Divider", icon: Minus, isActive: isNeverActive, canRun: isOutsideTableCell, run: insertDivider },
-  { label: "Table", icon: Table, isActive: isNeverActive, canRun: isOutsideTableCell, run: insertTable },
+  {
+    label: "Divider",
+    icon: Minus,
+    isActive: isNeverActive,
+    canRun: isOutsideTableCell,
+    run: (editor) => editor.insertDivider(),
+  },
+  {
+    label: "Table",
+    icon: Table,
+    isActive: isNeverActive,
+    canRun: isOutsideTableCell,
+    run: (editor) => editor.insertTable(),
+  },
 ];
 
 /** Shown only while a table cell is active; each acts on that cell's table. */
@@ -135,36 +133,36 @@ export const TABLE_COMMANDS: EditorCommand[] = [
     label: "Add row",
     icon: BetweenHorizontalEnd,
     isActive: isNeverActive,
-    canRun: isTableCellActive,
-    run: addTableRow,
+    canRun: isInTableCell,
+    run: (editor) => editor.addTableRow(),
   },
   {
     label: "Add column",
     icon: BetweenVerticalEnd,
     isActive: isNeverActive,
-    canRun: isTableCellActive,
-    run: addTableColumn,
+    canRun: isInTableCell,
+    run: (editor) => editor.addTableColumn(),
   },
   {
     label: "Delete row",
     icon: TableDeleteRowIcon,
     isActive: isNeverActive,
-    canRun: canDeleteTableRow,
-    run: deleteTableRow,
+    canRun: (formatState) => formatState.canDeleteTableRow,
+    run: (editor) => editor.deleteTableRow(),
   },
   {
     label: "Delete column",
     icon: TableDeleteColumnIcon,
     isActive: isNeverActive,
-    canRun: isTableCellActive,
-    run: deleteTableColumn,
+    canRun: isInTableCell,
+    run: (editor) => editor.deleteTableColumn(),
   },
   {
     label: "Delete table",
     icon: Grid2x2X,
     isActive: isNeverActive,
-    canRun: isTableCellActive,
-    run: deleteTable,
+    canRun: isInTableCell,
+    run: (editor) => editor.deleteTable(),
     variant: ACTION_BUTTON_VARIANT.DESTRUCTIVE,
   },
 ];

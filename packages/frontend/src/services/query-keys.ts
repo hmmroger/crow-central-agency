@@ -184,8 +184,16 @@ export const noteKeys = {
   tree: () => [...noteKeys.all, "tree"] as const,
   /** The trash tree */
   trash: () => [...noteKeys.all, "trash"] as const,
+  /** The tree a note is listed in */
+  list: (isTrashed: boolean) => (isTrashed ? noteKeys.trash() : noteKeys.tree()),
   /** Content of a single note; ids are unique across the live tree and the trash */
   content: (noteId: string) => [...noteKeys.all, "content", noteId] as const,
+  /** Answers derived from the live tree: link resolution, suggestions and move destinations */
+  links: () => [...noteKeys.all, "links"] as const,
+  resolve: (targets: string[]) => [...noteKeys.links(), "resolve", targets] as const,
+  suggest: (query: string, isEmbed: boolean, excludeId?: string) =>
+    [...noteKeys.links(), "suggest", query, isEmbed, excludeId] as const,
+  moveDestinations: (noteId: string) => [...noteKeys.links(), "move-destinations", noteId] as const,
 };
 
 /**

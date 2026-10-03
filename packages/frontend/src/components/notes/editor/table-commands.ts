@@ -1,16 +1,11 @@
 import { isolateHistory } from "@codemirror/commands";
+import { syntaxTree } from "@codemirror/language";
 import { EditorSelection, type ChangeSpec, type EditorState } from "@codemirror/state";
-import { getActiveTableCell, setActiveTableCell } from "./extensions/table-cell-state.js";
-import type { TableCellPosition } from "./extensions/table-cell-state.types.js";
-import {
-  findTableAt,
-  getTableLines,
-  getTableRow,
-  getTableRowCount,
-  getTrailingPipeChanges,
-  TRAILING_PIPE,
-} from "./extensions/table-syntax.js";
-import type { TableLine, TextRange } from "./extensions/table-syntax.types.js";
+import { SYNTAX_NODE } from "./extensions/markdown-syntax.types.js";
+import { getActiveTableCell, setActiveTableCell } from "./extensions/table/table-cell-state.js";
+import type { TableCellPosition } from "./extensions/table/table-cell-state.types.js";
+import { getTableRow, getTableRowCount, parseTable } from "./extensions/table/table-syntax.js";
+import type { ParsedTable, TableLine, TextRange } from "./extensions/table/table-syntax.types.js";
 import type { CommandTarget } from "./markdown-commands.types.js";
 import { TABLE_EXIT, type ActiveTable, type TableEdit, type TableExit } from "./table-commands.types.js";
 
@@ -19,6 +14,35 @@ const EMPTY_CELL = "  |";
 const DELIMITER_CELL = " --- |";
 const NEW_COLUMN_CELL = " | ";
 const NEW_DELIMITER_CELL = " | ---";
+const TRAILING_PIPE = " |";
+
+/** The top-level table whose header line starts at `lineFrom`, parsed from the current syntax tree. */
+function findTableAt(state: EditorState, lineFrom: number): ParsedTable | undefined {
+  const tableNode = syntaxTree(state).topNode.childAfter(lineFrom);
+
+  if (tableNode?.name !== SYNTAX_NODE.TABLE || state.doc.lineAt(tableNode.from).from !== lineFrom) {
+    return undefined;
+  }
+
+  return parseTable(state, tableNode);
+}
+
+function getTableLines(table: ParsedTable): TableLine<TextRange>[] {
+  return [table.header, table.delimiter].concat(table.rows);
+}
+
+/** Closes lines that end without a pipe, so emptying their last cell cannot drop it. */
+function getTrailingPipeChanges(lines: TableLine<TextRange>[]): ChangeSpec[] {
+  const changes: ChangeSpec[] = [];
+
+  for (const line of lines) {
+    if (!line.hasTrailingPipe) {
+      changes.push({ from: line.to, insert: TRAILING_PIPE });
+    }
+  }
+
+  return changes;
+}
 
 function findActiveTable(state: EditorState): ActiveTable | undefined {
   const cell = getActiveTableCell(state);

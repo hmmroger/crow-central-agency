@@ -4,6 +4,9 @@ import {
   ENTITY_TYPE,
   getMimeTypeByFilename,
   NOTE_CONTENT_TYPE,
+  ResolveWikilinkBatchInputSchema,
+  ResolveWikilinkInputSchema,
+  SuggestWikilinksQuerySchema,
   UpdateNoteInputSchema,
   WriteNoteContentInputSchema,
   type NoteContent,
@@ -82,9 +85,48 @@ export async function registerNoteRoutes(server: FastifyInstance, notesManager: 
       throw new AppError("No file provided", APP_ERROR_CODES.VALIDATION);
     }
 
-    const metadata = await notesManager.createImageAsset(request.params.id, file.mimetype, await file.toBuffer());
+    const asset = await notesManager.createImageAsset(request.params.id, file.mimetype, await file.toBuffer());
 
-    return { success: true, data: metadata };
+    return { success: true, data: asset };
+  });
+
+  /** The note a wikilink names, created with any missing folders when it names nothing */
+  server.post<{ Body: unknown }>("/api/notes/resolve", async (request) => {
+    try {
+      const input = ResolveWikilinkInputSchema.parse(request.body);
+      const metadata = await notesManager.resolveWikilink(input.target, input.sourceNoteId);
+
+      return { success: true, data: metadata };
+    } catch (error) {
+      return wrapZodError(error);
+    }
+  });
+
+  /** What each wikilink target names in the live tree */
+  server.post<{ Body: unknown }>("/api/notes/resolve-batch", async (request) => {
+    try {
+      const input = ResolveWikilinkBatchInputSchema.parse(request.body);
+
+      return { success: true, data: notesManager.resolveWikilinkBatch(input.targets) };
+    } catch (error) {
+      return wrapZodError(error);
+    }
+  });
+
+  /** Notes to offer after `[[` or `![[` */
+  server.get<{ Querystring: unknown }>("/api/notes/suggest", async (request) => {
+    try {
+      const query = SuggestWikilinksQuerySchema.parse(request.query);
+
+      return { success: true, data: notesManager.suggestWikilinks(query) };
+    } catch (error) {
+      return wrapZodError(error);
+    }
+  });
+
+  /** The live folders a note may move into */
+  server.get<{ Params: { id: string } }>("/api/notes/:id/move-destinations", async (request) => {
+    return { success: true, data: notesManager.getMoveDestinations(request.params.id) };
   });
 
   /** List the trash tree as a flat array */

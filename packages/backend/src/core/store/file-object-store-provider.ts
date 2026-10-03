@@ -17,7 +17,7 @@ import {
   removeEmptyAncestors,
 } from "../../utils/fs-utils.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
-import { AppError } from "../error/app-error.js";
+import { isAppErrorCode } from "../error/app-error-utils.js";
 import {
   STORE_QUERY_OPERATORS,
   type ObjectStoreProvider,
@@ -257,7 +257,7 @@ export class FileObjectStoreProvider implements ObjectStoreProvider {
     } catch (error) {
       // Non-fatal: start with an empty table rather than crashing.
       // this.tables.set below is always reached.
-      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
+      if (isAppErrorCode(error, APP_ERROR_CODES.NOT_FOUND)) {
         log.info({ table }, "Store file not found, starting empty");
       } else {
         log.warn({ table, error }, "Failed to load store table, starting empty");

@@ -1,10 +1,9 @@
 import { useMemo, useEffect, useRef, useState, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
 import mermaid from "mermaid";
 import { ensureMermaidInit } from "../../../utils/mermaid-config";
-import { hasNoteLinks, parseMarkdown } from "../../../utils/marked-config";
+import { parseMarkdown } from "../../../utils/marked-config";
 import { sanitizeSvg } from "../../../utils/html-sanitizer";
-import { notesQueryOptions } from "../../../hooks/queries/use-notes-query";
+import { useWikilinkResolveQuery } from "../../../hooks/queries/use-wikilink-resolve-query";
 import { useAppStore } from "../../../stores/app-store";
 import { readHtmlviewSource, renderHtmlviews } from "./markdown-htmlview-renderer";
 import { renderMarkdownWikilinks } from "./markdown-wikilink-renderer";
@@ -58,9 +57,10 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   const showDialog = useOptionalModalDialog()?.showDialog;
 
   // Memoize parsed HTML with copy buttons and embed chrome injected
-  const html = useMemo(() => injectHtmlviewChrome(injectCopyButtons(parseMarkdown(content))), [content]);
+  const parsed = useMemo(() => parseMarkdown(content), [content]);
+  const html = useMemo(() => injectHtmlviewChrome(injectCopyButtons(parsed.html)), [parsed]);
   const [renderedHtml, setRenderedHtml] = useState(html);
-  const { data: notes } = useQuery({ ...notesQueryOptions, enabled: hasNoteLinks(html) });
+  const { data: resolutions } = useWikilinkResolveQuery(parsed.wikilinkTargets);
   const goToNote = useAppStore((state) => state.goToNote);
   const innerHtml = useMemo(() => ({ __html: renderedHtml }), [renderedHtml]);
 
@@ -131,12 +131,12 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   // Same trigger as the embeds: re-run after the mermaid pass replaces the DOM.
   useEffect(() => {
     const container = containerRef.current;
-    if (isStreaming || !container || !notes) {
+    if (isStreaming || !container || !resolutions) {
       return;
     }
 
-    return renderMarkdownWikilinks(container, notes, (note) => goToNote(note.id));
-  }, [renderedHtml, isStreaming, notes, goToNote]);
+    return renderMarkdownWikilinks(container, resolutions, (note) => goToNote(note.id));
+  }, [renderedHtml, isStreaming, resolutions, goToNote]);
 
   // Non-passive native wheel listener so Ctrl/Cmd+wheel can zoom without
   // scrolling the page. React's synthetic onWheel is passive.

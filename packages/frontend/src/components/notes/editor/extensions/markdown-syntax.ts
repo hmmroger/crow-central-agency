@@ -1,5 +1,6 @@
 import type { EditorState } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
+import { unescapeWikilinkTarget } from "@crow-central-agency/shared";
 import { findChildren } from "./cm-extension-utils.js";
 import {
   DELIMITED_SYNTAX_NODE,
@@ -66,6 +67,11 @@ export function getFencedCodeLanguage(state: EditorState, fencedCode: SyntaxNode
   const [language] = info ? state.sliceDoc(info.from, info.to).trim().split(/\s+/) : [];
 
   return language ? language.toLowerCase() : undefined;
+}
+
+/** The note a wikilink or embed target names: trimmed, with its escapes removed. */
+export function getWikilinkTarget(state: EditorState, targetNode: SyntaxNode): string {
+  return unescapeWikilinkTarget(state.sliceDoc(targetNode.from, targetNode.to).trim());
 }
 
 /** The code between the fence lines. */

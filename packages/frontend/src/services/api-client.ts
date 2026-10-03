@@ -1,4 +1,10 @@
-import type { ArtifactMetadata, ArtifactUpdate, CreateNoteInput, NoteMetadata } from "@crow-central-agency/shared";
+import type {
+  ArtifactMetadata,
+  ArtifactUpdate,
+  CreateNoteInput,
+  NoteImageAsset,
+  NoteMetadata,
+} from "@crow-central-agency/shared";
 import { useAppStore } from "../stores/app-store.js";
 import { getCachedLocation } from "./geolocation.js";
 import type { ApiError, ApiResponse } from "./api-client.types.js";
@@ -186,7 +192,7 @@ export async function createNote(input: CreateNoteInput): Promise<ApiResponse<No
 }
 
 /** Upload an image into the `assets` folder beside a text note; the server names the file */
-export async function uploadNoteAsset(noteId: string, file: File): Promise<ApiResponse<NoteMetadata>> {
+export async function uploadNoteAsset(noteId: string, file: File): Promise<ApiResponse<NoteImageAsset>> {
   return uploadFormData(`/notes/${encodeURIComponent(noteId)}/assets`, file);
 }
 

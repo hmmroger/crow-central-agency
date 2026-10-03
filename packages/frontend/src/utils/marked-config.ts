@@ -4,10 +4,11 @@ import {
   escapeHtml,
   hashtagExtension,
   HTMLVIEW_FENCE_LANG,
-  MARKDOWN_WIKILINK_TARGET_ATTRIBUTE,
+  isWikilinkToken,
   taglineExtension,
   wikilinkExtension,
 } from "@crow-central-agency/shared";
+import type { ParsedMarkdown } from "./marked-config.types";
 
 type MarkedRenderer = Renderer;
 const renderDefaultTable = Renderer.prototype.table;
@@ -58,14 +59,20 @@ const markedInstance = new Marked({
 });
 
 /**
- * Parse markdown content to sanitized HTML
+ * Parse markdown content to sanitized HTML, with the wikilink targets it holds
  */
-export function parseMarkdown(content: string): string {
-  const html = markedInstance.parse(content, { async: false });
-  return sanitizeHtml(html);
-}
+export function parseMarkdown(content: string): ParsedMarkdown {
+  const tokens = markedInstance.lexer(content);
+  const targets = new Set<string>();
 
-/** Whether parsed HTML holds a wikilink or embed, so rendering it needs the notes tree. */
-export function hasNoteLinks(html: string): boolean {
-  return html.includes(MARKDOWN_WIKILINK_TARGET_ATTRIBUTE);
+  markedInstance.walkTokens(tokens, (token) => {
+    if (isWikilinkToken(token)) {
+      targets.add(token.target);
+    }
+  });
+
+  return {
+    html: sanitizeHtml(markedInstance.parser(tokens)),
+    wikilinkTargets: Array.from(targets).sort(),
+  };
 }

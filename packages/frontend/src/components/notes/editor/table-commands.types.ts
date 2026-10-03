@@ -1,6 +1,6 @@
 import type { ChangeSpec } from "@codemirror/state";
-import type { ActiveTableCell, TableCellPosition } from "./extensions/table-cell-state.types.js";
-import type { ParsedTable } from "./extensions/table-syntax.types.js";
+import type { ActiveTableCell, TableCellPosition } from "./extensions/table/table-cell-state.types.js";
+import type { ParsedTable } from "./extensions/table/table-syntax.types.js";
 
 export const TABLE_EXIT = {
   BEFORE: "before",

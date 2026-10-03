@@ -26,6 +26,7 @@ import type { WsBroadcaster } from "./ws-broadcaster.js";
 import type { AgentCircleManager } from "./agent-circle-manager.js";
 import type { FragmentManager } from "./fragment/fragment-manager.js";
 import { AppError } from "../core/error/app-error.js";
+import { isAppErrorCode } from "../core/error/app-error-utils.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { env } from "../config/env.js";
 import { AGENTS_DIR_NAME, AGENT_MD_FILENAME, DEFAULT_PROJECT_DIR_NAME } from "../config/constants.js";
@@ -149,7 +150,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
           peers.push(agent);
         }
       } catch (error) {
-        if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.AGENT_NOT_FOUND) {
+        if (isAppErrorCode(error, APP_ERROR_CODES.AGENT_NOT_FOUND)) {
           log.debug({ peerAgentId }, "Peer agent no longer exists, skipping");
         } else {
           throw error;
@@ -509,7 +510,7 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     try {
       return await readTextFile(mdPath);
     } catch (error) {
-      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
+      if (isAppErrorCode(error, APP_ERROR_CODES.NOT_FOUND)) {
         return undefined;
       }
 

@@ -4,6 +4,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 import { env } from "../../config/env.js";
 import { SYSTEM_AGENTS_PROJECT_DIR_NAME } from "../../config/constants.js";
 import { AppError } from "../../core/error/app-error.js";
+import { isAppErrorCode } from "../../core/error/app-error-utils.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { logger } from "../../utils/logger.js";
 
@@ -115,7 +116,7 @@ export class CopilotClientManager {
       const stopPromise = client.stop();
       await Promise.race([stopPromise, timeout]);
     } catch (error) {
-      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.TIMEOUT) {
+      if (isAppErrorCode(error, APP_ERROR_CODES.TIMEOUT)) {
         log.warn({ error }, "Force stop Copilot client");
         await client.forceStop();
       } else {

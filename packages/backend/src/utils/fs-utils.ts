@@ -137,10 +137,14 @@ export async function readTextFile(filePath: string): Promise<string> {
 /**
  * Write text content to a file.
  * Creates parent directories if they don't exist.
+ * Returns false when `overwrite` is false and the path is already taken.
  */
-export async function writeTextFile(filePath: string, content: string): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
-  await fs.writeFile(filePath, content, { encoding: "utf-8", mode: 0o600 });
+export async function writeTextFile(
+  filePath: string,
+  content: string,
+  options: WriteFileOptions = {}
+): Promise<boolean> {
+  return writeFileContent(filePath, content, options);
 }
 
 /**
@@ -169,11 +173,19 @@ export async function writeBinaryFile(
   content: Buffer,
   options: WriteFileOptions = {}
 ): Promise<boolean> {
+  return writeFileContent(filePath, content, options);
+}
+
+async function writeFileContent(
+  filePath: string,
+  content: string | Buffer,
+  options: WriteFileOptions
+): Promise<boolean> {
   const { overwrite = true } = options;
   await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
 
   try {
-    await fs.writeFile(filePath, content, { mode: 0o600, flag: overwrite ? "w" : "wx" });
+    await fs.writeFile(filePath, content, { encoding: "utf-8", mode: 0o600, flag: overwrite ? "w" : "wx" });
     return true;
   } catch (error) {
     if (!overwrite && isErrnoException(error) && error.code === "EEXIST") {

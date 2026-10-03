@@ -13,11 +13,6 @@ import { NoteWorkspace } from "./note-workspace.js";
 
 const VIEW_TITLE = "Notes";
 
-/**
- * Notes view — tree sidebar (left) and the selected note (right): live text
- * notes open in the editor, everything else renders read-only. Notes live as
- * files under the configured notes root; the backend owns the tree and content.
- */
 export function NotesView() {
   const { data: notes = [], isLoading, error } = useNotesQuery();
   const sidebarWidth = useAppStore((state) => state.notesSidebarWidth);
@@ -95,7 +90,7 @@ export function NotesView() {
 
       <PanelResizeHandle onPointerDown={resizeHandle.handlePointerDown} onKeyDown={resizeHandle.handleKeyDown} />
 
-      <section className="flex-1 min-w-0 overflow-y-auto">
+      <section className="flex-1 min-w-0 overflow-hidden">
         <NoteWorkspace key={workspaceNote?.id} note={workspaceNote} />
       </section>
     </div>

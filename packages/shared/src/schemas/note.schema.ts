@@ -113,3 +113,51 @@ export const WriteNoteContentInputSchema = z.object({
 });
 
 export type WriteNoteContentInput = z.infer<typeof WriteNoteContentInputSchema>;
+
+export const WIKILINK_RESOLVE_MAX_TARGETS = 1000;
+
+export const ResolveWikilinkBatchInputSchema = z.object({
+  targets: z.array(z.string()).max(WIKILINK_RESOLVE_MAX_TARGETS),
+});
+
+export type ResolveWikilinkBatchInput = z.infer<typeof ResolveWikilinkBatchInputSchema>;
+
+/** What one target names; `note` is absent when it names nothing. */
+export const WikilinkResolutionSchema = z.object({
+  target: z.string(),
+  note: NoteMetadataSchema.optional(),
+});
+
+export type WikilinkResolution = z.infer<typeof WikilinkResolutionSchema>;
+
+/** Open the note a target names, creating it (and any missing folders) when it names nothing. */
+export const ResolveWikilinkInputSchema = z.object({
+  target: z.string().min(1),
+  sourceNoteId: z.string().min(1),
+});
+
+export type ResolveWikilinkInput = z.infer<typeof ResolveWikilinkInputSchema>;
+
+export const SuggestWikilinksQuerySchema = z.object({
+  query: z.string().default(""),
+  isEmbed: z.stringbool().default(false),
+  excludeId: z.string().min(1).optional(),
+});
+
+export type SuggestWikilinksQuery = z.output<typeof SuggestWikilinksQuerySchema>;
+
+/** `target` is the shortest unescaped target that names `note`. */
+export const WikilinkSuggestionSchema = z.object({
+  note: NoteFileMetadataSchema,
+  folderPath: z.string().optional(),
+  target: z.string(),
+});
+
+export type WikilinkSuggestion = z.infer<typeof WikilinkSuggestionSchema>;
+
+export const NoteImageAssetSchema = z.object({
+  note: NoteMetadataSchema,
+  target: z.string(),
+});
+
+export type NoteImageAsset = z.infer<typeof NoteImageAssetSchema>;

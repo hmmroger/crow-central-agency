@@ -12,6 +12,7 @@ import { ContextMenuProvider } from "./providers/context-menu-provider.js";
 import { AgentsProvider } from "./providers/agents-provider.js";
 import { AgentStatesProvider } from "./providers/agent-states-provider.js";
 import { TasksProvider } from "./providers/tasks-provider.js";
+import { NotesProvider } from "./providers/notes-provider.js";
 import { AgentBuilderProvider } from "./providers/agent-builder-provider.js";
 import { RowHeightsProvider } from "./providers/row-heights-provider.js";
 import { AccessKeyPage } from "./components/auth/access-key-page.js";
@@ -44,21 +45,23 @@ export function App() {
           <AgentStatesProvider>
             <AgentsProvider>
               <TasksProvider>
-                <AgentBuilderProvider>
-                  <ContextMenuProvider>
-                    <ModalDialogProvider>
-                      <FullPanelProvider>
-                        <HeaderProvider>
-                          <RowHeightsProvider>
-                            <AppLayout>
-                              <AppContent />
-                            </AppLayout>
-                          </RowHeightsProvider>
-                        </HeaderProvider>
-                      </FullPanelProvider>
-                    </ModalDialogProvider>
-                  </ContextMenuProvider>
-                </AgentBuilderProvider>
+                <NotesProvider>
+                  <AgentBuilderProvider>
+                    <ContextMenuProvider>
+                      <ModalDialogProvider>
+                        <FullPanelProvider>
+                          <HeaderProvider>
+                            <RowHeightsProvider>
+                              <AppLayout>
+                                <AppContent />
+                              </AppLayout>
+                            </RowHeightsProvider>
+                          </HeaderProvider>
+                        </FullPanelProvider>
+                      </ModalDialogProvider>
+                    </ContextMenuProvider>
+                  </AgentBuilderProvider>
+                </NotesProvider>
               </TasksProvider>
             </AgentsProvider>
           </AgentStatesProvider>

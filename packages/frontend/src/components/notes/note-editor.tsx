@@ -1,9 +1,18 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { NoteFileMetadata } from "@crow-central-agency/shared";
 import { useNoteContentQuery } from "../../hooks/queries/use-note-content-query.js";
-import { useWriteNoteContent } from "../../hooks/queries/use-note-mutations.js";
+import { useResolveWikilink, useWriteNoteContent } from "../../hooks/queries/use-note-mutations.js";
+import { useAppStore } from "../../stores/app-store.js";
 import { EDITOR_STATUS_TONE, type EditorStatusAlert } from "./editor-status-bar.types.js";
-import { MarkdownEditor } from "./markdown-editor.js";
+import type {
+  EditorFormatState,
+  EditorStatus,
+  MarkdownEditorHandle,
+  WikilinkOpenRequest,
+} from "./editor/markdown-editor.types.js";
+import { MarkdownEditor } from "./editor/markdown-editor.js";
+import { EditorToolbar } from "./editor-toolbar.js";
+import { EditorStatusBar } from "./editor-status-bar.js";
 
 interface NoteEditorProps {
   note: NoteFileMetadata;
@@ -15,12 +24,12 @@ const CONFLICT_ERROR_CODE = "conflict";
 const CONFLICT_MESSAGE = "This note changed on disk and was reloaded. Unsaved edits were not written.";
 const AUTO_SAVE_DELAY_MS = 1000;
 
-function getStatusAlert(isConflict: boolean, saveErrorMessage?: string): EditorStatusAlert | undefined {
+function getStatusAlert(isConflict: boolean, errorMessage?: string): EditorStatusAlert | undefined {
   if (isConflict) {
     return { message: CONFLICT_MESSAGE, tone: EDITOR_STATUS_TONE.WARNING };
   }
 
-  return saveErrorMessage === undefined ? undefined : { message: saveErrorMessage, tone: EDITOR_STATUS_TONE.ERROR };
+  return errorMessage === undefined ? undefined : { message: errorMessage, tone: EDITOR_STATUS_TONE.ERROR };
 }
 
 /**
@@ -30,8 +39,13 @@ function getStatusAlert(isConflict: boolean, saveErrorMessage?: string): EditorS
  * reseeds the editor.
  */
 export function NoteEditor({ note, onUnsavedChange }: NoteEditorProps) {
+  const [editor, setEditor] = useState<MarkdownEditorHandle>();
+  const [formatState, setFormatState] = useState<EditorFormatState>();
+  const [status, setStatus] = useState<EditorStatus>();
   const { data, isLoading, isError, error, refetch } = useNoteContentQuery(note);
   const { mutateAsync: writeContent, isError: isSaveError, error: saveError } = useWriteNoteContent();
+  const { mutate: resolveWikilink, error: resolveError, reset: resetResolveError } = useResolveWikilink();
+  const goToNote = useAppStore((state) => state.goToNote);
   const draftRef = useRef("");
   const tokenRef = useRef(note.updatedTimestamp);
   const isDirtyRef = useRef(false);
@@ -131,8 +145,26 @@ export function NoteEditor({ note, onUnsavedChange }: NoteEditorProps) {
       isDirtyRef.current = true;
       onUnsavedChange(true);
       scheduleSave();
+
+      // Only a settled resolve has an error; resetting a pending one would drop its navigation.
+      if (resolveError) {
+        resetResolveError();
+      }
     },
-    [scheduleSave, onUnsavedChange]
+    [scheduleSave, onUnsavedChange, resolveError, resetResolveError]
+  );
+
+  const handleWikilinkOpen = useCallback(
+    ({ target, noteId }: WikilinkOpenRequest) => {
+      if (noteId !== undefined) {
+        goToNote(noteId);
+
+        return;
+      }
+
+      resolveWikilink({ target, sourceNoteId: note.id }, { onSuccess: (resolved) => goToNote(resolved.id) });
+    },
+    [goToNote, resolveWikilink, note.id]
   );
 
   useEffect(() => {
@@ -161,14 +193,28 @@ export function NoteEditor({ note, onUnsavedChange }: NoteEditorProps) {
   }
 
   return (
-    <MarkdownEditor
-      key={loadedTimestamp}
-      noteId={note.id}
-      markdown={loadedMarkdown}
-      onChange={handleChange}
-      onBlur={flushSave}
-      alert={getStatusAlert(isConflict, isSaveError ? saveError.message : undefined)}
-      ariaLabel={`Edit note ${note.name}`}
-    />
+    <div key={loadedTimestamp} className="h-full flex flex-col gap-2 pt-2 px-2">
+      <div className="note-canvas">
+        {editor && formatState && <EditorToolbar editor={editor} formatState={formatState} />}
+      </div>
+      <MarkdownEditor
+        noteId={note.id}
+        markdown={loadedMarkdown}
+        onChange={handleChange}
+        onBlur={flushSave}
+        ariaLabel={`Edit note ${note.name}`}
+        onEditorReady={setEditor}
+        onFormatStateChange={setFormatState}
+        onStatusChange={setStatus}
+        onWikilinkOpen={handleWikilinkOpen}
+        className="flex-1 min-h-0"
+      />
+      {status && (
+        <EditorStatusBar
+          status={status}
+          alert={getStatusAlert(isConflict, isSaveError ? saveError.message : resolveError?.message)}
+        />
+      )}
+    </div>
   );
 }

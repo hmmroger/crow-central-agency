@@ -2,14 +2,26 @@ import { syntaxTree } from "@codemirror/language";
 import type { EditorState, Range } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
+import { HTMLVIEW_FENCE_LANG } from "@crow-central-agency/shared";
 import type { VisibleRange } from "./block-decorators.types.js";
 import { BulletWidget } from "./bullet-widget.js";
 import { findChildren, hideSyntax, isSelectionTouching, skipFollowingSpace } from "./cm-extension-utils.js";
 import { CodeCopyWidget } from "./code-copy-widget.js";
 import { DividerWidget } from "./divider-widget.js";
-import { getFencedCodeParts, isTaskMarkerChecked } from "./markdown-syntax.js";
+import { HtmlviewWidget } from "./htmlview-widget.js";
+import {
+  getFencedCodeLanguage,
+  getFencedCodeParts,
+  getFencedCodeText,
+  isTaskMarkerChecked,
+} from "./markdown-syntax.js";
 import { SYNTAX_NODE } from "./markdown-syntax.types.js";
+import { MERMAID_FENCE_LANG, MermaidWidget } from "./mermaid-widget.js";
+import { getActiveTableCell } from "./table/table-cell-state.js";
+import { parseTable } from "./table/table-syntax.js";
+import { TableWidget } from "./table/table-widget.js";
 import { TaskCheckboxWidget } from "./task-checkbox-widget.js";
+import { getWikilinkResolutions } from "./wikilink-resolution-state.js";
 
 const BULLET = Decoration.replace({ widget: new BulletWidget() });
 const DIVIDER = Decoration.replace({ widget: new DividerWidget() });
@@ -165,6 +177,49 @@ export function decorateFencedCode(
   if (parts.closeMark && closeLine) {
     hideSyntax(state, decorations, parts.closeMark.from, closeLine.to);
   }
+}
+
+/** A terminated mermaid or htmlview fence that opens its line is drawn as its preview while the selection is outside it. */
+export function decorateFencePreview(
+  syntaxNode: SyntaxNode,
+  state: EditorState,
+  decorations: Range<Decoration>[]
+): void {
+  const language = getFencedCodeLanguage(state, syntaxNode);
+  const openLine = state.doc.lineAt(syntaxNode.from);
+  const closeLine = state.doc.lineAt(syntaxNode.to);
+
+  if (
+    (language !== MERMAID_FENCE_LANG && language !== HTMLVIEW_FENCE_LANG) ||
+    openLine.text.slice(0, syntaxNode.from - openLine.from).trim() !== "" ||
+    !getFencedCodeParts(syntaxNode)?.closeMark ||
+    isSelectionTouching(state, openLine.from, closeLine.to)
+  ) {
+    return;
+  }
+
+  const source = getFencedCodeText(state, syntaxNode);
+  const widget = language === MERMAID_FENCE_LANG ? new MermaidWidget(source) : new HtmlviewWidget(source);
+
+  decorations.push(Decoration.replace({ widget, block: true }).range(openLine.from, closeLine.to));
+}
+
+/** A GFM table drawn as a grid, whatever the selection, whose cells are edited in place. */
+export function decorateTable(syntaxNode: SyntaxNode, state: EditorState, decorations: Range<Decoration>[]): void {
+  const table = parseTable(state, syntaxNode);
+
+  if (!table) {
+    return;
+  }
+
+  const activeCell = getActiveTableCell(state);
+  const widget = new TableWidget(
+    table,
+    activeCell?.tableFrom === table.from ? activeCell : undefined,
+    getWikilinkResolutions(state)
+  );
+
+  decorations.push(Decoration.replace({ widget, block: true }).range(table.from, table.to));
 }
 
 export function decorateHorizontalRule(

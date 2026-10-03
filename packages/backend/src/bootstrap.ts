@@ -128,7 +128,7 @@ export async function bootstrap(options: BootstrapOptions) {
     fragmentManager
   );
   await documentSearchService.initialize();
-  const notesManager = new NotesManager(env.CROW_NOTES_PATH);
+  const notesManager = new NotesManager(env.CROW_NOTES_PATH, broadcaster);
   await notesManager.initialize();
   const placesManager = new PlacesManager();
   const connectorManager = new ConnectorManager(storeProvider, registry, crowScheduler);

@@ -11,6 +11,7 @@ import {
   BranchPointSchema,
 } from "./agent-runtime-state.schema.js";
 import { MessageSourceSchema } from "./message-source.schema.js";
+import { NoteMetadataSchema } from "./note.schema.js";
 import { AgentCommandSchema } from "./agent-command.schema.js";
 import { AgentBuilderDraftViewSchema } from "./agent-builder.schema.js";
 import {
@@ -65,6 +66,9 @@ export const SERVER_MESSAGE_TYPE = {
   FRAGMENT_CREATED: "fragment_created",
   FRAGMENT_UPDATED: "fragment_updated",
   FRAGMENT_DELETED: "fragment_deleted",
+  NOTE_CREATED: "note_created",
+  NOTE_UPDATED: "note_updated",
+  NOTE_DELETED: "note_deleted",
   AGENT_BUILDER_DRAFT_UPDATED: "agent_builder_draft_updated",
   AGENT_SESSIONS_UPDATED: "agent_sessions_updated",
 } as const;
@@ -304,6 +308,23 @@ export const FragmentDeletedWsMessageSchema = z.object({
   fragmentId: z.string(),
 });
 
+export const NoteCreatedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.NOTE_CREATED),
+  noteId: z.string(),
+  metadata: NoteMetadataSchema,
+});
+
+export const NoteUpdatedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.NOTE_UPDATED),
+  noteId: z.string(),
+  metadata: NoteMetadataSchema,
+});
+
+export const NoteDeletedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.NOTE_DELETED),
+  noteId: z.string(),
+});
+
 /** The single agent-builder draft changed; carries the resolved view, or null when it was cleared. */
 export const AgentBuilderDraftUpdatedWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.AGENT_BUILDER_DRAFT_UPDATED),
@@ -347,6 +368,9 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   FragmentCreatedWsMessageSchema,
   FragmentUpdatedWsMessageSchema,
   FragmentDeletedWsMessageSchema,
+  NoteCreatedWsMessageSchema,
+  NoteUpdatedWsMessageSchema,
+  NoteDeletedWsMessageSchema,
   AgentBuilderDraftUpdatedWsMessageSchema,
   AgentSessionsUpdatedWsMessageSchema,
 ]);
@@ -380,6 +404,9 @@ export type RelationshipDeletedWsMessage = z.infer<typeof RelationshipDeletedWsM
 export type FragmentCreatedWsMessage = z.infer<typeof FragmentCreatedWsMessageSchema>;
 export type FragmentUpdatedWsMessage = z.infer<typeof FragmentUpdatedWsMessageSchema>;
 export type FragmentDeletedWsMessage = z.infer<typeof FragmentDeletedWsMessageSchema>;
+export type NoteCreatedWsMessage = z.infer<typeof NoteCreatedWsMessageSchema>;
+export type NoteUpdatedWsMessage = z.infer<typeof NoteUpdatedWsMessageSchema>;
+export type NoteDeletedWsMessage = z.infer<typeof NoteDeletedWsMessageSchema>;
 export type AgentBuilderDraftUpdatedWsMessage = z.infer<typeof AgentBuilderDraftUpdatedWsMessageSchema>;
 export type AgentSessionsUpdatedWsMessage = z.infer<typeof AgentSessionsUpdatedWsMessageSchema>;
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;

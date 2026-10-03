@@ -6,7 +6,6 @@ import { NoteReader } from "./note-reader.js";
 import { NoteEditor } from "./note-editor.js";
 
 interface NoteWorkspaceProps {
-  /** Currently selected note, if any */
   note?: NoteMetadata;
 }
 

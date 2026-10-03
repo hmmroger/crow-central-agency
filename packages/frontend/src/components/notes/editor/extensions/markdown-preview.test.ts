@@ -18,7 +18,7 @@ function mountEditor(doc: string, cursor: number): EditorView {
     state: EditorState.create({
       doc,
       selection: EditorSelection.cursor(cursor),
-      extensions: [createBaseSetup(), markdownPreview(), clickHandler()],
+      extensions: [createBaseSetup(), markdownPreview(), clickHandler(vi.fn())],
     }),
   });
 

@@ -1,9 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { FolderTree } from "lucide-react";
 import type { NoteMetadata } from "@crow-central-agency/shared";
-import { useNotesQuery } from "../../hooks/queries/use-notes-query.js";
+import { useNoteMoveDestinationsQuery } from "../../hooks/queries/use-note-move-destinations-query.js";
 import { useUpdateNote } from "../../hooks/queries/use-note-mutations.js";
-import { getMoveDestinations } from "../../utils/note-tree.js";
 import { getErrorMessage } from "../../utils/error-message.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { cn } from "../../utils/cn.js";
@@ -25,11 +24,10 @@ const ROOT_DESTINATION_LABEL = "Notes root";
  * are left out; the notes root is offered as an explicit row.
  */
 export function NoteMoveDialog({ note, onMoved, onClose }: NoteMoveDialogProps) {
-  const { data: notes = [] } = useNotesQuery();
+  const { data: destinations = [] } = useNoteMoveDestinationsQuery(note.id);
   const { mutateAsync: updateNote, isPending } = useUpdateNote();
   const [destinationId, setDestinationId] = useState(note.parentId);
   const [error, setError] = useState<string>();
-  const destinations = useMemo(() => getMoveDestinations(notes, note), [notes, note]);
   const isUnchanged = destinationId === note.parentId;
 
   const handleSelect = useCallback((metadata: NoteMetadata) => {
