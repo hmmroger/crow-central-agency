@@ -32,7 +32,7 @@ const STATUS_CLASS = "px-2 py-1 text-xs text-text-muted";
 
 /** The notes and trash trees behind one tab row; each tab keeps its own selection. */
 export function NotesSidebar() {
-  const { getNote, getChildIds, isLoading, error } = useNotesContext();
+  const { getNote, getChildIds, getListStatus } = useNotesContext();
   const { createNote, createFolder, renameNote, moveNote, deleteNote, restoreNote, emptyTrash } = useNoteCommands();
   const activeTab = useAppStore((state) => state.notesSidebarTab);
   const setNotesSidebarTab = useAppStore((state) => state.setNotesSidebarTab);
@@ -121,6 +121,7 @@ export function NotesSidebar() {
   ]);
 
   const tab = tabConfigs[activeTab];
+  const { isLoading, error } = getListStatus(tab.isTrashed);
   const isEmpty = getChildIds(undefined, tab.isTrashed).length === 0;
 
   return (

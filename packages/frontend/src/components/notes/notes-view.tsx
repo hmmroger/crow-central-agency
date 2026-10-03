@@ -19,7 +19,7 @@ const TRASH_CRUMB: HeaderBreadcrumb = { id: "TRASH", label: "Trash" };
 
 /** Notes layout and header; the open note is the active tab's selection. */
 export function NotesView() {
-  const { getNote, getNotePath } = useNotesContext();
+  const { getNote, getAncestorIds } = useNotesContext();
   const sidebarWidth = useAppStore((state) => state.notesSidebarWidth);
   const setSidebarWidth = useAppStore((state) => state.setNotesSidebarWidth);
   const isTrashTab = useAppStore((state) => state.notesSidebarTab === NOTES_SIDEBAR_TAB.TRASH);
@@ -36,15 +36,15 @@ export function NotesView() {
   });
 
   const breadcrumbs = useMemo<HeaderBreadcrumb[]>(() => {
-    const selectCrumb = isTrashTab ? selectTrashNote : selectNote;
-    const noteCrumbs = (openNoteId ? getNotePath(openNoteId) : []).map((metadata) => ({
-      id: metadata.id,
-      label: metadata.name,
-      onClick: () => selectCrumb(metadata.id),
+    const selectFolder = isTrashTab ? selectTrashNote : selectNote;
+    const folderCrumbs = (openNoteId ? getAncestorIds(openNoteId) : []).map((folderId) => ({
+      id: folderId,
+      label: getNote(folderId)?.name ?? folderId,
+      onClick: () => selectFolder(folderId),
     }));
 
-    return isTrashTab ? [TRASH_CRUMB].concat(noteCrumbs) : noteCrumbs;
-  }, [openNoteId, isTrashTab, getNotePath, selectTrashNote, selectNote]);
+    return isTrashTab ? [TRASH_CRUMB].concat(folderCrumbs) : folderCrumbs;
+  }, [openNoteId, isTrashTab, getAncestorIds, getNote, selectTrashNote, selectNote]);
 
   return (
     <div className="flex h-full">

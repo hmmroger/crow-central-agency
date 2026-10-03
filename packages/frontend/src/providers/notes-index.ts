@@ -20,19 +20,19 @@ export class NotesIndex {
     return childIds;
   };
 
-  /** Ancestors root first, then the note; empty when the note is not indexed. */
-  public readonly getNotePath = (noteId: string): NoteMetadata[] => {
-    const path: NoteMetadata[] = [];
-    const visitedIds = new Set<string>();
-    let current = this.notesById.get(noteId);
+  /** Ids of the note's ancestor folders, root first, excluding the note. */
+  public readonly getAncestorIds = (noteId: string): string[] => {
+    const ancestorIds: string[] = [];
+    const visitedIds = new Set([noteId]);
+    let parentId = this.notesById.get(noteId)?.parentId;
 
-    while (current && !visitedIds.has(current.id)) {
-      visitedIds.add(current.id);
-      path.push(current);
-      current = current.parentId ? this.notesById.get(current.parentId) : undefined;
+    while (parentId !== undefined && !visitedIds.has(parentId) && this.notesById.has(parentId)) {
+      visitedIds.add(parentId);
+      ancestorIds.push(parentId);
+      parentId = this.notesById.get(parentId)?.parentId;
     }
 
-    return path.reverse();
+    return ancestorIds.reverse();
   };
 
   public set(metadata: NoteMetadata): void {

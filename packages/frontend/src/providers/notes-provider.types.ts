@@ -1,13 +1,20 @@
 import type { NoteMetadata, UpdateNoteInput } from "@crow-central-agency/shared";
 import type { ApiError } from "../services/api-client.types.js";
 
+export interface NoteListStatus {
+  isLoading: boolean;
+  error: ApiError | undefined;
+}
+
 /** Value exposed by the NotesProvider context: note accessors and operations, never the lists themselves */
 export interface NotesContextValue {
   getNote: (noteId: string) => NoteMetadata | undefined;
   /** Ids of the live or trashed notes directly under `parentId`, or at the root when it is undefined */
   getChildIds: (parentId: string | undefined, isTrashed: boolean) => string[];
-  /** The note's ancestors root first, then the note itself */
-  getNotePath: (noteId: string) => NoteMetadata[];
+  /** Ids of the note's ancestor folders, root first, excluding the note */
+  getAncestorIds: (noteId: string) => string[];
+  /** Load state of the live or the trash list */
+  getListStatus: (isTrashed: boolean) => NoteListStatus;
   /** Resolves with the new note's id */
   createNote: (parentId: string | undefined, name: string) => Promise<string>;
   /** Resolves with the new folder's id */
@@ -21,6 +28,4 @@ export interface NotesContextValue {
   emptyTrash: () => Promise<void>;
   /** Resolves with the id of the note a wikilink names, created beside the source note when it names nothing yet */
   resolveWikilink: (target: string, sourceNoteId: string) => Promise<string>;
-  isLoading: boolean;
-  error: ApiError | undefined;
 }

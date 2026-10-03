@@ -22,7 +22,7 @@ import { noteKeys } from "../services/query-keys.js";
 import { WS_STATE } from "../services/ws-client.types.js";
 import { useAppStore } from "../stores/app-store.js";
 import { NotesIndex } from "./notes-index.js";
-import type { NotesContextValue } from "./notes-provider.types.js";
+import type { NoteListStatus, NotesContextValue } from "./notes-provider.types.js";
 
 const NOTES_PATH = "/notes";
 const TRASH_PATH = "/note-trash";
@@ -229,11 +229,27 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
     [resolveWikilinkMutation, setNote]
   );
 
+  const treeStatus = useMemo<NoteListStatus>(
+    () => ({ isLoading: treeQuery.isLoading, error: treeQuery.error ?? undefined }),
+    [treeQuery.isLoading, treeQuery.error]
+  );
+
+  const trashStatus = useMemo<NoteListStatus>(
+    () => ({ isLoading: trashQuery.isLoading, error: trashQuery.error ?? undefined }),
+    [trashQuery.isLoading, trashQuery.error]
+  );
+
+  const getListStatus = useCallback(
+    (isTrashed: boolean) => (isTrashed ? trashStatus : treeStatus),
+    [trashStatus, treeStatus]
+  );
+
   const value = useMemo<NotesContextValue>(
     () => ({
       getNote: notesIndex.getNote,
       getChildIds: notesIndex.getChildIds,
-      getNotePath: notesIndex.getNotePath,
+      getAncestorIds: notesIndex.getAncestorIds,
+      getListStatus,
       createNote,
       createFolder,
       updateNote,
@@ -241,11 +257,10 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
       restoreNote,
       emptyTrash,
       resolveWikilink,
-      isLoading: treeQuery.isLoading || trashQuery.isLoading,
-      error: treeQuery.error ?? trashQuery.error ?? undefined,
     }),
     [
       notesIndex,
+      getListStatus,
       createNote,
       createFolder,
       updateNote,
@@ -253,10 +268,6 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
       restoreNote,
       emptyTrash,
       resolveWikilink,
-      treeQuery.isLoading,
-      trashQuery.isLoading,
-      treeQuery.error,
-      trashQuery.error,
     ]
   );
 
