@@ -1,24 +1,27 @@
 import { useCallback, useMemo } from "react";
-import { FolderInput, Pencil, Trash2 } from "lucide-react";
+import { FilePlus, FolderInput, FolderPlus, Pencil, Trash2 } from "lucide-react";
 import { ENTITY_TYPE, type NoteMetadata } from "@crow-central-agency/shared";
 import { useNoteAuthoring } from "../../hooks/dialogs/use-note-authoring.js";
+import { NOTES_SIDEBAR_TAB, useAppStore } from "../../stores/app-store.js";
+import { ActionButton } from "../common/action-button.js";
+import { TabBar } from "../common/tab-bar.js";
 import type { TreeRowAction } from "../common/tree-view/tree-view.types.js";
 import { NoteTree } from "./note-tree.js";
-import { NoteTreeToolbar } from "./note-tree-toolbar.js";
+import { NOTES_SIDEBAR_LAYOUT_ID, NOTES_SIDEBAR_TABS } from "./notes-sidebar-tabs.js";
 
 interface NoteBrowseSidebarProps {
   /** Flat live note tree as served by the backend */
   notes: NoteMetadata[];
   selectedId?: string;
   onSelect: (metadata: NoteMetadata) => void;
-  onOpenTrash: () => void;
 }
 
 const ROOT_FOLDER_NAME = "Notes";
 
 /** The live note tree with its create, rename, move and delete affordances. */
-export function NoteBrowseSidebar({ notes, selectedId, onSelect, onOpenTrash }: NoteBrowseSidebarProps) {
+export function NoteBrowseSidebar({ notes, selectedId, onSelect }: NoteBrowseSidebarProps) {
   const { createFolder, createNote, renameNote, moveNote, deleteNote } = useNoteAuthoring(onSelect);
+  const setNotesSidebarTab = useAppStore((state) => state.setNotesSidebarTab);
   const selectedNote = useMemo(() => notes.find((note) => note.id === selectedId), [notes, selectedId]);
 
   // New notes land in the selected folder, or alongside the selected note.
@@ -43,14 +46,26 @@ export function NoteBrowseSidebar({ notes, selectedId, onSelect, onOpenTrash }: 
     ],
     [renameNote, moveNote, deleteNote]
   );
+  const targetName = targetFolder?.name ?? ROOT_FOLDER_NAME;
 
   return (
     <div className="flex flex-col gap-1">
-      <NoteTreeToolbar
-        targetName={targetFolder?.name ?? ROOT_FOLDER_NAME}
-        onCreateNote={handleCreateNote}
-        onCreateFolder={handleCreateFolder}
-        onOpenTrash={onOpenTrash}
+      <TabBar
+        tabs={NOTES_SIDEBAR_TABS}
+        activeTab={NOTES_SIDEBAR_TAB.NOTES}
+        onTabChange={setNotesSidebarTab}
+        layoutId={NOTES_SIDEBAR_LAYOUT_ID}
+        trailing={
+          <>
+            <ActionButton icon={FilePlus} label={`New note in ${targetName}`} iconOnly onClick={handleCreateNote} />
+            <ActionButton
+              icon={FolderPlus}
+              label={`New folder in ${targetName}`}
+              iconOnly
+              onClick={handleCreateFolder}
+            />
+          </>
+        }
       />
 
       {notes.length === 0 ? (

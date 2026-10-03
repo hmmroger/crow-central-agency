@@ -1,26 +1,23 @@
 import { useCallback, useMemo } from "react";
-import { ArrowLeft, RotateCcw, Trash2 } from "lucide-react";
+import { RotateCcw, Trash2 } from "lucide-react";
 import type { NoteMetadata } from "@crow-central-agency/shared";
 import { useNoteTrashQuery } from "../../hooks/queries/use-note-trash-query.js";
 import { useEmptyTrash, useRestoreNote } from "../../hooks/queries/use-note-mutations.js";
 import { useConfirmDialog } from "../../hooks/dialogs/use-confirm-dialog.js";
 import { useNoteDeletion } from "../../hooks/dialogs/use-note-deletion.js";
-import { useAppStore } from "../../stores/app-store.js";
+import { NOTES_SIDEBAR_TAB, useAppStore } from "../../stores/app-store.js";
 import { getErrorMessage } from "../../utils/error-message.js";
-import { ActionButton } from "../common/action-button.js";
+import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
+import { TabBar } from "../common/tab-bar.js";
 import type { TreeRowAction } from "../common/tree-view/tree-view.types.js";
 import { NoteTree } from "./note-tree.js";
-
-interface NoteTrashSidebarProps {
-  /** Return to the live note tree */
-  onClose: () => void;
-}
+import { NOTES_SIDEBAR_LAYOUT_ID, NOTES_SIDEBAR_TABS } from "./notes-sidebar-tabs.js";
 
 /**
  * The trash, browsed with the same tree as the live notes. Selecting a note
  * previews it read-only; restoring is what makes it editable again.
  */
-export function NoteTrashSidebar({ onClose }: NoteTrashSidebarProps) {
+export function NoteTrashSidebar() {
   const { data: trashedNotes = [], isLoading, error } = useNoteTrashQuery();
   const { mutate: restoreNote, error: restoreError } = useRestoreNote();
   const { mutateAsync: emptyTrash } = useEmptyTrash();
@@ -28,6 +25,7 @@ export function NoteTrashSidebar({ onClose }: NoteTrashSidebarProps) {
   const deleteNote = useNoteDeletion();
   const selectedId = useAppStore((state) => state.selectedTrashNoteId);
   const selectTrashNote = useAppStore((state) => state.selectTrashNote);
+  const setNotesSidebarTab = useAppStore((state) => state.setNotesSidebarTab);
 
   const handleSelect = useCallback(
     (metadata: NoteMetadata) => {
@@ -75,19 +73,20 @@ export function NoteTrashSidebar({ onClose }: NoteTrashSidebarProps) {
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between gap-1 px-1 pb-1">
-        <span className="min-w-0 truncate text-3xs uppercase tracking-wide text-text-muted">Trash</span>
-        <div className="flex shrink-0 gap-1">
-          <ActionButton icon={ArrowLeft} label="Back to notes" iconOnly onClick={onClose} />
+      <TabBar
+        tabs={NOTES_SIDEBAR_TABS}
+        activeTab={NOTES_SIDEBAR_TAB.TRASH}
+        onTabChange={setNotesSidebarTab}
+        layoutId={NOTES_SIDEBAR_LAYOUT_ID}
+        trailing={
           <ActionButton
-            icon={Trash2}
             label="Empty trash"
-            iconOnly
+            variant={ACTION_BUTTON_VARIANT.DESTRUCTIVE}
             disabled={trashedNotes.length === 0}
             onClick={handleEmptyTrash}
           />
-        </div>
-      </div>
+        }
+      />
 
       {error && <p className="px-2 py-1 text-xs text-error">{getErrorMessage(error)}</p>}
       {restoreError && <p className="px-2 py-1 text-xs text-error">{getErrorMessage(restoreError)}</p>}

@@ -1,4 +1,4 @@
-import type { ComponentType, MouseEvent } from "react";
+import type { ComponentType, MouseEvent, ReactNode } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import { useContextMenu } from "../../providers/context-menu-provider";
@@ -25,6 +25,8 @@ interface TabBarProps<T extends string> {
   onActionClick?: () => void;
   /** Tooltip / aria-label for the action button */
   actionTitle?: string;
+  /** Controls right-aligned in the tab row */
+  trailing?: ReactNode;
 }
 
 export function TabBar<T extends string>({
@@ -35,6 +37,7 @@ export function TabBar<T extends string>({
   actionIcon: ActionIcon,
   onActionClick,
   actionTitle,
+  trailing,
 }: TabBarProps<T>) {
   const { isMenuOpen } = useContextMenu();
 
@@ -112,6 +115,8 @@ export function TabBar<T extends string>({
           </div>
         );
       })}
+
+      {trailing && <div className="ml-auto flex shrink-0 items-center gap-1">{trailing}</div>}
 
       {ActionIcon && onActionClick && (
         <button

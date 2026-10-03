@@ -16,6 +16,14 @@ export const VIEW_MODE = {
 
 export type ViewMode = (typeof VIEW_MODE)[keyof typeof VIEW_MODE];
 
+/** Tabs of the Notes view sidebar */
+export const NOTES_SIDEBAR_TAB = {
+  NOTES: "notes",
+  TRASH: "trash",
+} as const;
+
+export type NotesSidebarTab = (typeof NOTES_SIDEBAR_TAB)[keyof typeof NOTES_SIDEBAR_TAB];
+
 /** Default side panel width in pixels */
 const DEFAULT_SIDE_PANEL_WIDTH = 300;
 /** Minimum side panel width in pixels */
@@ -40,8 +48,8 @@ interface AppState {
   selectedNoteId?: string;
   /** Selected note in the trash, tracked apart from the live selection so neither clobbers the other */
   selectedTrashNoteId?: string;
-  /** Whether the Notes view shows the trash in place of the notes tree */
-  isNoteTrashOpen: boolean;
+  /** Active tab of the Notes view sidebar */
+  notesSidebarTab: NotesSidebarTab;
   /** Whether the right side panel is open */
   sidePanelOpen: boolean;
   /** Current width of the side panel in pixels */
@@ -68,9 +76,9 @@ interface AppState {
   selectNote: (noteId?: string) => void;
   /** Select a note in the trash, or clear the selection */
   selectTrashNote: (noteId?: string) => void;
-  /** Show or hide the trash in the Notes view */
-  setNoteTrashOpen: (isOpen: boolean) => void;
-  /** Navigate to the Notes view with a live note selected */
+  /** Switch the Notes view sidebar tab */
+  setNotesSidebarTab: (tab: NotesSidebarTab) => void;
+  /** Navigate to the Notes view with a live note selected in the Notes tab */
   goToNote: (noteId: string) => void;
   /** Navigate to dashboard */
   goToDashboard: () => void;
@@ -130,7 +138,7 @@ export const useAppStore = create<AppState>()(
       selectedAgentId: undefined,
       selectedNoteId: undefined,
       selectedTrashNoteId: undefined,
-      isNoteTrashOpen: false,
+      notesSidebarTab: NOTES_SIDEBAR_TAB.NOTES,
       sidePanelOpen: true,
       sidePanelWidth: DEFAULT_SIDE_PANEL_WIDTH,
       notesSidebarWidth: DEFAULT_NOTES_SIDEBAR_WIDTH,
@@ -178,9 +186,10 @@ export const useAppStore = create<AppState>()(
 
       selectTrashNote: (noteId?: string) => set({ selectedTrashNoteId: noteId }),
 
-      setNoteTrashOpen: (isOpen: boolean) => set({ isNoteTrashOpen: isOpen }),
+      setNotesSidebarTab: (tab: NotesSidebarTab) => set({ notesSidebarTab: tab }),
 
-      goToNote: (noteId: string) => set({ viewMode: VIEW_MODE.NOTES, selectedNoteId: noteId, isNoteTrashOpen: false }),
+      goToNote: (noteId: string) =>
+        set({ viewMode: VIEW_MODE.NOTES, selectedNoteId: noteId, notesSidebarTab: NOTES_SIDEBAR_TAB.NOTES }),
 
       toggleSidePanel: () => set((state) => ({ sidePanelOpen: !state.sidePanelOpen })),
 

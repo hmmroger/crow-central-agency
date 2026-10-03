@@ -2,7 +2,12 @@ import { useCallback, useMemo } from "react";
 import type { NoteMetadata } from "@crow-central-agency/shared";
 import { useNotesQuery } from "../../hooks/queries/use-notes-query.js";
 import { useNoteTrashQuery } from "../../hooks/queries/use-note-trash-query.js";
-import { NOTES_SIDEBAR_MAX_WIDTH, NOTES_SIDEBAR_MIN_WIDTH, useAppStore } from "../../stores/app-store.js";
+import {
+  NOTES_SIDEBAR_MAX_WIDTH,
+  NOTES_SIDEBAR_MIN_WIDTH,
+  NOTES_SIDEBAR_TAB,
+  useAppStore,
+} from "../../stores/app-store.js";
 import { useResizablePanel } from "../../hooks/use-resizable-panel.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { PanelResizeHandle } from "../layout/panel-resize-handle.js";
@@ -20,9 +25,8 @@ export function NotesView() {
   const selectedId = useAppStore((state) => state.selectedNoteId);
   const selectNote = useAppStore((state) => state.selectNote);
   const selectedTrashId = useAppStore((state) => state.selectedTrashNoteId);
-  const isTrashOpen = useAppStore((state) => state.isNoteTrashOpen);
-  const setNoteTrashOpen = useAppStore((state) => state.setNoteTrashOpen);
-  const { data: trashedNotes = [] } = useNoteTrashQuery({ enabled: isTrashOpen });
+  const isTrashTab = useAppStore((state) => state.notesSidebarTab === NOTES_SIDEBAR_TAB.TRASH);
+  const { data: trashedNotes = [] } = useNoteTrashQuery({ enabled: isTrashTab });
 
   const resizeHandle = useResizablePanel({
     minWidth: NOTES_SIDEBAR_MIN_WIDTH,
@@ -34,15 +38,15 @@ export function NotesView() {
 
   const selectedNote = useMemo(() => notes.find((note) => note.id === selectedId), [notes, selectedId]);
 
-  // Each pane keeps its own selection, so the open one decides what the
+  // Each tab keeps its own selection, so the active one decides what the
   // workspace shows.
   const workspaceNote = useMemo(() => {
-    if (!isTrashOpen) {
+    if (!isTrashTab) {
       return selectedNote;
     }
 
     return trashedNotes.find((note) => note.id === selectedTrashId);
-  }, [isTrashOpen, selectedNote, trashedNotes, selectedTrashId]);
+  }, [isTrashTab, selectedNote, trashedNotes, selectedTrashId]);
 
   const handleSelect = useCallback(
     (metadata: NoteMetadata) => {
@@ -50,9 +54,6 @@ export function NotesView() {
     },
     [selectNote]
   );
-
-  const handleOpenTrash = useCallback(() => setNoteTrashOpen(true), [setNoteTrashOpen]);
-  const handleCloseTrash = useCallback(() => setNoteTrashOpen(false), [setNoteTrashOpen]);
 
   if (error) {
     return (
@@ -76,15 +77,10 @@ export function NotesView() {
     <div className="flex h-full">
       <HeaderPortal title={VIEW_TITLE} />
       <aside style={{ width: sidebarWidth }} className="shrink-0 overflow-y-auto border-r border-border-subtle p-2">
-        {isTrashOpen ? (
-          <NoteTrashSidebar onClose={handleCloseTrash} />
+        {isTrashTab ? (
+          <NoteTrashSidebar />
         ) : (
-          <NoteBrowseSidebar
-            notes={notes}
-            selectedId={selectedId}
-            onSelect={handleSelect}
-            onOpenTrash={handleOpenTrash}
-          />
+          <NoteBrowseSidebar notes={notes} selectedId={selectedId} onSelect={handleSelect} />
         )}
       </aside>
 
