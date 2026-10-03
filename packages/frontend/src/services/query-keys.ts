@@ -184,8 +184,6 @@ export const noteKeys = {
   tree: () => [...noteKeys.all, "tree"] as const,
   /** The trash tree */
   trash: () => [...noteKeys.all, "trash"] as const,
-  /** The tree a note is listed in */
-  list: (isTrashed: boolean) => (isTrashed ? noteKeys.trash() : noteKeys.tree()),
   /** Content of a single note; ids are unique across the live tree and the trash */
   content: (noteId: string) => [...noteKeys.all, "content", noteId] as const,
   /** Answers derived from the live tree: link resolution, suggestions and move destinations */

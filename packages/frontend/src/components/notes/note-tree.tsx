@@ -1,22 +1,26 @@
 import { useMemo } from "react";
-import type { NoteMetadata } from "@crow-central-agency/shared";
-import { buildNoteTree } from "../../utils/note-tree.js";
+import { useNotesContext } from "../../providers/notes-provider.js";
+import { buildNoteNodes } from "../../utils/note-tree.js";
 import { TreeView } from "../common/tree-view/tree-view.js";
 import type { TreeRowAction } from "../common/tree-view/tree-view.types.js";
 
 interface NoteTreeProps {
-  /** Flat note metadata as served by the backend */
-  notes: NoteMetadata[];
+  isTrashed: boolean;
   selectedId?: string;
   /** Note to bring into view: its ancestors are expanded when it changes */
   revealId?: string;
-  actions?: readonly TreeRowAction<NoteMetadata>[];
-  onSelect: (metadata: NoteMetadata) => void;
+  /** Row actions, handed the row's note id */
+  actions?: readonly TreeRowAction<string>[];
+  onSelect: (noteId: string) => void;
   ariaLabel: string;
 }
 
-export function NoteTree({ notes, selectedId, revealId, actions, onSelect, ariaLabel }: NoteTreeProps) {
-  const nodes = useMemo(() => buildNoteTree(notes), [notes]);
+export function NoteTree({ isTrashed, selectedId, revealId, actions, onSelect, ariaLabel }: NoteTreeProps) {
+  const { getNote, getChildIds } = useNotesContext();
+  const nodes = useMemo(
+    () => buildNoteNodes({ getNote, getChildIds }, undefined, isTrashed),
+    [getNote, getChildIds, isTrashed]
+  );
 
   return (
     <TreeView

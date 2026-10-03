@@ -1,11 +1,13 @@
 import { FileQuestion, FileText, Folder, FolderOpen, FolderTree, Image, type LucideIcon } from "lucide-react";
 import { ENTITY_TYPE, NOTE_CONTENT_TYPE, type NoteContentType, type NoteMetadata } from "@crow-central-agency/shared";
 import type { TreeNode } from "../components/common/tree-view/tree-view.types.js";
+import type { NotesContextValue } from "../providers/notes-provider.types.js";
 
 /** Note ids are lowercased, so an uppercase id never collides with one */
 export const NOTES_ROOT_NODE_ID = "NOTES_ROOT";
 
 const NOTES_ROOT_LABEL = "Notes";
+const FOLDER_ICON_CLASS = "text-accent";
 
 const NOTE_CONTENT_ICON: Record<NoteContentType, LucideIcon> = {
   [NOTE_CONTENT_TYPE.TEXT]: FileText,
@@ -14,72 +16,55 @@ const NOTE_CONTENT_ICON: Record<NoteContentType, LucideIcon> = {
 };
 
 /**
- * Compose the flat note list into a display tree via `parentId`.
- * Notes whose parent is missing from the list are treated as roots.
+ * Tree nodes for the live or trashed notes under `parentId`, folders first and
+ * then by name, each carrying its note id. `isIncluded` leaves out a note and
+ * everything under it.
  */
-export function buildNoteTree(notes: NoteMetadata[]): TreeNode<NoteMetadata>[] {
-  const nodesById = new Map<string, TreeNode<NoteMetadata>>();
-  for (const metadata of notes) {
-    nodesById.set(metadata.id, toTreeNode(metadata));
-  }
-
-  const roots: TreeNode<NoteMetadata>[] = [];
-  for (const node of nodesById.values()) {
-    const parent = node.data.parentId ? nodesById.get(node.data.parentId) : undefined;
-    if (parent) {
-      parent.children.push(node);
-    } else {
-      roots.push(node);
+export function buildNoteNodes(
+  notes: Pick<NotesContextValue, "getNote" | "getChildIds">,
+  parentId: string | undefined,
+  isTrashed: boolean,
+  isIncluded?: (noteId: string) => boolean
+): TreeNode<string>[] {
+  const children: NoteMetadata[] = [];
+  for (const childId of notes.getChildIds(parentId, isTrashed)) {
+    const metadata = notes.getNote(childId);
+    if (metadata && (isIncluded?.(childId) ?? true)) {
+      children.push(metadata);
     }
   }
 
-  sortNoteNodes(roots);
-
-  return roots;
+  return children
+    .sort(compareNotes)
+    .map((metadata) => toTreeNode(metadata, buildNoteNodes(notes, metadata.id, isTrashed, isIncluded)));
 }
 
-/** The note's ancestor folders, root first, followed by the note itself; empty when the note is not listed. */
-export function getNotePath(notes: NoteMetadata[], noteId: string): NoteMetadata[] {
-  const notesById = new Map(notes.map((metadata) => [metadata.id, metadata]));
-  const path: NoteMetadata[] = [];
-  const visitedIds = new Set<string>();
-  let current = notesById.get(noteId);
-
-  while (current && !visitedIds.has(current.id)) {
-    visitedIds.add(current.id);
-    path.push(current);
-    current = current.parentId ? notesById.get(current.parentId) : undefined;
-  }
-
-  return path.reverse();
-}
-
-/** A tree containing only the notes root, with `notes` nested under it; selecting it means the root itself. */
-export function buildNoteRootTree(notes: NoteMetadata[]): TreeNode<NoteMetadata | undefined>[] {
+/** A tree containing only the notes root, with `children` under it; the root's data is undefined. */
+export function buildNoteRootTree(children: TreeNode<string>[]): TreeNode<string | undefined>[] {
   return [
     {
       id: NOTES_ROOT_NODE_ID,
       label: NOTES_ROOT_LABEL,
       icon: FolderTree,
-      iconClassName: "text-accent",
+      iconClassName: FOLDER_ICON_CLASS,
       isExpandable: true,
-      children: buildNoteTree(notes),
+      children,
       data: undefined,
     },
   ];
 }
 
-function toTreeNode(metadata: NoteMetadata): TreeNode<NoteMetadata> {
+function toTreeNode(metadata: NoteMetadata, children: TreeNode<string>[]): TreeNode<string> {
   if (metadata.entityType === ENTITY_TYPE.NOTE_FOLDER) {
     return {
       id: metadata.id,
       label: metadata.name,
       icon: Folder,
       expandedIcon: FolderOpen,
-      iconClassName: "text-accent",
+      iconClassName: FOLDER_ICON_CLASS,
       isExpandable: true,
-      children: [],
-      data: metadata,
+      children,
+      data: metadata.id,
     };
   }
 
@@ -88,25 +73,18 @@ function toTreeNode(metadata: NoteMetadata): TreeNode<NoteMetadata> {
     label: metadata.name,
     icon: NOTE_CONTENT_ICON[metadata.contentType],
     isExpandable: false,
-    children: [],
-    data: metadata,
+    children,
+    data: metadata.id,
   };
 }
 
 /** Folders first, then by name — an order that does not shift as notes are edited. */
-function sortNoteNodes(nodes: TreeNode<NoteMetadata>[]): void {
-  nodes.sort(compareNoteNodes);
-  for (const node of nodes) {
-    sortNoteNodes(node.children);
-  }
-}
-
-function compareNoteNodes(first: TreeNode<NoteMetadata>, second: TreeNode<NoteMetadata>): number {
-  const isFirstFolder = first.data.entityType === ENTITY_TYPE.NOTE_FOLDER;
-  const isSecondFolder = second.data.entityType === ENTITY_TYPE.NOTE_FOLDER;
+function compareNotes(first: NoteMetadata, second: NoteMetadata): number {
+  const isFirstFolder = first.entityType === ENTITY_TYPE.NOTE_FOLDER;
+  const isSecondFolder = second.entityType === ENTITY_TYPE.NOTE_FOLDER;
   if (isFirstFolder !== isSecondFolder) {
     return isFirstFolder ? -1 : 1;
   }
 
-  return first.data.name.localeCompare(second.data.name);
+  return first.name.localeCompare(second.name);
 }

@@ -1,17 +1,16 @@
 import { useCallback, useMemo, useState } from "react";
-import type { NoteMetadata } from "@crow-central-agency/shared";
 import { useNoteMoveDestinationsQuery } from "../../hooks/queries/use-note-move-destinations-query.js";
-import { useUpdateNote } from "../../hooks/queries/use-note-mutations.js";
+import { useNotesContext } from "../../providers/notes-provider.js";
 import { getErrorMessage } from "../../utils/error-message.js";
-import { buildNoteRootTree, NOTES_ROOT_NODE_ID } from "../../utils/note-tree.js";
+import { buildNoteNodes, buildNoteRootTree, NOTES_ROOT_NODE_ID } from "../../utils/note-tree.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { TreeView } from "../common/tree-view/tree-view.js";
 
 interface NoteMoveDialogProps {
   /** Note being moved */
-  note: NoteMetadata;
-  /** Called with the moved note once the backend has re-keyed it */
-  onMoved: (metadata: NoteMetadata) => void;
+  noteId: string;
+  /** Called with the moved note's id, which changes with its path */
+  onMoved: (noteId: string) => void;
   /** Injected by ModalDialogRenderer */
   onClose: () => void;
 }
@@ -19,34 +18,45 @@ interface NoteMoveDialogProps {
 const DEFAULT_EXPANDED_IDS = [NOTES_ROOT_NODE_ID];
 
 /**
- * Destination picker for a move. Folders that would swallow the note itself
- * are left out; the notes root is the tree's top node.
+ * Destination picker for a move. Only the folders the backend offers are
+ * listed, so none that would swallow the note itself; the notes root is the
+ * tree's top node.
  */
-export function NoteMoveDialog({ note, onMoved, onClose }: NoteMoveDialogProps) {
-  const { data: destinations = [] } = useNoteMoveDestinationsQuery(note.id);
-  const { mutateAsync: updateNote, isPending } = useUpdateNote();
-  const [destinationId, setDestinationId] = useState(note.parentId);
+export function NoteMoveDialog({ noteId, onMoved, onClose }: NoteMoveDialogProps) {
+  const { getNote, getChildIds, updateNote } = useNotesContext();
+  const note = getNote(noteId);
+  const { data: destinations } = useNoteMoveDestinationsQuery(noteId);
+  const [destinationId, setDestinationId] = useState(note?.parentId);
+  const [isMoving, setIsMoving] = useState(false);
   const [error, setError] = useState<string>();
-  const nodes = useMemo(() => buildNoteRootTree(destinations), [destinations]);
   const selectedNodeId = destinationId ?? NOTES_ROOT_NODE_ID;
-  const isUnchanged = destinationId === note.parentId;
+  const isUnchanged = destinationId === note?.parentId;
 
-  const handleSelect = useCallback((metadata: NoteMetadata | undefined) => {
-    setDestinationId(metadata?.id);
-  }, []);
+  const nodes = useMemo(() => {
+    const destinationIds = new Set(destinations?.map((folder) => folder.id));
+
+    return buildNoteRootTree(
+      buildNoteNodes({ getNote, getChildIds }, undefined, false, (candidateId) => destinationIds.has(candidateId))
+    );
+  }, [destinations, getNote, getChildIds]);
 
   const handleMove = useCallback(async () => {
     setError(undefined);
+    setIsMoving(true);
 
     try {
       // `null` moves to the root; `undefined` would read as "parent unchanged".
-      const moved = await updateNote({ noteId: note.id, input: { parentId: destinationId ?? null } });
-      onMoved(moved);
+      onMoved(await updateNote(noteId, { parentId: destinationId ?? null }));
       onClose();
     } catch (moveError) {
       setError(getErrorMessage(moveError));
+      setIsMoving(false);
     }
-  }, [updateNote, note.id, destinationId, onMoved, onClose]);
+  }, [updateNote, noteId, destinationId, onMoved, onClose]);
+
+  if (!note) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col">
@@ -61,7 +71,7 @@ export function NoteMoveDialog({ note, onMoved, onClose }: NoteMoveDialogProps) 
             selectedId={selectedNodeId}
             revealId={selectedNodeId}
             defaultExpandedIds={DEFAULT_EXPANDED_IDS}
-            onSelect={handleSelect}
+            onSelect={setDestinationId}
             ariaLabel="Destination folders"
           />
         </div>
@@ -70,11 +80,11 @@ export function NoteMoveDialog({ note, onMoved, onClose }: NoteMoveDialogProps) 
       </div>
 
       <div className="flex justify-end gap-2 px-3 py-2 bg-surface-elevated">
-        <ActionButton label="Cancel" onClick={onClose} disabled={isPending} />
+        <ActionButton label="Cancel" onClick={onClose} disabled={isMoving} />
         <ActionButton
-          label={isPending ? "Moving..." : "Move"}
+          label={isMoving ? "Moving..." : "Move"}
           variant={ACTION_BUTTON_VARIANT.PRIMARY}
-          disabled={isUnchanged || isPending}
+          disabled={isUnchanged || isMoving}
           onClick={handleMove}
         />
       </div>

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { NoteFileMetadata } from "@crow-central-agency/shared";
 import { useNoteContentQuery } from "../../hooks/queries/use-note-content-query.js";
-import { useResolveWikilink, useWriteNoteContent } from "../../hooks/queries/use-note-mutations.js";
+import { useWriteNoteContent } from "../../hooks/queries/use-note-mutations.js";
+import { useNotesContext } from "../../providers/notes-provider.js";
 import { useAppStore } from "../../stores/app-store.js";
+import { getErrorMessage } from "../../utils/error-message.js";
 import { EDITOR_STATUS_TONE, type EditorStatusAlert } from "./editor-status-bar.types.js";
 import type {
   EditorFormatState,
@@ -44,7 +46,8 @@ export function NoteEditor({ note, onUnsavedChange }: NoteEditorProps) {
   const [status, setStatus] = useState<EditorStatus>();
   const { data, isLoading, isError, error, refetch } = useNoteContentQuery(note);
   const { mutateAsync: writeContent, isError: isSaveError, error: saveError } = useWriteNoteContent();
-  const { mutate: resolveWikilink, error: resolveError, reset: resetResolveError } = useResolveWikilink();
+  const { resolveWikilink } = useNotesContext();
+  const [resolveError, setResolveError] = useState<string>();
   const goToNote = useAppStore((state) => state.goToNote);
   const draftRef = useRef("");
   const tokenRef = useRef(note.updatedTimestamp);
@@ -145,13 +148,9 @@ export function NoteEditor({ note, onUnsavedChange }: NoteEditorProps) {
       isDirtyRef.current = true;
       onUnsavedChange(true);
       scheduleSave();
-
-      // Only a settled resolve has an error; resetting a pending one would drop its navigation.
-      if (resolveError) {
-        resetResolveError();
-      }
+      setResolveError(undefined);
     },
-    [scheduleSave, onUnsavedChange, resolveError, resetResolveError]
+    [scheduleSave, onUnsavedChange]
   );
 
   const handleWikilinkOpen = useCallback(
@@ -162,7 +161,7 @@ export function NoteEditor({ note, onUnsavedChange }: NoteEditorProps) {
         return;
       }
 
-      resolveWikilink({ target, sourceNoteId: note.id }, { onSuccess: (resolved) => goToNote(resolved.id) });
+      void resolveWikilink(target, note.id).then(goToNote, (error: unknown) => setResolveError(getErrorMessage(error)));
     },
     [goToNote, resolveWikilink, note.id]
   );
@@ -212,7 +211,7 @@ export function NoteEditor({ note, onUnsavedChange }: NoteEditorProps) {
       {status && (
         <EditorStatusBar
           status={status}
-          alert={getStatusAlert(isConflict, isSaveError ? saveError.message : resolveError?.message)}
+          alert={getStatusAlert(isConflict, isSaveError ? saveError.message : resolveError)}
         />
       )}
     </div>

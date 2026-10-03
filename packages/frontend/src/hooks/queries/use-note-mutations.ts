@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import type {
   CreateNoteInput,
   DeletedResult,
@@ -10,7 +10,6 @@ import type {
 } from "@crow-central-agency/shared";
 import { apiClient, createNote, unwrapResponse } from "../../services/api-client.js";
 import type { ApiError } from "../../services/api-client.types.js";
-import { upsertNoteQueryData } from "../../services/note-query-data.js";
 
 /** Target note plus the fields to change */
 interface UpdateNoteVariables {
@@ -32,42 +31,25 @@ function getNotePath(noteId: string): string {
 
 /** Create a folder or a text note. */
 export function useCreateNote() {
-  const queryClient = useQueryClient();
-
   return useMutation<NoteMetadata, ApiError, CreateNoteInput>({
     mutationFn: async (input) => unwrapResponse(await createNote(input)),
-    onSuccess: (metadata) => {
-      upsertNoteQueryData(queryClient, metadata);
-    },
   });
 }
 
 /** The note a wikilink names, created beside the source note when it names nothing yet. */
 export function useResolveWikilink() {
-  const queryClient = useQueryClient();
-
   return useMutation<NoteMetadata, ApiError, ResolveWikilinkInput>({
     mutationFn: async (input) => unwrapResponse(await apiClient.post<NoteMetadata>("/notes/resolve", input)),
-    onSuccess: (metadata) => {
-      upsertNoteQueryData(queryClient, metadata);
-    },
   });
 }
 
-/** Rename and/or move a note. A new id is listed at once so the caller can open it. */
+/** Rename and/or move a note. */
 export function useUpdateNote() {
-  const queryClient = useQueryClient();
-
   return useMutation<NoteMetadata, ApiError, UpdateNoteVariables>({
     mutationFn: async ({ noteId, input }) => {
       const response = await apiClient.patch<NoteMetadata>(getNotePath(noteId), input);
 
       return unwrapResponse(response);
-    },
-    onSuccess: (metadata, { noteId }) => {
-      if (metadata.id !== noteId) {
-        upsertNoteQueryData(queryClient, metadata, noteId);
-      }
     },
   });
 }
