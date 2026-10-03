@@ -5,3 +5,10 @@ export interface ReadNoteResult {
   metadata: NoteFileMetadata;
   content: string | Buffer;
 }
+
+/** Where a new note would land; the caller checks the id and guards the path before writing. */
+export interface ResolvedNotePath {
+  id: string;
+  relativePath: string;
+  absolutePath: string;
+}

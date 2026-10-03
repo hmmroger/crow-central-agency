@@ -1,5 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyReply } from "fastify";
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
+import { MAX_UPLOAD_BYTES } from "../config/constants.js";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 import { registerErrorHandler } from "./error-handler.js";
@@ -12,7 +14,7 @@ import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 
 /**
  * Create and configure the Fastify server instance.
- * Registers CORS and WebSocket plugins. Static serving is optional (fullstack mode).
+ * Registers CORS, WebSocket and multipart plugins. Static serving is optional (fullstack mode).
  */
 export async function createServer(options: { serveStatic: boolean }) {
   const server = Fastify({
@@ -33,6 +35,10 @@ export async function createServer(options: { serveStatic: boolean }) {
   // WebSocket
   const websocket = await import("@fastify/websocket");
   await server.register(websocket.default);
+
+  await server.register(multipart, {
+    limits: { fileSize: MAX_UPLOAD_BYTES },
+  });
 
   // Auth hook — validates access key for /api/ routes
   registerAuthHook(server);

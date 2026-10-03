@@ -97,7 +97,7 @@ See `.env.example` for the full list, including:
 - `LOG_LEVEL` — log verbosity (defaults to `debug` in development, `info` otherwise).
 - `LOG_PRETTY` — force human-readable, colorized logs (pino-pretty) even in production. Enabled automatically in development.
 - `CROW_SYSTEM_PATH` — directory for Crow's file-based storage. Defaults to `~/.crow`.
-- `CROW_NOTES_PATH` — root directory for user notes, where each file is a note and each folder is a container. May point anywhere, including outside `CROW_SYSTEM_PATH`. Defaults to `<CROW_SYSTEM_PATH>/notes`.
+- `CROW_NOTES_PATH` — root directory for user notes, where each file is a note and each folder is a container. Deleted notes are kept in a `.trash` mirror inside it until they are restored or purged. May point anywhere, including outside `CROW_SYSTEM_PATH`. Defaults to `<CROW_SYSTEM_PATH>/notes`.
 - `CROW_SYSTEM_AGENT_NAME` — display name for the built-in Crow system agent (default: `Crow`).
 - `CROW_SYSTEM_AGENT_PROVIDER` — provider backing the built-in system agents: `claude` or `copilot` (default: `claude`). Forced to `claude` when `DISABLE_GITHUB_COPILOT` is set.
 - `CROW_SYSTEM_AGENT_COPILOT_MODEL` — model for system agents when `CROW_SYSTEM_AGENT_PROVIDER=copilot` (default: `auto`).

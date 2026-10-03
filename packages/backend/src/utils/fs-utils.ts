@@ -44,6 +44,53 @@ export function assertWithinBase(filePath: string, baseDir: string): void {
   }
 }
 
+function assertResolvedWithinBase(resolved: string, resolvedBase: string): void {
+  if (!resolved.startsWith(resolvedBase + path.sep) && resolved !== resolvedBase) {
+    throw new AppError(`Path traversal detected`, APP_ERROR_CODES.PATH_TRAVERSAL);
+  }
+}
+
+/**
+ * Validate that a path is within the allowed base directory after symlinks are
+ * resolved — `assertWithinBase` only normalizes the string, so a symlink inside
+ * the base that points outside it passes that check but reads/writes elsewhere.
+ * A target that does not exist yet is validated through its parent's real path.
+ *
+ * @throws AppError(NOT_FOUND) when the target's parent directory does not exist.
+ * @throws AppError(PATH_TRAVERSAL) when the real path escapes the base.
+ */
+export async function assertRealPathWithinBase(targetPath: string, baseDir: string): Promise<void> {
+  const resolvedBase = await fs.realpath(baseDir);
+
+  let resolvedTarget: string | undefined;
+  try {
+    resolvedTarget = await fs.realpath(targetPath);
+  } catch (error) {
+    if (!isErrnoException(error) || error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  if (resolvedTarget !== undefined) {
+    assertResolvedWithinBase(resolvedTarget, resolvedBase);
+    return;
+  }
+
+  const parentPath = path.dirname(targetPath);
+  let resolvedParent: string;
+  try {
+    resolvedParent = await fs.realpath(parentPath);
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      throw new AppError(`Directory not found: ${parentPath}`, APP_ERROR_CODES.NOT_FOUND);
+    }
+
+    throw error;
+  }
+
+  assertResolvedWithinBase(path.resolve(resolvedParent, path.basename(targetPath)), resolvedBase);
+}
+
 /**
  * Read a JSON file and parse its contents.
  * @throws AppError with NOT_FOUND code if the file does not exist.
@@ -121,6 +168,23 @@ export async function writeBinaryFile(filePath: string, content: Buffer): Promis
 }
 
 /**
+ * Create a file with binary content only if nothing exists at the path; the
+ * parent directory must exist. Returns false when the path is already taken.
+ */
+export async function createBinaryFile(filePath: string, content: Buffer): Promise<boolean> {
+  try {
+    await fs.writeFile(filePath, content, { mode: 0o600, flag: "wx" });
+    return true;
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "EEXIST") {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+/**
  * Read the first N bytes of a file. Returns fewer bytes if the file is smaller.
  * @throws AppError with NOT_FOUND code if the file does not exist.
  */
@@ -153,6 +217,19 @@ export async function statFile(filePath: string): Promise<Stats> {
   } catch (error) {
     if (isErrnoException(error) && error.code === "ENOENT") {
       throw new AppError(`File not found: ${filePath}`, APP_ERROR_CODES.NOT_FOUND);
+    }
+
+    throw error;
+  }
+}
+
+/** Stats of a path, or undefined when it does not exist. Symlinks are not followed. */
+export async function getPathStats(filePath: string): Promise<Stats | undefined> {
+  try {
+    return await fs.lstat(filePath);
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      return undefined;
     }
 
     throw error;
@@ -219,6 +296,47 @@ export async function renameFile(oldPath: string, newPath: string): Promise<bool
 
     throw error;
   }
+}
+
+/**
+ * Move `sourcePath` onto `targetPath`, merging directories instead of replacing
+ * them: intermediate directories are created, a directory is merged entry by
+ * entry into an existing one, and a file overwrites whatever is in its way.
+ * The source is gone when this resolves.
+ */
+export async function mergeMove(sourcePath: string, targetPath: string): Promise<void> {
+  // Neither side follows symlinks: a link is moved as the link it is, never
+  // descended into, so the walk cannot leave the tree it was handed.
+  const sourceStats = await getPathStats(sourcePath);
+  if (sourceStats === undefined) {
+    throw new AppError(`File not found: ${sourcePath}`, APP_ERROR_CODES.NOT_FOUND);
+  }
+
+  const targetStats = await getPathStats(targetPath);
+
+  if (!sourceStats.isDirectory()) {
+    if (targetStats?.isDirectory()) {
+      await removeDir(targetPath);
+    }
+
+    await fs.mkdir(path.dirname(targetPath), { recursive: true, mode: 0o700 });
+    await fs.rename(sourcePath, targetPath);
+
+    return;
+  }
+
+  if (targetStats !== undefined && !targetStats.isDirectory()) {
+    await deleteFile(targetPath);
+  }
+
+  await fs.mkdir(targetPath, { recursive: true, mode: 0o700 });
+
+  const entries = await fs.readdir(sourcePath, { withFileTypes: true });
+  for (const entry of entries) {
+    await mergeMove(path.join(sourcePath, entry.name), path.join(targetPath, entry.name));
+  }
+
+  await fs.rmdir(sourcePath);
 }
 
 /**

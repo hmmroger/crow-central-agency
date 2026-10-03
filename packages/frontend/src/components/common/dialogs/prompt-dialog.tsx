@@ -1,5 +1,6 @@
 import { useCallback, useState, type ChangeEvent, type SubmitEvent } from "react";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../action-button.js";
+import { getErrorMessage } from "../../../utils/error-message.js";
 
 interface PromptDialogProps {
   /** Optional body text rendered above the input */
@@ -58,7 +59,7 @@ export function PromptDialog({
         await onConfirm(trimmed);
         onClose();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
+        setError(getErrorMessage(err));
         setIsPending(false);
       }
     },

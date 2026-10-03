@@ -18,6 +18,9 @@ export const WS_HEARTBEAT_INTERVAL_MS = 30 * 1000;
 /** Artifact timestamp window for inter-agent validation (5 minutes) */
 export const ARTIFACT_TIMESTAMP_WINDOW_MS = 5 * 60 * 1000;
 
+/** Max size of an uploaded file or artifact payload, shared by every multipart upload and the artifact PATCH body */
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
 /** Default message sent to the agent when a tool permission is denied without a typed response */
 export const DEFAULT_PERMISSION_DENY_MESSAGE = "Permission denied by user";
 

@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import type { NoteContent } from "@crow-central-agency/shared";
-import { fetchRaw } from "../../services/api-client.js";
+import { queryOptions, useQuery } from "@tanstack/react-query";
+import { NOTE_CONTENT_TYPE, type NoteContent, type NoteFileMetadata } from "@crow-central-agency/shared";
+import { apiClient, fetchRaw, unwrapResponse } from "../../services/api-client.js";
 import { noteKeys } from "../../services/query-keys.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
@@ -18,30 +18,62 @@ interface BinaryNoteContent {
 
 export type NoteContentResult = TextNoteContent | BinaryNoteContent;
 
+const DEFAULT_MIME_TYPE = "application/octet-stream";
+
+function getNoteContentPath(noteId: string): string {
+  return `/notes/${encodeURIComponent(noteId)}/content`;
+}
+
+/** Fetch a text note through the JSON client */
+async function fetchTextNote(contentPath: string): Promise<TextNoteContent> {
+  const response = await apiClient.get<NoteContent>(contentPath);
+  const data = unwrapResponse(response);
+
+  return { type: "text", content: data.content, updatedTimestamp: data.updatedTimestamp };
+}
+
+/** Fetch a binary note through the authenticated raw client and expose it as a blob URL */
+async function fetchBinaryNote(contentPath: string): Promise<BinaryNoteContent> {
+  const response = await fetchRaw(contentPath);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch note: ${response.status}`);
+  }
+
+  const mimeType = response.headers.get("content-type") ?? DEFAULT_MIME_TYPE;
+  const blob = await response.blob();
+
+  return { type: "binary", blobUrl: URL.createObjectURL(blob), mimeType };
+}
+
 /**
- * Fetch a single note's content via React Query.
- * Text notes come back as markdown; image and unknown notes are fetched
- * through the authenticated client and exposed as a blob URL.
+ * The one query for a note's content, shared by the reader and the editor's
+ * image preview. One endpoint serves live and trashed notes alike, and the
+ * note's indexed content type decides the transport, so the caller never has
+ * to sniff the response. A binary result's blob URL belongs to the caller,
+ * which revokes it when done.
  */
-export function useNoteContentQuery(noteId: string, options?: { enabled?: boolean }) {
-  return useQuery<NoteContentResult, ApiError>({
-    queryKey: noteKeys.content(noteId),
-    enabled: options?.enabled ?? true,
+export function noteContentQueryOptions(note: NoteFileMetadata) {
+  const { id, contentType } = note;
+
+  return queryOptions<NoteContentResult, ApiError>({
+    queryKey: noteKeys.content(id),
     gcTime: 0, // blob URLs are ephemeral — don't cache after unmount
     queryFn: async () => {
-      const response = await fetchRaw(`/notes/${encodeURIComponent(noteId)}/content`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch note: ${response.status}`);
-      }
+      const contentPath = getNoteContentPath(id);
 
-      const contentType = response.headers.get("content-type") ?? "";
-      if (contentType.includes("application/json")) {
-        const json = (await response.json()) as { success: boolean; data: NoteContent };
-        return { type: "text", content: json.data.content, updatedTimestamp: json.data.updatedTimestamp };
-      }
-
-      const blob = await response.blob();
-      return { type: "binary", blobUrl: URL.createObjectURL(blob), mimeType: contentType };
+      return contentType === NOTE_CONTENT_TYPE.TEXT ? fetchTextNote(contentPath) : fetchBinaryNote(contentPath);
     },
+  });
+}
+
+/** Fetch a single note's content via React Query. */
+export function useNoteContentQuery(note: NoteFileMetadata, options?: { enabled?: boolean }) {
+  return useQuery({
+    ...noteContentQueryOptions(note),
+    enabled: options?.enabled ?? true,
+    // Freshness is governed by the editor's write guard, not by background
+    // polls: a refetch behind an unsaved draft would discard it silently.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }

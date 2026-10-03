@@ -4,7 +4,7 @@ import type { SimplyFeedManager } from "../feed/simply-feed-manager.js";
 import type { Feed } from "../feed/simply-feed.types.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
-import { wrapZodError } from "./route-utils.js";
+import { deletedResponse, wrapZodError } from "./route-utils.js";
 
 /** Map internal Feed to API-facing FeedInfo */
 function toFeedInfo(feed: Feed): FeedInfo {
@@ -66,6 +66,6 @@ export async function registerFeedRoutes(server: FastifyInstance, feedManager: S
       throw new AppError(`Feed ${request.params.id} not found`, APP_ERROR_CODES.NOT_FOUND);
     }
 
-    return { success: true, data: { deleted: true } };
+    return deletedResponse();
   });
 }

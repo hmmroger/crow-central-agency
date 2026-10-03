@@ -1,18 +1,16 @@
-import { marked, Renderer, type Tokens, type TokenizerAndRendererExtension } from "marked";
+import { Marked, Renderer, type Tokens, type TokenizerAndRendererExtension } from "marked";
 import { sanitizeHtml } from "./html-sanitizer";
-import { HTMLVIEW_FENCE_LANG } from "@crow-central-agency/shared";
+import {
+  escapeHtml,
+  hashtagExtension,
+  HTMLVIEW_FENCE_LANG,
+  MARKDOWN_WIKILINK_TARGET_ATTRIBUTE,
+  taglineExtension,
+  wikilinkExtension,
+} from "@crow-central-agency/shared";
 
 type MarkedRenderer = Renderer;
 const renderDefaultTable = Renderer.prototype.table;
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 // Custom code-block renderer covering mermaid diagrams and htmlview embeds.
 const codeBlockExtension: TokenizerAndRendererExtension = {
@@ -52,11 +50,10 @@ const renderer = {
   },
 };
 
-// Configure marked with GFM
-marked.use({
+const markedInstance = new Marked({
   gfm: true,
   breaks: true,
-  extensions: [codeBlockExtension],
+  extensions: [codeBlockExtension, taglineExtension, hashtagExtension, wikilinkExtension],
   renderer,
 });
 
@@ -64,6 +61,11 @@ marked.use({
  * Parse markdown content to sanitized HTML
  */
 export function parseMarkdown(content: string): string {
-  const html = marked.parse(content, { async: false });
+  const html = markedInstance.parse(content, { async: false });
   return sanitizeHtml(html);
+}
+
+/** Whether parsed HTML holds a wikilink or embed, so rendering it needs the notes tree. */
+export function hasNoteLinks(html: string): boolean {
+  return html.includes(MARKDOWN_WIKILINK_TARGET_ATTRIBUTE);
 }

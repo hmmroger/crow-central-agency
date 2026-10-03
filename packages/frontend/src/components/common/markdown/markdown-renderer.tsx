@@ -1,12 +1,16 @@
 import { useMemo, useEffect, useRef, useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import mermaid from "mermaid";
-import { ensureMermaidInit } from "../../utils/mermaid-config";
-import { parseMarkdown } from "../../utils/marked-config";
-import { sanitizeSvg } from "../../utils/html-sanitizer";
-import { readEmbedSource, renderEmbedIntoHost } from "./htmlview-embed-mount";
-import { HtmlviewEmbedDialog } from "./dialogs/htmlview-embed-dialog";
-import { useOptionalModalDialog } from "../../providers/modal-dialog-provider";
-import { cn } from "../../utils/cn";
+import { ensureMermaidInit } from "../../../utils/mermaid-config";
+import { hasNoteLinks, parseMarkdown } from "../../../utils/marked-config";
+import { sanitizeSvg } from "../../../utils/html-sanitizer";
+import { notesQueryOptions } from "../../../hooks/queries/use-notes-query";
+import { useAppStore } from "../../../stores/app-store";
+import { readHtmlviewSource, renderHtmlviews } from "./markdown-htmlview-renderer";
+import { renderMarkdownWikilinks } from "./markdown-wikilink-renderer";
+import { HtmlviewEmbedDialog } from "../dialogs/htmlview-embed-dialog";
+import { useOptionalModalDialog } from "../../../providers/modal-dialog-provider";
+import { cn } from "../../../utils/cn";
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
@@ -56,6 +60,8 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   // Memoize parsed HTML with copy buttons and embed chrome injected
   const html = useMemo(() => injectHtmlviewChrome(injectCopyButtons(parseMarkdown(content))), [content]);
   const [renderedHtml, setRenderedHtml] = useState(html);
+  const { data: notes } = useQuery({ ...notesQueryOptions, enabled: hasNoteLinks(html) });
+  const goToNote = useAppStore((state) => state.goToNote);
   const innerHtml = useMemo(() => ({ __html: renderedHtml }), [renderedHtml]);
 
   // Render mermaid diagrams after mount (skip during streaming)
@@ -119,8 +125,18 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
       return;
     }
 
-    mountHtmlviewEmbeds(container);
+    renderHtmlviews(container);
   }, [renderedHtml, isStreaming]);
+
+  // Same trigger as the embeds: re-run after the mermaid pass replaces the DOM.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (isStreaming || !container || !notes) {
+      return;
+    }
+
+    return renderMarkdownWikilinks(container, notes, (note) => goToNote(note.id));
+  }, [renderedHtml, isStreaming, notes, goToNote]);
 
   // Non-passive native wheel listener so Ctrl/Cmd+wheel can zoom without
   // scrolling the page. React's synthetic onWheel is passive.
@@ -174,7 +190,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
         // Copy the authored source (what the agent wrote), not the sanitized
         // shadow output; expand renders the same embed larger via the dialog.
         const container = htmlviewBtn.closest<HTMLElement>(".htmlview-container");
-        const source = container ? readEmbedSource(container) : "";
+        const source = container ? readHtmlviewSource(container) : "";
         if (source) {
           if (htmlviewBtn.dataset.htmlviewAction === HTMLVIEW_EXPAND_ACTION) {
             showDialog?.({
@@ -324,18 +340,6 @@ function copyHtmlviewSource(button: HTMLElement, source: string): void {
     .catch(() => {
       console.warn("Clipboard not available.");
     });
-}
-
-/**
- * Render each embed's source into its shadow root. The mount is source-derived
- * (see htmlview-embed-mount): it re-renders whenever the live shadow is missing
- * or stale for the current source, so any remount or innerHTML re-serialization
- * self-heals from the inert <template> carrier that survives it.
- */
-function mountHtmlviewEmbeds(container: HTMLElement): void {
-  container.querySelectorAll<HTMLElement>(".htmlview-embed").forEach((element) => {
-    renderEmbedIntoHost(element, readEmbedSource(element));
-  });
 }
 
 function createZoomButton(action: string, label: string, symbol: string): HTMLButtonElement {

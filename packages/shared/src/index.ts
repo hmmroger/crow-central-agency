@@ -1,5 +1,28 @@
 export { HTMLVIEW_FENCE_LANG } from "./constants/markdown-constants.js";
 export {
+  MARKDOWN_TAG_CLASS,
+  TAG_LINE_SOURCE,
+  TAG_SOURCE,
+  hashtagExtension,
+  taglineExtension,
+} from "./marked-extensions/tag-extension.js";
+export { TAG_TOKEN, type HashtagToken, type TagLineToken } from "./marked-extensions/tag-extension.types.js";
+export {
+  WIKILINK_TARGET_CHAR_SOURCE,
+  escapeWikilinkTarget,
+  findWikilinkEscapeOffsets,
+  isEscapableWikilinkChar,
+  unescapeWikilinkTarget,
+} from "./marked-extensions/wikilink-escape.js";
+export {
+  MARKDOWN_WIKI_EMBED_CLASS,
+  MARKDOWN_WIKILINK_CLASS,
+  MARKDOWN_WIKILINK_TARGET_ATTRIBUTE,
+  wikilinkExtension,
+} from "./marked-extensions/wikilink-extension.js";
+export { WIKILINK_TOKEN, type WikilinkToken } from "./marked-extensions/wikilink-extension.types.js";
+export { escapeHtml } from "./utils/html-escape.js";
+export {
   CLAUDE_MODELS,
   GITHUB_COPILOT_MODELS,
   CLAUDE_CODE_MODEL_OPTIONS,
@@ -86,6 +109,8 @@ export {
 export {
   createApiSuccessSchema,
   ApiErrorSchema,
+  DeletedResultSchema,
+  type DeletedResult,
   type ApiSuccess,
   type ApiError,
   type ApiResponse,
@@ -265,18 +290,26 @@ export {
 
 export {
   NOTE_CONTENT_TYPE,
+  NOTE_NAME_MAX_LENGTH,
+  NOTE_IMAGE_ASSET_EXTENSIONS,
   NoteEntityTypeSchema,
   NoteContentTypeSchema,
   NoteFolderMetadataSchema,
   NoteFileMetadataSchema,
   NoteMetadataSchema,
   NoteContentSchema,
+  CreateNoteInputSchema,
+  UpdateNoteInputSchema,
+  WriteNoteContentInputSchema,
   type NoteEntityType,
   type NoteContentType,
   type NoteFolderMetadata,
   type NoteFileMetadata,
   type NoteMetadata,
   type NoteContent,
+  type CreateNoteInput,
+  type UpdateNoteInput,
+  type WriteNoteContentInput,
 } from "./schemas/note.schema.js";
 
 export {
@@ -406,7 +439,6 @@ export {
   type DeleteRelationshipResult,
   type CircleMember,
   type EntityType,
-  type RelationshipEntityType,
   type RelationshipType,
 } from "./schemas/agent-circle.schema.js";
 

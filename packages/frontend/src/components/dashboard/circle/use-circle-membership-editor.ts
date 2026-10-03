@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ENTITY_TYPE, RELATIONSHIP_TYPE, type RelationshipEntityType } from "@crow-central-agency/shared";
+import { ENTITY_TYPE, RELATIONSHIP_TYPE, type EntityType } from "@crow-central-agency/shared";
 import { useAgentsContext } from "../../../providers/agents-provider.js";
 import { useCirclesQuery } from "../../../hooks/queries/use-circles-query.js";
 import { useCircleMembersQuery } from "../../../hooks/queries/use-circle-members-query.js";
@@ -9,7 +9,7 @@ import type { ApiError } from "../../../services/api-client.types.js";
 /** A selectable entity (agent or circle) for the membership editor */
 export interface MemberOption {
   entityId: string;
-  entityType: RelationshipEntityType;
+  entityType: EntityType;
   name: string;
 }
 
@@ -67,7 +67,7 @@ export function useCircleMembershipEditor(circleId: string, enabled: boolean): C
 
   /** Map member entityId → { relationshipId, entityType } for diffing on save */
   const memberRelationshipMap = useMemo(() => {
-    const map = new Map<string, { relationshipId: string; entityType: RelationshipEntityType }>();
+    const map = new Map<string, { relationshipId: string; entityType: EntityType }>();
     for (const member of members) {
       map.set(member.entityId, { relationshipId: member.relationshipId, entityType: member.entityType });
     }
@@ -77,7 +77,7 @@ export function useCircleMembershipEditor(circleId: string, enabled: boolean): C
 
   /** Map entityId → entityType for all selectable entities (used when creating new relationships) */
   const entityTypeMap = useMemo(() => {
-    const map = new Map<string, RelationshipEntityType>();
+    const map = new Map<string, EntityType>();
     for (const agent of allAgents) {
       map.set(agent.id, ENTITY_TYPE.AGENT);
     }

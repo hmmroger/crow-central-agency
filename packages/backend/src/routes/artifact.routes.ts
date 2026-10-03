@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import multipart from "@fastify/multipart";
+import { MAX_UPLOAD_BYTES } from "../config/constants.js";
 import type { ArtifactManager } from "../services/artifact/artifact-manager.js";
 import { ARTIFACT_WRITE_PRECONDITION } from "../services/artifact/artifact-manager.types.js";
 import { validateAgentIdParam, validateCircleIdParam } from "../utils/validation.js";
@@ -15,9 +15,6 @@ import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import type { Multipart } from "@fastify/multipart";
 import { getMimeTypeByFilename } from "../utils/mime-type.js";
-
-/** Max artifact payload size, shared by the multipart upload cap and the JSON PATCH body limit */
-const MAX_ARTIFACT_BYTES = 50 * 1024 * 1024;
 
 /** Resolve MIME type from filename and artifact content type */
 function getMimeType(filename: string, contentType?: ArtifactContentType): string {
@@ -72,10 +69,6 @@ function parseArtifactUpdate(body: unknown): ArtifactUpdate {
  * Register artifact REST routes
  */
 export async function registerArtifactRoutes(server: FastifyInstance, artifactManager: ArtifactManager) {
-  await server.register(multipart, {
-    limits: { fileSize: MAX_ARTIFACT_BYTES },
-  });
-
   /** List artifacts for an agent */
   server.get<{ Params: { id: string } }>("/api/agents/:id/artifacts", async (request) => {
     const agentId = validateAgentIdParam(request.params.id);
@@ -129,7 +122,7 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
   /** Update a specific agent artifact — tag delta and/or raw content replacement */
   server.patch<{ Params: { id: string; filename: string } }>(
     "/api/agents/:id/artifacts/:filename",
-    { bodyLimit: MAX_ARTIFACT_BYTES },
+    { bodyLimit: MAX_UPLOAD_BYTES },
     async (request) => {
       const agentId = validateAgentIdParam(request.params.id);
       const { addTags, removeTags, content, expectedUpdatedTimestamp } = parseArtifactUpdate(request.body);
@@ -199,7 +192,7 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
   /** Update a specific circle artifact — tag delta and/or raw content replacement */
   server.patch<{ Params: { id: string; filename: string } }>(
     "/api/circles/:id/artifacts/:filename",
-    { bodyLimit: MAX_ARTIFACT_BYTES },
+    { bodyLimit: MAX_UPLOAD_BYTES },
     async (request) => {
       const circleId = validateCircleIdParam(request.params.id);
       const { addTags, removeTags, content, expectedUpdatedTimestamp } = parseArtifactUpdate(request.body);

@@ -1,4 +1,4 @@
-import type { ArtifactMetadata, ArtifactUpdate } from "@crow-central-agency/shared";
+import type { ArtifactMetadata, ArtifactUpdate, CreateNoteInput, NoteMetadata } from "@crow-central-agency/shared";
 import { useAppStore } from "../stores/app-store.js";
 import { getCachedLocation } from "./geolocation.js";
 import type { ApiError, ApiResponse } from "./api-client.types.js";
@@ -128,7 +128,7 @@ export const apiClient = {
   },
 };
 
-/** Upload a file as an artifact via multipart form data */
+/** Upload a file via multipart form data */
 async function uploadFormData<T>(
   path: string,
   file: File,
@@ -178,6 +178,16 @@ export async function uploadCircleArtifact<T>(
   tags?: string[]
 ): Promise<ApiResponse<T>> {
   return uploadFormData(`/circles/${circleId}/artifacts`, file, filename, tags);
+}
+
+/** Create a folder, or a text note, under `input.parentId` (the notes root when omitted) */
+export async function createNote(input: CreateNoteInput): Promise<ApiResponse<NoteMetadata>> {
+  return apiClient.post<NoteMetadata>("/notes", input);
+}
+
+/** Upload an image into the `assets` folder beside a text note; the server names the file */
+export async function uploadNoteAsset(noteId: string, file: File): Promise<ApiResponse<NoteMetadata>> {
+  return uploadFormData(`/notes/${encodeURIComponent(noteId)}/assets`, file);
 }
 
 /** Delete an agent artifact */

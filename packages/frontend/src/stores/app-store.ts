@@ -22,6 +22,12 @@ const DEFAULT_SIDE_PANEL_WIDTH = 300;
 export const SIDE_PANEL_MIN_WIDTH = 300;
 /** Maximum side panel width in pixels */
 export const SIDE_PANEL_MAX_WIDTH = 480;
+/** Default notes tree sidebar width in pixels */
+const DEFAULT_NOTES_SIDEBAR_WIDTH = 256;
+/** Minimum notes tree sidebar width in pixels */
+export const NOTES_SIDEBAR_MIN_WIDTH = 256;
+/** Maximum notes tree sidebar width in pixels */
+export const NOTES_SIDEBAR_MAX_WIDTH = 480;
 /** Maximum number of recently visited agent ids kept */
 const RECENT_AGENT_IDS_MAX = 12;
 
@@ -30,10 +36,18 @@ interface AppState {
   viewMode: ViewMode;
   /** Selected agent in the Agents view - determines which console is shown */
   selectedAgentId?: string;
+  /** Selected note in the Notes view - survives leaving and reopening the view */
+  selectedNoteId?: string;
+  /** Selected note in the trash, tracked apart from the live selection so neither clobbers the other */
+  selectedTrashNoteId?: string;
+  /** Whether the Notes view shows the trash in place of the notes tree */
+  isNoteTrashOpen: boolean;
   /** Whether the right side panel is open */
   sidePanelOpen: boolean;
   /** Current width of the side panel in pixels */
   sidePanelWidth: number;
+  /** Current width of the notes tree sidebar in pixels */
+  notesSidebarWidth: number;
   /** Access key for API authentication */
   accessKey: string | undefined;
   /** Cached client geolocation as "lat,lng" string */
@@ -50,6 +64,14 @@ interface AppState {
   setViewMode: (mode: ViewMode) => void;
   /** Select an agent in the Agents view to show its console */
   selectAgent: (agentId: string) => void;
+  /** Select a note in the Notes view, or clear the selection */
+  selectNote: (noteId?: string) => void;
+  /** Select a note in the trash, or clear the selection */
+  selectTrashNote: (noteId?: string) => void;
+  /** Show or hide the trash in the Notes view */
+  setNoteTrashOpen: (isOpen: boolean) => void;
+  /** Navigate to the Notes view with a live note selected */
+  goToNote: (noteId: string) => void;
   /** Navigate to dashboard */
   goToDashboard: () => void;
   /** Navigate to agents view with a specific agent selected */
@@ -58,6 +80,8 @@ interface AppState {
   toggleSidePanel: () => void;
   /** Set side panel width (for resize) */
   setSidePanelWidth: (width: number) => void;
+  /** Set notes tree sidebar width (for resize) */
+  setNotesSidebarWidth: (width: number) => void;
   /** Set or clear the access key */
   setAccessKey: (key: string | undefined) => void;
   /** Update or clear cached client geolocation */
@@ -80,8 +104,10 @@ interface AppState {
 interface PersistedAppState {
   viewMode: ViewMode;
   selectedAgentId?: string;
+  selectedNoteId?: string;
   sidePanelOpen: boolean;
   sidePanelWidth: number;
+  notesSidebarWidth?: number;
   accessKey?: string;
   clientLocation?: string;
   collapsedCircles?: Record<string, boolean>;
@@ -102,8 +128,12 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       viewMode: VIEW_MODE.DASHBOARD,
       selectedAgentId: undefined,
+      selectedNoteId: undefined,
+      selectedTrashNoteId: undefined,
+      isNoteTrashOpen: false,
       sidePanelOpen: true,
       sidePanelWidth: DEFAULT_SIDE_PANEL_WIDTH,
+      notesSidebarWidth: DEFAULT_NOTES_SIDEBAR_WIDTH,
       accessKey: undefined,
       clientLocation: undefined,
       collapsedCircles: {},
@@ -144,9 +174,19 @@ export const useAppStore = create<AppState>()(
 
       goToAgentConsole: (agentId: string) => set({ viewMode: VIEW_MODE.AGENTS, selectedAgentId: agentId }),
 
+      selectNote: (noteId?: string) => set({ selectedNoteId: noteId }),
+
+      selectTrashNote: (noteId?: string) => set({ selectedTrashNoteId: noteId }),
+
+      setNoteTrashOpen: (isOpen: boolean) => set({ isNoteTrashOpen: isOpen }),
+
+      goToNote: (noteId: string) => set({ viewMode: VIEW_MODE.NOTES, selectedNoteId: noteId, isNoteTrashOpen: false }),
+
       toggleSidePanel: () => set((state) => ({ sidePanelOpen: !state.sidePanelOpen })),
 
       setSidePanelWidth: (width: number) => set({ sidePanelWidth: width }),
+
+      setNotesSidebarWidth: (width: number) => set({ notesSidebarWidth: width }),
 
       setAccessKey: (key: string | undefined) => set({ accessKey: key }),
 
@@ -181,8 +221,10 @@ export const useAppStore = create<AppState>()(
       partialize: (state): PersistedAppState => ({
         viewMode: state.viewMode,
         selectedAgentId: state.selectedAgentId,
+        selectedNoteId: state.selectedNoteId,
         sidePanelOpen: state.sidePanelOpen,
         sidePanelWidth: state.sidePanelWidth,
+        notesSidebarWidth: state.notesSidebarWidth,
         accessKey: state.accessKey,
         clientLocation: state.clientLocation,
         collapsedCircles: state.collapsedCircles,

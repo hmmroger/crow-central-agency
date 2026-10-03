@@ -182,7 +182,9 @@ export const noteKeys = {
   all: ["notes"] as const,
   /** The live note tree */
   tree: () => [...noteKeys.all, "tree"] as const,
-  /** Content of a single note */
+  /** The trash tree */
+  trash: () => [...noteKeys.all, "trash"] as const,
+  /** Content of a single note; ids are unique across the live tree and the trash */
   content: (noteId: string) => [...noteKeys.all, "content", noteId] as const,
 };
 

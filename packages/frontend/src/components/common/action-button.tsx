@@ -19,6 +19,8 @@ interface ActionButtonProps {
   variant?: ActionButtonVariant;
   /** When true, renders an icon-only square button with the label as tooltip/aria-label */
   iconOnly?: boolean;
+  /** Set on toggle controls to surface the on/off state visually and via `aria-pressed` */
+  isActive?: boolean;
   disabled?: boolean;
   type?: ActionButtonType;
   onClick?: () => void;
@@ -34,6 +36,8 @@ const VARIANT_CLASSES: Record<ActionButtonVariant, string> = {
 
 const DEFAULT_VARIANT_CLASSES = "text-text-muted border-border/75 hover:text-text-neutral";
 
+const ACTIVE_CLASSES = "bg-primary/20 text-primary border-primary/40";
+
 /**
  * Tinted action button with primary/secondary/destructive variants, or the default outlined treatment when no variant is set.
  * Defaults to a labeled pill; `iconOnly` switches to a compact square with the label surfaced via tooltip.
@@ -43,6 +47,7 @@ export function ActionButton({
   label,
   variant,
   iconOnly = false,
+  isActive,
   disabled = false,
   type = "button",
   onClick,
@@ -61,7 +66,8 @@ export function ActionButton({
       disabled={disabled}
       title={iconOnly ? label : undefined}
       aria-label={iconOnly ? label : undefined}
-      className={cn(iconOnly ? iconOnlyClasses : labeledClasses, variantClasses, className)}
+      aria-pressed={isActive}
+      className={cn(iconOnly ? iconOnlyClasses : labeledClasses, variantClasses, isActive && ACTIVE_CLASSES, className)}
     >
       {Icon && <Icon className="h-4 w-4" />}
       {!iconOnly && <span>{label}</span>}

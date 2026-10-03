@@ -4,9 +4,10 @@ import { useUpdateTaskResult, useUpdateTaskState } from "../../hooks/queries/use
 import { useConfirmDiscard } from "../../hooks/dialogs/use-confirm-discard.js";
 import type { ModalDialogHandle } from "../../providers/modal-dialog-provider.types.js";
 import { canCompleteTask, isTerminalTask } from "../../utils/task-utils.js";
-import { MarkdownRenderer } from "../common/markdown-renderer.js";
+import { MarkdownRenderer } from "../common/markdown/markdown-renderer.js";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../common/action-button.js";
 import { cn } from "../../utils/cn.js";
+import { getErrorMessage } from "../../utils/error-message.js";
 
 export const TASK_DETAIL_MODE = {
   VIEW: "view",
@@ -83,7 +84,7 @@ export function TaskDetailDialog({ task, initialMode = TASK_DETAIL_MODE.VIEW, on
       await updateTaskResult.mutateAsync({ taskId: task.id, input: { taskResult: response } });
       setSavedBaseline(response);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(getErrorMessage(err));
     }
   }, [isDirty, isBusy, updateTaskResult, task.id, response]);
 
@@ -100,7 +101,7 @@ export function TaskDetailDialog({ task, initialMode = TASK_DETAIL_MODE.VIEW, on
       });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(getErrorMessage(err));
     }
   }, [isBusy, updateTaskState, task.id, response, onClose]);
 

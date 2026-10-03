@@ -5,7 +5,7 @@ import {
   CreateAgentCircleInputSchema,
   CreateRelationshipInputSchema,
   UpdateAgentCircleInputSchema,
-  type RelationshipEntityType,
+  type EntityType,
 } from "@crow-central-agency/shared";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
@@ -13,7 +13,7 @@ import type { FragmentManager } from "../services/fragment/fragment-manager.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { validateAgentIdParam, validateCircleIdParam, validateUuidParam } from "../utils/validation.js";
-import { wrapZodError } from "./route-utils.js";
+import { deletedResponse, wrapZodError } from "./route-utils.js";
 
 /**
  * Register circle and relationship CRUD routes.
@@ -26,7 +26,7 @@ export async function registerCircleRoutes(
   registry: AgentRegistry,
   fragmentManager: FragmentManager
 ) {
-  const validateEntity = (entityId: string, entityType: RelationshipEntityType): void => {
+  const validateEntity = (entityId: string, entityType: EntityType): void => {
     switch (entityType) {
       case ENTITY_TYPE.AGENT:
         registry.getAgent(entityId);
@@ -37,6 +37,8 @@ export async function registerCircleRoutes(
         break;
 
       case ENTITY_TYPE.FRAGMENT:
+      case ENTITY_TYPE.NOTE:
+      case ENTITY_TYPE.NOTE_FOLDER:
         throw new AppError(`Entity type ${entityType} is not supported by this route`, APP_ERROR_CODES.VALIDATION);
     }
   };
@@ -86,7 +88,7 @@ export async function registerCircleRoutes(
     const circleId = validateCircleIdParam(request.params.id);
     await circleManager.deleteCircle(circleId);
 
-    return { success: true, data: { deleted: true } };
+    return deletedResponse();
   });
 
   /** Get members of a circle */

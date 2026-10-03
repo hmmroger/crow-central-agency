@@ -12,7 +12,7 @@ import type { AgentRegistry } from "../services/agent-registry.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { validateAgentIdParam } from "../utils/validation.js";
-import { wrapZodError } from "./route-utils.js";
+import { deletedResponse, wrapZodError } from "./route-utils.js";
 
 /**
  * Register task CRUD routes.
@@ -122,6 +122,6 @@ export async function registerTaskRoutes(
   server.delete<{ Params: { id: string } }>("/api/tasks/:id", async (request) => {
     await taskManager.deleteTask(request.params.id);
 
-    return { success: true, data: { deleted: true } };
+    return deletedResponse();
   });
 }

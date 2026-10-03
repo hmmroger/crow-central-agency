@@ -1,4 +1,4 @@
-import { sanitizeEmbedHtml } from "../../utils/html-sanitizer";
+import { sanitizeEmbedHtml } from "../../../utils/html-sanitizer";
 import HTMLVIEW_EMBED_STYLES from "./htmlview-embed.css?inline";
 
 const SOURCE_CARRIER_SELECTOR = "template.htmlview-source";
@@ -11,12 +11,12 @@ const renderedSourceByShadow = new WeakMap<ShadowRoot, string>();
 
 // The authored source travels in an inert <template>: not rendered, no layout,
 // no selection or a11y text, yet still serialized by innerHTML.
-export function readEmbedSource(host: Element): string {
+export function readHtmlviewSource(host: Element): string {
   const template = host.querySelector<HTMLTemplateElement>(SOURCE_CARRIER_SELECTOR);
   return template?.content.textContent ?? "";
 }
 
-export function renderEmbedIntoHost(host: HTMLElement, source: string): void {
+export function renderHtmlview(host: HTMLElement, source: string): void {
   if (!source.trim()) {
     return;
   }
@@ -40,4 +40,10 @@ export function renderEmbedIntoHost(host: HTMLElement, source: string): void {
   shadow.replaceChildren(baseStyle);
   embedNodes.forEach((node) => shadow.appendChild(document.importNode(node, true)));
   renderedSourceByShadow.set(shadow, source);
+}
+
+export function renderHtmlviews(container: HTMLElement): void {
+  container.querySelectorAll<HTMLElement>(".htmlview-embed").forEach((element) => {
+    renderHtmlview(element, readHtmlviewSource(element));
+  });
 }

@@ -3,7 +3,7 @@ import { CreateScheduleInputSchema, UpdateScheduleInputSchema } from "@crow-cent
 import type { ScheduleManager } from "../services/schedule-manager.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
-import { wrapZodError } from "./route-utils.js";
+import { deletedResponse, wrapZodError } from "./route-utils.js";
 
 /**
  * Register schedule CRUD routes.
@@ -52,7 +52,7 @@ export async function registerScheduleRoutes(server: FastifyInstance, scheduleMa
   server.delete<{ Params: { id: string } }>("/api/schedules/:id", async (request) => {
     await scheduleManager.deleteSchedule(request.params.id);
 
-    return { success: true, data: { deleted: true } };
+    return deletedResponse();
   });
 
   /**

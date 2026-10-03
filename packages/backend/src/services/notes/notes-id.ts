@@ -1,8 +1,15 @@
 import path from "node:path";
-import { ENTITY_TYPE, type NoteEntityType } from "@crow-central-agency/shared";
+import { ENTITY_TYPE, NOTE_CONTENT_TYPE, type NoteEntityType } from "@crow-central-agency/shared";
+import { AppError } from "../../core/error/app-error.js";
+import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
+import { detectNoteContentType } from "./notes-content-detector.js";
 
 /** Replaces the path separator in a note id — invalid in filenames, so it cannot collide */
 const NOTE_ID_SEPARATOR = ":";
+
+function isTextNoteFilename(filename: string): boolean {
+  return detectNoteContentType(filename) === NOTE_CONTENT_TYPE.TEXT;
+}
 
 /**
  * Derive a note id from a path relative to the notes root. Lowercasing is what
@@ -12,11 +19,34 @@ export function toNoteId(relativePath: string): string {
   return relativePath.split(path.sep).join(NOTE_ID_SEPARATOR).toLowerCase();
 }
 
-/** Derive the display name of a node from its cased basename. */
+/** Derive the display name of a note from its cased basename; only markdown hides its extension. */
 export function toNoteName(entryName: string, entityType: NoteEntityType): string {
-  if (entityType === ENTITY_TYPE.NOTE_FOLDER) {
-    return entryName;
+  if (entityType === ENTITY_TYPE.NOTE && isTextNoteFilename(entryName)) {
+    return path.basename(entryName, path.extname(entryName));
   }
 
-  return path.basename(entryName, path.extname(entryName));
+  return entryName;
+}
+
+/**
+ * The filename a renamed note takes. A text note keeps its markdown extension;
+ * any other note is named by its full filename, whose extension cannot change
+ * because it decides the content type.
+ * @throws AppError VALIDATION when a non-markdown note's extension would change.
+ */
+export function toRenamedNoteFilename(currentFilename: string, name: string): string {
+  const currentExtension = path.extname(currentFilename);
+  if (isTextNoteFilename(currentFilename)) {
+    return `${name}${currentExtension}`;
+  }
+
+  if (path.extname(name).toLowerCase() !== currentExtension.toLowerCase()) {
+    const message = currentExtension
+      ? `The file extension cannot be changed; keep "${currentExtension}" at the end of the name`
+      : "The file extension cannot be changed; this file has none";
+
+    throw new AppError(message, APP_ERROR_CODES.VALIDATION);
+  }
+
+  return name;
 }

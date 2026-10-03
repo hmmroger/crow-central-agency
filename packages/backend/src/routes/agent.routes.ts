@@ -15,7 +15,7 @@ import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { logger } from "../utils/logger.js";
 import { validateAgentIdParam, validateUuidParam } from "../utils/validation.js";
-import { wrapZodError } from "./route-utils.js";
+import { deletedResponse, wrapZodError } from "./route-utils.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 import { captureClientInfo } from "../sensors/capture-client-info.js";
 import { sanitizeAgentConfig, sanitizeAgentConfigs } from "../utils/agent-config-sanitizer.js";
@@ -102,7 +102,7 @@ export async function registerAgentRoutes(
     const agentId = validateAgentIdParam(request.params.id);
     await registry.deleteAgent(agentId);
 
-    return { success: true, data: { deleted: true } };
+    return deletedResponse();
   });
 
   /** Save an agent's config as a reusable template */
