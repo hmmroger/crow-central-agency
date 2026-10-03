@@ -90,8 +90,7 @@ export function NotesSidebar() {
   }, [prompt, createFolder, targetFolder, selectNote]);
 
   const handleRename = useCallback(
-    (noteId: string) => {
-      const metadata = getNote(noteId);
+    (noteId: string, metadata?: NoteMetadata) => {
       if (!metadata) {
         return;
       }
@@ -105,12 +104,11 @@ export function NotesSidebar() {
         onConfirm: async (name) => selectNote(await updateNote(noteId, { name })),
       });
     },
-    [getNote, prompt, updateNote, selectNote]
+    [prompt, updateNote, selectNote]
   );
 
   const handleTrash = useCallback(
-    (noteId: string) => {
-      const metadata = getNote(noteId);
+    (noteId: string, metadata?: NoteMetadata) => {
       if (!metadata) {
         return;
       }
@@ -122,12 +120,11 @@ export function NotesSidebar() {
         onConfirm: () => deleteNote(noteId),
       });
     },
-    [getNote, confirm, deleteNote]
+    [confirm, deleteNote]
   );
 
   const handleRestore = useCallback(
-    (noteId: string) => {
-      const metadata = getNote(noteId);
+    (noteId: string, metadata?: NoteMetadata) => {
       if (!metadata) {
         return;
       }
@@ -141,12 +138,11 @@ export function NotesSidebar() {
         },
       });
     },
-    [getNote, confirm, restoreNote]
+    [confirm, restoreNote]
   );
 
   const handleDeletePermanently = useCallback(
-    (noteId: string) => {
-      const metadata = getNote(noteId);
+    (noteId: string, metadata?: NoteMetadata) => {
       if (!metadata) {
         return;
       }
@@ -159,7 +155,7 @@ export function NotesSidebar() {
         onConfirm: () => deleteNote(noteId),
       });
     },
-    [getNote, confirm, deleteNote]
+    [confirm, deleteNote]
   );
 
   const handleEmptyTrash = useCallback(() => {
