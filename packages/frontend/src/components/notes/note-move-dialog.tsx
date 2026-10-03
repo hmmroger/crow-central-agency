@@ -4,7 +4,7 @@ import { useNotesContext } from "../../providers/notes-provider.js";
 import { getErrorMessage } from "../../utils/error-message.js";
 import { buildNoteNodes, buildNoteRootTree, NOTES_ROOT_NODE_ID } from "../../utils/note-tree.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
-import { TreeView } from "../common/tree-view/tree-view.js";
+import { Tree } from "../common/tree/tree.js";
 
 interface NoteMoveDialogProps {
   /** Note being moved */
@@ -40,6 +40,10 @@ export function NoteMoveDialog({ noteId, onMoved, onClose }: NoteMoveDialogProps
     );
   }, [destinations, getNote, getChildIds]);
 
+  const handleSelect = useCallback((nodeId: string) => {
+    setDestinationId(nodeId === NOTES_ROOT_NODE_ID ? undefined : nodeId);
+  }, []);
+
   const handleMove = useCallback(async () => {
     setError(undefined);
     setIsMoving(true);
@@ -66,12 +70,12 @@ export function NoteMoveDialog({ noteId, onMoved, onClose }: NoteMoveDialogProps
         </p>
 
         <div className="h-80 overflow-y-auto rounded-md border border-border-subtle p-1">
-          <TreeView
+          <Tree
             nodes={nodes}
             selectedId={selectedNodeId}
             revealId={selectedNodeId}
             defaultExpandedIds={DEFAULT_EXPANDED_IDS}
-            onSelect={setDestinationId}
+            onSelect={handleSelect}
             ariaLabel="Destination folders"
           />
         </div>

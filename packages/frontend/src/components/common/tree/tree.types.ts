@@ -16,18 +16,18 @@ export interface TreeNode<T> {
   data: T;
 }
 
-/** A control rendered at the end of a tree row, for acting on that row's data */
-export interface TreeRowAction<T> {
+/** A control rendered at the end of a node's row, for acting on that node */
+export interface TreeNodeAction<T> {
   id: string;
-  /** Tooltip text; also the prefix of the row button's accessible name */
+  /** Tooltip text; also the prefix of the button's accessible name */
   label: string;
   icon: TreeIcon;
-  /** Rows this action does not apply to render no button */
-  isAvailable?: (data: T) => boolean;
-  onSelect: (data: T) => void;
+  /** Nodes this action does not apply to render no button */
+  isAvailable?: (id: string, data: T) => boolean;
+  onSelect: (id: string, data: T) => void;
 }
 
-export interface TreeViewProps<T> {
+export interface TreeProps<T> {
   /** Root nodes, already in display order */
   nodes: TreeNode<T>[];
   selectedId?: string;
@@ -35,8 +35,8 @@ export interface TreeViewProps<T> {
   revealId?: string;
   /** Nodes expanded on mount */
   defaultExpandedIds?: readonly string[];
-  actions?: readonly TreeRowAction<T>[];
-  onSelect: (data: T) => void;
+  actions?: readonly TreeNodeAction<T>[];
+  onSelect: (id: string, data: T) => void;
   ariaLabel: string;
 }
 

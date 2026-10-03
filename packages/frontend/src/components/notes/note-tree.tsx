@@ -1,16 +1,15 @@
 import { useMemo } from "react";
 import { useNotesContext } from "../../providers/notes-provider.js";
 import { buildNoteNodes } from "../../utils/note-tree.js";
-import { TreeView } from "../common/tree-view/tree-view.js";
-import type { TreeRowAction } from "../common/tree-view/tree-view.types.js";
+import { Tree } from "../common/tree/tree.js";
+import type { TreeNodeAction } from "../common/tree/tree.types.js";
 
 interface NoteTreeProps {
   isTrashed: boolean;
   selectedId?: string;
   /** Note to bring into view: its ancestors are expanded when it changes */
   revealId?: string;
-  /** Row actions, handed the row's note id */
-  actions?: readonly TreeRowAction<string>[];
+  actions?: readonly TreeNodeAction<string>[];
   onSelect: (noteId: string) => void;
   ariaLabel: string;
 }
@@ -23,7 +22,7 @@ export function NoteTree({ isTrashed, selectedId, revealId, actions, onSelect, a
   );
 
   return (
-    <TreeView
+    <Tree
       nodes={nodes}
       selectedId={selectedId}
       revealId={revealId}

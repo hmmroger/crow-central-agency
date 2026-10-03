@@ -1,6 +1,6 @@
 import { FileQuestion, FileText, Folder, FolderOpen, FolderTree, Image, type LucideIcon } from "lucide-react";
 import { ENTITY_TYPE, NOTE_CONTENT_TYPE, type NoteContentType, type NoteMetadata } from "@crow-central-agency/shared";
-import type { TreeNode } from "../components/common/tree-view/tree-view.types.js";
+import type { TreeNode } from "../components/common/tree/tree.types.js";
 import type { NotesContextValue } from "../providers/notes-provider.types.js";
 
 /** Note ids are lowercased, so an uppercase id never collides with one */
@@ -39,8 +39,8 @@ export function buildNoteNodes(
     .map((metadata) => toTreeNode(metadata, buildNoteNodes(notes, metadata.id, isTrashed, isIncluded)));
 }
 
-/** A tree containing only the notes root, with `children` under it; the root's data is undefined. */
-export function buildNoteRootTree(children: TreeNode<string>[]): TreeNode<string | undefined>[] {
+/** A tree containing only the notes root, with `children` under it. */
+export function buildNoteRootTree(children: TreeNode<string>[]): TreeNode<string>[] {
   return [
     {
       id: NOTES_ROOT_NODE_ID,
@@ -49,7 +49,7 @@ export function buildNoteRootTree(children: TreeNode<string>[]): TreeNode<string
       iconClassName: FOLDER_ICON_CLASS,
       isExpandable: true,
       children,
-      data: undefined,
+      data: NOTES_ROOT_NODE_ID,
     },
   ];
 }

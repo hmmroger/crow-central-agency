@@ -1,4 +1,4 @@
-import type { TreeNode, VisibleTreeNode } from "./tree-view.types.js";
+import type { TreeNode, VisibleTreeNode } from "./tree.types.js";
 
 /** Ids of every ancestor of `nodeId`, root first; undefined when the node is not in the tree. */
 export function getAncestorIds<T>(nodes: TreeNode<T>[], nodeId: string): string[] | undefined {

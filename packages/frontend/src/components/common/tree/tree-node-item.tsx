@@ -1,24 +1,24 @@
 import { useCallback, useEffect, useRef, type FocusEvent, type KeyboardEvent } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "../../../utils/cn.js";
-import { TreeRowActionButton } from "./tree-row-action-button.js";
-import type { TreeNode, TreeRowAction } from "./tree-view.types.js";
+import { TreeNodeActionButton } from "./tree-node-action-button.js";
+import type { TreeNode, TreeNodeAction } from "./tree.types.js";
 
-interface TreeViewItemProps<T> {
+interface TreeNodeItemProps<T> {
   node: TreeNode<T>;
   level: number;
   expandedIds: ReadonlySet<string>;
   selectedId?: string;
   focusedId?: string;
   tabStopId?: string;
-  actions?: readonly TreeRowAction<T>[];
+  actions?: readonly TreeNodeAction<T>[];
   onActivate: (node: TreeNode<T>) => void;
   onFocusNode: (nodeId: string) => void;
   onKeyDown: (node: TreeNode<T>, event: KeyboardEvent<HTMLLIElement>) => void;
   onRegister: (nodeId: string, element: HTMLLIElement | null) => void;
 }
 
-export function TreeViewItem<T>({
+export function TreeNodeItem<T>({
   node,
   level,
   expandedIds,
@@ -30,13 +30,13 @@ export function TreeViewItem<T>({
   onFocusNode,
   onKeyDown,
   onRegister,
-}: TreeViewItemProps<T>) {
+}: TreeNodeItemProps<T>) {
   const isExpanded = node.isExpandable && expandedIds.has(node.id);
   const isSelected = node.id === selectedId;
   const isTabStop = node.id === tabStopId;
   const Icon = isExpanded && node.expandedIcon ? node.expandedIcon : node.icon;
   const Chevron = isExpanded ? ChevronDown : ChevronRight;
-  const availableActions = actions?.filter((action) => action.isAvailable?.(node.data) ?? true) ?? [];
+  const availableActions = actions?.filter((action) => action.isAvailable?.(node.id, node.data) ?? true) ?? [];
   const rowRef = useRef<HTMLDivElement>(null);
   const registerElement = useCallback(
     (element: HTMLLIElement | null) => onRegister(node.id, element),
@@ -106,13 +106,7 @@ export function TreeViewItem<T>({
             )}
           >
             {availableActions.map((action) => (
-              <TreeRowActionButton
-                key={action.id}
-                action={action}
-                data={node.data}
-                rowLabel={node.label}
-                isTabbable={isTabStop}
-              />
+              <TreeNodeActionButton key={action.id} action={action} node={node} isTabbable={isTabStop} />
             ))}
           </div>
         )}
@@ -121,7 +115,7 @@ export function TreeViewItem<T>({
       {isExpanded && node.children.length > 0 && (
         <ul role="group" className="pl-3">
           {node.children.map((child) => (
-            <TreeViewItem
+            <TreeNodeItem
               key={child.id}
               node={child}
               level={level + 1}

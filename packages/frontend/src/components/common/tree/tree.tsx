@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
-import { getAncestorIds, getVisibleNodes } from "./tree-view.utils.js";
-import { TreeViewItem } from "./tree-view-item.js";
-import type { TreeNode, TreeViewProps } from "./tree-view.types.js";
+import { getAncestorIds, getVisibleNodes } from "./tree.utils.js";
+import { TreeNodeItem } from "./tree-node-item.js";
+import type { TreeNode, TreeProps } from "./tree.types.js";
 
 const ROOT_LEVEL = 1;
 
@@ -9,7 +9,7 @@ const ROOT_LEVEL = 1;
  * A domain-free tree. It owns expansion, focus and how they look; the consumer
  * supplies the nodes, the selection and what selecting or acting on a row means.
  */
-export function TreeView<T>({
+export function Tree<T>({
   nodes,
   selectedId,
   revealId,
@@ -17,7 +17,7 @@ export function TreeView<T>({
   actions,
   onSelect,
   ariaLabel,
-}: TreeViewProps<T>) {
+}: TreeProps<T>) {
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set(defaultExpandedIds));
   const [focusedId, setFocusedId] = useState<string>();
   const revealedIdRef = useRef<string>(undefined);
@@ -97,7 +97,7 @@ export function TreeView<T>({
         setExpanded(node.id, !expandedIds.has(node.id));
       }
 
-      onSelect(node.data);
+      onSelect(node.id, node.data);
     },
     [expandedIds, onSelect, setExpanded]
   );
@@ -137,7 +137,7 @@ export function TreeView<T>({
           focusNode(visibleNodes[visibleNodes.length - 1]?.node.id);
           break;
         case "Enter":
-          onSelect(node.data);
+          onSelect(node.id, node.data);
           break;
         default:
           return;
@@ -157,7 +157,7 @@ export function TreeView<T>({
   return (
     <ul role="tree" aria-label={ariaLabel} onBlur={handleBlur}>
       {nodes.map((node) => (
-        <TreeViewItem
+        <TreeNodeItem
           key={node.id}
           node={node}
           level={ROOT_LEVEL}

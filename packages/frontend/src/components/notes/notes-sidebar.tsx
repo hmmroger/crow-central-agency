@@ -7,7 +7,7 @@ import { NOTES_SIDEBAR_TAB, useAppStore, type NotesSidebarTab } from "../../stor
 import { getErrorMessage } from "../../utils/error-message.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { TabBar, type TabDefinition } from "../common/tab-bar.js";
-import type { TreeRowAction } from "../common/tree-view/tree-view.types.js";
+import type { TreeNodeAction } from "../common/tree/tree.types.js";
 import { NoteTree } from "./note-tree.js";
 
 /** What one sidebar tab shows and offers */
@@ -17,7 +17,7 @@ interface NotesSidebarTabConfig {
   onSelect: (noteId: string) => void;
   /** Controls right-aligned in the tab row */
   trailing: ReactNode;
-  actions: TreeRowAction<string>[];
+  actions: TreeNodeAction<string>[];
   emptyText: string;
   treeLabel: string;
 }
