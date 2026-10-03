@@ -1,4 +1,3 @@
-import type { NoteFileMetadata } from "@crow-central-agency/shared";
 import type { LoadNoteImageUrl, NoteImageCacheEntry } from "./note-image-cache.types.js";
 
 /**
@@ -11,8 +10,8 @@ export class NoteImageCache {
 
   constructor(private readonly load: LoadNoteImageUrl) {}
 
-  public acquire(note: NoteFileMetadata): Promise<string | undefined> {
-    const entry = this.entries.get(note.id) ?? this.createEntry(note);
+  public acquire(noteId: string): Promise<string | undefined> {
+    const entry = this.entries.get(noteId) ?? this.createEntry(noteId);
     entry.users += 1;
 
     return entry.url;
@@ -35,9 +34,9 @@ export class NoteImageCache {
     }
   }
 
-  private createEntry(note: NoteFileMetadata): NoteImageCacheEntry {
-    const entry = { users: 0, url: this.load(note) };
-    this.entries.set(note.id, entry);
+  private createEntry(noteId: string): NoteImageCacheEntry {
+    const entry = { users: 0, url: this.load(noteId) };
+    this.entries.set(noteId, entry);
 
     return entry;
   }

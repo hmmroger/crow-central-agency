@@ -1,19 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ENTITY_TYPE, NOTE_CONTENT_TYPE, type NoteFileMetadata } from "@crow-central-agency/shared";
 import { NoteImageCache } from "./note-image-cache.js";
 
 const BLOB_URL = "blob:cat";
-const NOTE: NoteFileMetadata = {
-  id: "cat.png",
-  entityType: ENTITY_TYPE.NOTE,
-  name: "cat.png",
-  path: "cat.png",
-  updatedTimestamp: 0,
-  isReadOnly: true,
-  isTrashed: false,
-  contentType: NOTE_CONTENT_TYPE.IMAGE,
-  size: 0,
-};
+const NOTE_ID = "cat.png";
 
 const createObjectURL = vi.fn(() => BLOB_URL);
 const revokeObjectURL = vi.fn();
@@ -44,9 +33,9 @@ describe("NoteImageCache", () => {
   it("shares one load and keeps the URL while another user still holds it", async () => {
     const cache = new NoteImageCache(loadImageUrl);
 
-    await expect(cache.acquire(NOTE)).resolves.toBe(BLOB_URL);
-    await expect(cache.acquire(NOTE)).resolves.toBe(BLOB_URL);
-    cache.release(NOTE.id);
+    await expect(cache.acquire(NOTE_ID)).resolves.toBe(BLOB_URL);
+    await expect(cache.acquire(NOTE_ID)).resolves.toBe(BLOB_URL);
+    cache.release(NOTE_ID);
     await flushLoads();
 
     expect(fetchImage).toHaveBeenCalledTimes(1);
@@ -56,10 +45,10 @@ describe("NoteImageCache", () => {
   it("revokes the URL once the last user releases it", async () => {
     const cache = new NoteImageCache(loadImageUrl);
 
-    await cache.acquire(NOTE);
-    await cache.acquire(NOTE);
-    cache.release(NOTE.id);
-    cache.release(NOTE.id);
+    await cache.acquire(NOTE_ID);
+    await cache.acquire(NOTE_ID);
+    cache.release(NOTE_ID);
+    cache.release(NOTE_ID);
     await flushLoads();
 
     expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith(BLOB_URL);
@@ -70,8 +59,8 @@ describe("NoteImageCache", () => {
     fetchImage.mockReturnValueOnce(promise);
     const cache = new NoteImageCache(loadImageUrl);
 
-    void cache.acquire(NOTE);
-    cache.release(NOTE.id);
+    void cache.acquire(NOTE_ID);
+    cache.release(NOTE_ID);
     await flushLoads();
 
     expect(revokeObjectURL).not.toHaveBeenCalled();

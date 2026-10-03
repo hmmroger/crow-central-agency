@@ -10,8 +10,8 @@ const MISSING_IMAGE_CLASS = "cm-md-image-missing";
 /** The note whose shared image the element holds, until it is released */
 const NOTE_ID_ATTRIBUTE = "data-note-id";
 
-async function loadNoteImageUrl(note: NoteFileMetadata): Promise<string | undefined> {
-  const content = await queryClient.fetchQuery(noteContentQueryOptions(note.id));
+async function loadNoteImageUrl(noteId: string): Promise<string | undefined> {
+  const content = await queryClient.fetchQuery(noteContentQueryOptions(noteId));
 
   return content.type === "binary" ? content.blobUrl : undefined;
 }
@@ -28,7 +28,7 @@ function createChip(text: string): HTMLElement {
 
 async function loadNoteImage(container: HTMLElement, image: HTMLImageElement, note: NoteFileMetadata): Promise<void> {
   try {
-    const url = await noteImageCache.acquire(note);
+    const url = await noteImageCache.acquire(note.id);
 
     if (url !== undefined && container.hasAttribute(NOTE_ID_ATTRIBUTE)) {
       image.src = url;
