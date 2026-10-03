@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useNoteMoveDestinationsQuery } from "../../hooks/queries/use-note-move-destinations-query.js";
 import { useNotesContext } from "../../providers/notes-provider.js";
+import { useAppStore } from "../../stores/app-store.js";
 import { getErrorMessage } from "../../utils/error-message.js";
 import { buildNoteNodes, buildNoteRootTree, NOTES_ROOT_NODE_ID } from "../../utils/note-tree.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
@@ -9,8 +10,6 @@ import { Tree } from "../common/tree/tree.js";
 interface NoteMoveDialogProps {
   /** Note being moved */
   noteId: string;
-  /** Called with the moved note's id, which changes with its path */
-  onMoved: (noteId: string) => void;
   /** Injected by ModalDialogRenderer */
   onClose: () => void;
 }
@@ -22,8 +21,9 @@ const DEFAULT_EXPANDED_IDS = [NOTES_ROOT_NODE_ID];
  * listed, so none that would swallow the note itself; the notes root is the
  * tree's top node.
  */
-export function NoteMoveDialog({ noteId, onMoved, onClose }: NoteMoveDialogProps) {
+export function NoteMoveDialog({ noteId, onClose }: NoteMoveDialogProps) {
   const { getNote, getChildIds, updateNote } = useNotesContext();
+  const selectNote = useAppStore((state) => state.selectNote);
   const note = getNote(noteId);
   const { data: destinations } = useNoteMoveDestinationsQuery(noteId);
   const [destinationId, setDestinationId] = useState(note?.parentId);
@@ -50,13 +50,13 @@ export function NoteMoveDialog({ noteId, onMoved, onClose }: NoteMoveDialogProps
 
     try {
       // `null` moves to the root; `undefined` would read as "parent unchanged".
-      onMoved(await updateNote(noteId, { parentId: destinationId ?? null }));
+      selectNote(await updateNote(noteId, { parentId: destinationId ?? null }));
       onClose();
     } catch (moveError) {
       setError(getErrorMessage(moveError));
       setIsMoving(false);
     }
-  }, [updateNote, noteId, destinationId, onMoved, onClose]);
+  }, [updateNote, noteId, destinationId, selectNote, onClose]);
 
   if (!note) {
     return null;
