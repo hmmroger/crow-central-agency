@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useCallback, useMemo } from "react";
 import { Archive, FilePlus, FolderInput, FolderPlus, NotebookText, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { ENTITY_TYPE, NOTE_NAME_MAX_LENGTH, type NoteMetadata } from "@crow-central-agency/shared";
 import { useConfirmDialog } from "../../hooks/dialogs/use-confirm-dialog.js";
@@ -7,8 +7,8 @@ import { usePromptDialog } from "../../hooks/dialogs/use-prompt-dialog.js";
 import { useNotesContext } from "../../providers/notes-provider.js";
 import { NOTES_SIDEBAR_TAB, useAppStore, type NotesSidebarTab } from "../../stores/app-store.js";
 import { getErrorMessage } from "../../utils/error-message.js";
-import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
-import { TabBar, type TabDefinition } from "../common/tab-bar.js";
+import { ACTION_BUTTON_VARIANT } from "../common/action-button.js";
+import { TabBar, type TabBarAction, type TabDefinition } from "../common/tab-bar.js";
 import type { TreeNodeAction } from "../common/tree/tree.types.js";
 import { NoteTree } from "./note-tree.js";
 
@@ -17,9 +17,8 @@ interface NotesSidebarTabConfig {
   isTrashed: boolean;
   selectedId?: string;
   onSelect: (noteId: string) => void;
-  /** Controls right-aligned in the tab row */
-  trailing: ReactNode;
-  actions: TreeNodeAction<NoteMetadata>[];
+  tabActions: TabBarAction[];
+  nodeActions: TreeNodeAction<NoteMetadata>[];
   emptyText: string;
   treeLabel: string;
 }
@@ -181,18 +180,23 @@ export function NotesSidebar() {
         isTrashed: false,
         selectedId: selectedNoteId,
         onSelect: selectNote,
-        trailing: (
-          <>
-            <ActionButton icon={FilePlus} label={`New note in ${targetName}`} iconOnly onClick={handleCreateNote} />
-            <ActionButton
-              icon={FolderPlus}
-              label={`New folder in ${targetName}`}
-              iconOnly
-              onClick={handleCreateFolder}
-            />
-          </>
-        ),
-        actions: [
+        tabActions: [
+          {
+            id: "new-note",
+            label: `New note in ${targetName}`,
+            icon: FilePlus,
+            iconOnly: true,
+            onClick: handleCreateNote,
+          },
+          {
+            id: "new-folder",
+            label: `New folder in ${targetName}`,
+            icon: FolderPlus,
+            iconOnly: true,
+            onClick: handleCreateFolder,
+          },
+        ],
+        nodeActions: [
           { id: "rename", label: "Rename", icon: Pencil, onSelect: handleRename },
           { id: "move", label: "Move", icon: FolderInput, onSelect: openMoveDialog },
           { id: "delete", label: "Delete", icon: Trash2, onSelect: handleTrash },
@@ -204,15 +208,16 @@ export function NotesSidebar() {
         isTrashed: true,
         selectedId: selectedTrashNoteId,
         onSelect: selectTrashNote,
-        trailing: (
-          <ActionButton
-            label="Empty trash"
-            variant={ACTION_BUTTON_VARIANT.DESTRUCTIVE}
-            disabled={isTrashEmpty}
-            onClick={handleEmptyTrash}
-          />
-        ),
-        actions: [
+        tabActions: [
+          {
+            id: "empty-trash",
+            label: "Empty trash",
+            variant: ACTION_BUTTON_VARIANT.DESTRUCTIVE,
+            disabled: isTrashEmpty,
+            onClick: handleEmptyTrash,
+          },
+        ],
+        nodeActions: [
           { id: "restore", label: "Restore", icon: RotateCcw, onSelect: handleRestore },
           { id: "delete", label: "Delete permanently", icon: Trash2, onSelect: handleDeletePermanently },
         ],
@@ -248,7 +253,7 @@ export function NotesSidebar() {
         activeTab={activeTab}
         onTabChange={setNotesSidebarTab}
         layoutId="notesSidebar"
-        trailing={tab.trailing}
+        actions={tab.tabActions}
       />
 
       {error && <p className="px-2 py-1 text-xs text-error">{getErrorMessage(error)}</p>}
@@ -263,7 +268,7 @@ export function NotesSidebar() {
           isTrashed={tab.isTrashed}
           selectedId={tab.selectedId}
           revealId={tab.selectedId}
-          actions={tab.actions}
+          actions={tab.nodeActions}
           onSelect={tab.onSelect}
           ariaLabel={tab.treeLabel}
         />

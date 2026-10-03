@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useAppStore } from "../../../stores/app-store.js";
-import { TabBar } from "../../common/tab-bar.js";
+import { TabBar, type TabBarAction } from "../../common/tab-bar.js";
 import { SIDE_PANEL_TAB, SIDE_PANEL_TABS, type SidePanelTab } from "./side-panel-tabs.js";
 import { SidePanelTabContent } from "./side-panel-tab-content.js";
 
@@ -14,6 +14,10 @@ import { SidePanelTabContent } from "./side-panel-tab-content.js";
 export function AgentsViewSidePanel() {
   const toggleSidePanel = useAppStore((state) => state.toggleSidePanel);
   const [activeTab, setActiveTab] = useState<SidePanelTab>(SIDE_PANEL_TAB.STATUS);
+  const actions = useMemo<TabBarAction[]>(
+    () => [{ id: "close", label: "Close side panel", icon: X, iconOnly: true, onClick: toggleSidePanel }],
+    [toggleSidePanel]
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -23,9 +27,7 @@ export function AgentsViewSidePanel() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           layoutId="agentSidePanel"
-          actionIcon={X}
-          onActionClick={toggleSidePanel}
-          actionTitle="Close side panel"
+          actions={actions}
         />
       </div>
 
