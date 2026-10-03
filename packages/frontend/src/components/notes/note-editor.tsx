@@ -44,7 +44,7 @@ export function NoteEditor({ note, onUnsavedChange }: NoteEditorProps) {
   const [editor, setEditor] = useState<MarkdownEditorHandle>();
   const [formatState, setFormatState] = useState<EditorFormatState>();
   const [status, setStatus] = useState<EditorStatus>();
-  const { data, isLoading, isError, error, refetch } = useNoteContentQuery(note);
+  const { data, isLoading, isError, error, refetch } = useNoteContentQuery(note.id);
   const { mutateAsync: writeContent, isError: isSaveError, error: saveError } = useWriteNoteContent();
   const { resolveWikilink } = useNotesContext();
   const [resolveError, setResolveError] = useState<string>();

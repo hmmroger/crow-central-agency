@@ -18,7 +18,7 @@ const STATUS_CLASS = "p-panel text-sm text-text-muted";
  */
 export function NoteReader({ note }: NoteReaderProps) {
   const isPreviewable = note.contentType !== NOTE_CONTENT_TYPE.UNKNOWN;
-  const { data, isLoading, isError, error } = useNoteContentQuery(note, { enabled: isPreviewable });
+  const { data, isLoading, isError, error } = useNoteContentQuery(note.id, { enabled: isPreviewable });
 
   useEffect(() => {
     return () => {

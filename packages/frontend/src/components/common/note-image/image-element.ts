@@ -11,7 +11,7 @@ const MISSING_IMAGE_CLASS = "cm-md-image-missing";
 const NOTE_ID_ATTRIBUTE = "data-note-id";
 
 async function loadNoteImageUrl(note: NoteFileMetadata): Promise<string | undefined> {
-  const content = await queryClient.fetchQuery(noteContentQueryOptions(note));
+  const content = await queryClient.fetchQuery(noteContentQueryOptions(note.id));
 
   return content.type === "binary" ? content.blobUrl : undefined;
 }
