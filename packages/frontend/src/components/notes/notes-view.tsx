@@ -9,6 +9,8 @@ import {
   useAppStore,
 } from "../../stores/app-store.js";
 import { useResizablePanel } from "../../hooks/use-resizable-panel.js";
+import type { HeaderBreadcrumb } from "../../providers/header-provider.types.js";
+import { getNotePath } from "../../utils/note-tree.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { PanelResizeHandle } from "../layout/panel-resize-handle.js";
 import { EmptyState } from "../common/empty-state.js";
@@ -17,6 +19,8 @@ import { NoteTrashSidebar } from "./note-trash-sidebar.js";
 import { NoteWorkspace } from "./note-workspace.js";
 
 const VIEW_TITLE = "Notes";
+/** Note ids are lowercased, so an uppercase id never collides with one */
+const TRASH_CRUMB: HeaderBreadcrumb = { id: "TRASH", label: "Trash" };
 
 export function NotesView() {
   const { data: notes = [], isLoading, error } = useNotesQuery();
@@ -25,6 +29,7 @@ export function NotesView() {
   const selectedId = useAppStore((state) => state.selectedNoteId);
   const selectNote = useAppStore((state) => state.selectNote);
   const selectedTrashId = useAppStore((state) => state.selectedTrashNoteId);
+  const selectTrashNote = useAppStore((state) => state.selectTrashNote);
   const isTrashTab = useAppStore((state) => state.notesSidebarTab === NOTES_SIDEBAR_TAB.TRASH);
   const { data: trashedNotes = [] } = useNoteTrashQuery({ enabled: isTrashTab });
 
@@ -47,6 +52,18 @@ export function NotesView() {
 
     return trashedNotes.find((note) => note.id === selectedTrashId);
   }, [isTrashTab, selectedNote, trashedNotes, selectedTrashId]);
+
+  const breadcrumbs = useMemo<HeaderBreadcrumb[]>(() => {
+    const path = workspaceNote ? getNotePath(isTrashTab ? trashedNotes : notes, workspaceNote.id) : [];
+    const selectCrumb = isTrashTab ? selectTrashNote : selectNote;
+    const noteCrumbs = path.map((metadata) => ({
+      id: metadata.id,
+      label: metadata.name,
+      onClick: () => selectCrumb(metadata.id),
+    }));
+
+    return isTrashTab ? [TRASH_CRUMB].concat(noteCrumbs) : noteCrumbs;
+  }, [workspaceNote, isTrashTab, trashedNotes, notes, selectTrashNote, selectNote]);
 
   const handleSelect = useCallback(
     (metadata: NoteMetadata) => {
@@ -75,7 +92,7 @@ export function NotesView() {
 
   return (
     <div className="flex h-full">
-      <HeaderPortal title={VIEW_TITLE} />
+      <HeaderPortal title={VIEW_TITLE} breadcrumbs={breadcrumbs} />
       <aside style={{ width: sidebarWidth }} className="shrink-0 overflow-y-auto border-r border-border-subtle p-2">
         {isTrashTab ? (
           <NoteTrashSidebar />

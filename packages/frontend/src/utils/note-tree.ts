@@ -38,6 +38,22 @@ export function buildNoteTree(notes: NoteMetadata[]): TreeNode<NoteMetadata>[] {
   return roots;
 }
 
+/** The note's ancestor folders, root first, followed by the note itself; empty when the note is not listed. */
+export function getNotePath(notes: NoteMetadata[], noteId: string): NoteMetadata[] {
+  const notesById = new Map(notes.map((metadata) => [metadata.id, metadata]));
+  const path: NoteMetadata[] = [];
+  const visitedIds = new Set<string>();
+  let current = notesById.get(noteId);
+
+  while (current && !visitedIds.has(current.id)) {
+    visitedIds.add(current.id);
+    path.push(current);
+    current = current.parentId ? notesById.get(current.parentId) : undefined;
+  }
+
+  return path.reverse();
+}
+
 /** A tree containing only the notes root, with `notes` nested under it; selecting it means the root itself. */
 export function buildNoteRootTree(notes: NoteMetadata[]): TreeNode<NoteMetadata | undefined>[] {
   return [

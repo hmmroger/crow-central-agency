@@ -25,6 +25,14 @@ export interface HeaderAction {
   alwaysVisible?: boolean;
 }
 
+/** A crumb rendered after the header title; the last one is the current item. */
+export interface HeaderBreadcrumb {
+  id: string;
+  label: string;
+  /** Ignored on the last crumb, which is never clickable. */
+  onClick?: () => void;
+}
+
 /** Value exposed by the HeaderProvider context. */
 export interface HeaderContextValue {
   /** Current header title. */
@@ -39,4 +47,8 @@ export interface HeaderContextValue {
   actions: HeaderAction[];
   /** Set or clear the header actions. Stable reference. */
   setActions: (actions: HeaderAction[]) => void;
+  /** Currently registered breadcrumbs. Empty array when none are set. */
+  breadcrumbs: HeaderBreadcrumb[];
+  /** Set or clear the breadcrumbs. Stable reference. */
+  setBreadcrumbs: (breadcrumbs: HeaderBreadcrumb[]) => void;
 }

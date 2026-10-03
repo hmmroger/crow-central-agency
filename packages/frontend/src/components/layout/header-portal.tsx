@@ -1,7 +1,7 @@
 import { useLayoutEffect } from "react";
 import { useHeader } from "../../hooks/use-header.js";
-import { EMPTY_HEADER_ACTIONS } from "../../providers/header-provider.js";
-import type { HeaderAction, HeaderDropdownConfig } from "../../providers/header-provider.types.js";
+import { EMPTY_HEADER_ACTIONS, EMPTY_HEADER_BREADCRUMBS } from "../../providers/header-provider.js";
+import type { HeaderAction, HeaderBreadcrumb, HeaderDropdownConfig } from "../../providers/header-provider.types.js";
 
 interface HeaderPortalProps {
   /** Page/view title displayed in the header */
@@ -10,6 +10,8 @@ interface HeaderPortalProps {
   dropdown?: HeaderDropdownConfig;
   /** Optional action buttons rendered on the right edge of the header below the side-panel breakpoint. Pass a memoized array. */
   actions?: HeaderAction[];
+  /** Optional crumbs rendered after the title. Pass a memoized array. */
+  breadcrumbs?: HeaderBreadcrumb[];
 }
 
 /**
@@ -17,8 +19,8 @@ interface HeaderPortalProps {
  * Place in a view's render tree to push the title (and optional dropdown / actions) into the app header.
  * Uses useLayoutEffect to sync before paint, avoiding flash on view transitions.
  */
-export function HeaderPortal({ title, dropdown, actions }: HeaderPortalProps) {
-  const { setTitle, setDropdown, setActions } = useHeader();
+export function HeaderPortal({ title, dropdown, actions, breadcrumbs }: HeaderPortalProps) {
+  const { setTitle, setDropdown, setActions, setBreadcrumbs } = useHeader();
 
   useLayoutEffect(() => {
     setTitle(title);
@@ -33,6 +35,11 @@ export function HeaderPortal({ title, dropdown, actions }: HeaderPortalProps) {
     setActions(actions ?? EMPTY_HEADER_ACTIONS);
     return () => setActions(EMPTY_HEADER_ACTIONS);
   }, [setActions, actions]);
+
+  useLayoutEffect(() => {
+    setBreadcrumbs(breadcrumbs ?? EMPTY_HEADER_BREADCRUMBS);
+    return () => setBreadcrumbs(EMPTY_HEADER_BREADCRUMBS);
+  }, [setBreadcrumbs, breadcrumbs]);
 
   return null;
 }

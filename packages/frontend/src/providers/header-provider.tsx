@@ -1,7 +1,13 @@
 import { createContext, useCallback, useMemo, useState, type ReactNode } from "react";
-import type { HeaderAction, HeaderContextValue, HeaderDropdownConfig } from "./header-provider.types.js";
+import type {
+  HeaderAction,
+  HeaderBreadcrumb,
+  HeaderContextValue,
+  HeaderDropdownConfig,
+} from "./header-provider.types.js";
 
 export const EMPTY_HEADER_ACTIONS: HeaderAction[] = [];
+export const EMPTY_HEADER_BREADCRUMBS: HeaderBreadcrumb[] = [];
 
 export const HeaderContext = createContext<HeaderContextValue | undefined>(undefined);
 
@@ -13,6 +19,7 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
   const [title, setTitleState] = useState("");
   const [dropdown, setDropdownState] = useState<HeaderDropdownConfig | undefined>(undefined);
   const [actions, setActionsState] = useState<HeaderAction[]>(EMPTY_HEADER_ACTIONS);
+  const [breadcrumbs, setBreadcrumbsState] = useState<HeaderBreadcrumb[]>(EMPTY_HEADER_BREADCRUMBS);
 
   const setTitle = useCallback((newTitle: string) => {
     setTitleState((prev) => (prev === newTitle ? prev : newTitle));
@@ -26,9 +33,13 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
     setActionsState((prev) => (prev === newActions ? prev : newActions));
   }, []);
 
+  const setBreadcrumbs = useCallback((newBreadcrumbs: HeaderBreadcrumb[]) => {
+    setBreadcrumbsState((prev) => (prev === newBreadcrumbs ? prev : newBreadcrumbs));
+  }, []);
+
   const value = useMemo<HeaderContextValue>(
-    () => ({ title, setTitle, dropdown, setDropdown, actions, setActions }),
-    [title, setTitle, dropdown, setDropdown, actions, setActions]
+    () => ({ title, setTitle, dropdown, setDropdown, actions, setActions, breadcrumbs, setBreadcrumbs }),
+    [title, setTitle, dropdown, setDropdown, actions, setActions, breadcrumbs, setBreadcrumbs]
   );
 
   return <HeaderContext.Provider value={value}>{children}</HeaderContext.Provider>;
