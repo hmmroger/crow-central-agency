@@ -1,6 +1,11 @@
 import path from "node:path";
-import { ARTIFACT_CONTENT_TYPE, type ArtifactContentType } from "@crow-central-agency/shared";
-import { isAudioFileExtension, isImageFileExtension, isKnownBinaryExtension } from "../../utils/mime-type.js";
+import {
+  ARTIFACT_CONTENT_TYPE,
+  isAudioFileExtension,
+  isImageFileExtension,
+  isKnownBinaryExtension,
+  type ArtifactContentType,
+} from "@crow-central-agency/shared";
 
 /** Check if a buffer looks like text content by examining bytes for binary indicators */
 function isTextContent(sample: Buffer): boolean {

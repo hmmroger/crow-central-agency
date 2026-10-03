@@ -1,11 +1,9 @@
-import { NOTE_IMAGE_ASSET_EXTENSIONS } from "@crow-central-agency/shared";
+import { getExtensionByMimeType, NOTE_IMAGE_ASSET_MIME_TYPES } from "@crow-central-agency/shared";
 
 /** Folder created beside a note to hold the files pasted into it */
 export const NOTE_ASSETS_FOLDER_NAME = "assets";
 
 const IMAGE_ASSET_PREFIX = "image";
-
-const IMAGE_ASSET_EXTENSION_BY_MIME_TYPE = new Map(Object.entries(NOTE_IMAGE_ASSET_EXTENSIONS));
 
 function padDatePart(value: number, length = 2): string {
   return String(value).padStart(length, "0");
@@ -13,7 +11,9 @@ function padDatePart(value: number, length = 2): string {
 
 /** The extension an uploaded image is stored with, or undefined when its type is not accepted. */
 export function toImageAssetExtension(mimeType: string): string | undefined {
-  return IMAGE_ASSET_EXTENSION_BY_MIME_TYPE.get(mimeType.trim().toLowerCase());
+  const normalizedMimeType = mimeType.trim().toLowerCase();
+
+  return NOTE_IMAGE_ASSET_MIME_TYPES.has(normalizedMimeType) ? getExtensionByMimeType(normalizedMimeType) : undefined;
 }
 
 /**

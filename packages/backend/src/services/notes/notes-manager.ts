@@ -13,7 +13,6 @@ import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import {
   assertRealPathWithinBase,
   assertWithinBase,
-  createBinaryFile,
   deleteFile,
   ensureDir,
   getPathStats,
@@ -25,6 +24,7 @@ import {
   removeEmptyAncestors,
   renameFile,
   statFile,
+  writeBinaryFile,
   writeTextFile,
 } from "../../utils/fs-utils.js";
 import { logger } from "../../utils/logger.js";
@@ -174,7 +174,7 @@ export class NotesManager {
       }
 
       await assertRealPathWithinBase(target.absolutePath, this.notesPath);
-      if (await createBinaryFile(target.absolutePath, content)) {
+      if (await writeBinaryFile(target.absolutePath, content, { overwrite: false })) {
         return this.reindexAndGet(target.id);
       }
     }

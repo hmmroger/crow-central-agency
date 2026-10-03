@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
+import type { WriteFileOptions } from "./fs-utils.types.js";
 
 /** Type guard for Node.js filesystem errors with an error code */
 export function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
@@ -161,22 +162,21 @@ export async function readBinaryFile(filePath: string): Promise<Buffer> {
 /**
  * Write binary content to a file.
  * Creates parent directories if they don't exist.
+ * Returns false when `overwrite` is false and the path is already taken.
  */
-export async function writeBinaryFile(filePath: string, content: Buffer): Promise<void> {
+export async function writeBinaryFile(
+  filePath: string,
+  content: Buffer,
+  options: WriteFileOptions = {}
+): Promise<boolean> {
+  const { overwrite = true } = options;
   await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
-  await fs.writeFile(filePath, content, { mode: 0o600 });
-}
 
-/**
- * Create a file with binary content only if nothing exists at the path; the
- * parent directory must exist. Returns false when the path is already taken.
- */
-export async function createBinaryFile(filePath: string, content: Buffer): Promise<boolean> {
   try {
-    await fs.writeFile(filePath, content, { mode: 0o600, flag: "wx" });
+    await fs.writeFile(filePath, content, { mode: 0o600, flag: overwrite ? "w" : "wx" });
     return true;
   } catch (error) {
-    if (isErrnoException(error) && error.code === "EEXIST") {
+    if (!overwrite && isErrnoException(error) && error.code === "EEXIST") {
       return false;
     }
 

@@ -1,5 +1,4 @@
-import path from "node:path";
-import { ARTIFACT_CONTENT_TYPE, ARTIFACT_TYPE } from "@crow-central-agency/shared";
+import { ARTIFACT_CONTENT_TYPE, ARTIFACT_TYPE, getMimeTypeByFilename, MIME_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { formatLocalDateTime } from "../../utils/date-utils.js";
 import { formatVersionToken, processTextContent, textToolResult, type ReadLineOptions } from "../tool-utils.js";
@@ -110,17 +109,13 @@ export function buildEditArtifactNote(
   return `lines ${startLine}-${startLine + insertedLineCount - 1} now hold your content; ${formatLineShift(shift)}`;
 }
 
-/** Image extensions that Claude can process natively via base64 */
-const SUPPORTED_IMAGE_MIME: Record<string, string> = {
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-};
-
-/** PDF extension for document support */
-const PDF_MIME = "application/pdf";
+/** Image types that Claude can process natively via base64 */
+const SUPPORTED_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
+  MIME_TYPE.JPEG,
+  MIME_TYPE.PNG,
+  MIME_TYPE.GIF,
+  MIME_TYPE.WEBP,
+]);
 
 /** Build the MCP content blocks for a read artifact result */
 export function buildReadArtifactResult(
@@ -143,19 +138,18 @@ export function buildReadArtifactResult(
     return textToolResult(header.concat(processed.headerParts).concat(["", processed.text]));
   }
 
-  const ext = path.extname(metadata.filename).toLowerCase();
-  const imageMime = SUPPORTED_IMAGE_MIME[ext];
+  const mimeType = getMimeTypeByFilename(metadata.filename);
 
-  if (imageMime) {
+  if (mimeType && SUPPORTED_IMAGE_MIME_TYPES.has(mimeType)) {
     return {
       content: [
         { type: "text" as const, text: header.join("\n") },
-        { type: "image" as const, data: content.toString("base64"), mimeType: imageMime },
+        { type: "image" as const, data: content.toString("base64"), mimeType },
       ],
     };
   }
 
-  if (ext === ".pdf") {
+  if (mimeType === MIME_TYPE.PDF) {
     return {
       content: [
         { type: "text" as const, text: header.join("\n") },
@@ -163,7 +157,7 @@ export function buildReadArtifactResult(
           type: "resource" as const,
           resource: {
             uri: `artifact://${metadata.entityId}/${metadata.filename}`,
-            mimeType: PDF_MIME,
+            mimeType,
             blob: content.toString("base64"),
           },
         },

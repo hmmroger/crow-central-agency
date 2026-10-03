@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MIME_TYPE } from "../utils/mime-type.js";
 import { ENTITY_TYPE } from "./agent-circle.schema.js";
 
 /** Entity types that live in the notes tree */
@@ -70,16 +71,13 @@ export type NoteContent = z.infer<typeof NoteContentSchema>;
 
 export const NOTE_NAME_MAX_LENGTH = 128;
 
-/**
- * Image types a note accepts as an uploaded asset, with the extension each is
- * stored under. SVG is left out on purpose: it can carry script.
- */
-export const NOTE_IMAGE_ASSET_EXTENSIONS: Readonly<Record<string, string>> = {
-  "image/png": ".png",
-  "image/jpeg": ".jpg",
-  "image/gif": ".gif",
-  "image/webp": ".webp",
-};
+/** Image types a note accepts as an uploaded asset. SVG is left out on purpose: it can carry script. */
+export const NOTE_IMAGE_ASSET_MIME_TYPES: ReadonlySet<string> = new Set([
+  MIME_TYPE.PNG,
+  MIME_TYPE.JPEG,
+  MIME_TYPE.GIF,
+  MIME_TYPE.WEBP,
+]);
 
 /** Create a folder, or a text note whose file is `<name>.md`. `parentId` omitted means the notes root. */
 export const CreateNoteInputSchema = z.object({

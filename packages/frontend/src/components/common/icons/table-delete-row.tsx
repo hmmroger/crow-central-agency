@@ -1,10 +1,12 @@
-import type { TableIconProps } from "./table-icons.types.js";
+import type { IconProps } from "./icon.types.js";
 
 /** Lucide has no delete-row glyph: a row strip with a minus beside it, drawn in lucide's style. */
-export function TableDeleteRowIcon({ className }: TableIconProps) {
+export function TableDeleteRowIcon({ className, size = 24 }: IconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

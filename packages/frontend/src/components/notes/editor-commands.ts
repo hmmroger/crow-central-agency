@@ -47,8 +47,8 @@ import {
   insertTable,
 } from "./editor/table-commands.js";
 import type { EditorCommand } from "./editor-toolbar.types.js";
-import { TableDeleteColumnIcon } from "./table-delete-column-icon.js";
-import { TableDeleteRowIcon } from "./table-delete-row-icon.js";
+import { TableDeleteColumnIcon } from "../common/icons/table-delete-column.js";
+import { TableDeleteRowIcon } from "../common/icons/table-delete-row.js";
 
 /** Formatting edits the note's text, so it is off while a table cell is being edited. */
 export function isOutsideTableCell(state: EditorState): boolean {

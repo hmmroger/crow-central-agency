@@ -1,6 +1,6 @@
 import { StateEffect, StateField, type Extension, type Transaction } from "@codemirror/state";
 import { ViewPlugin, type EditorView } from "@codemirror/view";
-import { escapeWikilinkTarget, NOTE_IMAGE_ASSET_EXTENSIONS, type NoteMetadata } from "@crow-central-agency/shared";
+import { escapeWikilinkTarget, NOTE_IMAGE_ASSET_MIME_TYPES, type NoteMetadata } from "@crow-central-agency/shared";
 import { unwrapResponse, uploadNoteAsset } from "../../../../services/api-client.js";
 import { queryClient } from "../../../../services/query-client.js";
 import { noteKeys } from "../../../../services/query-keys.js";
@@ -21,7 +21,7 @@ const finishImagePaste = StateEffect.define<number>();
 let nextPasteId = 0;
 
 function isAcceptedImage(file: File): boolean {
-  return Object.hasOwn(NOTE_IMAGE_ASSET_EXTENSIONS, file.type);
+  return NOTE_IMAGE_ASSET_MIME_TYPES.has(file.type);
 }
 
 function applyEffect(pending: PendingImagePaste[], effect: StateEffect<unknown>): PendingImagePaste[] {

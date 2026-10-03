@@ -93,6 +93,7 @@ export function LivePreviewEditor({
     });
 
     viewRef.current = view;
+    view.focus();
     onEditorReadyRef.current({ view, subscribe: subscription.subscribe });
 
     return () => {

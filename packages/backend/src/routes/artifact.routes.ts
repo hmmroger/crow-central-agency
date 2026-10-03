@@ -9,12 +9,12 @@ import {
   ARTIFACT_TYPE,
   ArtifactContentTypeSchema,
   ArtifactUpdateSchema,
+  getMimeTypeByFilename,
 } from "@crow-central-agency/shared";
 import type { ArtifactContentType, ArtifactUpdate } from "@crow-central-agency/shared";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import type { Multipart } from "@fastify/multipart";
-import { getMimeTypeByFilename } from "../utils/mime-type.js";
 
 /** Resolve MIME type from filename and artifact content type */
 function getMimeType(filename: string, contentType?: ArtifactContentType): string {

@@ -1,10 +1,12 @@
-import type { TableIconProps } from "./table-icons.types.js";
+import type { IconProps } from "./icon.types.js";
 
 /** Lucide has no delete-column glyph: a column strip with a minus below it, drawn in lucide's style. */
-export function TableDeleteColumnIcon({ className }: TableIconProps) {
+export function TableDeleteColumnIcon({ className, size = 24 }: IconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

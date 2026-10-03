@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import {
   CreateNoteInputSchema,
   ENTITY_TYPE,
+  getMimeTypeByFilename,
   NOTE_CONTENT_TYPE,
   UpdateNoteInputSchema,
   WriteNoteContentInputSchema,
@@ -12,7 +13,6 @@ import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import type { NotesManager } from "../services/notes/notes-manager.js";
 import type { ReadNoteResult } from "../services/notes/notes-manager.types.js";
-import { getMimeTypeByFilename } from "../utils/mime-type.js";
 import { deletedResponse, wrapZodError } from "./route-utils.js";
 
 const DEFAULT_MIME_TYPE = "application/octet-stream";

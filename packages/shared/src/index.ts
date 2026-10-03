@@ -23,6 +23,14 @@ export {
 export { WIKILINK_TOKEN, type WikilinkToken } from "./marked-extensions/wikilink-extension.types.js";
 export { escapeHtml } from "./utils/html-escape.js";
 export {
+  MIME_TYPE,
+  getExtensionByMimeType,
+  getMimeTypeByFilename,
+  isAudioFileExtension,
+  isImageFileExtension,
+  isKnownBinaryExtension,
+} from "./utils/mime-type.js";
+export {
   CLAUDE_MODELS,
   GITHUB_COPILOT_MODELS,
   CLAUDE_CODE_MODEL_OPTIONS,
@@ -291,7 +299,7 @@ export {
 export {
   NOTE_CONTENT_TYPE,
   NOTE_NAME_MAX_LENGTH,
-  NOTE_IMAGE_ASSET_EXTENSIONS,
+  NOTE_IMAGE_ASSET_MIME_TYPES,
   NoteEntityTypeSchema,
   NoteContentTypeSchema,
   NoteFolderMetadataSchema,

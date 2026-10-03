@@ -1,6 +1,5 @@
 import path from "node:path";
-import { NOTE_CONTENT_TYPE, type NoteContentType } from "@crow-central-agency/shared";
-import { isImageFileExtension } from "../../utils/mime-type.js";
+import { isImageFileExtension, NOTE_CONTENT_TYPE, type NoteContentType } from "@crow-central-agency/shared";
 
 /** Extensions treated as editable markdown notes */
 const TEXT_NOTE_EXTENSIONS = new Set([".md", ".markdown"]);
