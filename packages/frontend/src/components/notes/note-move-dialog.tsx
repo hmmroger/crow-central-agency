@@ -1,12 +1,11 @@
-import { useCallback, useState } from "react";
-import { FolderTree } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import type { NoteMetadata } from "@crow-central-agency/shared";
 import { useNoteMoveDestinationsQuery } from "../../hooks/queries/use-note-move-destinations-query.js";
 import { useUpdateNote } from "../../hooks/queries/use-note-mutations.js";
 import { getErrorMessage } from "../../utils/error-message.js";
+import { buildNoteRootTree, NOTES_ROOT_NODE_ID } from "../../utils/note-tree.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
-import { cn } from "../../utils/cn.js";
-import { NoteTree } from "./note-tree.js";
+import { TreeView } from "../common/tree-view/tree-view.js";
 
 interface NoteMoveDialogProps {
   /** Note being moved */
@@ -17,25 +16,23 @@ interface NoteMoveDialogProps {
   onClose: () => void;
 }
 
-const ROOT_DESTINATION_LABEL = "Notes root";
+const DEFAULT_EXPANDED_IDS = [NOTES_ROOT_NODE_ID];
 
 /**
  * Destination picker for a move. Folders that would swallow the note itself
- * are left out; the notes root is offered as an explicit row.
+ * are left out; the notes root is the tree's top node.
  */
 export function NoteMoveDialog({ note, onMoved, onClose }: NoteMoveDialogProps) {
   const { data: destinations = [] } = useNoteMoveDestinationsQuery(note.id);
   const { mutateAsync: updateNote, isPending } = useUpdateNote();
   const [destinationId, setDestinationId] = useState(note.parentId);
   const [error, setError] = useState<string>();
+  const nodes = useMemo(() => buildNoteRootTree(destinations), [destinations]);
+  const selectedNodeId = destinationId ?? NOTES_ROOT_NODE_ID;
   const isUnchanged = destinationId === note.parentId;
 
-  const handleSelect = useCallback((metadata: NoteMetadata) => {
-    setDestinationId(metadata.id);
-  }, []);
-
-  const handleSelectRoot = useCallback(() => {
-    setDestinationId(undefined);
+  const handleSelect = useCallback((metadata: NoteMetadata | undefined) => {
+    setDestinationId(metadata?.id);
   }, []);
 
   const handleMove = useCallback(async () => {
@@ -59,22 +56,14 @@ export function NoteMoveDialog({ note, onMoved, onClose }: NoteMoveDialogProps) 
         </p>
 
         <div className="h-80 overflow-y-auto rounded-md border border-border-subtle p-1">
-          <button
-            type="button"
-            aria-current={destinationId === undefined}
-            className={cn(
-              "w-full flex items-center gap-1.5 px-2 py-1 rounded-sm text-sm text-left transition-colors",
-              destinationId === undefined
-                ? "bg-surface-hover text-text-base"
-                : "text-text-neutral hover:bg-surface-hover"
-            )}
-            onClick={handleSelectRoot}
-          >
-            <FolderTree className="h-3.5 w-3.5 shrink-0 text-accent" />
-            <span className="truncate">{ROOT_DESTINATION_LABEL}</span>
-          </button>
-
-          <NoteTree notes={destinations} selectedId={destinationId} onSelect={handleSelect} />
+          <TreeView
+            nodes={nodes}
+            selectedId={selectedNodeId}
+            revealId={selectedNodeId}
+            defaultExpandedIds={DEFAULT_EXPANDED_IDS}
+            onSelect={handleSelect}
+            ariaLabel="Destination folders"
+          />
         </div>
 
         {error && <p className="text-xs text-error">{error}</p>}

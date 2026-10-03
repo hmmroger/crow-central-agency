@@ -8,8 +8,8 @@ import { useNoteDeletion } from "../../hooks/dialogs/use-note-deletion.js";
 import { useAppStore } from "../../stores/app-store.js";
 import { getErrorMessage } from "../../utils/error-message.js";
 import { ActionButton } from "../common/action-button.js";
+import type { TreeRowAction } from "../common/tree-view/tree-view.types.js";
 import { NoteTree } from "./note-tree.js";
-import type { NoteTreeAction } from "./note-tree.types.js";
 
 interface NoteTrashSidebarProps {
   /** Return to the live note tree */
@@ -65,7 +65,7 @@ export function NoteTrashSidebar({ onClose }: NoteTrashSidebarProps) {
     });
   }, [confirm, emptyTrash, selectTrashNote]);
 
-  const trashActions = useMemo<NoteTreeAction[]>(
+  const trashActions = useMemo<TreeRowAction<NoteMetadata>[]>(
     () => [
       { id: "restore", label: "Restore", icon: RotateCcw, onSelect: handleRestore },
       { id: "delete", label: "Delete permanently", icon: Trash2, onSelect: deleteNote },
@@ -104,6 +104,7 @@ export function NoteTrashSidebar({ onClose }: NoteTrashSidebarProps) {
             revealId={selectedId}
             actions={trashActions}
             onSelect={handleSelect}
+            ariaLabel="Trash"
           />
         ))}
     </div>

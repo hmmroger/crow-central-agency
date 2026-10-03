@@ -2,9 +2,9 @@ import { useCallback, useMemo } from "react";
 import { FolderInput, Pencil, Trash2 } from "lucide-react";
 import { ENTITY_TYPE, type NoteMetadata } from "@crow-central-agency/shared";
 import { useNoteAuthoring } from "../../hooks/dialogs/use-note-authoring.js";
+import type { TreeRowAction } from "../common/tree-view/tree-view.types.js";
 import { NoteTree } from "./note-tree.js";
 import { NoteTreeToolbar } from "./note-tree-toolbar.js";
-import type { NoteTreeAction } from "./note-tree.types.js";
 
 interface NoteBrowseSidebarProps {
   /** Flat live note tree as served by the backend */
@@ -35,7 +35,7 @@ export function NoteBrowseSidebar({ notes, selectedId, onSelect, onOpenTrash }: 
   const handleCreateFolder = useCallback(() => createFolder(targetFolder?.id), [createFolder, targetFolder]);
   const handleCreateNote = useCallback(() => createNote(targetFolder?.id), [createNote, targetFolder]);
 
-  const treeActions = useMemo<NoteTreeAction[]>(
+  const treeActions = useMemo<TreeRowAction<NoteMetadata>[]>(
     () => [
       { id: "rename", label: "Rename", icon: Pencil, onSelect: renameNote },
       { id: "move", label: "Move", icon: FolderInput, onSelect: moveNote },
@@ -62,6 +62,7 @@ export function NoteBrowseSidebar({ notes, selectedId, onSelect, onOpenTrash }: 
           revealId={selectedId}
           actions={treeActions}
           onSelect={onSelect}
+          ariaLabel="Notes"
         />
       )}
     </div>

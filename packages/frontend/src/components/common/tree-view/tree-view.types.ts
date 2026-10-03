@@ -1,0 +1,47 @@
+import type { ComponentType } from "react";
+
+export type TreeIcon = ComponentType<{ className?: string }>;
+
+export interface TreeNode<T> {
+  id: string;
+  label: string;
+  icon?: TreeIcon;
+  /** Shown instead of `icon` while an expandable node is expanded */
+  expandedIcon?: TreeIcon;
+  /** Theme-token classes for whichever icon is shown */
+  iconClassName?: string;
+  /** Whether the node can be expanded, however many children it has now */
+  isExpandable: boolean;
+  children: TreeNode<T>[];
+  data: T;
+}
+
+/** A control rendered at the end of a tree row, for acting on that row's data */
+export interface TreeRowAction<T> {
+  id: string;
+  /** Tooltip text; also the prefix of the row button's accessible name */
+  label: string;
+  icon: TreeIcon;
+  /** Rows this action does not apply to render no button */
+  isAvailable?: (data: T) => boolean;
+  onSelect: (data: T) => void;
+}
+
+export interface TreeViewProps<T> {
+  /** Root nodes, already in display order */
+  nodes: TreeNode<T>[];
+  selectedId?: string;
+  /** Node to bring into view: its ancestors are expanded once per id */
+  revealId?: string;
+  /** Nodes expanded on mount */
+  defaultExpandedIds?: readonly string[];
+  actions?: readonly TreeRowAction<T>[];
+  onSelect: (data: T) => void;
+  ariaLabel: string;
+}
+
+/** A node as currently shown, in display order */
+export interface VisibleTreeNode<T> {
+  node: TreeNode<T>;
+  parentId?: string;
+}
