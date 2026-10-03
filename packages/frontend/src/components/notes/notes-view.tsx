@@ -56,7 +56,7 @@ export function NotesView() {
       <PanelResizeHandle onPointerDown={resizeHandle.handlePointerDown} onKeyDown={resizeHandle.handleKeyDown} />
 
       <section className="flex-1 min-w-0 overflow-hidden">
-        <NoteWorkspace key={openNoteId} note={openNoteId ? getNote(openNoteId) : undefined} />
+        <NoteWorkspace key={openNoteId} noteId={openNoteId} />
       </section>
     </div>
   );

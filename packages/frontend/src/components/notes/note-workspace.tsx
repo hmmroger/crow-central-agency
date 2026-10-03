@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { ENTITY_TYPE, type NoteMetadata } from "@crow-central-agency/shared";
+import { ENTITY_TYPE } from "@crow-central-agency/shared";
+import { useNotesContext } from "../../providers/notes-provider.js";
 import { EmptyState } from "../common/empty-state.js";
 import { NoteHeader } from "./note-header.js";
 import { NoteReader } from "./note-reader.js";
 import { NoteEditor } from "./note-editor.js";
 
 interface NoteWorkspaceProps {
-  note?: NoteMetadata;
+  noteId?: string;
 }
 
 const SELECT_HINT = "Select a note to read it.";
@@ -17,8 +18,10 @@ const SELECT_HINT = "Select a note to read it.";
  * since deleting a note revokes editing, not reading. Remounted per note by the
  * caller, so the unsaved marker never outlives the note it belongs to.
  */
-export function NoteWorkspace({ note }: NoteWorkspaceProps) {
+export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
+  const { getNote } = useNotesContext();
   const [isUnsaved, setIsUnsaved] = useState(false);
+  const note = noteId ? getNote(noteId) : undefined;
 
   if (note?.entityType !== ENTITY_TYPE.NOTE) {
     return <EmptyState message={SELECT_HINT} />;
