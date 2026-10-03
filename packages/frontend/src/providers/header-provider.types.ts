@@ -25,11 +25,11 @@ export interface HeaderAction {
   alwaysVisible?: boolean;
 }
 
-/** A crumb rendered after the header title; the last one is the current item. */
+/** A crumb rendered after the header title. */
 export interface HeaderBreadcrumb {
   id: string;
   label: string;
-  /** Ignored on the last crumb, which is never clickable. */
+  /** Makes the crumb a button; without it the crumb is plain text. */
   onClick?: () => void;
 }
 

@@ -7,8 +7,8 @@ interface HeaderBreadcrumbsProps {
 }
 
 /**
- * Crumbs after the header title. Ancestors give up their width before the
- * current item does, and below md only the current item is shown.
+ * Crumbs after the header title. Earlier crumbs give up their width before the
+ * last one does, and below md only the last one is shown.
  */
 export function HeaderBreadcrumbs({ breadcrumbs }: HeaderBreadcrumbsProps) {
   const lastIndex = breadcrumbs.length - 1;
@@ -17,19 +17,15 @@ export function HeaderBreadcrumbs({ breadcrumbs }: HeaderBreadcrumbsProps) {
     <nav aria-label="Breadcrumb" className="min-w-0 flex">
       <ol className="min-w-0 flex items-center gap-1">
         {breadcrumbs.map((crumb, index) => {
-          const isCurrent = index === lastIndex;
+          const isLast = index === lastIndex;
 
           return (
             <li
               key={crumb.id}
-              className={cn("min-w-0 items-center gap-1", isCurrent ? "flex" : "hidden md:flex shrink-10")}
+              className={cn("min-w-0 items-center gap-1", isLast ? "flex" : "hidden md:flex shrink-10")}
             >
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-text-muted" aria-hidden="true" />
-              {isCurrent ? (
-                <span aria-current="page" className="truncate text-sm font-medium text-text-base">
-                  {crumb.label}
-                </span>
-              ) : crumb.onClick ? (
+              {crumb.onClick ? (
                 <button
                   type="button"
                   title={crumb.label}
