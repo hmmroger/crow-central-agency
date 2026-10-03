@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type ReactNode } from "react";
 import { Archive, FilePlus, FolderInput, FolderPlus, NotebookText, Pencil, RotateCcw, Trash2 } from "lucide-react";
-import { ENTITY_TYPE, NOTE_NAME_MAX_LENGTH } from "@crow-central-agency/shared";
+import { ENTITY_TYPE, NOTE_NAME_MAX_LENGTH, type NoteMetadata } from "@crow-central-agency/shared";
 import { useConfirmDialog } from "../../hooks/dialogs/use-confirm-dialog.js";
 import { useOpenNoteMoveDialog } from "../../hooks/dialogs/use-open-note-move-dialog.js";
 import { usePromptDialog } from "../../hooks/dialogs/use-prompt-dialog.js";
@@ -19,7 +19,7 @@ interface NotesSidebarTabConfig {
   onSelect: (noteId: string) => void;
   /** Controls right-aligned in the tab row */
   trailing: ReactNode;
-  actions: TreeNodeAction<string>[];
+  actions: TreeNodeAction<NoteMetadata>[];
   emptyText: string;
   treeLabel: string;
 }

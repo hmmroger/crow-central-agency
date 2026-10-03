@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { NoteMetadata } from "@crow-central-agency/shared";
 import { useNotesContext } from "../../providers/notes-provider.js";
 import { buildNoteNodes } from "../../utils/note-tree.js";
 import { Tree } from "../common/tree/tree.js";
@@ -9,7 +10,7 @@ interface NoteTreeProps {
   selectedId?: string;
   /** Note to bring into view: its ancestors are expanded when it changes */
   revealId?: string;
-  actions?: readonly TreeNodeAction<string>[];
+  actions?: readonly TreeNodeAction<NoteMetadata>[];
   onSelect: (noteId: string) => void;
   ariaLabel: string;
 }

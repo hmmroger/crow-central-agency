@@ -17,7 +17,7 @@ const NOTE_CONTENT_ICON: Record<NoteContentType, LucideIcon> = {
 
 /**
  * Tree nodes for the live or trashed notes under `parentId`, folders first and
- * then by name, each carrying its note id. `isIncluded` leaves out a note and
+ * then by name, each carrying its metadata. `isIncluded` leaves out a note and
  * everything under it.
  */
 export function buildNoteNodes(
@@ -25,7 +25,7 @@ export function buildNoteNodes(
   parentId: string | undefined,
   isTrashed: boolean,
   isIncluded?: (noteId: string) => boolean
-): TreeNode<string>[] {
+): TreeNode<NoteMetadata>[] {
   const children: NoteMetadata[] = [];
   for (const childId of notes.getChildIds(parentId, isTrashed)) {
     const metadata = notes.getNote(childId);
@@ -40,7 +40,7 @@ export function buildNoteNodes(
 }
 
 /** A tree containing only the notes root, with `children` under it. */
-export function buildNoteRootTree(children: TreeNode<string>[]): TreeNode<string>[] {
+export function buildNoteRootTree(children: TreeNode<NoteMetadata>[]): TreeNode<NoteMetadata>[] {
   return [
     {
       id: NOTES_ROOT_NODE_ID,
@@ -49,12 +49,11 @@ export function buildNoteRootTree(children: TreeNode<string>[]): TreeNode<string
       iconClassName: FOLDER_ICON_CLASS,
       isExpandable: true,
       children,
-      data: NOTES_ROOT_NODE_ID,
     },
   ];
 }
 
-function toTreeNode(metadata: NoteMetadata, children: TreeNode<string>[]): TreeNode<string> {
+function toTreeNode(metadata: NoteMetadata, children: TreeNode<NoteMetadata>[]): TreeNode<NoteMetadata> {
   if (metadata.entityType === ENTITY_TYPE.NOTE_FOLDER) {
     return {
       id: metadata.id,
@@ -64,7 +63,7 @@ function toTreeNode(metadata: NoteMetadata, children: TreeNode<string>[]): TreeN
       iconClassName: FOLDER_ICON_CLASS,
       isExpandable: true,
       children,
-      data: metadata.id,
+      data: metadata,
     };
   }
 
@@ -74,7 +73,7 @@ function toTreeNode(metadata: NoteMetadata, children: TreeNode<string>[]): TreeN
     icon: NOTE_CONTENT_ICON[metadata.contentType],
     isExpandable: false,
     children,
-    data: metadata.id,
+    data: metadata,
   };
 }
 
