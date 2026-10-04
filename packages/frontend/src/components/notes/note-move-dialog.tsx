@@ -3,9 +3,9 @@ import { useNoteMoveDestinationsQuery } from "../../hooks/queries/use-note-move-
 import { useNotesContext } from "../../providers/notes-provider.js";
 import { useAppStore } from "../../stores/app-store.js";
 import { getErrorMessage } from "../../utils/error-message.js";
-import { buildNoteNodes, buildNoteRootTree, NOTES_ROOT_NODE_ID } from "../../utils/note-tree.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { Tree } from "../common/tree/tree.js";
+import { buildNoteNodes, buildNoteRootTree, NOTES_ROOT_NODE_ID } from "./note-tree-nodes.js";
 
 interface NoteMoveDialogProps {
   /** Note being moved */
