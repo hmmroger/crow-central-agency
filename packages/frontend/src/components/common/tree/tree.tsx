@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
-import { getAncestorIds, getVisibleNodes } from "./tree.utils.js";
+import { getAncestorIds, getVisibleNodes } from "./tree-node-utils.js";
 import { TreeNodeItem } from "./tree-node-item.js";
 import type { TreeNode, TreeProps } from "./tree.types.js";
 
