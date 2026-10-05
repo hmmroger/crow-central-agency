@@ -24,7 +24,7 @@ import {
   renderInactiveCell,
 } from "./table-cell-content.js";
 import type { ParsedTable, TableCell, TableRow } from "./table-syntax.types.js";
-import type { CaretPoint, TextAroundCaret } from "./table-widget.types.js";
+import { CARET_EDGE, type CaretEdge, type CaretPlacement, type TextAroundCaret } from "./table-widget.types.js";
 
 export const TABLE_WIDGET_CLASS = "cm-md-table";
 export const ACTIVE_TABLE_CELL_CLASS = "cm-md-table-cell-active";
@@ -33,6 +33,8 @@ const LINE_BREAK = "\n";
 const CARRIAGE_RETURN_PATTERN = /\r\n?/g;
 /** Browser rich-text shortcuts that would put markup into a cell that only holds markdown text */
 const RICH_TEXT_SHORTCUT_KEYS = new Set(["b", "i", "u"]);
+const CARET_AT_END: CaretPlacement = { edge: CARET_EDGE.END };
+const CARET_AT_START: CaretPlacement = { edge: CARET_EDGE.START };
 
 function isSameRow(first: TableRow, second: TableRow): boolean {
   return (
@@ -94,7 +96,18 @@ function getTextAroundCaret(cell: HTMLElement): TextAroundCaret | undefined {
   };
 }
 
-function placeCaret(cell: HTMLElement, point: CaretPoint | undefined): void {
+/** A collapsed caret with no text between it and the cell's `edge` */
+function isCaretAtCellEdge(cell: HTMLElement, edge: CaretEdge): boolean {
+  const text = getTextAroundCaret(cell);
+
+  if (!text || !window.getSelection()?.isCollapsed) {
+    return false;
+  }
+
+  return (edge === CARET_EDGE.START ? text.before : text.after) === "";
+}
+
+function placeCaret(cell: HTMLElement, { edge, point }: CaretPlacement): void {
   const selection = window.getSelection();
 
   if (!selection) {
@@ -110,11 +123,17 @@ function placeCaret(cell: HTMLElement, point: CaretPoint | undefined): void {
     return;
   }
 
+  if (edge === CARET_EDGE.START) {
+    selection.collapse(cell, 0);
+
+    return;
+  }
+
   selection.collapse(cell, hasTrailingBreak(cell) ? cell.childNodes.length - 1 : cell.childNodes.length);
 }
 
-/** Focuses the active cell's element in `view`, with the caret at `point` or at the end; false when none is drawn. */
-export function focusActiveTableCell(view: EditorView, point?: CaretPoint): boolean {
+/** Focuses the active cell's element in `view` with the caret at `placement`; false when none is drawn. */
+export function focusActiveTableCell(view: EditorView, placement: CaretPlacement = CARET_AT_END): boolean {
   const cell = view.contentDOM.querySelector<HTMLElement>(`.${ACTIVE_TABLE_CELL_CLASS}`);
 
   if (!cell) {
@@ -122,16 +141,20 @@ export function focusActiveTableCell(view: EditorView, point?: CaretPoint): bool
   }
 
   cell.focus();
-  placeCaret(cell, point);
+  placeCaret(cell, placement);
 
   return true;
 }
 
 /** A command that leaves the table hands focus back to the editor text. */
-function runCellCommand(view: EditorView, command: (target: CommandTarget) => boolean): void {
+function runCellCommand(
+  view: EditorView,
+  command: (target: CommandTarget) => boolean,
+  placement: CaretPlacement = CARET_AT_END
+): void {
   command(view);
 
-  if (!focusActiveTableCell(view)) {
+  if (!focusActiveTableCell(view, placement)) {
     view.focus();
   }
 }
@@ -183,7 +206,7 @@ function handleMousedown(event: MouseEvent, view: EditorView, wrapper: HTMLEleme
 
   event.preventDefault();
   moveTableCell(view, { tableFrom: getTableFrom(view, wrapper), row: row.rowIndex, column: cell.cellIndex });
-  focusActiveTableCell(view, { x: event.clientX, y: event.clientY });
+  focusActiveTableCell(view, { edge: CARET_EDGE.END, point: { x: event.clientX, y: event.clientY } });
 }
 
 function handleKeydown(event: KeyboardEvent, view: EditorView): void {
@@ -211,6 +234,20 @@ function handleKeydown(event: KeyboardEvent, view: EditorView): void {
     case "Escape":
       event.preventDefault();
       runCellCommand(view, (target) => exitTable(target, TABLE_EXIT.AFTER));
+      break;
+    case "ArrowLeft":
+      if (!event.shiftKey && isCaretAtCellEdge(cell, CARET_EDGE.START)) {
+        event.preventDefault();
+        runCellCommand(view, goToPreviousTableCell, CARET_AT_END);
+      }
+
+      break;
+    case "ArrowRight":
+      if (!event.shiftKey && isCaretAtCellEdge(cell, CARET_EDGE.END)) {
+        event.preventDefault();
+        runCellCommand(view, goToNextTableCell, CARET_AT_START);
+      }
+
       break;
     case "ArrowUp":
       if (getTextAroundCaret(cell)?.before.includes(LINE_BREAK) === false) {
