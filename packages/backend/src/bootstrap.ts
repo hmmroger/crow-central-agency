@@ -274,7 +274,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerAgentBuilderRoutes(server, worldBuilderService);
   await registerMcpRoutes(server, mcpManager);
   await registerSensorRoutes(server, sensorManager);
-  await registerCircleRoutes(server, circleManager, registry, fragmentManager, tagManager);
+  await registerCircleRoutes(server, circleManager, registry, fragmentManager, notesManager, tagManager);
   await registerFragmentRoutes(server, fragmentManager, registry, relationshipManager);
   await registerGraphRoutes(server, circleManager, registry, runtimeManager, fragmentManager, relationshipManager);
   await registerFeedRoutes(server, feedManager);

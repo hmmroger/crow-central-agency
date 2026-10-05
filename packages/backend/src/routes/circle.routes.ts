@@ -4,17 +4,50 @@ import {
   RELATIONSHIP_TYPE,
   CreateAgentCircleInputSchema,
   CreateRelationshipInputSchema,
+  EntityTypeSchema,
   UpdateAgentCircleInputSchema,
   type EntityType,
+  type RelationshipType,
 } from "@crow-central-agency/shared";
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { FragmentManager } from "../services/fragment/fragment-manager.js";
+import type { NotesManager } from "../services/notes/notes-manager.js";
 import type { TagManager } from "../services/tag/tag-manager.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { validateAgentIdParam, validateCircleIdParam, validateUuidParam } from "../utils/validation.js";
 import { deletedResponse, wrapZodError } from "./route-utils.js";
+
+/** Entity types allowed at each end of a relationship type */
+interface RelationshipEndpointRule {
+  sourceEntityTypes: ReadonlyArray<EntityType>;
+  targetEntityTypes: ReadonlyArray<EntityType>;
+  message: string;
+}
+
+const RELATIONSHIP_ENDPOINT_RULES: Record<RelationshipType, RelationshipEndpointRule> = {
+  [RELATIONSHIP_TYPE.MEMBERSHIP]: {
+    sourceEntityTypes: [ENTITY_TYPE.AGENT_CIRCLE],
+    targetEntityTypes: [ENTITY_TYPE.AGENT, ENTITY_TYPE.AGENT_CIRCLE],
+    message: "MEMBERSHIP requires an AGENT_CIRCLE source and an AGENT or AGENT_CIRCLE target",
+  },
+  [RELATIONSHIP_TYPE.ASSOCIATION]: {
+    sourceEntityTypes: [ENTITY_TYPE.AGENT],
+    targetEntityTypes: [ENTITY_TYPE.FRAGMENT],
+    message: "ASSOCIATION requires an AGENT source and a FRAGMENT target",
+  },
+  [RELATIONSHIP_TYPE.LINK]: {
+    sourceEntityTypes: [ENTITY_TYPE.FRAGMENT],
+    targetEntityTypes: [ENTITY_TYPE.FRAGMENT],
+    message: "LINK requires a FRAGMENT on both ends",
+  },
+  [RELATIONSHIP_TYPE.TAGGED]: {
+    sourceEntityTypes: EntityTypeSchema.options.filter((entityType) => entityType !== ENTITY_TYPE.TAG),
+    targetEntityTypes: [ENTITY_TYPE.TAG],
+    message: "TAGGED requires a non-TAG source and a TAG target",
+  },
+};
 
 /**
  * Register circle and relationship CRUD routes.
@@ -27,9 +60,10 @@ export async function registerCircleRoutes(
   circleManager: AgentCircleManager,
   registry: AgentRegistry,
   fragmentManager: FragmentManager,
+  notesManager: NotesManager,
   tagManager: TagManager
 ) {
-  const validateEntity = (entityId: string, entityType: EntityType): void => {
+  const validateEntity = async (entityId: string, entityType: EntityType): Promise<void> => {
     switch (entityType) {
       case ENTITY_TYPE.AGENT:
         registry.getAgent(entityId);
@@ -40,9 +74,16 @@ export async function registerCircleRoutes(
         break;
 
       case ENTITY_TYPE.FRAGMENT:
+        await fragmentManager.readFragment(entityId);
+        break;
+
       case ENTITY_TYPE.NOTE:
       case ENTITY_TYPE.NOTE_FOLDER:
-        throw new AppError(`Entity type ${entityType} is not supported by this route`, APP_ERROR_CODES.VALIDATION);
+        if (notesManager.getNote(entityId).entityType !== entityType) {
+          throw new AppError(`Entity ${entityId} is not a ${entityType}`, APP_ERROR_CODES.VALIDATION);
+        }
+
+        break;
 
       case ENTITY_TYPE.TAG:
         tagManager.getTag(entityId);
@@ -125,47 +166,37 @@ export async function registerCircleRoutes(
   server.post<{ Body: unknown }>("/api/relationships", async (request) => {
     try {
       const input = CreateRelationshipInputSchema.parse(request.body);
+      await validateEntity(input.sourceEntityId, input.sourceEntityType);
+      await validateEntity(input.targetEntityId, input.targetEntityType);
+
+      const endpointRule = RELATIONSHIP_ENDPOINT_RULES[input.relationshipType];
+      if (
+        !endpointRule.sourceEntityTypes.includes(input.sourceEntityType) ||
+        !endpointRule.targetEntityTypes.includes(input.targetEntityType)
+      ) {
+        throw new AppError(endpointRule.message, APP_ERROR_CODES.VALIDATION);
+      }
 
       switch (input.relationshipType) {
         case RELATIONSHIP_TYPE.MEMBERSHIP: {
-          validateEntity(input.sourceEntityId, input.sourceEntityType);
-          validateEntity(input.targetEntityId, input.targetEntityType);
           const relationship = await circleManager.createRelationship(input);
 
           return { success: true, data: relationship };
         }
 
         case RELATIONSHIP_TYPE.ASSOCIATION: {
-          if (input.sourceEntityType !== ENTITY_TYPE.AGENT || input.targetEntityType !== ENTITY_TYPE.FRAGMENT) {
-            throw new AppError(
-              "ASSOCIATION requires an AGENT source and a FRAGMENT target",
-              APP_ERROR_CODES.VALIDATION
-            );
-          }
-
-          validateEntity(input.sourceEntityId, input.sourceEntityType);
           const relationship = await fragmentManager.createAssociation(input.sourceEntityId, input.targetEntityId);
 
           return { success: true, data: relationship };
         }
 
         case RELATIONSHIP_TYPE.LINK: {
-          if (input.sourceEntityType !== ENTITY_TYPE.FRAGMENT || input.targetEntityType !== ENTITY_TYPE.FRAGMENT) {
-            throw new AppError("LINK requires a FRAGMENT on both ends", APP_ERROR_CODES.VALIDATION);
-          }
-
           const relationship = await fragmentManager.createLink(input.sourceEntityId, input.targetEntityId);
 
           return { success: true, data: relationship };
         }
 
         case RELATIONSHIP_TYPE.TAGGED: {
-          if (input.targetEntityType !== ENTITY_TYPE.TAG) {
-            throw new AppError("TAGGED requires a TAG target", APP_ERROR_CODES.VALIDATION);
-          }
-
-          validateEntity(input.sourceEntityId, input.sourceEntityType);
-          validateEntity(input.targetEntityId, input.targetEntityType);
           const relationship = await tagManager.tagEntity(
             input.sourceEntityType,
             input.sourceEntityId,

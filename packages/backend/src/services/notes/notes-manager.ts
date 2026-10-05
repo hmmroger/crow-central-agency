@@ -110,6 +110,21 @@ export class NotesManager {
   }
 
   /**
+   * A note from either tree. Ids are unique across both, so the lookup resolves
+   * to exactly one note wherever it lives; `isReadOnly` is what refuses a write
+   * to a trashed one, so reading it stays available.
+   * @throws AppError NOT_FOUND when the id is not indexed.
+   */
+  public getNote(id: string): NoteMetadata {
+    const metadata = this.index.get(id) ?? this.trashIndex.get(id);
+    if (!metadata) {
+      throw new AppError(`Note not found: ${id}`, APP_ERROR_CODES.NOT_FOUND);
+    }
+
+    return metadata;
+  }
+
+  /**
    * Read a note's content, live or trashed — deleting a note revokes editing,
    * not reading. Text notes come back as a string, image and unknown notes as
    * raw bytes for the caller to stream.
@@ -117,7 +132,7 @@ export class NotesManager {
    * it names a folder.
    */
   public async getNoteContent(id: string): Promise<ReadNoteResult> {
-    const metadata = this.requireNote(id);
+    const metadata = this.getNote(id);
     if (metadata.entityType !== ENTITY_TYPE.NOTE) {
       throw new AppError(`Not a readable note: ${id}`, APP_ERROR_CODES.NOT_SUPPORTED);
     }
@@ -253,7 +268,7 @@ export class NotesManager {
    * note, VALIDATION when the MIME type is not an accepted image type.
    */
   public async createImageAsset(noteId: string, mimeType: string, content: Buffer): Promise<NoteImageAsset> {
-    const metadata = this.requireNote(noteId);
+    const metadata = this.getNote(noteId);
     if (metadata.entityType !== ENTITY_TYPE.NOTE || metadata.isReadOnly) {
       throw new AppError(`Images can only be added to an editable note: ${noteId}`, APP_ERROR_CODES.NOT_SUPPORTED);
     }
@@ -292,7 +307,7 @@ export class NotesManager {
    * longer matches disk.
    */
   public async writeNoteContent(id: string, content: string, updatedTimestamp: number): Promise<NoteFileMetadata> {
-    const metadata = this.requireNote(id);
+    const metadata = this.getNote(id);
     if (metadata.entityType !== ENTITY_TYPE.NOTE) {
       throw new AppError(`Not a writable note: ${id}`, APP_ERROR_CODES.NOT_SUPPORTED);
     }
@@ -457,20 +472,6 @@ export class NotesManager {
     const metadata = this.trashIndex.get(id);
     if (!metadata) {
       throw new AppError(`Trashed note not found: ${id}`, APP_ERROR_CODES.NOT_FOUND);
-    }
-
-    return metadata;
-  }
-
-  /**
-   * A note from either tree. Ids are unique across both, so the lookup resolves
-   * to exactly one note wherever it lives; `isReadOnly` is what refuses a write
-   * to a trashed one, so reading it stays available.
-   */
-  private requireNote(id: string): NoteMetadata {
-    const metadata = this.index.get(id) ?? this.trashIndex.get(id);
-    if (!metadata) {
-      throw new AppError(`Note not found: ${id}`, APP_ERROR_CODES.NOT_FOUND);
     }
 
     return metadata;
