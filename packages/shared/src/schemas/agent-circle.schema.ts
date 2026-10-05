@@ -9,6 +9,7 @@ export const ENTITY_TYPE = {
   FRAGMENT: "FRAGMENT",
   NOTE: "NOTE",
   NOTE_FOLDER: "NOTE_FOLDER",
+  TAG: "TAG",
 } as const;
 
 export const EntityTypeSchema = z.enum([
@@ -17,6 +18,7 @@ export const EntityTypeSchema = z.enum([
   ENTITY_TYPE.FRAGMENT,
   ENTITY_TYPE.NOTE,
   ENTITY_TYPE.NOTE_FOLDER,
+  ENTITY_TYPE.TAG,
 ]);
 
 export type EntityType = z.infer<typeof EntityTypeSchema>;
@@ -26,11 +28,13 @@ export type EntityType = z.infer<typeof EntityTypeSchema>;
  * MEMBERSHIP means "source contains target as a member" (agent ↔ circle only).
  * ASSOCIATION anchors an agent to a fragment (agent → fragment).
  * LINK connects fragments (fragment → fragment).
+ * TAGGED attaches a tag to an entity (any entity → tag).
  */
 export const RELATIONSHIP_TYPE = {
   MEMBERSHIP: "MEMBERSHIP",
   ASSOCIATION: "ASSOCIATION",
   LINK: "LINK",
+  TAGGED: "TAGGED",
 } as const;
 
 export type RelationshipType = (typeof RELATIONSHIP_TYPE)[keyof typeof RELATIONSHIP_TYPE];
@@ -72,6 +76,7 @@ export const RelationshipTypeSchema = z.enum([
   RELATIONSHIP_TYPE.MEMBERSHIP,
   RELATIONSHIP_TYPE.ASSOCIATION,
   RELATIONSHIP_TYPE.LINK,
+  RELATIONSHIP_TYPE.TAGGED,
 ]);
 
 export const RelationshipSchema = z.object({
@@ -98,7 +103,7 @@ export const CreateRelationshipInputSchema = z.object({
 export type CreateRelationshipInput = z.infer<typeof CreateRelationshipInputSchema>;
 
 export const DeleteRelationshipResultSchema = z.object({
-  /** Fragment ids removed by the delete cascade; empty for MEMBERSHIP deletes */
+  /** Fragment ids removed by the delete cascade; empty for MEMBERSHIP and TAGGED deletes */
   collectedFragmentIds: z.array(z.string()),
 });
 

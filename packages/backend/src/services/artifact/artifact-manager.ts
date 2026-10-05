@@ -49,7 +49,7 @@ import {
   safeNormalizeArtifactFilename,
 } from "./artifact-filename.js";
 import { detectArtifactContentType } from "./artifact-content-detector.js";
-import { normalizeTags } from "./artifact-tags.js";
+import { normalizeTags } from "../tag/tag-name.js";
 
 const log = logger.child({ context: "artifact-manager" });
 

@@ -28,6 +28,7 @@ export const APP_ERROR_CODES = {
   FRAGMENT_NOT_FOUND: "fragment_not_found",
   RELATIONSHIP_NOT_FOUND: "relationship_not_found",
   DUPLICATE_RELATIONSHIP: "duplicate_relationship",
+  TAG_NOT_FOUND: "tag_not_found",
   CIRCLE_IMMUTABLE: "circle_immutable",
   CIRCULAR_MEMBERSHIP: "circular_membership",
   LAST_CIRCLE_MEMBERSHIP: "last_circle_membership",

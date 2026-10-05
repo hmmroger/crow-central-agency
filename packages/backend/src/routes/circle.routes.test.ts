@@ -14,6 +14,7 @@ import { AgentRegistry, AGENT_STORE_TABLE } from "../services/agent-registry.js"
 import { AgentCircleManager } from "../services/agent-circle-manager.js";
 import { RelationshipManager } from "../services/relationship-manager.js";
 import { FragmentManager } from "../services/fragment/fragment-manager.js";
+import { TagManager } from "../services/tag/tag-manager.js";
 import { WsBroadcaster } from "../services/ws-broadcaster.js";
 import { InMemoryObjectStore } from "../core/store/in-memory-object-store.mock.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
@@ -27,6 +28,7 @@ interface Harness {
   circleManager: AgentCircleManager;
   relationshipManager: RelationshipManager;
   fragmentManager: FragmentManager;
+  tagManager: TagManager;
 }
 
 function persistedAgent(id: string, name: string): AgentConfig {
@@ -48,22 +50,34 @@ async function createHarness(agentIds: string[]): Promise<Harness> {
   const circleManager = new AgentCircleManager(store, relationshipManager, broadcaster);
   const fragmentManager = new FragmentManager(fragmentStore, indexStore, relationshipManager, broadcaster);
   const registry = new AgentRegistry(store, templateStore, broadcaster, circleManager, fragmentManager);
+  const tagManager = new TagManager(store, relationshipManager);
 
   for (const [index, agentId] of agentIds.entries()) {
     await store.set(AGENT_STORE_TABLE, agentId, persistedAgent(agentId, `Agent ${index}`));
   }
 
   await relationshipManager.initialize();
+  await tagManager.initialize();
   await circleManager.initialize();
   await registry.initialize();
   await fragmentManager.initialize();
 
   const server = Fastify({ logger: false });
   registerErrorHandler(server);
-  await registerCircleRoutes(server, circleManager, registry, fragmentManager);
+  await registerCircleRoutes(server, circleManager, registry, fragmentManager, tagManager);
   await server.ready();
 
-  return { server, circleManager, relationshipManager, fragmentManager };
+  return { server, circleManager, relationshipManager, fragmentManager, tagManager };
+}
+
+async function createTag(harness: Harness, name: string): Promise<string> {
+  await harness.tagManager.setEntityTags(ENTITY_TYPE.AGENT, new Map([[AGENT_ID_A, [name]]]));
+  const tag = harness.tagManager.findTagByName(name);
+  if (!tag) {
+    throw new Error(`Missing tag: ${name}`);
+  }
+
+  return tag.id;
 }
 
 function createFragment(harness: Harness, kind: (typeof FRAGMENT_KIND)[keyof typeof FRAGMENT_KIND], agentId: string) {
@@ -188,6 +202,64 @@ describe("POST /api/relationships", () => {
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe(APP_ERROR_CODES.VALIDATION);
   });
+
+  it("creates a TAGGED edge from an agent to a tag", async () => {
+    const harness = await createHarness([AGENT_ID_A, AGENT_ID_B]);
+    const tagId = await createTag(harness, "alpha");
+
+    const response = await harness.server.inject({
+      method: "POST",
+      url: "/api/relationships",
+      payload: {
+        sourceEntityId: AGENT_ID_B,
+        sourceEntityType: ENTITY_TYPE.AGENT,
+        targetEntityId: tagId,
+        targetEntityType: ENTITY_TYPE.TAG,
+        relationshipType: RELATIONSHIP_TYPE.TAGGED,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.relationshipType).toBe(RELATIONSHIP_TYPE.TAGGED);
+  });
+
+  it("rejects a TAGGED edge whose target is not a tag", async () => {
+    const harness = await createHarness([AGENT_ID_A, AGENT_ID_B]);
+
+    const response = await harness.server.inject({
+      method: "POST",
+      url: "/api/relationships",
+      payload: {
+        sourceEntityId: AGENT_ID_A,
+        sourceEntityType: ENTITY_TYPE.AGENT,
+        targetEntityId: AGENT_ID_B,
+        targetEntityType: ENTITY_TYPE.AGENT,
+        relationshipType: RELATIONSHIP_TYPE.TAGGED,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe(APP_ERROR_CODES.VALIDATION);
+  });
+
+  it("rejects a TAGGED edge to an unknown tag", async () => {
+    const harness = await createHarness([AGENT_ID_A]);
+
+    const response = await harness.server.inject({
+      method: "POST",
+      url: "/api/relationships",
+      payload: {
+        sourceEntityId: AGENT_ID_A,
+        sourceEntityType: ENTITY_TYPE.AGENT,
+        targetEntityId: "unknown-tag",
+        targetEntityType: ENTITY_TYPE.TAG,
+        relationshipType: RELATIONSHIP_TYPE.TAGGED,
+      },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json().error.code).toBe(APP_ERROR_CODES.TAG_NOT_FOUND);
+  });
 });
 
 describe("DELETE /api/relationships/:id", () => {
@@ -228,5 +300,20 @@ describe("DELETE /api/relationships/:id", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json().data.collectedFragmentIds).toEqual([]);
+  });
+
+  it("untags through the TagManager and deletes the tag with its last edge", async () => {
+    const harness = await createHarness([AGENT_ID_A]);
+    const tagId = await createTag(harness, "alpha");
+    const [tagged] = harness.relationshipManager.queryRelationships({ targetEntityId: tagId });
+
+    const response = await harness.server.inject({
+      method: "DELETE",
+      url: `/api/relationships/${tagged.id}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.collectedFragmentIds).toEqual([]);
+    expect(harness.tagManager.findTagByName("alpha")).toBeUndefined();
   });
 });

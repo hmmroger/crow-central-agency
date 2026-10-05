@@ -58,6 +58,7 @@ import { GeoLocationSensor } from "./sensors/geolocation-sensor.js";
 import { WeatherSensor } from "./sensors/weather-sensor.js";
 import { AgentCircleManager } from "./services/agent-circle-manager.js";
 import { RelationshipManager } from "./services/relationship-manager.js";
+import { TagManager } from "./services/tag/tag-manager.js";
 import { FragmentManager } from "./services/fragment/fragment-manager.js";
 import { FragmentReflectionStateStore } from "./services/fragment/fragment-reflection-state-store.js";
 import { createFragmentReflectionRoutine } from "./routines/fragment-reflection-routine.js";
@@ -104,6 +105,8 @@ export async function bootstrap(options: BootstrapOptions) {
   const systemSettingsManager = new SystemSettingsManager(storeProvider);
   const relationshipManager = new RelationshipManager(storeProvider);
   await relationshipManager.initialize();
+  const tagManager = new TagManager(storeProvider, relationshipManager);
+  await tagManager.initialize();
   const circleManager = new AgentCircleManager(storeProvider, relationshipManager, broadcaster);
   await circleManager.initialize();
   const fragmentManager = new FragmentManager(folderFileProvider, storeProvider, relationshipManager, broadcaster);
@@ -271,7 +274,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerAgentBuilderRoutes(server, worldBuilderService);
   await registerMcpRoutes(server, mcpManager);
   await registerSensorRoutes(server, sensorManager);
-  await registerCircleRoutes(server, circleManager, registry, fragmentManager);
+  await registerCircleRoutes(server, circleManager, registry, fragmentManager, tagManager);
   await registerFragmentRoutes(server, fragmentManager, registry, relationshipManager);
   await registerGraphRoutes(server, circleManager, registry, runtimeManager, fragmentManager, relationshipManager);
   await registerFeedRoutes(server, feedManager);

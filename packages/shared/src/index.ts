@@ -526,6 +526,8 @@ export {
   type GraphData,
 } from "./schemas/graph.schema.js";
 
+export { TagSchema, type Tag } from "./schemas/tag.schema.js";
+
 export {
   SessionHistoryNodeSchema,
   RenameSessionRequestSchema,

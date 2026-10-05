@@ -10,6 +10,7 @@ import {
 import type { AgentCircleManager } from "../services/agent-circle-manager.js";
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { FragmentManager } from "../services/fragment/fragment-manager.js";
+import type { TagManager } from "../services/tag/tag-manager.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { validateAgentIdParam, validateCircleIdParam, validateUuidParam } from "../utils/validation.js";
@@ -18,13 +19,15 @@ import { deletedResponse, wrapZodError } from "./route-utils.js";
 /**
  * Register circle and relationship CRUD routes.
  * Circles group agents; relationships define membership between entities and,
- * for fragments, the ASSOCIATION/LINK edges that anchor and connect them.
+ * for fragments, the ASSOCIATION/LINK edges that anchor and connect them, and
+ * TAGGED edges from any entity to a tag.
  */
 export async function registerCircleRoutes(
   server: FastifyInstance,
   circleManager: AgentCircleManager,
   registry: AgentRegistry,
-  fragmentManager: FragmentManager
+  fragmentManager: FragmentManager,
+  tagManager: TagManager
 ) {
   const validateEntity = (entityId: string, entityType: EntityType): void => {
     switch (entityType) {
@@ -40,6 +43,10 @@ export async function registerCircleRoutes(
       case ENTITY_TYPE.NOTE:
       case ENTITY_TYPE.NOTE_FOLDER:
         throw new AppError(`Entity type ${entityType} is not supported by this route`, APP_ERROR_CODES.VALIDATION);
+
+      case ENTITY_TYPE.TAG:
+        tagManager.getTag(entityId);
+        break;
     }
   };
 
@@ -151,6 +158,22 @@ export async function registerCircleRoutes(
 
           return { success: true, data: relationship };
         }
+
+        case RELATIONSHIP_TYPE.TAGGED: {
+          if (input.targetEntityType !== ENTITY_TYPE.TAG) {
+            throw new AppError("TAGGED requires a TAG target", APP_ERROR_CODES.VALIDATION);
+          }
+
+          validateEntity(input.sourceEntityId, input.sourceEntityType);
+          validateEntity(input.targetEntityId, input.targetEntityType);
+          const relationship = await tagManager.tagEntity(
+            input.sourceEntityType,
+            input.sourceEntityId,
+            input.targetEntityId
+          );
+
+          return { success: true, data: relationship };
+        }
       }
     } catch (error) {
       return wrapZodError(error);
@@ -159,7 +182,7 @@ export async function registerCircleRoutes(
 
   /**
    * Delete a relationship. Fragment ASSOCIATION/LINK edges are unlinked so the
-   * orphan cascade runs; the collected fragment ids are returned (empty for MEMBERSHIP).
+   * orphan cascade runs; the collected fragment ids are returned (empty for MEMBERSHIP and TAGGED).
    */
   server.delete<{ Params: { id: string } }>("/api/relationships/:id", async (request) => {
     const relationshipId = validateUuidParam(request.params.id, "relationship");
@@ -186,6 +209,12 @@ export async function registerCircleRoutes(
 
       case RELATIONSHIP_TYPE.MEMBERSHIP: {
         await circleManager.deleteRelationship(relationshipId);
+
+        return { success: true, data: { collectedFragmentIds: [] } };
+      }
+
+      case RELATIONSHIP_TYPE.TAGGED: {
+        await tagManager.untagEntity(relationshipId);
 
         return { success: true, data: { collectedFragmentIds: [] } };
       }
