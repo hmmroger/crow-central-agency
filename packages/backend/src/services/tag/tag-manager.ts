@@ -47,6 +47,8 @@ export class TagManager {
       }
     }
 
+    await this.deleteUnusedTags(Array.from(this.tagsById.keys()));
+
     log.info({ tags: this.tagsById.size }, "TagManager initialized");
   }
 
@@ -73,7 +75,7 @@ export class TagManager {
   /**
    * Replace the tags of each entity in the map with the given names. An empty
    * list clears the entity's tags.
-   * @throws AppError with VALIDATION for an empty entity id.
+   * @throws AppError with VALIDATION for a TAG entity type or an empty entity id.
    */
   public setEntityTags(entityType: EntityType, tagNamesByEntityId: ReadonlyMap<string, string[]>): Promise<void> {
     return this.serialize(() => this.applyEntityTags(entityType, tagNamesByEntityId));
@@ -82,7 +84,7 @@ export class TagManager {
   /**
    * Set the tags of each entity in the map, and clear the tags of every other
    * entity of the type. Also deletes any tag left without a TAGGED edge.
-   * @throws AppError with VALIDATION for an empty entity id.
+   * @throws AppError with VALIDATION for a TAG entity type or an empty entity id.
    */
   public reconcileEntityTags(entityType: EntityType, tagNamesByEntityId: ReadonlyMap<string, string[]>): Promise<void> {
     return this.serialize(async () => {
@@ -103,11 +105,12 @@ export class TagManager {
 
   /**
    * Tag an entity with an existing tag.
-   * @throws AppError with TAG_NOT_FOUND if the tag does not exist, or
-   *         DUPLICATE_RELATIONSHIP if the entity already has the tag.
+   * @throws AppError with VALIDATION for a TAG entity, TAG_NOT_FOUND if the tag
+   *         does not exist, or DUPLICATE_RELATIONSHIP if the entity already has the tag.
    */
   public tagEntity(entityType: EntityType, entityId: string, tagId: string): Promise<Relationship> {
     return this.serialize(async () => {
+      this.assertTaggableEntityType(entityType);
       this.getTag(tagId);
 
       return this.relationshipManager.createRelationship({
@@ -144,6 +147,7 @@ export class TagManager {
     const removedRelationshipIds: string[] = [];
     const removedTagIds = new Set<string>();
     const pendingEdges: PendingTagEdge[] = [];
+    this.assertTaggableEntityType(entityType);
 
     for (const [entityId, tagNames] of tagNamesByEntityId) {
       if (!entityId) {
@@ -187,6 +191,12 @@ export class TagManager {
         { entityType, removed: removedRelationshipIds.length, added: pendingEdges.length },
         "Entity tags updated"
       );
+    }
+  }
+
+  private assertTaggableEntityType(entityType: EntityType): void {
+    if (entityType === ENTITY_TYPE.TAG) {
+      throw new AppError("A tag cannot be tagged", APP_ERROR_CODES.VALIDATION);
     }
   }
 

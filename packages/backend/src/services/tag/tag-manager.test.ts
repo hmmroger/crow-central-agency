@@ -153,15 +153,33 @@ describe("TagManager.reconcileEntityTags", () => {
       ])
     );
     await harness.tagManager.setEntityTags(ENTITY_TYPE.AGENT, new Map([["agent-a", ["gamma"]]]));
-    await harness.store.set(TAG_STORE_TABLE, "orphan-tag", { id: "orphan-tag", name: "orphan", createdTimestamp: 1 });
+
+    await harness.tagManager.reconcileEntityTags(ENTITY_TYPE.NOTE, new Map([["note-a", ["alpha", "delta"]]]));
+
+    expect(entityTagNames(harness, "note-a")).toEqual(["alpha", "delta"]);
+    expect(entityTagNames(harness, "note-b")).toEqual([]);
+    expect(entityTagNames(harness, "agent-a", ENTITY_TYPE.AGENT)).toEqual(["gamma"]);
+    expect(await storedTagNames(harness.store)).toEqual(["alpha", "delta", "gamma"]);
+  });
+});
+
+describe("TagManager.initialize", () => {
+  it("deletes tags left without a TAGGED edge", async () => {
+    const harness = await createHarness();
+    await harness.tagManager.setEntityTags(
+      ENTITY_TYPE.AGENT,
+      new Map([
+        ["agent-a", ["alpha"]],
+        ["agent-b", ["beta"]],
+      ])
+    );
+    await harness.relationshipManager.removeRelationshipsForEntity("agent-b");
+
     const reloaded = await createHarness(harness.store);
 
-    await reloaded.tagManager.reconcileEntityTags(ENTITY_TYPE.NOTE, new Map([["note-a", ["alpha", "delta"]]]));
-
-    expect(entityTagNames(reloaded, "note-a")).toEqual(["alpha", "delta"]);
-    expect(entityTagNames(reloaded, "note-b")).toEqual([]);
-    expect(entityTagNames(reloaded, "agent-a", ENTITY_TYPE.AGENT)).toEqual(["gamma"]);
-    expect(await storedTagNames(reloaded.store)).toEqual(["alpha", "delta", "gamma"]);
+    expect(reloaded.tagManager.findTagByName("alpha")).toBeDefined();
+    expect(reloaded.tagManager.findTagByName("beta")).toBeUndefined();
+    expect(await storedTagNames(reloaded.store)).toEqual(["alpha"]);
   });
 });
 
@@ -179,6 +197,21 @@ describe("TagManager.tagEntity / untagEntity", () => {
       targetEntityType: ENTITY_TYPE.TAG,
       relationshipType: RELATIONSHIP_TYPE.TAGGED,
     });
+  });
+
+  it("rejects a tag as the tagged entity", async () => {
+    const harness = await createHarness();
+    await harness.tagManager.setEntityTags(ENTITY_TYPE.NOTE, new Map([["note-a", ["alpha", "beta"]]]));
+
+    await expectAppErrorCode(
+      harness.tagManager.tagEntity(ENTITY_TYPE.TAG, tagIdByName(harness, "beta"), tagIdByName(harness, "alpha")),
+      APP_ERROR_CODES.VALIDATION
+    );
+    await expectAppErrorCode(
+      harness.tagManager.setEntityTags(ENTITY_TYPE.TAG, new Map([[tagIdByName(harness, "beta"), ["alpha"]]])),
+      APP_ERROR_CODES.VALIDATION
+    );
+    expect(harness.relationshipManager.queryRelationships({ sourceEntityType: ENTITY_TYPE.TAG })).toEqual([]);
   });
 
   it("rejects an unknown tag", async () => {
