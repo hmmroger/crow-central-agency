@@ -72,6 +72,10 @@ export function InlineTextEdit({
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLInputElement>) => {
+      if (isPending) {
+        return;
+      }
+
       if (event.key === "Enter") {
         event.preventDefault();
         void submit();
@@ -80,7 +84,7 @@ export function InlineTextEdit({
         close();
       }
     },
-    [submit, close]
+    [isPending, submit, close]
   );
 
   if (disabled) {
