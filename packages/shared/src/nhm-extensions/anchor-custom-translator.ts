@@ -7,7 +7,7 @@ const ZERO_WIDTH_PATTERN = new RegExp(
 );
 const LINE_BREAK_PATTERN = /(?:\r?\n)+/g;
 const DESTINATION_UNSAFE_PATTERN = /[()_*]/g;
-const TITLE_QUOTE_PATTERN = /"/g;
+const TITLE_ESCAPE_PATTERN = /[\\"]/g;
 
 /** Parentheses would end the destination early, and NHM would backslash-escape `_` and `*` inside it. */
 function encodeLinkDestination(href: string): string {
@@ -18,7 +18,7 @@ function encodeLinkDestination(href: string): string {
 }
 
 function formatTitle(title: string | null | undefined): string {
-  return title ? ` "${title.replace(TITLE_QUOTE_PATTERN, '\\"')}"` : "";
+  return title ? ` "${title.replace(LINE_BREAK_PATTERN, " ").replace(TITLE_ESCAPE_PATTERN, "\\$&")}"` : "";
 }
 
 function joinLines({ content }: { content: string }): string {
