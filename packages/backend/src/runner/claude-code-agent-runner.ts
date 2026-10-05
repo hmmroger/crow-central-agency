@@ -164,7 +164,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         effort: agentConfig.effort,
         thinking: thinkingOption,
         resume: persistSession ? sessionId : undefined,
-        settings: compactionSettings,
+        settings: { syncClaudeAiSkills: false, syncClaudeAiPlugins: false, ...compactionSettings },
         systemPrompt: systemPromptOption,
         abortController,
         includePartialMessages: true,

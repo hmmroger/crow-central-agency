@@ -4,7 +4,8 @@ import { DayOfWeekSchema, SchedulerTimeSchema, TIME_MODE, TimeModeSchema } from 
 
 export const CLAUDE_MODELS = {
   HAIKU: "claude-haiku-4-5",
-  SONNET: "claude-sonnet-5",
+  SONNET: "claude-sonnet-5-5",
+  SONNET_5: "claude-sonnet-5",
   SONNET_4_6: "claude-sonnet-4-6",
   SONNET_4_5: "claude-sonnet-4-5",
   OPUS: "claude-opus-5-5",
@@ -83,6 +84,12 @@ export type ModelOption = z.infer<typeof ModelOptionSchema>;
 export const CLAUDE_CODE_MODEL_OPTIONS: readonly ModelOption[] = [
   {
     value: CLAUDE_MODELS.SONNET,
+    label: "Claude Sonnet 5.5",
+    supportedEfforts: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH, REASONING_EFFORT.MAX],
+    supportsAdaptiveThinking: true,
+  },
+  {
+    value: CLAUDE_MODELS.SONNET_5,
     label: "Claude Sonnet 5",
     supportedEfforts: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH, REASONING_EFFORT.MAX],
     supportsAdaptiveThinking: true,
