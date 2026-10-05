@@ -272,6 +272,20 @@ describe("links", () => {
     ).toBe('see [guide](https://example.org "Docs")| now');
   });
 
+  it("fills in an empty destination", () => {
+    expect(runCommand("see [do|cs]() now", (target) => setLink(target, "docs", "https://example.com"))).toBe(
+      "see [docs](https://example.com)| now"
+    );
+  });
+
+  it("replaces a reference link's label with an inline destination", () => {
+    expect(
+      runCommand("see [do|cs][ref] now\n\n[ref]: https://example.com", (target) =>
+        setLink(target, "docs", "https://example.com")
+      )
+    ).toBe("see [docs](https://example.com)| now\n\n[ref]: https://example.com");
+  });
+
   it("rewrites an autolink as an inline link", () => {
     expect(
       runCommand("see <https://exa|mple.com> now", (target) => setLink(target, "docs", "https://example.com"))
