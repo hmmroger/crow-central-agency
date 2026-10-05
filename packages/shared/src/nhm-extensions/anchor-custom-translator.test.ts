@@ -51,8 +51,24 @@ describe("getAnchorCustomTranslator", () => {
     expect(getPostfix("path\\")).toBe('](https://example.com "path\\\\")');
   });
 
+  it("escapes a backslash in the middle of the title", () => {
+    expect(getPostfix("a\\b")).toBe('](https://example.com "a\\\\b")');
+  });
+
   it("collapses line breaks in the title to a single space", () => {
     expect(getPostfix("first\n\nsecond\r\nthird")).toBe('](https://example.com "first second third")');
+  });
+
+  it("collapses a lone carriage return in the title", () => {
+    expect(getPostfix("first\r\rsecond\rthird")).toBe('](https://example.com "first second third")');
+  });
+
+  it("collapses line breaks including a lone carriage return in the link text", () => {
+    const { postprocess } = translate({ href: "https://example.com", text: "Example" });
+
+    expect(postprocess?.({ ...createContext({ text: "Example" }), content: "first\r\rsecond\r\nthird\nfourth" })).toBe(
+      "first second third fourth"
+    );
   });
 
   it("renders an autolink when the text is the href", () => {

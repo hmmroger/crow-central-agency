@@ -5,7 +5,7 @@ const ZERO_WIDTH_PATTERN = new RegExp(
   ZERO_WIDTH_CODE_POINTS.map((codePoint) => String.fromCodePoint(codePoint)).join("|"),
   "g"
 );
-const LINE_BREAK_PATTERN = /(?:\r?\n)+/g;
+const LINE_BREAK_PATTERN = /(?:\r\n|\r|\n)+/g;
 const DESTINATION_UNSAFE_PATTERN = /[()_*]/g;
 const TITLE_ESCAPE_PATTERN = /[\\"]/g;
 
