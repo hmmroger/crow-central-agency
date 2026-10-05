@@ -6,7 +6,7 @@ import {
   type TransactionSpec,
 } from "@codemirror/state";
 import { EditorView, type ViewUpdate } from "@codemirror/view";
-import { buildMoveTableCellSpec, findActiveTable, findTableAround } from "../../table-commands.js";
+import { buildMoveTableCellSpec, findActiveTable, findTableAround, findTableAt } from "../../table-commands.js";
 import { getActiveTableCell, setActiveTableCell } from "./table-cell-state.js";
 import type { TableCellPosition } from "./table-cell-state.types.js";
 import { findTableCellAt, getTableCell } from "./table-syntax.js";
@@ -17,10 +17,27 @@ function hasActiveCellEffect(transaction: Transaction): boolean {
   return transaction.effects.some((effect) => effect.is(setActiveTableCell));
 }
 
-/** A cell made active by a command takes the document cursor as a selection over its source. */
+function getNextActiveCell(transaction: Transaction): TableCellPosition | undefined {
+  let nextCell: TableCellPosition | undefined;
+
+  for (const effect of transaction.effects) {
+    if (effect.is(setActiveTableCell)) {
+      nextCell = effect.value;
+    }
+  }
+
+  return nextCell;
+}
+
+/**
+ * A cell made active by a command takes the document cursor as a selection over its source. Only a
+ * transaction that changes the document needs its new state built to find the cell.
+ */
 function selectActiveCell(transaction: Transaction): TransactionSpec | undefined {
-  const active = findActiveTable(transaction.state);
-  const cell = active && getTableCell(active.table, active.cell.row, active.cell.column);
+  const nextCell = getNextActiveCell(transaction);
+  const state = transaction.docChanged ? transaction.state : transaction.startState;
+  const table = nextCell && findTableAt(state, nextCell.tableFrom);
+  const cell = nextCell && table && getTableCell(table, nextCell.row, nextCell.column);
 
   return cell && { selection: EditorSelection.range(cell.from, cell.to), sequential: true };
 }

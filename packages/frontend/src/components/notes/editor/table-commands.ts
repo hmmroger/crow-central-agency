@@ -23,7 +23,7 @@ const NEW_DELIMITER_CELL = " | ---";
 const TRAILING_PIPE = " |";
 
 /** The top-level table whose header line starts at `lineFrom`, parsed from the current syntax tree. */
-function findTableAt(state: EditorState, lineFrom: number): ParsedTable | undefined {
+export function findTableAt(state: EditorState, lineFrom: number): ParsedTable | undefined {
   const tableNode = syntaxTree(state).topNode.childAfter(lineFrom);
 
   if (tableNode?.name !== SYNTAX_NODE.TABLE || state.doc.lineAt(tableNode.from).from !== lineFrom) {
