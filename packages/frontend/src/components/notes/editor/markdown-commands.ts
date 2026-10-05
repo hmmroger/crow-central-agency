@@ -19,6 +19,7 @@ import {
   type LinePrefixRule,
   type ListKind,
 } from "./markdown-commands.types.js";
+import type { EditorLink } from "./markdown-editor.types.js";
 
 const INLINE_FORMAT_SYNTAX: Record<InlineFormat, InlineFormatSyntax> = {
   [INLINE_FORMAT.BOLD]: { syntaxNodeName: DELIMITED_SYNTAX_NODE.STRONG_EMPHASIS, marker: "**" },
@@ -39,6 +40,8 @@ const DIVIDER = "---";
 const LINK_DESTINATION_WRAP_PATTERN = /[\s()]/;
 const LINK_DESTINATION_UNSAFE_PATTERN = /[<>\r\n]/g;
 const UNESCAPED_BRACKET_PATTERN = /(?<!\\)[[\]]/g;
+const WRAPPED_LINK_DESTINATION_PATTERN = /^<(.*)>$/s;
+const LINK_DESTINATION_OPEN = "(";
 
 function getSyntaxAncestors(state: EditorState, position: number): SyntaxNode[] {
   const ancestors: SyntaxNode[] = [];
@@ -215,6 +218,45 @@ function formatLinkDestination(url: string): string {
   return LINK_DESTINATION_WRAP_PATTERN.test(destination) ? `<${destination}>` : destination;
 }
 
+function unwrapLinkDestination(destination: string): string {
+  return destination.match(WRAPPED_LINK_DESTINATION_PATTERN)?.[1] ?? destination;
+}
+
+/**
+ * Rewrites an existing link with new text and destination: a `[text](url)` link keeps its title, a link
+ * without a destination gains one, and an autolink becomes an inline link.
+ */
+function getLinkEditChanges(
+  state: EditorState,
+  link: SyntaxNode,
+  text: string,
+  destination: string
+): ChangeSpec[] | undefined {
+  if (link.name === SYNTAX_NODE.AUTOLINK) {
+    return [{ from: link.from, to: link.to, insert: `[${text}](${destination})` }];
+  }
+
+  const [textOpenMark, textCloseMark, destinationOpenMark] = findChildren(link, SYNTAX_NODE.LINK_MARK);
+  const [urlNode] = findChildren(link, SYNTAX_NODE.URL);
+
+  if (!textOpenMark || !textCloseMark) {
+    return undefined;
+  }
+
+  const textChange: ChangeSpec = { from: textOpenMark.to, to: textCloseMark.from, insert: text };
+
+  if (urlNode) {
+    return [textChange, { from: urlNode.from, to: urlNode.to, insert: destination }];
+  }
+
+  const destinationChange: ChangeSpec =
+    destinationOpenMark && state.sliceDoc(destinationOpenMark.from, destinationOpenMark.to) === LINK_DESTINATION_OPEN
+      ? { from: destinationOpenMark.to, insert: destination }
+      : { from: textCloseMark.to, to: link.to, insert: `(${destination})` };
+
+  return [textChange, destinationChange];
+}
+
 export function isInlineFormatActive(state: EditorState, format: InlineFormat): boolean {
   return findInlineFormat(state, format) !== undefined;
 }
@@ -370,12 +412,40 @@ export function insertDivider(target: CommandTarget): boolean {
   return true;
 }
 
-export function isLinkActive(state: EditorState): boolean {
-  return findLink(state) !== undefined;
+/** Text and destination of the link around the cursor; an autolink's text is its URL. */
+export function getLink(state: EditorState): EditorLink | undefined {
+  const link = findLink(state);
+
+  if (!link) {
+    return undefined;
+  }
+
+  const [urlNode] = findChildren(link, SYNTAX_NODE.URL);
+  const url = urlNode ? unwrapLinkDestination(state.sliceDoc(urlNode.from, urlNode.to)) : "";
+
+  if (link.name === SYNTAX_NODE.AUTOLINK) {
+    return { text: url, url };
+  }
+
+  const [textOpenMark, textCloseMark] = findChildren(link, SYNTAX_NODE.LINK_MARK);
+
+  return textOpenMark && textCloseMark ? { text: state.sliceDoc(textOpenMark.to, textCloseMark.from), url } : undefined;
 }
 
-/** Links the selection to `url`, or inserts the URL itself as the link text when nothing is selected. */
-export function insertLink(target: CommandTarget, url: string): boolean {
+/** The main selection's text, when it is non-empty and on one line. */
+export function getSelectedText(state: EditorState): string | undefined {
+  const { from, to } = state.selection.main;
+
+  return from !== to && state.doc.lineAt(from).number === state.doc.lineAt(to).number
+    ? state.sliceDoc(from, to)
+    : undefined;
+}
+
+/**
+ * Points the link around the cursor at `url` with label `text`, or replaces the selection with a new link.
+ * A blank `text` falls back to the selection, or the URL when nothing is selected; a blank `url` does nothing.
+ */
+export function setLink(target: CommandTarget, text: string, url: string): boolean {
   const trimmedUrl = url.trim();
 
   if (!trimmedUrl) {
@@ -384,12 +454,20 @@ export function insertLink(target: CommandTarget, url: string): boolean {
 
   const { state } = target;
   const { from, to } = state.selection.main;
-  const text = toLinkText(from === to ? trimmedUrl : state.sliceDoc(from, to));
-  const link = `[${text}](${formatLinkDestination(trimmedUrl)})`;
+  const linkText = toLinkText(text.trim() || (from === to ? trimmedUrl : state.sliceDoc(from, to)));
+  const destination = formatLinkDestination(trimmedUrl);
+  const link = findLink(state);
+  const changeSpecs = link
+    ? getLinkEditChanges(state, link, linkText, destination)
+    : [{ from, to, insert: `[${linkText}](${destination})` }];
 
-  target.dispatch(
-    state.update({ changes: { from, to, insert: link }, selection: EditorSelection.cursor(from + link.length) })
-  );
+  if (!changeSpecs) {
+    return false;
+  }
+
+  const changes = state.changes(changeSpecs);
+
+  target.dispatch(state.update({ changes, selection: EditorSelection.cursor(changes.mapPos(link ? link.to : to, 1)) }));
 
   return true;
 }

@@ -3,14 +3,15 @@ import { getEditorError } from "./extensions/editor-error-state.js";
 import { isTableCellActive } from "./extensions/table/table-cell-state.js";
 import {
   getHeadingLevel,
+  getLink,
   getListKind,
+  getSelectedText,
   isBlockquoteActive,
   isCodeBlockActive,
   isInlineFormatActive,
-  isLinkActive,
 } from "./markdown-commands.js";
 import { INLINE_FORMAT } from "./markdown-commands.types.js";
-import type { EditorFormatState, EditorStatus, MarkdownEditorProps } from "./markdown-editor.types.js";
+import type { EditorFormatState, EditorLink, EditorStatus, MarkdownEditorProps } from "./markdown-editor.types.js";
 import { canDeleteTableRow } from "./table-commands.js";
 
 const INLINE_FORMATS = Object.values(INLINE_FORMAT);
@@ -47,7 +48,8 @@ export class EditorStateReporter {
       inlineFormats: INLINE_FORMATS.filter((format) => isInlineFormatActive(state, format)),
       isBlockquote: isBlockquoteActive(state),
       isCodeBlock: isCodeBlockActive(state),
-      isLink: isLinkActive(state),
+      link: getLink(state),
+      selectedText: getSelectedText(state),
       isInTableCell: isTableCellActive(state),
       canDeleteTableRow: canDeleteTableRow(state),
     };
@@ -68,10 +70,15 @@ export class EditorStateReporter {
       first.inlineFormats.every((format, index) => format === second.inlineFormats[index]) &&
       first.isBlockquote === second.isBlockquote &&
       first.isCodeBlock === second.isCodeBlock &&
-      first.isLink === second.isLink &&
+      this.isSameLink(first.link, second.link) &&
+      first.selectedText === second.selectedText &&
       first.isInTableCell === second.isInTableCell &&
       first.canDeleteTableRow === second.canDeleteTableRow
     );
+  }
+
+  private isSameLink(first: EditorLink | undefined, second: EditorLink | undefined): boolean {
+    return first?.text === second?.text && first?.url === second?.url;
   }
 
   private isSameStatus(first: EditorStatus, second: EditorStatus): boolean {

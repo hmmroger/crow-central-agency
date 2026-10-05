@@ -2,8 +2,8 @@ import type { EditorView } from "@codemirror/view";
 import { focusActiveTableCell } from "./extensions/table/table-widget.js";
 import {
   insertDivider,
-  insertLink,
   removeLink,
+  setLink,
   setParagraph,
   toggleBlockquote,
   toggleCodeBlock,
@@ -60,8 +60,8 @@ export class MarkdownEditorController implements MarkdownEditorHandle {
     this.run(insertDivider);
   }
 
-  public insertLink(url: string): void {
-    this.run((target) => insertLink(target, url));
+  public setLink(text: string, url: string): void {
+    this.run((target) => setLink(target, text, url));
   }
 
   public removeLink(): void {

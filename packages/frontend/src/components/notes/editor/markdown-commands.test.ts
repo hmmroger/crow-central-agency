@@ -3,14 +3,15 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import {
   getHeadingLevel,
+  getLink,
   getListKind,
+  getSelectedText,
   insertDivider,
-  insertLink,
   isBlockquoteActive,
   isCodeBlockActive,
   isInlineFormatActive,
-  isLinkActive,
   removeLink,
+  setLink,
   setParagraph,
   toggleBlockquote,
   toggleCodeBlock,
@@ -204,51 +205,108 @@ describe("blocks", () => {
 });
 
 describe("links", () => {
-  it("reports a link as active only strictly inside it", () => {
-    expect(isLinkActive(createState("see [do|cs](https://example.com)"))).toBe(true);
-    expect(isLinkActive(createState("see <https://exa|mple.com>"))).toBe(true);
-    expect(isLinkActive(createState("see |[docs](https://example.com)"))).toBe(false);
-    expect(isLinkActive(createState("see [docs](https://example.com)|"))).toBe(false);
+  it("reports the link's text and URL only strictly inside it", () => {
+    expect(getLink(createState("see [*do*|cs](https://example.com)"))).toEqual({
+      text: "*do*cs",
+      url: "https://example.com",
+    });
+    expect(getLink(createState("see [x|](<https://example.com/a b>)"))).toEqual({
+      text: "x",
+      url: "https://example.com/a b",
+    });
+    expect(getLink(createState("see |[docs](https://example.com)"))).toBeUndefined();
+    expect(getLink(createState("see [docs](https://example.com)|"))).toBeUndefined();
   });
 
-  it("links the selected text", () => {
-    expect(runCommand("see {the docs} now", (target) => insertLink(target, "https://example.com"))).toBe(
+  it("reports an autolink's URL as its text", () => {
+    expect(getLink(createState("see <https://exa|mple.com>"))).toEqual({
+      text: "https://example.com",
+      url: "https://example.com",
+    });
+  });
+
+  it("reports single-line selected text only", () => {
+    expect(getSelectedText(createState("see {the docs} now"))).toBe("the docs");
+    expect(getSelectedText(createState("see {the\ndocs} now"))).toBeUndefined();
+    expect(getSelectedText(createState("see | now"))).toBeUndefined();
+  });
+
+  it("links the selected text with the given label", () => {
+    expect(runCommand("see {the docs} now", (target) => setLink(target, "guide", "https://example.com"))).toBe(
+      "see [guide](https://example.com)| now"
+    );
+  });
+
+  it("falls back to the selected text when the label is blank", () => {
+    expect(runCommand("see {the docs} now", (target) => setLink(target, " ", "https://example.com"))).toBe(
       "see [the docs](https://example.com)| now"
     );
   });
 
-  it("uses the URL as the text when nothing is selected", () => {
-    expect(runCommand("see |", (target) => insertLink(target, " https://example.com "))).toBe(
+  it("inserts a link at an empty cursor, using the URL when the label is blank", () => {
+    expect(runCommand("see |", (target) => setLink(target, "docs", "https://example.com"))).toBe(
+      "see [docs](https://example.com)|"
+    );
+    expect(runCommand("see |", (target) => setLink(target, "", " https://example.com "))).toBe(
       "see [https://example.com](https://example.com)|"
     );
   });
 
+  it("edits the label of the link at the cursor", () => {
+    expect(
+      runCommand("see [do|cs](https://example.com) now", (target) => setLink(target, "guide", "https://example.com"))
+    ).toBe("see [guide](https://example.com)| now");
+  });
+
+  it("edits the URL of the link at the cursor", () => {
+    expect(
+      runCommand("see [do|cs](https://example.com) now", (target) => setLink(target, "docs", "https://example.org"))
+    ).toBe("see [docs](https://example.org)| now");
+  });
+
+  it("keeps the title of the link it edits", () => {
+    expect(
+      runCommand('see [do|cs](https://example.com "Docs") now', (target) =>
+        setLink(target, "guide", "https://example.org")
+      )
+    ).toBe('see [guide](https://example.org "Docs")| now');
+  });
+
+  it("rewrites an autolink as an inline link", () => {
+    expect(
+      runCommand("see <https://exa|mple.com> now", (target) => setLink(target, "docs", "https://example.com"))
+    ).toBe("see [docs](https://example.com)| now");
+  });
+
   it("wraps a destination with spaces or parentheses in angle brackets", () => {
-    expect(runCommand("{x}", (target) => insertLink(target, "https://example.com/a (b)"))).toBe(
+    expect(runCommand("{x}", (target) => setLink(target, "", "https://example.com/a (b)"))).toBe(
       "[x](<https://example.com/a (b)>)|"
     );
   });
 
-  it("escapes unbalanced brackets in the selected text", () => {
-    expect(runCommand("{array[0 value}", (target) => insertLink(target, "https://example.com"))).toBe(
+  it("escapes unbalanced brackets in the label", () => {
+    expect(runCommand("{x}", (target) => setLink(target, "array[0 value", "https://example.com"))).toBe(
       "[array\\[0 value](https://example.com)|"
     );
   });
 
   it("does not double-escape a bracket the user already escaped", () => {
-    expect(runCommand("{a\\[b] c}", (target) => insertLink(target, "https://example.com"))).toBe(
+    expect(runCommand("{a\\[b] c}", (target) => setLink(target, "", "https://example.com"))).toBe(
       "[a\\[b\\] c](https://example.com)|"
     );
   });
 
-  it("keeps balanced brackets in the selected text", () => {
-    expect(runCommand("{see [x] here}", (target) => insertLink(target, "https://example.com"))).toBe(
+  it("keeps balanced brackets in the label", () => {
+    expect(runCommand("{x}", (target) => setLink(target, "see [x] here", "https://example.com"))).toBe(
       "[see [x] here](https://example.com)|"
     );
   });
 
-  it("ignores an empty URL", () => {
-    expect(runCommand("{x}", (target) => insertLink(target, "  "))).toBe("{x}");
+  it("ignores a blank URL", () => {
+    expect(runCommand("{x}", (target) => setLink(target, "docs", "  "))).toBe("{x}");
+    expect(runCommand("see [do|cs](https://example.com)", (target) => setLink(target, "guide", ""))).toBe(
+      "see [do|cs](https://example.com)"
+    );
   });
 
   it("removes link syntax and keeps the visible text", () => {

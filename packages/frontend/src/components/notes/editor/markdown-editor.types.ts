@@ -10,7 +10,8 @@ export interface MarkdownEditorHandle {
   toggleBlockquote: () => void;
   toggleCodeBlock: () => void;
   insertDivider: () => void;
-  insertLink: (url: string) => void;
+  /** Edits the link at the cursor, or links the selection; a blank `text` falls back to the selection or the URL */
+  setLink: (text: string, url: string) => void;
   removeLink: () => void;
   insertTable: () => void;
   addTableRow: () => void;
@@ -18,6 +19,14 @@ export interface MarkdownEditorHandle {
   deleteTableRow: () => void;
   deleteTableColumn: () => void;
   deleteTable: () => void;
+}
+
+/** A `[text](url)` link or `<url>` autolink at the cursor */
+export interface EditorLink {
+  /** Source between the brackets, inline formatting included; the URL for an autolink */
+  text: string;
+  /** Destination without a `<>` wrapper */
+  url: string;
 }
 
 /** Formatting at the cursor, for the host's toolbar */
@@ -28,7 +37,9 @@ export interface EditorFormatState {
   inlineFormats: InlineFormat[];
   isBlockquote: boolean;
   isCodeBlock: boolean;
-  isLink: boolean;
+  link: EditorLink | undefined;
+  /** The main selection's text when it is non-empty and on one line */
+  selectedText: string | undefined;
   isInTableCell: boolean;
   canDeleteTableRow: boolean;
 }
