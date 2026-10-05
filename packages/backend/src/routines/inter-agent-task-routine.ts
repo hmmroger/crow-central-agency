@@ -10,7 +10,7 @@ import type { AgentRegistry } from "../services/agent-registry.js";
 import { createMessageContentFromTemplate, getDefaultPromptContext } from "../utils/message-template.js";
 import type { MessageTemplate } from "../utils/message-template.types.js";
 import { MessageRoles } from "../services/content-generation/content-generation.types.js";
-import { AppError } from "../core/error/app-error.js";
+import { isAppErrorCode } from "../core/error/app-error-utils.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { GET_TASK_RESULT_TOOL_NAME } from "../mcp/tasks/get-task-result.js";
 import { GET_TASK_TOOL_NAME } from "../mcp/tasks/get-task.js";
@@ -451,7 +451,7 @@ class InterAgentTaskRoutine {
 
       await this.taskManager.updateTaskState(task.id, AGENT_TASK_STATE.CLOSED);
     } catch (error) {
-      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.AGENT_NOT_FOUND) {
+      if (isAppErrorCode(error, APP_ERROR_CODES.AGENT_NOT_FOUND)) {
         log.warn({ agentId: owningAgentId, error }, "Agent no longer exists.");
       } else {
         log.error({ agentId: owningAgentId, error }, "Failed to notify target agent.");

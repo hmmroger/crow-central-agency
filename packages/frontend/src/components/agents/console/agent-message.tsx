@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
-import { MarkdownRenderer } from "../../common/markdown-renderer.js";
+import { MarkdownRenderer } from "../../common/markdown/markdown-renderer.js";
 import { ActivityItem } from "./activity-item.js";
 import { CommandItem } from "./command-item.js";
 import { ThinkingMessage } from "./thinking-message.js";

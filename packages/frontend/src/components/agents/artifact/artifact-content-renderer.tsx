@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import type { EntityType } from "@crow-central-agency/shared";
 import { useArtifactContentQuery } from "../../../hooks/queries/use-artifact-content-query.js";
 import type { ArtifactContent } from "../../../hooks/queries/use-artifact-content-query.js";
-import { MarkdownRenderer } from "../../common/markdown-renderer.js";
+import { MarkdownRenderer } from "../../common/markdown/markdown-renderer.js";
 import { ImageViewer } from "../../common/image-viewer.js";
 import { AudioPlayer } from "../../common/audio-player.js";
 

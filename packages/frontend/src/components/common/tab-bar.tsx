@@ -2,6 +2,7 @@ import type { ComponentType, MouseEvent } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import { useContextMenu } from "../../providers/context-menu-provider";
+import { ActionButton, type ActionButtonVariant } from "./action-button.js";
 
 export interface TabDefinition<T extends string> {
   id: T;
@@ -13,18 +14,25 @@ export interface TabDefinition<T extends string> {
   onDropdownClick?: (e: MouseEvent<HTMLButtonElement>) => void;
 }
 
+/** A button right-aligned in the tab row */
+export interface TabBarAction {
+  id: string;
+  /** Visible text, or the tooltip and accessible name when `iconOnly` */
+  label: string;
+  icon?: ComponentType<{ className?: string }>;
+  variant?: ActionButtonVariant;
+  iconOnly?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}
+
 interface TabBarProps<T extends string> {
   tabs: TabDefinition<T>[];
   activeTab: T;
   onTabChange: (tab: T) => void;
   /** Unique layoutId prefix to avoid collisions when multiple TabBars exist */
   layoutId?: string;
-  /** Icon for the optional right-aligned action button */
-  actionIcon?: ComponentType<{ className?: string }>;
-  /** Click handler for the action button */
-  onActionClick?: () => void;
-  /** Tooltip / aria-label for the action button */
-  actionTitle?: string;
+  actions?: TabBarAction[];
 }
 
 export function TabBar<T extends string>({
@@ -32,9 +40,7 @@ export function TabBar<T extends string>({
   activeTab,
   onTabChange,
   layoutId = "tabBar",
-  actionIcon: ActionIcon,
-  onActionClick,
-  actionTitle,
+  actions,
 }: TabBarProps<T>) {
   const { isMenuOpen } = useContextMenu();
 
@@ -113,16 +119,20 @@ export function TabBar<T extends string>({
         );
       })}
 
-      {ActionIcon && onActionClick && (
-        <button
-          type="button"
-          className="ml-auto p-1 rounded text-text-muted hover:text-text-base hover:bg-surface-elevated transition-colors"
-          onClick={onActionClick}
-          title={actionTitle}
-          aria-label={actionTitle}
-        >
-          <ActionIcon className="h-3.5 w-3.5" />
-        </button>
+      {actions && actions.length > 0 && (
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          {actions.map((action) => (
+            <ActionButton
+              key={action.id}
+              icon={action.icon}
+              label={action.label}
+              variant={action.variant}
+              iconOnly={action.iconOnly}
+              disabled={action.disabled}
+              onClick={action.onClick}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

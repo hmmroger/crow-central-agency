@@ -20,6 +20,15 @@ export const ApiErrorSchema = z.object({
   }),
 });
 
+/**
+ * Payload of the endpoints whose only result is that the entity is gone.
+ */
+export const DeletedResultSchema = z.object({
+  deleted: z.boolean(),
+});
+
+export type DeletedResult = z.infer<typeof DeletedResultSchema>;
+
 export type ApiSuccess<T> = {
   success: true;
   data: T;

@@ -3,6 +3,7 @@ import type { UpdateTaskStateInput } from "@crow-central-agency/shared";
 import { useUpdateTaskState } from "../../hooks/queries/use-task-mutations.js";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../common/action-button.js";
 import { cn } from "../../utils/cn.js";
+import { getErrorMessage } from "../../utils/error-message.js";
 
 interface TaskResultDialogProps {
   /** The task ID to transition */
@@ -42,7 +43,7 @@ export function TaskResultDialog({ taskId, state, confirmLabel, description, onC
       });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(getErrorMessage(err));
     }
   }, [updateTaskState, taskId, state, trimmedResult, onClose]);
 

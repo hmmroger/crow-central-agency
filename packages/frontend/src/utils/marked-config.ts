@@ -1,18 +1,17 @@
-import { marked, Renderer, type Tokens, type TokenizerAndRendererExtension } from "marked";
+import { Marked, Renderer, type Tokens, type TokenizerAndRendererExtension } from "marked";
 import { sanitizeHtml } from "./html-sanitizer";
-import { HTMLVIEW_FENCE_LANG } from "@crow-central-agency/shared";
+import {
+  escapeHtml,
+  hashtagExtension,
+  HTMLVIEW_FENCE_LANG,
+  isWikilinkToken,
+  taglineExtension,
+  wikilinkExtension,
+} from "@crow-central-agency/shared";
+import type { ParsedMarkdown } from "./marked-config.types";
 
 type MarkedRenderer = Renderer;
 const renderDefaultTable = Renderer.prototype.table;
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 // Custom code-block renderer covering mermaid diagrams and htmlview embeds.
 const codeBlockExtension: TokenizerAndRendererExtension = {
@@ -52,18 +51,28 @@ const renderer = {
   },
 };
 
-// Configure marked with GFM
-marked.use({
+const markedInstance = new Marked({
   gfm: true,
   breaks: true,
-  extensions: [codeBlockExtension],
+  extensions: [codeBlockExtension, taglineExtension, hashtagExtension, wikilinkExtension],
   renderer,
 });
 
 /**
- * Parse markdown content to sanitized HTML
+ * Parse markdown content to sanitized HTML, with the wikilink targets it holds
  */
-export function parseMarkdown(content: string): string {
-  const html = marked.parse(content, { async: false });
-  return sanitizeHtml(html);
+export function parseMarkdown(content: string): ParsedMarkdown {
+  const tokens = markedInstance.lexer(content);
+  const targets = new Set<string>();
+
+  markedInstance.walkTokens(tokens, (token) => {
+    if (isWikilinkToken(token)) {
+      targets.add(token.target);
+    }
+  });
+
+  return {
+    html: sanitizeHtml(markedInstance.parser(tokens)),
+    wikilinkTargets: Array.from(targets).sort(),
+  };
 }

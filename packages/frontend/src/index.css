@@ -14,6 +14,7 @@
   --color-surface-inset: oklch(11% 0.018 285);
   --color-surface-hover: oklch(21.85% 0.01197 285.24);
   --color-surface-accent: oklch(28% 0.046 70.697);
+  --color-surface-secondary: oklch(18% 0.03 295);
 
   --color-primary: oklch(75.35% 0.138 232.6);
   --color-secondary: oklch(68% 0.12 295);
@@ -54,6 +55,8 @@
 
   --width-bubble: 75%;
   --max-width-bubble: 75%;
+
+  --max-width-note: 75%;
 
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
@@ -229,7 +232,7 @@
     }
 
     & p {
-      margin-bottom: 0.75em;
+      @apply mb-2 last:mb-0;
     }
 
     & p:last-child {
@@ -244,6 +247,19 @@
       &:hover {
         color: var(--color-accent-hover);
       }
+    }
+
+    & .note-wikilink {
+      color: var(--color-primary);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      cursor: pointer;
+    }
+
+    & .note-wikilink.note-wikilink-unresolved {
+      color: var(--color-text-muted);
+      text-decoration-style: dashed;
+      cursor: default;
     }
 
     & code,
@@ -501,6 +517,12 @@
       outline-offset: 1px;
     }
   }
+
+  .note-canvas {
+    width: 100%;
+    max-width: var(--max-width-note);
+    margin-inline: auto;
+  }
 }
 
 @layer utilities {
@@ -510,5 +532,403 @@
 
   .glow-primary {
     box-shadow: var(--shadow-glow-primary);
+  }
+}
+
+/* Note editor (CodeMirror). Unlayered, and one class deeper than CodeMirror's injected base theme, so these win. */
+.cm-editor.md-live-editor {
+  height: 100%;
+  color: var(--color-text-base);
+
+  &.cm-focused {
+    outline: none;
+  }
+
+  & .cm-scroller {
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+  }
+
+  & .cm-scroller .cm-content {
+    width: 100%;
+    max-width: var(--max-width-note);
+    margin-inline: auto;
+    padding: calc(var(--spacing) * 2) 0;
+    caret-color: var(--color-text-base);
+  }
+
+  & .cm-line {
+    padding: 0;
+  }
+
+  & :is(.cm-md-h1, .cm-md-h2, .cm-md-h3, .cm-md-h4, .cm-md-h5, .cm-md-h6) {
+    padding-top: 0.5em;
+    font-weight: 600;
+    line-height: var(--leading-tight);
+  }
+
+  & .cm-md-h1 {
+    padding-bottom: 0.4em;
+    font-size: var(--text-xl);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  & .cm-md-h2 {
+    font-size: var(--text-lg);
+  }
+
+  & .cm-md-h3 {
+    font-size: var(--text-base);
+  }
+
+  & :is(.cm-md-h4, .cm-md-h5, .cm-md-h6) {
+    color: var(--color-text-neutral);
+  }
+
+  & .cm-md-strong {
+    font-weight: 700;
+  }
+
+  & .cm-md-em {
+    font-style: italic;
+  }
+
+  & .cm-md-strikethrough {
+    text-decoration: line-through;
+  }
+
+  & .cm-md-superscript {
+    vertical-align: super;
+    font-size: var(--text-2xs);
+  }
+
+  & .cm-md-subscript {
+    vertical-align: sub;
+    font-size: var(--text-2xs);
+  }
+
+  & .cm-md-inline-code {
+    padding: 0.15em 0.4em;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-primary);
+    background: var(--color-surface-elevated);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+  }
+
+  & .cm-md-link {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  & .cm-md-wikilink {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  & .cm-md-wikilink.cm-md-wikilink-unresolved {
+    color: var(--color-text-muted);
+    text-decoration-style: dashed;
+  }
+
+  &.cm-md-modifier-held :is(.cm-md-link, .cm-md-wikilink) {
+    cursor: pointer;
+  }
+
+  & .cm-tooltip.cm-tooltip-autocomplete {
+    overflow: hidden;
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    color: var(--color-text-base);
+    background: var(--color-surface-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-elevated);
+
+    & > ul {
+      font-family: inherit;
+    }
+
+    & > ul > li {
+      display: flex;
+      gap: 0.75em;
+      align-items: baseline;
+      padding: 0.25em 0.75em;
+    }
+
+    & > ul > li[aria-selected] {
+      color: var(--color-text-base);
+      background: var(--color-surface-accent);
+    }
+
+    & .cm-completionDetail {
+      margin-left: auto;
+      font-style: normal;
+      color: var(--color-text-muted);
+    }
+  }
+
+  & :is(.cm-md-code-fence-open, .cm-md-code-line, .cm-md-code-fence-close) {
+    padding-inline: 1rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    background: var(--color-surface-elevated);
+    border-inline: 1px solid var(--color-border);
+  }
+
+  & .cm-md-code-fence-open {
+    position: relative;
+    border-top: 1px solid var(--color-border);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+  }
+
+  & .cm-md-code-fence-close {
+    border-bottom: 1px solid var(--color-border);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+  }
+
+  & .cm-md-code-copy {
+    position: absolute;
+    top: 0.375rem;
+    right: 0.375rem;
+    display: inline-flex;
+    padding: 0.25rem;
+    color: var(--color-text-muted);
+    background: var(--color-surface-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: color var(--duration-fast);
+
+    &:hover {
+      color: var(--color-text-base);
+      background: var(--color-surface-hover);
+    }
+
+    & svg {
+      width: 1em;
+      height: 1em;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  }
+
+  & .cm-md-code-line {
+    & :is(.tok-keyword, .tok-bool, .tok-atom) {
+      color: var(--color-secondary);
+    }
+
+    & :is(.tok-string, .tok-inserted) {
+      color: var(--color-success);
+    }
+
+    & .tok-string2 {
+      color: var(--color-accent);
+    }
+
+    & :is(.tok-number, .tok-literal) {
+      color: var(--color-warning);
+    }
+
+    & :is(.tok-typeName, .tok-className, .tok-namespace) {
+      color: var(--color-info);
+    }
+
+    & :is(.tok-propertyName, .tok-definition, .tok-macroName, .tok-labelName) {
+      color: var(--color-primary);
+    }
+
+    & :is(.tok-operator, .tok-punctuation) {
+      color: var(--color-text-neutral);
+    }
+
+    & :is(.tok-comment, .tok-meta) {
+      color: var(--color-text-muted);
+    }
+
+    & .tok-comment {
+      font-style: italic;
+    }
+
+    & :is(.tok-deleted, .tok-invalid) {
+      color: var(--color-error);
+    }
+  }
+
+  /* A block widget's margins would throw off CodeMirror's height map, so spacing is padding only. */
+  & .cm-md-mermaid-preview {
+    display: flex;
+    justify-content: center;
+    padding: 0.5rem;
+    overflow-x: auto;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+
+    & svg {
+      max-width: 100%;
+      height: auto;
+    }
+  }
+
+  & .cm-md-htmlview-preview {
+    overflow: hidden;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+
+  & .cm-md-mermaid-preview.cm-md-mermaid-error {
+    justify-content: flex-start;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-error);
+    white-space: pre-wrap;
+  }
+
+  & .cm-md-code-copy.cm-md-code-copied {
+    color: var(--color-success);
+  }
+
+  & .cm-md-blockquote {
+    --md-quote-bar-width: 3px;
+    --md-quote-indent: 1em;
+
+    padding-left: calc(var(--md-quote-depth) * var(--md-quote-indent));
+    color: var(--color-text-neutral);
+    font-style: italic;
+    background-image: repeating-linear-gradient(
+      to right,
+      var(--color-secondary-muted) 0 var(--md-quote-bar-width),
+      transparent var(--md-quote-bar-width) var(--md-quote-indent)
+    );
+    background-size: calc(var(--md-quote-depth) * var(--md-quote-indent)) 100%;
+    background-repeat: no-repeat;
+  }
+
+  & :is(.cm-md-bullet, .cm-md-list-number) {
+    color: var(--color-text-neutral);
+  }
+
+  & .cm-md-task-checkbox {
+    display: inline-block;
+    width: 1.1em;
+    height: 1.1em;
+    vertical-align: -0.15em;
+    color: var(--color-text-muted);
+    cursor: pointer;
+
+    & svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    & circle {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+    }
+
+    & path {
+      fill: none;
+      stroke: var(--color-surface);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  }
+
+  & .cm-md-task-checkbox.cm-md-task-checked {
+    color: var(--color-primary);
+
+    & circle {
+      fill: currentColor;
+    }
+  }
+
+  & .cm-md-hr {
+    display: inline-block;
+    width: 100%;
+    margin: 0;
+    vertical-align: middle;
+    border: none;
+    border-top: 1px solid var(--color-border);
+  }
+
+  & .cm-md-table {
+    padding-block: 0.5em;
+    overflow-x: auto;
+
+    & table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-sm);
+    }
+
+    & :is(th, td) {
+      padding: 0.5em 0.75em;
+      text-align: left;
+      vertical-align: top;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      border: 1px solid var(--color-border);
+      cursor: text;
+    }
+
+    & th {
+      color: var(--color-text-neutral);
+      font-weight: 600;
+      background: var(--color-surface-elevated);
+    }
+
+    & tr:hover td {
+      background: var(--color-surface-hover);
+    }
+
+    & .cm-md-table-cell-active {
+      outline: 2px solid var(--color-border-focus);
+      outline-offset: -2px;
+    }
+  }
+}
+
+/* Tags and note images, styled alike in the editor and rendered markdown. Unlayered, like the editor block. */
+:is(.cm-editor.md-live-editor, .markdown-content) {
+  & :is(.cm-md-tag, .md-tag) {
+    padding: 0 0.25em;
+    color: var(--color-secondary);
+    background: color-mix(in srgb, var(--color-secondary) 15%, transparent);
+    border-radius: var(--radius-sm);
+  }
+
+  & .cm-md-image {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: bottom;
+
+    & img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius-md);
+    }
+  }
+
+  & .cm-md-image-missing {
+    display: inline-block;
+    padding: 0 0.5em;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    background: var(--color-surface-elevated);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-sm);
   }
 }

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { CreateMcpConfigInputSchema, UpdateMcpConfigInputSchema } from "@crow-central-agency/shared";
 import type { CrowMcpManager } from "../mcp/crow-mcp-manager.js";
-import { wrapZodError } from "./route-utils.js";
+import { deletedResponse, wrapZodError } from "./route-utils.js";
 
 /**
  * Register MCP config CRUD routes.
@@ -49,6 +49,6 @@ export async function registerMcpRoutes(server: FastifyInstance, mcpManager: Cro
   server.delete<{ Params: { id: string } }>("/api/mcp/configs/:id", async (request) => {
     await mcpManager.deleteMcpConfig(request.params.id);
 
-    return { success: true, data: { deleted: true } };
+    return deletedResponse();
   });
 }

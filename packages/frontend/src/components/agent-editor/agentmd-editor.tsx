@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Eye, Pencil } from "lucide-react";
-import { MarkdownRenderer } from "../common/markdown-renderer.js";
+import { MarkdownRenderer } from "../common/markdown/markdown-renderer.js";
 
 interface AgentMdEditorProps {
   value: string;

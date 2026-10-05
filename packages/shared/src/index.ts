@@ -1,5 +1,39 @@
 export { HTMLVIEW_FENCE_LANG } from "./constants/markdown-constants.js";
 export {
+  MARKDOWN_TAG_CLASS,
+  TAG_LINE_SOURCE,
+  TAG_SOURCE,
+  hashtagExtension,
+  taglineExtension,
+} from "./marked-extensions/tag-extension.js";
+export { TAG_TOKEN, type HashtagToken, type TagLineToken } from "./marked-extensions/tag-extension.types.js";
+export {
+  WIKILINK_TARGET_CHAR_SOURCE,
+  escapeWikilinkTarget,
+  findWikilinkEscapeOffsets,
+  isEscapableWikilinkChar,
+  unescapeWikilinkTarget,
+} from "./marked-extensions/wikilink-escape.js";
+export {
+  MARKDOWN_WIKI_EMBED_CLASS,
+  MARKDOWN_WIKILINK_CLASS,
+  MARKDOWN_WIKILINK_TARGET_ATTRIBUTE,
+  isWikilinkToken,
+  wikilinkExtension,
+} from "./marked-extensions/wikilink-extension.js";
+export { WIKILINK_TOKEN, type WikilinkToken } from "./marked-extensions/wikilink-extension.types.js";
+export { getAnchorCustomTranslator } from "./nhm-extensions/anchor-custom-translator.js";
+export { getTableCustomTranslator } from "./nhm-extensions/table-custom-translator.js";
+export { escapeHtml } from "./utils/html-escape.js";
+export {
+  MIME_TYPE,
+  getExtensionByMimeType,
+  getMimeTypeByFilename,
+  isAudioFileExtension,
+  isImageFileExtension,
+  isKnownBinaryExtension,
+} from "./utils/mime-type.js";
+export {
   CLAUDE_MODELS,
   GITHUB_COPILOT_MODELS,
   CLAUDE_CODE_MODEL_OPTIONS,
@@ -86,6 +120,8 @@ export {
 export {
   createApiSuccessSchema,
   ApiErrorSchema,
+  DeletedResultSchema,
+  type DeletedResult,
   type ApiSuccess,
   type ApiError,
   type ApiResponse,
@@ -178,6 +214,9 @@ export {
   FragmentCreatedWsMessageSchema,
   FragmentUpdatedWsMessageSchema,
   FragmentDeletedWsMessageSchema,
+  NoteCreatedWsMessageSchema,
+  NoteUpdatedWsMessageSchema,
+  NoteDeletedWsMessageSchema,
   AgentBuilderDraftUpdatedWsMessageSchema,
   AgentSessionsUpdatedWsMessageSchema,
   type CircleCreatedWsMessage,
@@ -188,6 +227,9 @@ export {
   type FragmentCreatedWsMessage,
   type FragmentUpdatedWsMessage,
   type FragmentDeletedWsMessage,
+  type NoteCreatedWsMessage,
+  type NoteUpdatedWsMessage,
+  type NoteDeletedWsMessage,
   type AgentBuilderDraftUpdatedWsMessage,
   type AgentSessionsUpdatedWsMessage,
   type ServerMessage,
@@ -262,6 +304,43 @@ export {
   type ArtifactMetadata,
   type ArtifactUpdate,
 } from "./schemas/artifact.schema.js";
+
+export {
+  NOTE_CONTENT_TYPE,
+  NOTE_NAME_MAX_LENGTH,
+  NOTE_IMAGE_ASSET_MIME_TYPES,
+  NoteEntityTypeSchema,
+  NoteContentTypeSchema,
+  NoteFolderMetadataSchema,
+  NoteFileMetadataSchema,
+  NoteMetadataSchema,
+  NoteContentSchema,
+  CreateNoteInputSchema,
+  UpdateNoteInputSchema,
+  WriteNoteContentInputSchema,
+  WIKILINK_RESOLVE_MAX_TARGETS,
+  ResolveWikilinkBatchInputSchema,
+  WikilinkResolutionSchema,
+  ResolveWikilinkInputSchema,
+  SuggestWikilinksQuerySchema,
+  WikilinkSuggestionSchema,
+  NoteImageAssetSchema,
+  type ResolveWikilinkBatchInput,
+  type WikilinkResolution,
+  type ResolveWikilinkInput,
+  type SuggestWikilinksQuery,
+  type WikilinkSuggestion,
+  type NoteImageAsset,
+  type NoteEntityType,
+  type NoteContentType,
+  type NoteFolderMetadata,
+  type NoteFileMetadata,
+  type NoteMetadata,
+  type NoteContent,
+  type CreateNoteInput,
+  type UpdateNoteInput,
+  type WriteNoteContentInput,
+} from "./schemas/note.schema.js";
 
 export {
   AGENT_TASK_STATE,

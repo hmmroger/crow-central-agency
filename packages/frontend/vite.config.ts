@@ -27,6 +27,10 @@ function copyBundleToRootDist() {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), copyBundleToRootDist()],
+  // node-html-markdown reads this Node-only flag on every translate; the browser has no `process`.
+  define: {
+    "process.env.LOG_PERF": "undefined",
+  },
   server: {
     port: 5101,
     strictPort: true, // Optional: if true, Vite will exit if the port is already in use

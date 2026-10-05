@@ -4,7 +4,7 @@ import { AGENTS_DIR_NAME, MESSAGE_QUEUE_FILENAME } from "../config/constants.js"
 import { readJsonFile, writeJsonFile, assertWithinBase, deleteFile } from "../utils/fs-utils.js";
 import { generateId } from "../utils/id-utils.js";
 import { logger } from "../utils/logger.js";
-import { AppError } from "../core/error/app-error.js";
+import { isAppErrorCode } from "../core/error/app-error-utils.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import type { QueuedMessage, MessageSource } from "./message-queue-manager.types.js";
 
@@ -109,7 +109,7 @@ export class MessageQueueManager {
     try {
       return await readJsonFile<QueuedMessage[]>(this.getQueueFilePath(agentId));
     } catch (error) {
-      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
+      if (isAppErrorCode(error, APP_ERROR_CODES.NOT_FOUND)) {
         return [];
       }
 

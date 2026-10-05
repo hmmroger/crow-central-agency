@@ -1,4 +1,4 @@
-import { MarkdownRenderer } from "../markdown-renderer.js";
+import { MarkdownRenderer } from "../markdown/markdown-renderer.js";
 import { CopyButton } from "../copy-button.js";
 import { ActionButton } from "../action-button.js";
 

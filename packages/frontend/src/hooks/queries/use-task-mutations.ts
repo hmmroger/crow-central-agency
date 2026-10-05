@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
   AgentTaskItem,
   CreateTaskInput,
+  DeletedResult,
   UpdateTaskInput,
   UpdateTaskResultInput,
   UpdateTaskStateInput,
@@ -109,7 +110,7 @@ export function useDeleteTask() {
 
   return useMutation<void, ApiError, string, { previous: AgentTaskItem[] | undefined }>({
     mutationFn: async (taskId) => {
-      const response = await apiClient.del<{ deleted: boolean }>(`/tasks/${taskId}`);
+      const response = await apiClient.del<DeletedResult>(`/tasks/${taskId}`);
       unwrapResponse(response);
     },
     onMutate: async (taskId) => {

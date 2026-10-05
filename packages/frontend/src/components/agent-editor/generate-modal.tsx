@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent, type Keyboa
 import { X } from "lucide-react";
 import type { GenerateRequest, GenerationType } from "@crow-central-agency/shared";
 import { useGenerateMutation } from "../../hooks/queries/use-generate-mutation.js";
-import { MarkdownRenderer } from "../common/markdown-renderer.js";
+import { MarkdownRenderer } from "../common/markdown/markdown-renderer.js";
 
 /** Structured hints describing the agent being authored, taken from the editor form. */
 export type GenerationHints = Pick<GenerateRequest, "name" | "description" | "currentPersona" | "currentAgentMd">;

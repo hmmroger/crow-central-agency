@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../action-button.js";
+import { getErrorMessage } from "../../../utils/error-message.js";
 
 interface ConfirmationDialogProps {
   /** Body text explaining what will happen */
@@ -41,7 +42,7 @@ export function ConfirmationDialog({
       await onConfirm();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(getErrorMessage(err));
       setIsPending(false);
     }
   }, [onConfirm, onClose]);

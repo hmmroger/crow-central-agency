@@ -7,7 +7,7 @@ import { useVirtualList } from "../../../hooks/use-virtual-list.js";
 import { useRowHeights } from "../../../providers/row-heights-provider.js";
 import type { RowHeights } from "../../../providers/row-heights-provider.types.js";
 import { AgentMessageView } from "./agent-message.js";
-import { MarkdownRenderer } from "../../common/markdown-renderer.js";
+import { MarkdownRenderer } from "../../common/markdown/markdown-renderer.js";
 import { StreamingIndicator } from "./streaming-indicator.js";
 
 interface MessageListProps {

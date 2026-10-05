@@ -21,6 +21,7 @@ import {
 } from "../../utils/fs-utils.js";
 import { APP_ERROR_CODES } from "../error/app-error.types.js";
 import { AppError } from "../error/app-error.js";
+import { isAppErrorCode } from "../error/app-error-utils.js";
 import type { ObjectStoreProvider, StoreEntry, StoreQueryCondition } from "./object-store.types.js";
 import { isValidStoreEntry } from "./store-entry-utils.js";
 
@@ -209,7 +210,7 @@ export class FolderFileStoreProvider implements ObjectStoreProvider {
       await statFile(filePath);
       return true;
     } catch (error) {
-      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
+      if (isAppErrorCode(error, APP_ERROR_CODES.NOT_FOUND)) {
         return false;
       }
 
@@ -229,7 +230,7 @@ export class FolderFileStoreProvider implements ObjectStoreProvider {
 
       return undefined;
     } catch (error) {
-      if (error instanceof AppError && error.errorCode === APP_ERROR_CODES.NOT_FOUND) {
+      if (isAppErrorCode(error, APP_ERROR_CODES.NOT_FOUND)) {
         return undefined;
       }
 

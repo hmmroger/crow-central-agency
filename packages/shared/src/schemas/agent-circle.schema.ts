@@ -1,15 +1,25 @@
 import { z } from "zod";
 
 /**
- * Entity types used in relationship source/target fields.
+ * Entity types in the shared entity registry.
  */
 export const ENTITY_TYPE = {
   AGENT: "AGENT",
   AGENT_CIRCLE: "AGENT_CIRCLE",
   FRAGMENT: "FRAGMENT",
+  NOTE: "NOTE",
+  NOTE_FOLDER: "NOTE_FOLDER",
 } as const;
 
-export type EntityType = (typeof ENTITY_TYPE)[keyof typeof ENTITY_TYPE];
+export const EntityTypeSchema = z.enum([
+  ENTITY_TYPE.AGENT,
+  ENTITY_TYPE.AGENT_CIRCLE,
+  ENTITY_TYPE.FRAGMENT,
+  ENTITY_TYPE.NOTE,
+  ENTITY_TYPE.NOTE_FOLDER,
+]);
+
+export type EntityType = z.infer<typeof EntityTypeSchema>;
 
 /**
  * Relationship types between entities.
@@ -57,8 +67,6 @@ export const UpdateAgentCircleInputSchema = z.object({
 });
 
 export type UpdateAgentCircleInput = z.infer<typeof UpdateAgentCircleInputSchema>;
-
-export const EntityTypeSchema = z.enum([ENTITY_TYPE.AGENT, ENTITY_TYPE.AGENT_CIRCLE, ENTITY_TYPE.FRAGMENT]);
 
 export const RelationshipTypeSchema = z.enum([
   RELATIONSHIP_TYPE.MEMBERSHIP,

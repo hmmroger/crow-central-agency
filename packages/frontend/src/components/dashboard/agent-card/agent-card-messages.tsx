@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { AgentMessage } from "@crow-central-agency/shared";
 import type { ActiveToolUse } from "../../../hooks/queries/use-agent-stream-state.types.js";
 import { useAutoScroll } from "../../../hooks/use-auto-scroll.js";
-import { MarkdownRenderer } from "../../common/markdown-renderer.js";
+import { MarkdownRenderer } from "../../common/markdown/markdown-renderer.js";
 import { AgentCardMessage } from "./agent-card-message.js";
 
 interface AgentCardMessagesProps {

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { CopyButton } from "../copy-button.js";
 import { ActionButton } from "../action-button.js";
-import { renderEmbedIntoHost } from "../htmlview-embed-mount.js";
+import { renderHtmlview } from "../markdown/markdown-htmlview-renderer.js";
 
 interface HtmlviewEmbedDialogProps {
   /** Authored HTML source of the embed being expanded. */
@@ -24,7 +24,7 @@ export function HtmlviewEmbedDialog({ source, onClose }: HtmlviewEmbedDialogProp
       return;
     }
 
-    renderEmbedIntoHost(host, source);
+    renderHtmlview(host, source);
   }, [source]);
 
   return (

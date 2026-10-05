@@ -3,7 +3,7 @@ import { Waypoints } from "lucide-react";
 import type { FragmentKind } from "@crow-central-agency/shared";
 import { useFragmentQuery } from "../../hooks/queries/use-fragment-query.js";
 import { formatRelativeTime } from "../../utils/format-utils.js";
-import { MarkdownRenderer } from "../common/markdown-renderer.js";
+import { MarkdownRenderer } from "../common/markdown/markdown-renderer.js";
 import { CopyButton } from "../common/copy-button.js";
 import { ActionButton } from "../common/action-button.js";
 import { KIND_LABEL } from "./fragment-kind-label.js";

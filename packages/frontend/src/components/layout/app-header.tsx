@@ -10,6 +10,7 @@ import { useAppStore } from "../../stores/app-store.js";
 import { cn } from "../../utils/cn.js";
 import { APP_NAV_ITEMS } from "./app-nav-items.js";
 import { ConnectionStatus } from "./connection-status.js";
+import { HeaderBreadcrumbs } from "./header-breadcrumbs.js";
 import { partition } from "es-toolkit";
 
 const LOGO_NAV_MENU_ID = "header-logo-nav";
@@ -20,7 +21,7 @@ const LOGO_NAV_MENU_ID = "header-logo-nav";
  * When a view registers a header dropdown, a chevron button is rendered after the title.
  */
 export function AppHeader() {
-  const { title, dropdown, actions } = useHeader();
+  const { title, dropdown, actions, breadcrumbs } = useHeader();
   const { toggleMenu, isMenuOpen } = useContextMenu();
   const openAgentPalette = useOpenAgentPalette();
   const viewMode = useAppStore((state) => state.viewMode);
@@ -157,6 +158,7 @@ export function AppHeader() {
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isDropdownOpen && "rotate-180")} />
           </button>
         )}
+        {breadcrumbs.length > 0 && <HeaderBreadcrumbs breadcrumbs={breadcrumbs} />}
       </div>
 
       {renderedActions}

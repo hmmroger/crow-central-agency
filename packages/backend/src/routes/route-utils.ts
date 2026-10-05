@@ -1,6 +1,12 @@
 import { ZodError } from "zod";
+import type { ApiSuccess, DeletedResult } from "@crow-central-agency/shared";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
+
+/** Reply of the endpoints whose only result is that the entity is gone */
+export function deletedResponse(): ApiSuccess<DeletedResult> {
+  return { success: true, data: { deleted: true } };
+}
 
 /** Wrap ZodError into AppError for consistent error responses */
 export function wrapZodError(error: unknown): never {

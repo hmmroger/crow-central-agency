@@ -3,6 +3,8 @@ import {
   ARTIFACT_CONTENT_TYPE,
   ARTIFACT_TYPE,
   ENTITY_TYPE,
+  getMimeTypeByFilename,
+  MIME_TYPE,
   type ArtifactEntityType,
   type ArtifactMetadata,
 } from "@crow-central-agency/shared";
@@ -24,7 +26,6 @@ import { logger } from "../../utils/logger.js";
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
 import type { AgentRegistry } from "../agent-registry.js";
 import type { AgentCircleManager } from "../agent-circle-manager.js";
-import { getMimeTypeByFilename, DOCX_MIME_TYPE } from "../../utils/mime-type.js";
 import { EventBus } from "../../core/event-bus/event-bus.js";
 import { ARTIFACT_WRITE_PRECONDITION } from "./artifact-manager.types.js";
 import type {
@@ -85,7 +86,7 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
     private readonly circleManager: AgentCircleManager
   ) {
     super();
-    this.adapters.set(DOCX_MIME_TYPE, new WordArtifactAdapter());
+    this.adapters.set(MIME_TYPE.DOCX, new WordArtifactAdapter());
   }
 
   /** Migrate legacy artifacts, then prune entries whose disk file is missing, for every registered agent and circle */
