@@ -84,6 +84,15 @@ export class InMemoryObjectStore implements ObjectStoreProvider {
     return result;
   }
 
+  public async deleteMany(table: string, keys: ReadonlyArray<string>): Promise<number> {
+    const entries = this.tables.get(table);
+    if (!entries) {
+      return 0;
+    }
+
+    return keys.filter((key) => entries.delete(key)).length;
+  }
+
   public async query<T extends Record<string, unknown>>(
     table: string,
     conditions: StoreQueryCondition<T>[]

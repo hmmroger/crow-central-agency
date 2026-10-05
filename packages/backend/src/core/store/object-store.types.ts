@@ -110,6 +110,13 @@ export interface ObjectStoreProvider {
   setMany<T>(table: string, entries: ReadonlyArray<readonly [string, T]>): Promise<Map<string, StoreEntry<T>>>;
 
   /**
+   * Delete multiple entries by table and keys (single persist for file-backed stores).
+   * Missing keys are ignored.
+   * @returns The number of entries that existed and were deleted
+   */
+  deleteMany(table: string, keys: ReadonlyArray<string>): Promise<number>;
+
+  /**
    * Query entries in a table by matching conditions against object properties.
    * All conditions must be satisfied (AND logic).
    * @returns Map of key to StoreEntry for matching entries

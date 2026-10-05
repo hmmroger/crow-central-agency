@@ -166,6 +166,12 @@ export class FolderFileStoreProvider implements ObjectStoreProvider {
     return result;
   }
 
+  public async deleteMany(table: string, keys: ReadonlyArray<string>): Promise<number> {
+    const results = await Promise.all(keys.map((key) => this.delete(table, key)));
+
+    return results.filter((existed) => existed).length;
+  }
+
   /** Build a StoreEntry with timestamp logic */
   private buildEntry<T>(value: T, existing: StoreEntry<unknown> | undefined): StoreEntry<T> {
     const now = Date.now();
