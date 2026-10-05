@@ -131,6 +131,10 @@ function mapAssistantEvent(context: CopilotEventContext, event: AssistantEvent):
     case "assistant.tool_call_delta":
     case "assistant.idle":
     case "assistant.server_tool_progress":
+    case "assistant.fusion_phase_activity":
+    case "assistant.fusion_phase_completed":
+    case "assistant.fusion_phase_failed":
+    case "assistant.fusion_phase_started":
       return [];
   }
 }
@@ -290,6 +294,19 @@ async function mapSessionEvent(
     case "session.auto_mode_resolved":
     case "session.context_cleared":
     case "session.managed_settings_enforced":
+    case "session.auto_tier_recommendation":
+    case "session.auto_tier_switch_failed":
+    case "session.completion_receipt":
+    case "session.fusion_completed":
+    case "session.fusion_resolved":
+    case "session.fusion_route_failed":
+    case "session.fusion_route_started":
+    case "session.indexed_search":
+    case "session.mcp_server_needs_reconnect":
+    case "session.mcp_server_removed":
+    case "session.mode_notice_delivered":
+    case "session.model_deselected":
+    case "session.permission_recovery":
       return [];
   }
 }
@@ -301,6 +318,12 @@ async function mapPermissionEvent(context: CopilotEventContext, event: Permissio
       return [];
 
     case "permission.completed":
+    case "permission.assentDetected":
+    case "permission.carriedForward":
+    case "permission.contextualAuthorization":
+    case "permission.messageAuthorization":
+    case "permission.messageAuthorizationDegraded":
+    case "permission.messageAuthorizationRead":
       return [];
   }
 }
