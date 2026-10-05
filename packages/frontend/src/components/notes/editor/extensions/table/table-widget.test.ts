@@ -9,6 +9,7 @@ import { getActiveTableCell } from "./table-cell-state.js";
 import { ACTIVE_TABLE_CELL_CLASS, focusActiveTableCell } from "./table-widget.js";
 
 const TABLE_DOC = "| a1 | b1 |\n| - | - |\n| a2 | b2 |\n| a3 | b3 |";
+const MULTI_LINE_TABLE_DOC = "| a1 | b1 |\n| - | - |\n| x<br>y | b2 |\n| a3 | b3 |";
 
 const views: EditorView[] = [];
 
@@ -150,6 +151,32 @@ describe("table cell arrow keys", () => {
     placeCaretAt(view, 1);
     pressKey(view, "ArrowDown");
 
+    expect(getActivePosition(view)).toEqual([1, 0]);
+  });
+
+  it("moves down onto the first line of a multi-line cell", () => {
+    const view = mountTable(MULTI_LINE_TABLE_DOC, 0, 0);
+    placeCaretAt(view, 1);
+    pressKey(view, "ArrowDown");
+
+    expect(getActivePosition(view)).toEqual([1, 0]);
+    expect(getCaretOffset(view)).toBe(0);
+  });
+
+  it("moves up onto the last line of a multi-line cell", () => {
+    const view = mountTable(MULTI_LINE_TABLE_DOC, 2, 0);
+    placeCaretAt(view, 1);
+    pressKey(view, "ArrowUp");
+
+    expect(getActivePosition(view)).toEqual([1, 0]);
+    expect(getCaretOffset(view)).toBe(3);
+  });
+
+  it("leaves a down arrow above a cell's line break to the browser", () => {
+    const view = mountTable(MULTI_LINE_TABLE_DOC, 1, 0);
+    placeCaretAt(view, 0);
+
+    expect(pressKey(view, "ArrowDown").defaultPrevented).toBe(false);
     expect(getActivePosition(view)).toEqual([1, 0]);
   });
 });

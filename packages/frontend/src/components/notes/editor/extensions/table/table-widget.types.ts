@@ -10,10 +10,11 @@ export interface CaretPoint {
   y: number;
 }
 
-/** Where the caret goes in a cell: at `point` when it falls in the cell, else at `edge` */
+/** Where the caret goes in a cell: at `point`, else at `x` on the line at `edge`, else at `edge` */
 export interface CaretPlacement {
   edge: CaretEdge;
   point?: CaretPoint;
+  x?: number;
 }
 
 /** A cell's text on either side of the caret, without the display-only final line break */

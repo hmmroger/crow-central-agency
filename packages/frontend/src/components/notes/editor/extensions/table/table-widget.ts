@@ -24,7 +24,13 @@ import {
   renderInactiveCell,
 } from "./table-cell-content.js";
 import type { ParsedTable, TableCell, TableRow } from "./table-syntax.types.js";
-import { CARET_EDGE, type CaretEdge, type CaretPlacement, type TextAroundCaret } from "./table-widget.types.js";
+import {
+  CARET_EDGE,
+  type CaretEdge,
+  type CaretPlacement,
+  type CaretPoint,
+  type TextAroundCaret,
+} from "./table-widget.types.js";
 
 export const TABLE_WIDGET_CLASS = "cm-md-table";
 export const ACTIVE_TABLE_CELL_CLASS = "cm-md-table-cell-active";
@@ -107,15 +113,48 @@ function isCaretAtCellEdge(cell: HTMLElement, edge: CaretEdge): boolean {
   return (edge === CARET_EDGE.START ? text.before : text.after) === "";
 }
 
-function placeCaret(cell: HTMLElement, { edge, point }: CaretPlacement): void {
+/** Only a browser that can find a caret from a point lays text out, so only there are caret coordinates usable */
+function canPlaceCaretAtPoint(): boolean {
+  return "caretPositionFromPoint" in document;
+}
+
+function getCaretX(): number | undefined {
+  const selection = window.getSelection();
+
+  if (!canPlaceCaretAtPoint() || !selection || selection.rangeCount === 0) {
+    return undefined;
+  }
+
+  return selection.getRangeAt(0).getClientRects().item(0)?.left;
+}
+
+/** The point at `x` on the cell's first or last line */
+function getEdgeLinePoint(cell: HTMLElement, edge: CaretEdge, x: number): CaretPoint {
+  const range = document.createRange();
+  range.selectNodeContents(cell);
+  const lines = range.getClientRects();
+  const line = lines.item(edge === CARET_EDGE.START ? 0 : lines.length - 1) ?? cell.getBoundingClientRect();
+
+  return { x, y: line.top + line.height / 2 };
+}
+
+function getPlacementPoint(cell: HTMLElement, { edge, point, x }: CaretPlacement): CaretPoint | undefined {
+  if (point || x === undefined) {
+    return point;
+  }
+
+  return getEdgeLinePoint(cell, edge, x);
+}
+
+function placeCaret(cell: HTMLElement, placement: CaretPlacement): void {
   const selection = window.getSelection();
 
   if (!selection) {
     return;
   }
 
-  const position =
-    point && "caretPositionFromPoint" in document ? document.caretPositionFromPoint(point.x, point.y) : null;
+  const point = canPlaceCaretAtPoint() ? getPlacementPoint(cell, placement) : undefined;
+  const position = point ? document.caretPositionFromPoint(point.x, point.y) : null;
 
   if (position && cell.contains(position.offsetNode)) {
     selection.collapse(position.offsetNode, position.offset);
@@ -123,7 +162,7 @@ function placeCaret(cell: HTMLElement, { edge, point }: CaretPlacement): void {
     return;
   }
 
-  if (edge === CARET_EDGE.START) {
+  if (placement.edge === CARET_EDGE.START) {
     selection.collapse(cell, 0);
 
     return;
@@ -252,14 +291,14 @@ function handleKeydown(event: KeyboardEvent, view: EditorView): void {
     case "ArrowUp":
       if (getTextAroundCaret(cell)?.before.includes(LINE_BREAK) === false) {
         event.preventDefault();
-        runCellCommand(view, goToTableRowAbove);
+        runCellCommand(view, goToTableRowAbove, { edge: CARET_EDGE.END, x: getCaretX() });
       }
 
       break;
     case "ArrowDown":
       if (getTextAroundCaret(cell)?.after.includes(LINE_BREAK) === false) {
         event.preventDefault();
-        runCellCommand(view, goToTableRowBelow);
+        runCellCommand(view, goToTableRowBelow, { edge: CARET_EDGE.START, x: getCaretX() });
       }
 
       break;
