@@ -1,6 +1,10 @@
 import type { TranslatorConfigFactory, TranslatorConfigObject } from "node-html-markdown";
 
-const ZERO_WIDTH_PATTERN = /[\u200B-\u200D\uFEFF]/g;
+const ZERO_WIDTH_CODE_POINTS = [0x200b, 0x200c, 0x200d, 0xfeff];
+const ZERO_WIDTH_PATTERN = new RegExp(
+  ZERO_WIDTH_CODE_POINTS.map((codePoint) => String.fromCodePoint(codePoint)).join("|"),
+  "g"
+);
 const LINE_BREAK_PATTERN = /(?:\r?\n)+/g;
 const DESTINATION_UNSAFE_PATTERN = /[()_*]/g;
 const TITLE_QUOTE_PATTERN = /"/g;
@@ -53,4 +57,6 @@ const translateAnchor: TranslatorConfigFactory = ({ node, visitor }) => {
   };
 };
 
-export const ANCHOR_TRANSLATORS: TranslatorConfigObject = { a: translateAnchor };
+export function getAnchorCustomTranslator(): TranslatorConfigObject {
+  return { a: translateAnchor };
+}

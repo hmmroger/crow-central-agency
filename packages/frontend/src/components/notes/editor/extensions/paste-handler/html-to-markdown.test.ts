@@ -81,6 +81,14 @@ describe("convertHtmlToMarkdown", () => {
     );
   });
 
+  it("gives an empty column a delimiter so the table stays a table", () => {
+    expect(
+      convertHtmlToMarkdown(
+        "<table><tr><th>Module</th><th>Quantity</th><th></th></tr><tr><td>Barrel</td><td>5</td><td></td></tr></table>"
+      )
+    ).toBe("| Module | Quantity |     |\n| ------ | -------- | --- |\n| Barrel | 5        |     |");
+  });
+
   it("removes script elements", () => {
     expect(convertHtmlToMarkdown("<p>safe</p><script>alert(1)</script>")).toBe("safe");
   });

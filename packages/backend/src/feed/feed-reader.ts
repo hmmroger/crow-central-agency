@@ -10,7 +10,7 @@ import { RequestError } from "../core/error/request-error.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { logger } from "../utils/logger.js";
-import { getTableCustomTranslator } from "../utils/nhm-extensions/table-custom-translator.js";
+import { getTableCustomTranslator } from "@crow-central-agency/shared";
 
 const log = logger.child({ context: "feed-reader" });
 

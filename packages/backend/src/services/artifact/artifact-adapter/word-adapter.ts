@@ -2,7 +2,7 @@ import mammoth from "mammoth";
 import { NodeHtmlMarkdown } from "node-html-markdown";
 import type { ArtifactAdapter } from "../../artifact/artifact-manager.types.js";
 import { sanitizeHtml } from "../../../utils/html-sanitizer.js";
-import { getTableCustomTranslator } from "../../../utils/nhm-extensions/table-custom-translator.js";
+import { getTableCustomTranslator } from "@crow-central-agency/shared";
 import { logger } from "../../../utils/logger.js";
 
 const log = logger.child({ context: "word-adapter" });

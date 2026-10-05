@@ -22,6 +22,8 @@ export {
   wikilinkExtension,
 } from "./marked-extensions/wikilink-extension.js";
 export { WIKILINK_TOKEN, type WikilinkToken } from "./marked-extensions/wikilink-extension.types.js";
+export { getAnchorCustomTranslator } from "./nhm-extensions/anchor-custom-translator.js";
+export { getTableCustomTranslator } from "./nhm-extensions/table-custom-translator.js";
 export { escapeHtml } from "./utils/html-escape.js";
 export {
   MIME_TYPE,

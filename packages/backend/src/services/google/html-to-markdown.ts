@@ -1,7 +1,6 @@
 import { NodeHtmlMarkdown } from "node-html-markdown";
 import { sanitizeEmailHtml, sanitizeHtml } from "../../utils/html-sanitizer.js";
-import { getAnchorCustomTranslator } from "../../utils/nhm-extensions/anchor-custom-translator.js";
-import { getTableCustomTranslator } from "../../utils/nhm-extensions/table-custom-translator.js";
+import { getAnchorCustomTranslator, getTableCustomTranslator } from "@crow-central-agency/shared";
 
 const nhm = new NodeHtmlMarkdown(
   {

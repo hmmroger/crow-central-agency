@@ -1,6 +1,6 @@
 import DOMPurify from "dompurify";
 import { NodeHtmlMarkdown } from "node-html-markdown";
-import { ANCHOR_TRANSLATORS } from "./anchor-translator.js";
+import { getAnchorCustomTranslator, getTableCustomTranslator } from "@crow-central-agency/shared";
 import type { PastePurifyConfig } from "./html-to-markdown.types.js";
 
 const PASTE_PURIFY_CONFIG: PastePurifyConfig = {
@@ -38,7 +38,10 @@ const pastePurify = DOMPurify(window);
 
 const inertDocument = document.implementation.createHTMLDocument("");
 
-const htmlToMarkdown = new NodeHtmlMarkdown({ bulletMarker: "-", useInlineLinks: true }, ANCHOR_TRANSLATORS);
+const htmlToMarkdown = new NodeHtmlMarkdown(
+  { bulletMarker: "-", useInlineLinks: true },
+  { ...getTableCustomTranslator(), ...getAnchorCustomTranslator() }
+);
 
 /** Sanitizes pasted HTML, keeping only absolute web, mail and phone links, into an inert container where nothing loads. */
 export function sanitizePastedHtml(html: string): HTMLElement {
