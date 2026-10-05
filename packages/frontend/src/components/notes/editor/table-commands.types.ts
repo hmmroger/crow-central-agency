@@ -1,4 +1,4 @@
-import type { ChangeSpec } from "@codemirror/state";
+import type { ChangeSpec, EditorSelection } from "@codemirror/state";
 import type { ActiveTableCell, TableCellPosition } from "./extensions/table/table-cell-state.types.js";
 import type { ParsedTable } from "./extensions/table/table-syntax.types.js";
 
@@ -23,5 +23,8 @@ export interface TableCursor {
 export interface TableEdit {
   changes: ChangeSpec[];
   nextCell?: TableCellPosition;
+  /** A cursor placed on its own side of the changes; takes precedence over `selection` */
   cursor?: TableCursor;
+  /** A selection mapped through the changes */
+  selection?: EditorSelection;
 }

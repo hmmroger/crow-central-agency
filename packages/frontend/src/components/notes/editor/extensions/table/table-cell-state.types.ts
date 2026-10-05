@@ -1,9 +1,8 @@
-export interface TableCellPosition {
+import type { TableCellIndex } from "./table-syntax.types.js";
+
+export interface TableCellPosition extends TableCellIndex {
   /** Start of the table's header line */
   tableFrom: number;
-  /** 0 is the header row */
-  row: number;
-  column: number;
 }
 
 export interface ActiveTableCell extends TableCellPosition {

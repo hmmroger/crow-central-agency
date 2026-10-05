@@ -1,6 +1,12 @@
 import { isolateHistory } from "@codemirror/commands";
 import { syntaxTree } from "@codemirror/language";
-import { EditorSelection, type ChangeSpec, type EditorState } from "@codemirror/state";
+import {
+  EditorSelection,
+  type ChangeSet,
+  type ChangeSpec,
+  type EditorState,
+  type TransactionSpec,
+} from "@codemirror/state";
 import { SYNTAX_NODE } from "./extensions/markdown-syntax.types.js";
 import { getActiveTableCell, setActiveTableCell } from "./extensions/table/table-cell-state.js";
 import type { TableCellPosition } from "./extensions/table/table-cell-state.types.js";
@@ -27,6 +33,16 @@ function findTableAt(state: EditorState, lineFrom: number): ParsedTable | undefi
   return parseTable(state, tableNode);
 }
 
+/** The top-level table whose source covers `position`, its first and last positions included. */
+export function findTableAround(state: EditorState, position: number): ParsedTable | undefined {
+  const { topNode } = syntaxTree(state);
+  const tableNode = [topNode.childAfter(position), topNode.childBefore(position)].find(
+    (syntaxNode) => syntaxNode?.name === SYNTAX_NODE.TABLE && syntaxNode.from <= position && position <= syntaxNode.to
+  );
+
+  return tableNode ? parseTable(state, tableNode) : undefined;
+}
+
 function getTableLines(table: ParsedTable): TableLine<TextRange>[] {
   return [table.header, table.delimiter].concat(table.rows);
 }
@@ -44,7 +60,7 @@ function getTrailingPipeChanges(lines: TableLine<TextRange>[]): ChangeSpec[] {
   return changes;
 }
 
-function findActiveTable(state: EditorState): ActiveTable | undefined {
+export function findActiveTable(state: EditorState): ActiveTable | undefined {
   const cell = getActiveTableCell(state);
   const table = cell && findTableAt(state, cell.tableFrom);
 
@@ -90,8 +106,15 @@ function createEmptyRow(columnCount: number): string {
   return `|${EMPTY_CELL.repeat(columnCount)}`;
 }
 
-function applyTableEdit(target: CommandTarget, edit: TableEdit): boolean {
-  const { state } = target;
+function getEditSelection(edit: TableEdit, changes: ChangeSet): EditorSelection | undefined {
+  if (edit.cursor) {
+    return EditorSelection.single(changes.mapPos(edit.cursor.position, edit.cursor.assoc));
+  }
+
+  return edit.selection?.map(changes);
+}
+
+function buildTableEditSpec(state: EditorState, edit: TableEdit): TransactionSpec {
   const changes = state.changes(edit.changes);
   const nextCell = edit.nextCell && {
     tableFrom: changes.mapPos(edit.nextCell.tableFrom, -1),
@@ -99,18 +122,36 @@ function applyTableEdit(target: CommandTarget, edit: TableEdit): boolean {
     column: edit.nextCell.column,
   };
 
-  target.dispatch(
-    state.update({
-      changes,
-      selection: edit.cursor
-        ? EditorSelection.cursor(changes.mapPos(edit.cursor.position, edit.cursor.assoc))
-        : undefined,
-      effects: setActiveTableCell.of(nextCell),
-      annotations: changes.empty ? undefined : isolateHistory.of("full"),
-    })
-  );
+  return {
+    changes,
+    selection: getEditSelection(edit, changes),
+    effects: setActiveTableCell.of(nextCell),
+    annotations: changes.empty ? undefined : isolateHistory.of("full"),
+  };
+}
+
+function applyTableEdit(target: CommandTarget, edit: TableEdit): boolean {
+  target.dispatch(target.state.update(buildTableEditSpec(target.state, edit)));
 
   return true;
+}
+
+/**
+ * Writes the active cell's edit, then makes `next` the active cell, or none, keeping `selection` when given;
+ * positions refer to `state`'s document.
+ */
+export function buildMoveTableCellSpec(
+  state: EditorState,
+  next: TableCellPosition | undefined,
+  selection?: EditorSelection
+): TransactionSpec {
+  const active = findActiveTable(state);
+
+  return buildTableEditSpec(state, {
+    changes: active ? getCellCommitChanges(active) : [],
+    nextCell: next,
+    selection,
+  });
 }
 
 export function canDeleteTableRow(state: EditorState): boolean {
@@ -121,9 +162,9 @@ export function canDeleteTableRow(state: EditorState): boolean {
 
 /** Writes the active cell's edit, then makes `next` the active cell, or none. */
 export function moveTableCell(target: CommandTarget, next: TableCellPosition | undefined): boolean {
-  const active = findActiveTable(target.state);
+  target.dispatch(target.state.update(buildMoveTableCellSpec(target.state, next)));
 
-  return applyTableEdit(target, { changes: active ? getCellCommitChanges(active) : [], nextCell: next });
+  return true;
 }
 
 /** Writes the active cell's edit and puts the cursor on the line before or after the table, adding one if needed. */
@@ -364,7 +405,7 @@ export function deleteTable(target: CommandTarget): boolean {
 
 /**
  * Puts a table with a header row and one body row on its own lines at the cursor's line, apart from the
- * blocks around it so neither becomes part of the table, and activates its first header cell.
+ * blocks around it so neither becomes part of the table, and activates its first header cell, which takes the cursor.
  */
 export function insertTable(target: CommandTarget): boolean {
   const { state } = target;
@@ -387,7 +428,6 @@ export function insertTable(target: CommandTarget): boolean {
         to: isBlankLine ? line.to : from,
         insert: `${prefix}${table}${needsBlankLineAfter ? "\n" : ""}`,
       },
-      selection: EditorSelection.cursor(tableFrom + table.length),
       effects: setActiveTableCell.of({ tableFrom, row: 0, column: 0 }),
       annotations: isolateHistory.of("full"),
     })

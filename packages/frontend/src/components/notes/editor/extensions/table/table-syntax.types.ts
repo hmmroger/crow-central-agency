@@ -16,6 +16,12 @@ export interface TableCell extends TextRange {
   content: string;
 }
 
+/** Row 0 is the header row */
+export interface TableCellIndex {
+  row: number;
+  column: number;
+}
+
 export interface TableDelimiterCell extends TextRange {
   alignment?: TableAlignment;
 }

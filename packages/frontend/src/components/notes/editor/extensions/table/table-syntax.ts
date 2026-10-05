@@ -7,6 +7,7 @@ import {
   type ParsedTable,
   type TableAlignment,
   type TableCell,
+  type TableCellIndex,
   type TableDelimiterCell,
   type TableLine,
   type TableRow,
@@ -135,4 +136,40 @@ export function getTableRow(table: ParsedTable, rowIndex: number): TableRow | un
 
 export function getTableRowCount(table: ParsedTable): number {
   return table.rows.length + 1;
+}
+
+/** Cells past the header's column count are not drawn, so they have no position. */
+export function getTableCell(table: ParsedTable, row: number, column: number): TableCell | undefined {
+  return column < table.header.cells.length ? getTableRow(table, row)?.cells[column] : undefined;
+}
+
+/**
+ * The cell holding `position`; from a pipe, a delimiter row or a spot outside every cell, the next cell in the
+ * direction of travel, else the nearest cell the other way.
+ */
+export function findTableCellAt(table: ParsedTable, position: number, isForward: boolean): TableCellIndex | undefined {
+  let before: TableCellIndex | undefined;
+  let after: TableCellIndex | undefined;
+
+  for (let row = 0; row < getTableRowCount(table); row++) {
+    for (let column = 0; column < table.header.cells.length; column++) {
+      const cell = getTableCell(table, row, column);
+
+      if (!cell) {
+        continue;
+      }
+
+      if (cell.from <= position && position <= cell.to) {
+        return { row, column };
+      }
+
+      if (cell.to < position) {
+        before = { row, column };
+      } else if (!after) {
+        after = { row, column };
+      }
+    }
+  }
+
+  return isForward ? (after ?? before) : (before ?? after);
 }
