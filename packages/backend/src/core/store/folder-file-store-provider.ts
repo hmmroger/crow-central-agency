@@ -167,7 +167,7 @@ export class FolderFileStoreProvider implements ObjectStoreProvider {
   }
 
   public async deleteMany(table: string, keys: ReadonlyArray<string>): Promise<number> {
-    const results = await Promise.all(keys.map((key) => this.delete(table, key)));
+    const results = await Promise.all(Array.from(new Set(keys), (key) => this.delete(table, key)));
 
     return results.filter((existed) => existed).length;
   }

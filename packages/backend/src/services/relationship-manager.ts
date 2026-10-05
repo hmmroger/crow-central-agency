@@ -160,8 +160,10 @@ export class RelationshipManager {
   public async createRelationships(inputs: ReadonlyArray<CreateRelationshipInput>): Promise<Relationship[]> {
     const createdTimestamp = Date.now();
     const relationships: Relationship[] = [];
+    const pendingKeys = new Set<string>();
     for (const input of inputs) {
-      this.assertCanCreate(input, relationships);
+      this.assertCanCreate(input, pendingKeys);
+      pendingKeys.add(this.relationshipKey(input));
       relationships.push({
         id: generateId(),
         sourceEntityId: input.sourceEntityId,
@@ -234,7 +236,8 @@ export class RelationshipManager {
   /**
    * Replace entity ids across every edge touching an old id and move saved node
    * positions to the new id. Relationship ids are kept. Mappings apply
-   * simultaneously, so chained or swapped ids are handled.
+   * simultaneously, so chained or swapped ids are handled. A new id must not
+   * already belong to another entity with edges; that collision is not checked.
    */
   public async rekeyEntities(idMap: ReadonlyMap<string, string>): Promise<void> {
     const affectedIds = new Set<string>();
@@ -343,9 +346,9 @@ export class RelationshipManager {
 
   /**
    * @throws AppError with DUPLICATE_RELATIONSHIP for a self-reference, an existing
-   *         relationship, or a match among the pending batch.
+   *         relationship, or a match among the pending batch keys.
    */
-  private assertCanCreate(input: CreateRelationshipInput, pending: ReadonlyArray<Relationship>): void {
+  private assertCanCreate(input: CreateRelationshipInput, pendingKeys: ReadonlySet<string>): void {
     if (input.sourceEntityId === input.targetEntityId) {
       throw new AppError(
         "Cannot create a relationship from an entity to itself",
@@ -353,12 +356,19 @@ export class RelationshipManager {
       );
     }
 
-    if (
-      this.queryRelationships(input).length > 0 ||
-      pending.some((relationship) => relationshipMatchesQuery(relationship, input))
-    ) {
+    if (pendingKeys.has(this.relationshipKey(input)) || this.queryRelationships(input).length > 0) {
       throw new AppError("Duplicate relationship already exists", APP_ERROR_CODES.DUPLICATE_RELATIONSHIP);
     }
+  }
+
+  private relationshipKey(input: CreateRelationshipInput): string {
+    return JSON.stringify([
+      input.sourceEntityType,
+      input.sourceEntityId,
+      input.targetEntityType,
+      input.targetEntityId,
+      input.relationshipType,
+    ]);
   }
 
   /** Add the ids of every relationship with the entity as source or target to the given set */
