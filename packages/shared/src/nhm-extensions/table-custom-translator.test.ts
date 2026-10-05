@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { TranslatorConfig, TranslatorContext } from "node-html-markdown";
+import { PostProcessResult, type TranslatorConfig, type TranslatorContext } from "node-html-markdown";
 import type { ElementNode } from "node-html-markdown/dist/nodes.js";
 import type { NodeMetadataMap } from "node-html-markdown/dist/visitor.js";
 import { getTableCustomTranslator } from "./table-custom-translator.js";
@@ -55,7 +55,11 @@ describe("getTableCustomTranslator", () => {
   });
 
   it("removes the node when the content has no lines", () => {
-    expect(runPostprocess({ content: "\n  \n" })).toBe("RemoveNode");
+    expect(runPostprocess({ content: "\n  \n" })).toBe(PostProcessResult.RemoveNode);
+  });
+
+  it("strips a leading pipe preceded by whitespace", () => {
+    expect(runPostprocess({ content: "  | foo | bar |\n" })).toBe("| foo | bar |\n| --- | --- |\n");
   });
 
   it("processes a line with a very long whitespace run in linear time", () => {

@@ -1,4 +1,4 @@
-import type { TranslatorConfigObject } from "node-html-markdown";
+import { PostProcessResult, type TranslatorConfigObject } from "node-html-markdown";
 import type { Visitor } from "node-html-markdown/dist/visitor.js";
 
 const MIN_TABLE_SEPARATOR_COUNT = 3;
@@ -17,7 +17,7 @@ export function getTableCustomTranslator(maxSeparatorCount?: number): Translator
         // Split into lines and filter out empty lines
         const lines = content.split("\n").filter((line) => line.trim());
         if (lines.length < 1) {
-          return "RemoveNode";
+          return PostProcessResult.RemoveNode;
         }
 
         // Process each line to extract column data and track max content length per column
