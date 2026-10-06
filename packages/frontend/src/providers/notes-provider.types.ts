@@ -16,9 +16,9 @@ export interface NotesContextValue {
   /** Load state of the live or the trash list */
   getListStatus: (isTrashed: boolean) => NoteListStatus;
   /** Resolves with the new note's id */
-  createNote: (parentId: string | undefined, name: string) => Promise<string>;
+  createNote: (name: string, parentId?: string) => Promise<string>;
   /** Resolves with the new folder's id */
-  createFolder: (parentId: string | undefined, name: string) => Promise<string>;
+  createFolder: (name: string, parentId?: string) => Promise<string>;
   /** Rename and/or move a note; resolves with its id, which changes with its path */
   updateNote: (noteId: string, input: UpdateNoteInput) => Promise<string>;
   /** Moves a live note to the trash, or removes a trashed one for good */

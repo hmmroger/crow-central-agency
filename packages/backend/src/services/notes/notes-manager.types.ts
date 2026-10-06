@@ -6,6 +6,11 @@ export interface ReadNoteResult {
   content: string | Buffer;
 }
 
+export interface CreateNoteOptions {
+  /** The folder the note is created in; the notes root when omitted */
+  parentId?: string;
+}
+
 /** Where a new note would land; the caller checks the id and guards the path before writing. */
 export interface ResolvedNotePath {
   id: string;

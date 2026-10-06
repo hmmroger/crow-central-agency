@@ -49,7 +49,7 @@ export function NotesBrowseTab() {
       label: "Note name",
       maxLength: NOTE_NAME_MAX_LENGTH,
       confirmLabel: "Create",
-      onConfirm: async (name) => selectNote(await createNote(targetFolder?.id, name)),
+      onConfirm: async (name) => selectNote(await createNote(name, targetFolder?.id)),
     });
   }, [prompt, createNote, targetFolder, selectNote]);
 
@@ -59,7 +59,7 @@ export function NotesBrowseTab() {
       label: "Folder name",
       maxLength: NOTE_NAME_MAX_LENGTH,
       confirmLabel: "Create",
-      onConfirm: async (name) => selectNote(await createFolder(targetFolder?.id, name)),
+      onConfirm: async (name) => selectNote(await createFolder(name, targetFolder?.id)),
     });
   }, [prompt, createFolder, targetFolder, selectNote]);
 

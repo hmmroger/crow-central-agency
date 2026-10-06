@@ -37,11 +37,12 @@ import {
   renameFile,
   statFile,
   writeBinaryFile,
-  writeTextFile,
 } from "../../utils/fs-utils.js";
+import type { WriteFileOptions } from "../../utils/fs-utils.types.js";
 import { logger } from "../../utils/logger.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
 import type {
+  CreateNoteOptions,
   ReadNoteResult,
   ResolvedNotePath,
   WikilinkMatch,
@@ -157,27 +158,32 @@ export class NotesManager {
   }
 
   /**
-   * Create a folder under `parentId`, or at the notes root when it is undefined.
-   * @throws AppError INVALID_FILENAME on a rejected name, CONFLICT on a colliding id.
+   * Create a note under `options.parentId`, or at the notes root. Text content
+   * makes a markdown note saved as `<name>.md`; bytes are saved under the filename `name`.
+   * @throws AppError INVALID_FILENAME on a rejected name, CONFLICT when the id or the file is taken.
    */
-  public async createFolder(parentId: string | undefined, name: string): Promise<NoteMetadata> {
-    const target = await this.resolveNewTarget(parentId, name, name);
-    return this.createDirectoryEntry(target, parentId);
-  }
-
-  /**
-   * Create a markdown note named `<name>.md` under `parentId`.
-   * @throws AppError INVALID_FILENAME on a rejected name, CONFLICT on a colliding id.
-   */
-  public async createTextNote(parentId: string | undefined, name: string, content = ""): Promise<NoteMetadata> {
-    const target = await this.resolveNewTarget(parentId, name, `${name}${MARKDOWN_EXTENSION}`);
-    if (!(await writeTextFile(target.absolutePath, content, { overwrite: false }))) {
-      await this.indexEntry(target, parentId);
-
+  public async createNote(
+    name: string,
+    content: string | Buffer,
+    options: CreateNoteOptions = {}
+  ): Promise<NoteFileMetadata> {
+    const filename = Buffer.isBuffer(content) ? name : `${name}${MARKDOWN_EXTENSION}`;
+    const target = await this.resolveNewTarget(options.parentId, name, filename);
+    if (!(await this.writeNoteFile(target.absolutePath, content, { overwrite: false }))) {
       throw new AppError(`A note or folder with id "${target.id}" already exists`, APP_ERROR_CODES.CONFLICT);
     }
 
-    return this.requireIndexedEntry(target, parentId);
+    return this.indexCreatedNote(target, options.parentId);
+  }
+
+  /**
+   * Create a folder under `options.parentId`, or at the notes root.
+   * @throws AppError INVALID_FILENAME on a rejected name, CONFLICT when the id or the path is taken.
+   */
+  public async createFolder(name: string, options: CreateNoteOptions = {}): Promise<NoteFolderMetadata> {
+    const target = await this.resolveNewTarget(options.parentId, name, name);
+
+    return this.createDirectory(target, options.parentId);
   }
 
   /** What each target names in the live tree; never creates. */
@@ -212,7 +218,7 @@ export class NotesManager {
     }
 
     try {
-      return await this.createTextNote(parentId, placement.noteName);
+      return await this.createNote(placement.noteName, "", { parentId });
     } catch (error) {
       if (!isAppErrorCode(error, APP_ERROR_CODES.CONFLICT)) {
         throw error;
@@ -299,13 +305,11 @@ export class NotesManager {
       }
 
       await assertRealPathWithinBase(target.absolutePath, this.notesPath);
-      if (await writeBinaryFile(target.absolutePath, content, { overwrite: false })) {
-        const note = await this.requireIndexedEntry(target, assetsFolder.id);
+      if (await this.writeNoteFile(target.absolutePath, content, { overwrite: false })) {
+        const note = await this.indexCreatedNote(target, assetsFolder.id);
 
         return { note, target: this.toShortestWikilinkTarget(note) };
       }
-
-      await this.indexEntry(target, assetsFolder.id);
     }
 
     throw new AppError(`No free image name left in "${assetsFolder.path}"`, APP_ERROR_CODES.CONFLICT);
@@ -334,10 +338,9 @@ export class NotesManager {
       throw new AppError(`Note changed on disk since it was loaded: ${id}`, APP_ERROR_CODES.CONFLICT);
     }
 
-    await writeTextFile(notePath, content);
+    await this.writeNoteFile(notePath, content);
     const updated = await this.buildNoteMetadata(notePath, path.basename(metadata.path), metadata.parentId);
-    this.index.set(updated.id, updated);
-    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_UPDATED, noteId: updated.id, metadata: updated });
+    this.putEntry(updated);
 
     return updated;
   }
@@ -542,72 +545,79 @@ export class NotesManager {
    * The `assets` folder beside a note, created when missing.
    * @throws AppError CONFLICT when a file already holds the folder's name.
    */
-  private async ensureAssetsFolder(parentId: string | undefined): Promise<NoteMetadata> {
+  private async ensureAssetsFolder(parentId: string | undefined): Promise<NoteFolderMetadata> {
     const folder = this.toNewTarget(this.requireFolderPath(parentId), NOTE_ASSETS_FOLDER_NAME);
     const existing = this.index.get(folder.id);
-    if (existing && existing.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
+    if (existing?.entityType === ENTITY_TYPE.NOTE_FOLDER) {
+      return existing;
+    }
+
+    if (existing) {
       throw new AppError(`"${existing.path}" is a file, not an assets folder`, APP_ERROR_CODES.CONFLICT);
     }
 
     await assertRealPathWithinBase(folder.absolutePath, this.notesPath);
 
-    return this.createDirectoryEntry(folder, parentId);
+    return this.createDirectory(folder, parentId);
   }
 
   /**
    * Create the folder at `target` and index it.
    * @throws AppError CONFLICT when something other than a folder already holds the path.
    */
-  private async createDirectoryEntry(target: ResolvedNotePath, parentId: string | undefined): Promise<NoteMetadata> {
+  private async createDirectory(target: ResolvedNotePath, parentId: string | undefined): Promise<NoteFolderMetadata> {
     const stats = await getPathStats(target.absolutePath);
     if (stats && !stats.isDirectory()) {
-      await this.indexEntry(target, parentId);
-
       throw new AppError(`A note or folder with id "${target.id}" already exists`, APP_ERROR_CODES.CONFLICT);
     }
 
     await ensureDir(target.absolutePath);
-
-    return this.requireIndexedEntry(target, parentId);
-  }
-
-  /**
-   * The indexed entry at `target`, indexing that one path when it is on disk
-   * but not in the index yet; `undefined` when neither holds it.
-   */
-  private async indexEntry(target: ResolvedNotePath, parentId: string | undefined): Promise<NoteMetadata | undefined> {
-    const indexed = this.index.get(target.id);
-    if (indexed) {
-      return indexed;
-    }
-
-    const stats = await getPathStats(target.absolutePath);
-    const entryName = path.basename(target.relativePath);
-    let metadata: NoteMetadata | undefined;
-    if (stats?.isDirectory()) {
-      metadata = await this.buildFolderMetadata(target.absolutePath, entryName, parentId);
-    } else if (stats?.isFile()) {
-      metadata = await this.buildNoteMetadata(target.absolutePath, entryName, parentId);
-    }
-
-    const current = this.index.get(target.id);
-    if (current || !metadata) {
-      return current;
-    }
-
-    this.index.set(metadata.id, metadata);
-    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_CREATED, noteId: metadata.id, metadata });
+    const metadata = await this.buildFolderMetadata(target.absolutePath, path.basename(target.relativePath), parentId);
+    this.putEntry(metadata);
+    await this.refreshFolderEntry(parentId);
 
     return metadata;
   }
 
-  private async requireIndexedEntry(target: ResolvedNotePath, parentId: string | undefined): Promise<NoteMetadata> {
-    const metadata = await this.indexEntry(target, parentId);
-    if (!metadata) {
-      throw new AppError(`Note not found: ${target.id}`, APP_ERROR_CODES.NOT_FOUND);
-    }
+  /** Index the note just written at `target`, and its parent folder whose timestamp it changed. */
+  private async indexCreatedNote(target: ResolvedNotePath, parentId: string | undefined): Promise<NoteFileMetadata> {
+    const metadata = await this.buildNoteMetadata(target.absolutePath, path.basename(target.relativePath), parentId);
+    this.putEntry(metadata);
+    await this.refreshFolderEntry(parentId);
 
     return metadata;
+  }
+
+  /** Re-stat a live folder whose entries changed, updating it when its timestamp moved. */
+  private async refreshFolderEntry(folderId: string | undefined): Promise<void> {
+    const folder = folderId === undefined ? undefined : this.index.get(folderId);
+    if (folder?.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
+      return;
+    }
+
+    const refreshed = await this.buildFolderMetadata(
+      this.resolvePath(folder.path),
+      path.basename(folder.path),
+      folder.parentId
+    );
+    if (refreshed.updatedTimestamp !== folder.updatedTimestamp) {
+      this.putEntry(refreshed);
+    }
+  }
+
+  /** Index an entry in the tree it belongs to and tell clients it was created or updated. */
+  private putEntry(metadata: NoteMetadata): void {
+    const index = metadata.isTrashed ? this.trashIndex : this.index;
+    const type = index.has(metadata.id) ? SERVER_MESSAGE_TYPE.NOTE_UPDATED : SERVER_MESSAGE_TYPE.NOTE_CREATED;
+    index.set(metadata.id, metadata);
+    this.broadcaster.broadcast({ type, noteId: metadata.id, metadata });
+  }
+
+  /** The one write path: text is converted to bytes once, like every other file write. */
+  private writeNoteFile(absolutePath: string, content: string | Buffer, options?: WriteFileOptions): Promise<boolean> {
+    const bytes = Buffer.isBuffer(content) ? content : Buffer.from(content, "utf-8");
+
+    return writeBinaryFile(absolutePath, bytes, options);
   }
 
   /** Whether `candidatePath` is `ancestorPath` itself or sits underneath it */
@@ -789,7 +799,7 @@ export class NotesManager {
   /** The folder `name` under `parentId`, created unless it exists or a concurrent create just made it. */
   private async ensureFolder(parentId: string | undefined, name: string): Promise<NoteMetadata> {
     try {
-      return await this.createFolder(parentId, name);
+      return await this.createFolder(name, { parentId });
     } catch (error) {
       const existing = isAppErrorCode(error, APP_ERROR_CODES.CONFLICT)
         ? this.index.get(this.toNoteId(path.join(this.requireFolderPath(parentId), name)))

@@ -176,13 +176,12 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createNote = useCallback(
-    (parentId: string | undefined, name: string) => createEntry({ parentId, name, entityType: ENTITY_TYPE.NOTE }),
+    (name: string, parentId?: string) => createEntry({ name, parentId, entityType: ENTITY_TYPE.NOTE }),
     [createEntry]
   );
 
   const createFolder = useCallback(
-    (parentId: string | undefined, name: string) =>
-      createEntry({ parentId, name, entityType: ENTITY_TYPE.NOTE_FOLDER }),
+    (name: string, parentId?: string) => createEntry({ name, parentId, entityType: ENTITY_TYPE.NOTE_FOLDER }),
     [createEntry]
   );
 
