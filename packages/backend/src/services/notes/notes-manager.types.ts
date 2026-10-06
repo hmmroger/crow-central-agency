@@ -11,6 +11,13 @@ export interface CreateNoteOptions {
   parentId?: string;
 }
 
+export interface ListNotesOptions {
+  /** The folder to list; the tree root when omitted */
+  parentId?: string;
+  /** List everything under the folder instead of its direct children */
+  isRecursive?: boolean;
+}
+
 /** Where a new note would land; the caller checks the id and guards the path before writing. */
 export interface ResolvedNotePath {
   id: string;

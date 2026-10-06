@@ -43,6 +43,7 @@ import { logger } from "../../utils/logger.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
 import type {
   CreateNoteOptions,
+  ListNotesOptions,
   ReadNoteResult,
   ResolvedNotePath,
   WikilinkMatch,
@@ -112,14 +113,14 @@ export class NotesManager {
     await this.loadIndexes();
   }
 
-  /** The live note tree as a flat list; consumers compose it via `parentId`. */
-  public getTree(): NoteMetadata[] {
-    return Array.from(this.index.values());
+  /** Live notes directly under `parentId` (the root when omitted), or everything under it when recursive. */
+  public listNotes(options: ListNotesOptions = {}): NoteMetadata[] {
+    return this.listEntries(this.index, options);
   }
 
-  /** The trash tree as a flat list. Its ids carry the `.trash:` prefix of their path. */
-  public getTrashTree(): NoteMetadata[] {
-    return Array.from(this.trashIndex.values());
+  /** Trashed notes, listed like `listNotes`. Their ids carry the `.trash:` prefix of their path. */
+  public listTrashNotes(options: ListNotesOptions = {}): NoteMetadata[] {
+    return this.listEntries(this.trashIndex, options);
   }
 
   /**
@@ -491,6 +492,21 @@ export class NotesManager {
     }
 
     await this.dropPrunedTrashFolders(path.dirname(metadata.path));
+  }
+
+  private listEntries(index: ReadonlyMap<string, NoteMetadata>, options: ListNotesOptions): NoteMetadata[] {
+    const parent = options.parentId === undefined ? undefined : index.get(options.parentId);
+    if (options.parentId !== undefined && parent?.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
+      throw new AppError(`Folder not found: ${options.parentId}`, APP_ERROR_CODES.NOT_FOUND);
+    }
+
+    if (!options.isRecursive) {
+      return Array.from(index.values()).filter((entry) => entry.parentId === options.parentId);
+    }
+
+    return parent
+      ? this.collectSubtree(index, parent.path).filter((entry) => entry.id !== parent.id)
+      : Array.from(index.values());
   }
 
   /** Every entry of `index` at `relativePath` or under it. */
