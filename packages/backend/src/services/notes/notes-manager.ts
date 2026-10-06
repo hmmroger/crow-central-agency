@@ -24,7 +24,6 @@ import {
   type WikilinkSuggestion,
 } from "@crow-central-agency/shared";
 import { AppError } from "../../core/error/app-error.js";
-import { isAppErrorCode } from "../../core/error/app-error-utils.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import {
   assertRealPathWithinBase,
@@ -211,7 +210,6 @@ export class NotesManager {
   /**
    * The note `target` names, created when it names nothing: a bare name beside
    * the source note, `a/b/name` from the notes root with any missing folders.
-   * A create that loses a race looks the note up, so repeated calls return the same note.
    * @throws AppError VALIDATION when the target is blank or names a folder.
    */
   public async resolveWikilink(target: string, sourceNoteId: string): Promise<NoteMetadata> {
@@ -231,23 +229,10 @@ export class NotesManager {
 
     let parentId = placement.parentId;
     for (const folderName of placement.missingFolderNames) {
-      parentId = (await this.ensureFolder(parentId, folderName)).id;
+      parentId = (await this.createFolder(folderName, { parentId })).id;
     }
 
-    try {
-      return await this.createNote(placement.noteName, "", { parentId });
-    } catch (error) {
-      if (!isAppErrorCode(error, APP_ERROR_CODES.CONFLICT)) {
-        throw error;
-      }
-
-      const created = this.findWikilinkNote(target);
-      if (created?.entityType !== ENTITY_TYPE.NOTE) {
-        throw error;
-      }
-
-      return created;
-    }
+    return this.createNote(placement.noteName, "", { parentId });
   }
 
   /**
@@ -978,22 +963,6 @@ export class NotesManager {
       )
       .slice(0, MATCH_SUGGESTION_LIMIT)
       .map((match) => match.note);
-  }
-
-  /** The folder `name` under `parentId`, created unless it exists or a concurrent create just made it. */
-  private async ensureFolder(parentId: string | undefined, name: string): Promise<NoteMetadata> {
-    try {
-      return await this.createFolder(name, { parentId });
-    } catch (error) {
-      const existing = isAppErrorCode(error, APP_ERROR_CODES.CONFLICT)
-        ? this.index.get(this.toNoteId(path.join(this.requireFolderPath(parentId), name)))
-        : undefined;
-      if (existing?.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
-        throw error;
-      }
-
-      return existing;
-    }
   }
 
   /**
