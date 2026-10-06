@@ -185,8 +185,9 @@ export class NotesManager {
     }
 
     const metadata = await this.indexCreatedNote(target, options.parentId);
-    if (!Buffer.isBuffer(content)) {
-      await this.setNoteTags(ENTITY_TYPE.NOTE, new Map([[metadata.id, this.parseNoteContent(content).tags]]));
+    if (metadata.contentType === NOTE_CONTENT_TYPE.TEXT) {
+      const text = Buffer.isBuffer(content) ? content.toString("utf-8") : content;
+      await this.setNoteTags(ENTITY_TYPE.NOTE, new Map([[metadata.id, this.parseNoteContent(text).tags]]));
     }
 
     return metadata;
