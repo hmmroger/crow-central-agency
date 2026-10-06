@@ -380,12 +380,23 @@ export class NotesManager {
     const nextAbsolutePath = path.join(this.notesPath, nextRelativePath);
     await assertRealPathWithinBase(nextAbsolutePath, this.notesPath);
 
+    const entries = this.collectSubtree(this.index, metadata.path);
     const renamed = await renameFile(this.resolvePath(metadata.path), nextAbsolutePath);
     if (!renamed) {
       throw new AppError(`Note not found: ${id}`, APP_ERROR_CODES.NOT_FOUND);
     }
 
-    return this.reindexAndGet(nextId);
+    if (nextId !== id) {
+      for (const entry of entries) {
+        this.removeEntry(entry.id);
+      }
+    }
+
+    await this.putMovedEntries(entries, metadata.path, nextRelativePath, nextParentId);
+    await this.refreshFolderEntry(metadata.parentId);
+    await this.refreshFolderEntry(nextParentId);
+
+    return this.requireLiveNote(nextId);
   }
 
   /**
@@ -405,15 +416,23 @@ export class NotesManager {
     }
 
     const sourcePath = this.resolvePath(metadata.path);
-    const targetPath = path.join(this.trashPath, metadata.path);
+    const trashedPath = path.join(TRASH_DIRECTORY, metadata.path);
+    const targetPath = path.join(this.notesPath, trashedPath);
 
     // The guard resolves symlinks, so it runs once the parent chain it has to
     // resolve exists.
     await ensureDir(path.dirname(targetPath));
     await assertRealPathWithinBase(targetPath, this.notesPath);
+    const entries = this.collectSubtree(this.index, metadata.path);
     await mergeMove(sourcePath, targetPath);
 
-    await this.rebuildIndexes();
+    for (const entry of entries) {
+      this.removeEntry(entry.id);
+    }
+
+    await this.refreshFolderEntry(metadata.parentId);
+    const trashParentId = await this.indexFolderChain(path.dirname(trashedPath));
+    await this.putMovedEntries(entries, metadata.path, trashedPath, trashParentId);
   }
 
   /**
@@ -430,10 +449,17 @@ export class NotesManager {
     await this.assertRestorable(sourcePath, targetPath);
     await ensureDir(path.dirname(targetPath));
     await assertRealPathWithinBase(targetPath, this.notesPath);
+    const entries = this.collectSubtree(this.trashIndex, metadata.path);
     await mergeMove(sourcePath, targetPath);
     await removeEmptyAncestors(path.dirname(sourcePath), this.trashPath);
 
-    await this.rebuildIndexes();
+    for (const entry of entries) {
+      this.removeEntry(entry.id);
+    }
+
+    await this.dropPrunedTrashFolders(path.dirname(metadata.path));
+    const parentId = await this.indexFolderChain(path.dirname(restoredPath));
+    await this.putMovedEntries(entries, metadata.path, restoredPath, parentId);
 
     return this.requireLiveNote(this.toNoteId(restoredPath));
   }
@@ -441,7 +467,10 @@ export class NotesManager {
   /** Permanently remove everything in the trash. */
   public async emptyTrash(): Promise<void> {
     await removeDir(this.trashPath);
-    await this.rebuildTrashIndex();
+
+    for (const id of this.trashIndex.keys()) {
+      this.removeEntry(id);
+    }
   }
 
   /** Permanently remove a single trashed note. */
@@ -456,7 +485,108 @@ export class NotesManager {
     }
 
     await removeEmptyAncestors(path.dirname(targetPath), this.trashPath);
-    await this.rebuildTrashIndex();
+
+    for (const entry of this.collectSubtree(this.trashIndex, metadata.path)) {
+      this.removeEntry(entry.id);
+    }
+
+    await this.dropPrunedTrashFolders(path.dirname(metadata.path));
+  }
+
+  /** Every entry of `index` at `relativePath` or under it. */
+  private collectSubtree(index: ReadonlyMap<string, NoteMetadata>, relativePath: string): NoteMetadata[] {
+    return Array.from(index.values()).filter((entry) => this.isWithinRelativePath(entry.path, relativePath));
+  }
+
+  /**
+   * Index the entries a move carried from `fromPath` to `toPath`. Files keep the
+   * timestamp and size the move preserves; folders are stat'd, since a merge-move
+   * recreates them. An entry overwriting a folder with a file drops that folder's subtree.
+   */
+  private async putMovedEntries(
+    entries: ReadonlyArray<NoteMetadata>,
+    fromPath: string,
+    toPath: string,
+    parentId: string | undefined
+  ): Promise<void> {
+    for (const entry of entries) {
+      const relativePath = path.join(toPath, path.relative(fromPath, entry.path));
+      const entryParentId = entry.path === fromPath ? parentId : this.toNoteId(path.dirname(relativePath));
+      const moved = await this.toMovedEntry(entry, relativePath, entryParentId);
+      const existing = this.getIndex(moved.isTrashed).get(moved.id);
+      if (existing?.entityType === ENTITY_TYPE.NOTE_FOLDER && moved.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
+        for (const stale of this.collectSubtree(this.getIndex(moved.isTrashed), existing.path)) {
+          this.removeEntry(stale.id);
+        }
+      }
+
+      this.putEntry(moved);
+    }
+  }
+
+  private async toMovedEntry(
+    entry: NoteMetadata,
+    relativePath: string,
+    parentId: string | undefined
+  ): Promise<NoteMetadata> {
+    const entryName = path.basename(relativePath);
+    if (entry.entityType === ENTITY_TYPE.NOTE_FOLDER) {
+      return this.buildFolderMetadata(this.resolvePath(relativePath), entryName, parentId);
+    }
+
+    const isTrashed = this.isWithinRelativePath(relativePath, TRASH_DIRECTORY);
+
+    return {
+      ...entry,
+      id: this.toNoteId(relativePath),
+      name: this.toNoteName(entryName, ENTITY_TYPE.NOTE),
+      path: relativePath,
+      parentId,
+      isTrashed,
+      isReadOnly: isTrashed || entry.contentType !== NOTE_CONTENT_TYPE.TEXT,
+    };
+  }
+
+  /**
+   * Index the folders down to `folderPath` that a move created, and update those
+   * whose timestamp changed. Returns the id of the innermost folder, or undefined at a tree root.
+   */
+  private async indexFolderChain(folderPath: string): Promise<string | undefined> {
+    const folderPaths: string[] = [];
+    for (let current = folderPath; !this.isTreeRoot(current); current = path.dirname(current)) {
+      folderPaths.unshift(current);
+    }
+
+    let parentId: string | undefined;
+    for (const current of folderPaths) {
+      const folder = await this.buildFolderMetadata(this.resolvePath(current), path.basename(current), parentId);
+      if (this.getIndex(folder.isTrashed).get(folder.id)?.updatedTimestamp !== folder.updatedTimestamp) {
+        this.putEntry(folder);
+      }
+
+      parentId = folder.id;
+    }
+
+    return parentId;
+  }
+
+  /** Drop the trash folders from `folderPath` up that removeEmptyAncestors pruned, and refresh the first one left. */
+  private async dropPrunedTrashFolders(folderPath: string): Promise<void> {
+    for (let current = folderPath; !this.isTreeRoot(current); current = path.dirname(current)) {
+      const folderId = this.toNoteId(current);
+      if (await isPathExists(this.resolvePath(current))) {
+        await this.refreshFolderEntry(folderId);
+
+        return;
+      }
+
+      this.removeEntry(folderId);
+    }
+  }
+
+  /** The notes root, or the trash root that mirrors it */
+  private isTreeRoot(relativePath: string): boolean {
+    return relativePath === "." || relativePath === TRASH_DIRECTORY;
   }
 
   /**
@@ -588,9 +718,9 @@ export class NotesManager {
     return metadata;
   }
 
-  /** Re-stat a live folder whose entries changed, updating it when its timestamp moved. */
+  /** Re-stat a folder whose entries changed, updating it when its timestamp moved. */
   private async refreshFolderEntry(folderId: string | undefined): Promise<void> {
-    const folder = folderId === undefined ? undefined : this.index.get(folderId);
+    const folder = folderId === undefined ? undefined : (this.index.get(folderId) ?? this.trashIndex.get(folderId));
     if (folder?.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
       return;
     }
@@ -607,10 +737,21 @@ export class NotesManager {
 
   /** Index an entry in the tree it belongs to and tell clients it was created or updated. */
   private putEntry(metadata: NoteMetadata): void {
-    const index = metadata.isTrashed ? this.trashIndex : this.index;
+    const index = this.getIndex(metadata.isTrashed);
     const type = index.has(metadata.id) ? SERVER_MESSAGE_TYPE.NOTE_UPDATED : SERVER_MESSAGE_TYPE.NOTE_CREATED;
     index.set(metadata.id, metadata);
     this.broadcaster.broadcast({ type, noteId: metadata.id, metadata });
+  }
+
+  /** Drop an entry from whichever tree holds it and tell clients it is gone. */
+  private removeEntry(id: string): void {
+    if (this.index.delete(id) || this.trashIndex.delete(id)) {
+      this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_DELETED, noteId: id });
+    }
+  }
+
+  private getIndex(isTrashed: boolean): Map<string, NoteMetadata> {
+    return isTrashed ? this.trashIndex : this.index;
   }
 
   /** The one write path: text is converted to bytes once, like every other file write. */
@@ -628,13 +769,6 @@ export class NotesManager {
   /** mtime carries sub-millisecond precision that would not survive a round trip through JSON */
   private toUpdatedTimestamp(mtimeMs: number): number {
     return Math.trunc(mtimeMs);
-  }
-
-  /** A structural change re-keys descendants, so the index is rebuilt rather than patched. */
-  private async reindexAndGet(id: string): Promise<NoteMetadata> {
-    await this.rebuildIndexes();
-
-    return this.requireLiveNote(id);
   }
 
   /**
@@ -967,48 +1101,6 @@ export class NotesManager {
     this.trashIndex = await this.buildIndex(this.trashPath);
 
     log.info({ notesPath: this.notesPath, notes: this.index.size, trashed: this.trashIndex.size }, "Notes index built");
-  }
-
-  private async rebuildIndexes(): Promise<void> {
-    const previousIndex = this.index;
-    const previousTrashIndex = this.trashIndex;
-    await this.loadIndexes();
-
-    this.broadcastIndexChanges(previousIndex, this.index);
-    this.broadcastIndexChanges(previousTrashIndex, this.trashIndex);
-  }
-
-  private async rebuildTrashIndex(): Promise<void> {
-    const previousTrashIndex = this.trashIndex;
-    this.trashIndex = await this.buildIndex(this.trashPath);
-
-    this.broadcastIndexChanges(previousTrashIndex, this.trashIndex);
-  }
-
-  /** One event per entry that left, joined or changed between two builds of the same index. */
-  private broadcastIndexChanges(
-    previous: ReadonlyMap<string, NoteMetadata>,
-    current: ReadonlyMap<string, NoteMetadata>
-  ): void {
-    for (const noteId of previous.keys()) {
-      if (!current.has(noteId)) {
-        this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_DELETED, noteId });
-      }
-    }
-
-    for (const [noteId, metadata] of current) {
-      const before = previous.get(noteId);
-      if (!before) {
-        this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_CREATED, noteId, metadata });
-      } else if (
-        before.path !== metadata.path ||
-        before.name !== metadata.name ||
-        before.parentId !== metadata.parentId ||
-        before.updatedTimestamp !== metadata.updatedTimestamp
-      ) {
-        this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_UPDATED, noteId, metadata });
-      }
-    }
   }
 
   /**
