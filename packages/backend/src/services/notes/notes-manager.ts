@@ -2,8 +2,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   ENTITY_TYPE,
+  getExtensionByMimeType,
+  isImageFileExtension,
   NOTE_CONTENT_TYPE,
+  NOTE_IMAGE_ASSET_MIME_TYPES,
+  NOTE_NAME_MAX_LENGTH,
   SERVER_MESSAGE_TYPE,
+  type NoteContentType,
+  type NoteEntityType,
   type NoteFileMetadata,
   type NoteFolderMetadata,
   type NoteImageAsset,
@@ -35,18 +41,6 @@ import {
 } from "../../utils/fs-utils.js";
 import { logger } from "../../utils/logger.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
-import { NOTE_ASSETS_FOLDER_NAME, toImageAssetExtension, toImageAssetFilename } from "./notes-asset.js";
-import { detectNoteContentType } from "./notes-content-detector.js";
-import {
-  isSameNoteName,
-  toComparableNoteName,
-  toNoteId,
-  toNoteName,
-  toRenamedNoteFilename,
-  toWikilinkTargetSegments,
-  WIKILINK_TARGET_SEPARATOR,
-} from "./notes-id.js";
-import { assertValidNoteName } from "./notes-validation.js";
 import type {
   ReadNoteResult,
   ResolvedNotePath,
@@ -62,6 +56,24 @@ const MARKDOWN_EXTENSION = ".md";
 
 /** Mirror of the live tree holding deleted notes at their original relative paths */
 const TRASH_DIRECTORY = ".trash";
+
+/** Replaces the path separator in a note id — invalid in filenames, so it cannot collide */
+const NOTE_ID_SEPARATOR = ":";
+
+/** Separates the folder segments and the note name in a wikilink target */
+const WIKILINK_TARGET_SEPARATOR = "/";
+
+/** Characters that are invalid in a filename on at least one supported platform */
+const INVALID_NAME_CHARACTERS = /[<>:"/\\|?*]/;
+
+const FIRST_PRINTABLE_CHARACTER_CODE = 0x20;
+const DELETE_CHARACTER_CODE = 0x7f;
+
+/** Folder created beside a note to hold the files pasted into it */
+const NOTE_ASSETS_FOLDER_NAME = "assets";
+
+const IMAGE_ASSET_PREFIX = "image";
+const DATE_PART_LENGTH = 2;
 
 /** Bounds the `-n` suffix search for images saved in the same second */
 const MAX_ASSET_NAME_ATTEMPTS = 100;
@@ -232,7 +244,7 @@ export class NotesManager {
       }
     }
 
-    const needle = toComparableNoteName(query.query.trim());
+    const needle = this.toComparableNoteName(query.query.trim());
     const notes = needle
       ? this.rankSuggestionMatches(candidates, needle)
       : candidates
@@ -273,7 +285,7 @@ export class NotesManager {
       throw new AppError(`Images can only be added to an editable note: ${noteId}`, APP_ERROR_CODES.NOT_SUPPORTED);
     }
 
-    const extension = toImageAssetExtension(mimeType);
+    const extension = this.toImageAssetExtension(mimeType);
     if (!extension) {
       throw new AppError(`Unsupported image type: ${mimeType}`, APP_ERROR_CODES.VALIDATION);
     }
@@ -281,7 +293,7 @@ export class NotesManager {
     const assetsFolder = await this.ensureAssetsFolder(metadata.parentId);
     const createdAt = new Date();
     for (let attempt = 0; attempt < MAX_ASSET_NAME_ATTEMPTS; attempt++) {
-      const target = this.toNewTarget(assetsFolder.path, toImageAssetFilename(createdAt, extension, attempt));
+      const target = this.toNewTarget(assetsFolder.path, this.toImageAssetFilename(createdAt, extension, attempt));
       if (this.index.has(target.id)) {
         continue;
       }
@@ -344,20 +356,20 @@ export class NotesManager {
     const metadata = this.requireLiveNote(id);
     const name = update.name ?? metadata.name;
     const isFolder = metadata.entityType === ENTITY_TYPE.NOTE_FOLDER;
-    const filename = isFolder ? name : toRenamedNoteFilename(path.basename(metadata.path), name);
+    const filename = isFolder ? name : this.toRenamedNoteFilename(path.basename(metadata.path), name);
     const nextParentId = update.parentId === undefined ? metadata.parentId : (update.parentId ?? undefined);
     const nextRelativePath = path.join(this.requireFolderPath(nextParentId), filename);
     if (nextRelativePath === metadata.path) {
       return metadata;
     }
 
-    assertValidNoteName(name);
+    this.assertValidNoteName(name);
 
     if (isFolder && this.isWithinRelativePath(nextRelativePath, metadata.path)) {
       throw new AppError(`A folder cannot be moved into itself: ${id}`, APP_ERROR_CODES.VALIDATION);
     }
 
-    const nextId = toNoteId(nextRelativePath);
+    const nextId = this.toNoteId(nextRelativePath);
     if (nextId !== id && this.index.has(nextId)) {
       throw new AppError(`A note or folder with id "${nextId}" already exists`, APP_ERROR_CODES.CONFLICT);
     }
@@ -420,7 +432,7 @@ export class NotesManager {
 
     await this.rebuildIndexes();
 
-    return this.requireLiveNote(toNoteId(restoredPath));
+    return this.requireLiveNote(this.toNoteId(restoredPath));
   }
 
   /** Permanently remove everything in the trash. */
@@ -507,7 +519,7 @@ export class NotesManager {
     name: string,
     filename: string
   ): Promise<ResolvedNotePath> {
-    assertValidNoteName(name);
+    this.assertValidNoteName(name);
 
     const target = this.toNewTarget(this.requireFolderPath(parentId), filename);
     if (this.index.has(target.id)) {
@@ -523,7 +535,7 @@ export class NotesManager {
   private toNewTarget(folderPath: string, filename: string): ResolvedNotePath {
     const relativePath = path.join(folderPath, filename);
 
-    return { id: toNoteId(relativePath), relativePath, absolutePath: path.join(this.notesPath, relativePath) };
+    return { id: this.toNoteId(relativePath), relativePath, absolutePath: path.join(this.notesPath, relativePath) };
   }
 
   /**
@@ -621,7 +633,7 @@ export class NotesManager {
    * preferring a note over a folder. Never filters by content type.
    */
   private findWikilinkNote(target: string): NoteMetadata | undefined {
-    const matches = this.findWikilinkMatches(toWikilinkTargetSegments(target));
+    const matches = this.findWikilinkMatches(this.toWikilinkTargetSegments(target));
     const preferred =
       matches.find((match) => match.isRootAnchored) ??
       matches.find((match) => match.note.entityType !== ENTITY_TYPE.NOTE_FOLDER) ??
@@ -650,14 +662,14 @@ export class NotesManager {
   /** `note` matches when the last segment is its name and the leading ones end its folder path. */
   private matchWikilinkSegments(note: NoteMetadata, segments: string[]): WikilinkMatch | undefined {
     const lastIndex = segments.length - 1;
-    if (!isSameNoteName(note.name, segments[lastIndex])) {
+    if (!this.isSameNoteName(note.name, segments[lastIndex])) {
       return undefined;
     }
 
     let parentId = note.parentId;
     for (let segmentIndex = lastIndex - 1; segmentIndex >= 0; segmentIndex--) {
       const parent = parentId === undefined ? undefined : this.index.get(parentId);
-      if (!parent || !isSameNoteName(parent.name, segments[segmentIndex])) {
+      if (!parent || !this.isSameNoteName(parent.name, segments[segmentIndex])) {
         return undefined;
       }
 
@@ -694,7 +706,7 @@ export class NotesManager {
    * a qualified `a/b/name` goes at that path from the notes root, reusing the folders that exist.
    */
   private toWikilinkPlacement(target: string, sourceNote: NoteMetadata): WikilinkPlacement | undefined {
-    const segments = toWikilinkTargetSegments(target);
+    const segments = this.toWikilinkTargetSegments(target);
     const noteName = segments.pop();
     if (noteName === undefined) {
       return undefined;
@@ -724,7 +736,7 @@ export class NotesManager {
       if (
         metadata.entityType === ENTITY_TYPE.NOTE_FOLDER &&
         metadata.parentId === parentId &&
-        isSameNoteName(metadata.name, name)
+        this.isSameNoteName(metadata.name, name)
       ) {
         return metadata;
       }
@@ -757,7 +769,7 @@ export class NotesManager {
     const matches: WikilinkSuggestionMatch[] = [];
     for (const note of candidates) {
       const folderPath = isPathQuery ? this.toFolderPath(note) : undefined;
-      const text = toComparableNoteName(
+      const text = this.toComparableNoteName(
         folderPath === undefined ? note.name : `${folderPath}${WIKILINK_TARGET_SEPARATOR}${note.name}`
       );
       if (text.includes(needle)) {
@@ -780,7 +792,7 @@ export class NotesManager {
       return await this.createFolder(parentId, name);
     } catch (error) {
       const existing = isAppErrorCode(error, APP_ERROR_CODES.CONFLICT)
-        ? this.index.get(toNoteId(path.join(this.requireFolderPath(parentId), name)))
+        ? this.index.get(this.toNoteId(path.join(this.requireFolderPath(parentId), name)))
         : undefined;
       if (existing?.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
         throw error;
@@ -788,6 +800,148 @@ export class NotesManager {
 
       return existing;
     }
+  }
+
+  /**
+   * Validate a user-supplied note or folder name. Names are never normalized or
+   * auto-resolved — an unusable name is rejected so the user renames it.
+   * @throws AppError INVALID_FILENAME
+   */
+  private assertValidNoteName(name: string): void {
+    if (!name.trim()) {
+      throw new AppError("Name cannot be empty", APP_ERROR_CODES.INVALID_FILENAME);
+    }
+
+    if (name !== name.trim()) {
+      throw new AppError("Name cannot start or end with whitespace", APP_ERROR_CODES.INVALID_FILENAME);
+    }
+
+    // Dotfiles are valid on Unix, so the character check alone would let them through.
+    if (name.startsWith(".")) {
+      throw new AppError("Name cannot start with a dot", APP_ERROR_CODES.INVALID_FILENAME);
+    }
+
+    if (INVALID_NAME_CHARACTERS.test(name)) {
+      throw new AppError(`Name cannot contain any of < > : " / \\ | ? *`, APP_ERROR_CODES.INVALID_FILENAME);
+    }
+
+    if (this.hasControlCharacter(name)) {
+      throw new AppError("Name cannot contain control characters", APP_ERROR_CODES.INVALID_FILENAME);
+    }
+
+    if (Array.from(name).length > NOTE_NAME_MAX_LENGTH) {
+      throw new AppError(`Name cannot exceed ${NOTE_NAME_MAX_LENGTH} characters`, APP_ERROR_CODES.INVALID_FILENAME);
+    }
+  }
+
+  private hasControlCharacter(name: string): boolean {
+    for (const character of name) {
+      const code = character.codePointAt(0) ?? 0;
+      if (code < FIRST_PRINTABLE_CHARACTER_CODE || code === DELETE_CHARACTER_CODE) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Derive a note id from a path relative to the notes root. Lowercasing is what
+   * makes note identity case-insensitive while disk keeps the original casing.
+   */
+  private toNoteId(relativePath: string): string {
+    return relativePath.split(path.sep).join(NOTE_ID_SEPARATOR).toLowerCase();
+  }
+
+  /** Derive the display name of a note from its cased basename; only markdown hides its extension. */
+  private toNoteName(entryName: string, entityType: NoteEntityType): string {
+    if (entityType === ENTITY_TYPE.NOTE && this.isTextNoteFilename(entryName)) {
+      return path.basename(entryName, path.extname(entryName));
+    }
+
+    return entryName;
+  }
+
+  /**
+   * The filename a renamed note takes. A text note keeps its markdown extension;
+   * any other note is named by its full filename, whose extension cannot change
+   * because it decides the content type.
+   * @throws AppError VALIDATION when a non-markdown note's extension would change.
+   */
+  private toRenamedNoteFilename(currentFilename: string, name: string): string {
+    const currentExtension = path.extname(currentFilename);
+    if (this.isTextNoteFilename(currentFilename)) {
+      return `${name}${currentExtension}`;
+    }
+
+    if (path.extname(name).toLowerCase() !== currentExtension.toLowerCase()) {
+      const message = currentExtension
+        ? `The file extension cannot be changed; keep "${currentExtension}" at the end of the name`
+        : "The file extension cannot be changed; this file has none";
+
+      throw new AppError(message, APP_ERROR_CODES.VALIDATION);
+    }
+
+    return name;
+  }
+
+  private isTextNoteFilename(filename: string): boolean {
+    return this.detectNoteContentType(filename) === NOTE_CONTENT_TYPE.TEXT;
+  }
+
+  /** Markdown is the only editable form; images render read-only and anything else is unknown. */
+  private detectNoteContentType(filename: string): NoteContentType {
+    const extension = path.extname(filename).toLowerCase();
+    if (extension === MARKDOWN_EXTENSION) {
+      return NOTE_CONTENT_TYPE.TEXT;
+    }
+
+    if (isImageFileExtension(extension)) {
+      return NOTE_CONTENT_TYPE.IMAGE;
+    }
+
+    return NOTE_CONTENT_TYPE.UNKNOWN;
+  }
+
+  /** The form note names compare in; names match case-insensitively. */
+  private toComparableNoteName(name: string): string {
+    return name.toLowerCase();
+  }
+
+  private isSameNoteName(name: string, otherName: string): boolean {
+    return this.toComparableNoteName(name) === this.toComparableNoteName(otherName);
+  }
+
+  /** A wikilink target's `/`-separated segments, blank ones dropped; the last is the note's name. */
+  private toWikilinkTargetSegments(target: string): string[] {
+    return target
+      .split(WIKILINK_TARGET_SEPARATOR)
+      .map((segment) => segment.trim())
+      .filter((segment) => segment.length > 0);
+  }
+
+  /** The extension an uploaded image is stored with, or undefined when its type is not accepted. */
+  private toImageAssetExtension(mimeType: string): string | undefined {
+    const normalizedMimeType = mimeType.trim().toLowerCase();
+
+    return NOTE_IMAGE_ASSET_MIME_TYPES.has(normalizedMimeType) ? getExtensionByMimeType(normalizedMimeType) : undefined;
+  }
+
+  /**
+   * `image-YYYYMMDD-HHMMSS<ext>` in server-local time, with `-<attempt>` before the
+   * extension from the first retry on, so a name taken in the same second still
+   * gets a free one.
+   */
+  private toImageAssetFilename(createdAt: Date, extension: string, attempt: number): string {
+    const date = `${createdAt.getFullYear()}${this.padDatePart(createdAt.getMonth() + 1)}${this.padDatePart(createdAt.getDate())}`;
+    const time = `${this.padDatePart(createdAt.getHours())}${this.padDatePart(createdAt.getMinutes())}${this.padDatePart(createdAt.getSeconds())}`;
+    const suffix = attempt === 0 ? "" : `-${attempt}`;
+
+    return `${IMAGE_ASSET_PREFIX}-${date}-${time}${suffix}${extension}`;
+  }
+
+  private padDatePart(value: number): string {
+    return String(value).padStart(DATE_PART_LENGTH, "0");
   }
 
   /** Resolve a notes-root-relative path, refusing anything that escapes the root. */
@@ -911,9 +1065,9 @@ export class NotesManager {
     const relativePath = path.relative(this.notesPath, entryPath);
 
     return {
-      id: toNoteId(relativePath),
+      id: this.toNoteId(relativePath),
       entityType: ENTITY_TYPE.NOTE_FOLDER,
-      name: toNoteName(entryName, ENTITY_TYPE.NOTE_FOLDER),
+      name: this.toNoteName(entryName, ENTITY_TYPE.NOTE_FOLDER),
       path: relativePath,
       parentId,
       updatedTimestamp: this.toUpdatedTimestamp(stats.mtimeMs),
@@ -929,13 +1083,13 @@ export class NotesManager {
   ): Promise<NoteFileMetadata> {
     const stats = await statFile(entryPath);
     const relativePath = path.relative(this.notesPath, entryPath);
-    const contentType = detectNoteContentType(entryName);
+    const contentType = this.detectNoteContentType(entryName);
     const isTrashed = this.isWithinRelativePath(relativePath, TRASH_DIRECTORY);
 
     return {
-      id: toNoteId(relativePath),
+      id: this.toNoteId(relativePath),
       entityType: ENTITY_TYPE.NOTE,
-      name: toNoteName(entryName, ENTITY_TYPE.NOTE),
+      name: this.toNoteName(entryName, ENTITY_TYPE.NOTE),
       path: relativePath,
       parentId,
       updatedTimestamp: this.toUpdatedTimestamp(stats.mtimeMs),
