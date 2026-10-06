@@ -82,28 +82,6 @@ export class TagManager {
   }
 
   /**
-   * Set the tags of each entity in the map, and clear the tags of every other
-   * entity of the type. Also deletes any tag left without a TAGGED edge.
-   * @throws AppError with VALIDATION for a TAG entity type or an empty entity id.
-   */
-  public reconcileEntityTags(entityType: EntityType, tagNamesByEntityId: ReadonlyMap<string, string[]>): Promise<void> {
-    return this.serialize(async () => {
-      const completeTagNames = new Map(tagNamesByEntityId);
-      for (const relationship of this.relationshipManager.queryRelationships({
-        sourceEntityType: entityType,
-        relationshipType: RELATIONSHIP_TYPE.TAGGED,
-      })) {
-        if (!completeTagNames.has(relationship.sourceEntityId)) {
-          completeTagNames.set(relationship.sourceEntityId, []);
-        }
-      }
-
-      await this.applyEntityTags(entityType, completeTagNames);
-      await this.deleteUnusedTags(Array.from(this.tagsById.keys()));
-    });
-  }
-
-  /**
    * Tag an entity with an existing tag.
    * @throws AppError with VALIDATION for a TAG entity, TAG_NOT_FOUND if the tag
    *         does not exist, or DUPLICATE_RELATIONSHIP if the entity already has the tag.

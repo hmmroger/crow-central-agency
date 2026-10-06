@@ -18,6 +18,12 @@ export interface ListNotesOptions {
   isRecursive?: boolean;
 }
 
+/** What one parse of a text note yields; each token kind the notes collection uses is a field */
+export interface ParsedNoteContent {
+  /** Hashtags of the note's tag lines, without `#` */
+  tags: string[];
+}
+
 /** Where a new note would land; the caller checks the id and guards the path before writing. */
 export interface ResolvedNotePath {
   id: string;

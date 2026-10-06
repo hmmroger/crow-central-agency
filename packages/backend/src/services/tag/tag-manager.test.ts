@@ -142,27 +142,6 @@ describe("TagManager.setEntityTags", () => {
   });
 });
 
-describe("TagManager.reconcileEntityTags", () => {
-  it("clears entities of the type missing from the map and deletes unused tags", async () => {
-    const harness = await createHarness();
-    await harness.tagManager.setEntityTags(
-      ENTITY_TYPE.NOTE,
-      new Map([
-        ["note-a", ["alpha"]],
-        ["note-b", ["beta"]],
-      ])
-    );
-    await harness.tagManager.setEntityTags(ENTITY_TYPE.AGENT, new Map([["agent-a", ["gamma"]]]));
-
-    await harness.tagManager.reconcileEntityTags(ENTITY_TYPE.NOTE, new Map([["note-a", ["alpha", "delta"]]]));
-
-    expect(entityTagNames(harness, "note-a")).toEqual(["alpha", "delta"]);
-    expect(entityTagNames(harness, "note-b")).toEqual([]);
-    expect(entityTagNames(harness, "agent-a", ENTITY_TYPE.AGENT)).toEqual(["gamma"]);
-    expect(await storedTagNames(harness.store)).toEqual(["alpha", "delta", "gamma"]);
-  });
-});
-
 describe("TagManager.initialize", () => {
   it("deletes tags left without a TAGGED edge", async () => {
     const harness = await createHarness();
