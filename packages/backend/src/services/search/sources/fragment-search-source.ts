@@ -5,8 +5,8 @@ import {
   GLOBAL_PROVENANCE_ID,
   type DocumentRef,
   type SearchDocument,
-  type SearchIndexSink,
   type SearchSource,
+  type SearchSourceListener,
 } from "../document-search-service.types.js";
 
 /** Indexes memory fragments: cue as title, body as text, kind as tag. */
@@ -21,10 +21,10 @@ export class FragmentSearchSource implements SearchSource {
     }
   }
 
-  public subscribe(sink: SearchIndexSink): void {
-    this.fragmentManager.on("fragmentCreated", ({ fragment }) => sink.upsert(this.toDocument(fragment)));
-    this.fragmentManager.on("fragmentUpdated", ({ fragment }) => sink.upsert(this.toDocument(fragment)));
-    this.fragmentManager.on("fragmentDeleted", ({ fragmentId }) => sink.remove(this.toRef(fragmentId)));
+  public subscribe(listener: SearchSourceListener): void {
+    this.fragmentManager.on("fragmentCreated", ({ fragment }) => listener.onDocumentUpdate(this.toDocument(fragment)));
+    this.fragmentManager.on("fragmentUpdated", ({ fragment }) => listener.onDocumentUpdate(this.toDocument(fragment)));
+    this.fragmentManager.on("fragmentDeleted", ({ fragmentId }) => listener.onDocumentRemove(this.toRef(fragmentId)));
   }
 
   private toDocument(fragment: Fragment): SearchDocument {

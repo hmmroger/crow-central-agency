@@ -6,8 +6,8 @@ import type {
   DocumentSearchHit,
   DocumentSearchOptions,
   SearchDocument,
-  SearchIndexSink,
   SearchSource,
+  SearchSourceListener,
 } from "./document-search-service.types.js";
 
 /** Internal shape stored in MiniSearch: a SearchDocument plus the composite key and joined tag text. */
@@ -40,12 +40,12 @@ export class DocumentSearchService {
   /** Uids changed by live events while sources load; the startup load must not overwrite them with older data. */
   private readonly liveChangedUids = new Set<string>();
   private isLoading = false;
-  private readonly sink: SearchIndexSink = {
-    upsert: (document) => {
+  private readonly sourceListener: SearchSourceListener = {
+    onDocumentUpdate: (document) => {
       this.trackLiveChange(document);
       this.upsertDocument(document);
     },
-    remove: (ref) => {
+    onDocumentRemove: (ref) => {
       this.trackLiveChange(ref);
       this.removeDocument(ref);
     },
@@ -81,7 +81,7 @@ export class DocumentSearchService {
     this.isLoading = true;
     try {
       for (const source of this.sources) {
-        source.subscribe(this.sink);
+        source.subscribe(this.sourceListener);
         await this.loadSource(source);
       }
     } finally {

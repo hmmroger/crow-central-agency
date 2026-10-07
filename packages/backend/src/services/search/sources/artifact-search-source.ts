@@ -12,8 +12,8 @@ import {
   DATA_SOURCE_TYPE,
   type DocumentRef,
   type SearchDocument,
-  type SearchIndexSink,
   type SearchSource,
+  type SearchSourceListener,
 } from "../document-search-service.types.js";
 
 const log = logger.child({ context: "artifact-search-source" });
@@ -38,9 +38,9 @@ export class ArtifactSearchSource implements SearchSource {
     }
   }
 
-  public subscribe(sink: SearchIndexSink): void {
-    this.artifactManager.on("artifactSaved", ({ metadata }) => void this.indexArtifact(sink, metadata));
-    this.artifactManager.on("artifactDeleted", ({ metadata }) => sink.remove(this.toRef(metadata)));
+  public subscribe(listener: SearchSourceListener): void {
+    this.artifactManager.on("artifactSaved", ({ metadata }) => void this.reportSavedArtifact(listener, metadata));
+    this.artifactManager.on("artifactDeleted", ({ metadata }) => listener.onDocumentRemove(this.toRef(metadata)));
   }
 
   private async listContainerArtifacts(entityType: EntityType, entityId: string): Promise<ArtifactMetadata[]> {
@@ -60,33 +60,41 @@ export class ArtifactSearchSource implements SearchSource {
         continue;
       }
 
-      try {
-        yield await this.toDocument(metadata);
-      } catch (error) {
-        this.logIndexError(error, metadata);
+      const document = await this.readDocument(metadata);
+      if (document) {
+        yield document;
       }
     }
   }
 
-  private async indexArtifact(sink: SearchIndexSink, metadata: ArtifactMetadata): Promise<void> {
+  private async reportSavedArtifact(listener: SearchSourceListener, metadata: ArtifactMetadata): Promise<void> {
     if (metadata.contentType !== ARTIFACT_CONTENT_TYPE.TEXT) {
-      sink.remove(this.toRef(metadata));
+      listener.onDocumentRemove(this.toRef(metadata));
       return;
     }
 
-    try {
-      sink.upsert(await this.toDocument(metadata));
-    } catch (error) {
-      this.logIndexError(error, metadata);
+    const document = await this.readDocument(metadata);
+    if (document) {
+      listener.onDocumentUpdate(document);
     }
   }
 
-  private async toDocument(metadata: ArtifactMetadata): Promise<SearchDocument> {
-    const { content } =
-      metadata.entityType === ENTITY_TYPE.AGENT_CIRCLE
-        ? await this.artifactManager.readCircleArtifact(metadata.entityId, metadata.filename)
-        : await this.artifactManager.readArtifact(metadata.entityId, metadata.filename);
+  /** Reads the artifact's content and builds its document; a failed read is logged and returns undefined. */
+  private async readDocument(metadata: ArtifactMetadata): Promise<SearchDocument | undefined> {
+    try {
+      const { content } =
+        metadata.entityType === ENTITY_TYPE.AGENT_CIRCLE
+          ? await this.artifactManager.readCircleArtifact(metadata.entityId, metadata.filename)
+          : await this.artifactManager.readArtifact(metadata.entityId, metadata.filename);
 
+      return this.toDocument(metadata, content);
+    } catch (error) {
+      log.error({ error, filename: metadata.filename, entityId: metadata.entityId }, "Failed to index artifact");
+      return undefined;
+    }
+  }
+
+  private toDocument(metadata: ArtifactMetadata, content: string | Buffer): SearchDocument {
     return {
       ...this.toRef(metadata),
       title: metadata.filename,
@@ -102,9 +110,5 @@ export class ArtifactSearchSource implements SearchSource {
         metadata.entityType === ENTITY_TYPE.AGENT_CIRCLE ? DATA_SOURCE_TYPE.CIRCLE_ARTIFACT : DATA_SOURCE_TYPE.ARTIFACT,
       provenanceId: metadata.entityId,
     };
-  }
-
-  private logIndexError(error: unknown, metadata: ArtifactMetadata): void {
-    log.error({ error, filename: metadata.filename, entityId: metadata.entityId }, "Failed to index artifact");
   }
 }

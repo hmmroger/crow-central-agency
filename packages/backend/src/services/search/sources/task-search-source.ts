@@ -5,8 +5,8 @@ import {
   GLOBAL_PROVENANCE_ID,
   type DocumentRef,
   type SearchDocument,
-  type SearchIndexSink,
   type SearchSource,
+  type SearchSourceListener,
 } from "../document-search-service.types.js";
 
 /** Indexes agent tasks: the task text as title and its result as body. */
@@ -21,15 +21,15 @@ export class TaskSearchSource implements SearchSource {
     }
   }
 
-  public subscribe(sink: SearchIndexSink): void {
-    this.taskManager.on("taskAdded", ({ task }) => sink.upsert(this.toDocument(task)));
-    this.taskManager.on("taskUpdated", ({ task }) => sink.upsert(this.toDocument(task)));
+  public subscribe(listener: SearchSourceListener): void {
+    this.taskManager.on("taskAdded", ({ task }) => listener.onDocumentUpdate(this.toDocument(task)));
+    this.taskManager.on("taskUpdated", ({ task }) => listener.onDocumentUpdate(this.toDocument(task)));
     this.taskManager.on("taskStateChanged", ({ task }) => {
       if (task.state === AGENT_TASK_STATE.COMPLETED || task.state === AGENT_TASK_STATE.INCOMPLETE) {
-        sink.upsert(this.toDocument(task));
+        listener.onDocumentUpdate(this.toDocument(task));
       }
     });
-    this.taskManager.on("taskDeleted", ({ taskId }) => sink.remove(this.toRef(taskId)));
+    this.taskManager.on("taskDeleted", ({ taskId }) => listener.onDocumentRemove(this.toRef(taskId)));
   }
 
   private toDocument(task: AgentTaskItem): SearchDocument {

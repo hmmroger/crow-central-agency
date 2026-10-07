@@ -52,21 +52,22 @@ export interface DocumentSearchHit {
   score: number;
 }
 
-/** Narrow write access to the search index handed to a `SearchSource`. */
-export interface SearchIndexSink {
-  /** Add a new document, or replace the existing one with the same identity. */
-  upsert(document: SearchDocument): void;
-  remove(ref: DocumentRef): void;
+/** Change callbacks a `SearchSource` reports through; the search service decides what to do with them. */
+export interface SearchSourceListener {
+  /** An item was added or changed. */
+  onDocumentUpdate(document: SearchDocument): void;
+  /** An item was deleted or is no longer indexable. */
+  onDocumentRemove(ref: DocumentRef): void;
 }
 
 /**
- * Adapter that feeds one data source into the search index. Each `DataSourceType` is produced
- * by exactly one registered source.
+ * Adapter that produces documents from one data source; it never acts on the index. Each
+ * `DataSourceType` is produced by exactly one registered source.
  */
 export interface SearchSource {
   readonly dataSourceTypes: readonly DataSourceType[];
   /** Yields every existing document for the startup index build; failed documents are logged and skipped. */
   loadAll(): AsyncIterable<SearchDocument>;
-  /** Attaches to the source's change events and pushes updates into the sink. */
-  subscribe(sink: SearchIndexSink): void;
+  /** Attaches to the source's change events and reports them to the listener. */
+  subscribe(listener: SearchSourceListener): void;
 }
