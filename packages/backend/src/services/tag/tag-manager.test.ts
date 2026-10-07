@@ -77,6 +77,25 @@ describe("TagManager.setEntityTags", () => {
     expect(harness.tagManager.findTagByName(" BETA ")?.name).toBe("beta");
   });
 
+  it("treats composed and decomposed spellings of a name as one tag", async () => {
+    const harness = await createHarness();
+    const composed = "café";
+    const decomposed = "café";
+
+    await harness.tagManager.setEntityTags(
+      ENTITY_TYPE.NOTE,
+      new Map([
+        ["note-a", [composed]],
+        ["note-b", [decomposed.toUpperCase()]],
+      ])
+    );
+
+    expect(entityTagNames(harness, "note-a")).toEqual([composed]);
+    expect(entityTagNames(harness, "note-b")).toEqual([composed]);
+    expect(await storedTagNames(harness.store)).toEqual([composed]);
+    expect(harness.tagManager.findTagByName(decomposed)?.name).toBe(composed);
+  });
+
   it("replaces changed tags and deletes tags left without edges", async () => {
     const harness = await createHarness();
     await harness.tagManager.setEntityTags(
