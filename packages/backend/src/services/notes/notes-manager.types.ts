@@ -24,6 +24,14 @@ export interface ParsedNoteContent {
   tags: string[];
 }
 
+/** What one walk of a note tree yields; text notes are read and parsed during the walk when `isContentParsed` */
+export interface NoteTreeScan {
+  walkPath: string;
+  isContentParsed: boolean;
+  index: Map<string, NoteMetadata>;
+  parsedContentByNoteId: Map<string, ParsedNoteContent>;
+}
+
 /** Where a new note would land; the caller checks the id and guards the path before writing. */
 export interface ResolvedNotePath {
   id: string;

@@ -41,7 +41,6 @@ import {
   statFile,
   writeBinaryFile,
 } from "../../utils/fs-utils.js";
-import type { WriteFileOptions } from "../../utils/fs-utils.types.js";
 import { logger } from "../../utils/logger.js";
 import type { RelationshipManager } from "../relationship-manager.js";
 import type { TagManager } from "../tag/tag-manager.js";
@@ -49,6 +48,7 @@ import type { WsBroadcaster } from "../ws-broadcaster.js";
 import type {
   CreateNoteOptions,
   ListNotesOptions,
+  NoteTreeScan,
   ParsedNoteContent,
   ReadNoteResult,
   ResolvedNotePath,
@@ -177,16 +177,21 @@ export class NotesManager {
     content: string | Buffer,
     options: CreateNoteOptions = {}
   ): Promise<NoteFileMetadata> {
-    const filename = Buffer.isBuffer(content) ? name : `${name}${MARKDOWN_EXTENSION}`;
+    const isText = !Buffer.isBuffer(content);
+    const filename = isText ? `${name}${MARKDOWN_EXTENSION}` : name;
     const target = await this.resolveNewTarget(options.parentId, name, filename);
-    if (!(await this.writeNoteFile(target.absolutePath, content, { overwrite: false }))) {
+    if (
+      !(await writeBinaryFile(target.absolutePath, isText ? Buffer.from(content, "utf-8") : content, {
+        overwrite: false,
+      }))
+    ) {
       throw new AppError(`A note or folder with id "${target.id}" already exists`, APP_ERROR_CODES.CONFLICT);
     }
 
     const metadata = await this.indexCreatedNote(target, options.parentId);
-    if (metadata.contentType === NOTE_CONTENT_TYPE.TEXT) {
-      const text = Buffer.isBuffer(content) ? content.toString("utf-8") : content;
-      await this.setNoteTags(ENTITY_TYPE.NOTE, new Map([[metadata.id, this.parseNoteContent(text).tags]]));
+    // MARKDOWN_EXTENSION determines the contentType
+    if (isText) {
+      await this.applyParsedContent(new Map([[metadata.id, this.parseNoteContent(content)]]));
     }
 
     return metadata;
@@ -307,7 +312,7 @@ export class NotesManager {
       }
 
       await assertRealPathWithinBase(target.absolutePath, this.notesPath);
-      if (await this.writeNoteFile(target.absolutePath, content, { overwrite: false })) {
+      if (await writeBinaryFile(target.absolutePath, content, { overwrite: false })) {
         const note = await this.indexCreatedNote(target, assetsFolder.id);
 
         return { note, target: this.toShortestWikilinkTarget(note) };
@@ -340,10 +345,10 @@ export class NotesManager {
       throw new AppError(`Note changed on disk since it was loaded: ${id}`, APP_ERROR_CODES.CONFLICT);
     }
 
-    await this.writeNoteFile(notePath, content);
+    await writeBinaryFile(notePath, Buffer.from(content, "utf-8"));
     const updated = await this.buildNoteMetadata(notePath, path.basename(metadata.path), metadata.parentId);
     this.putEntry(updated);
-    await this.setNoteTags(ENTITY_TYPE.NOTE, new Map([[updated.id, this.parseNoteContent(content).tags]]));
+    await this.applyParsedContent(new Map([[updated.id, this.parseNoteContent(content)]]));
 
     return updated;
   }
@@ -395,11 +400,11 @@ export class NotesManager {
       }
     }
 
-    const movedIds = await this.putMovedEntries(entries, metadata.path, nextRelativePath, nextParentId);
+    const movedEntries = await this.putMovedEntries(entries, metadata.path, nextRelativePath, nextParentId);
     await this.refreshFolderEntry(metadata.parentId);
     await this.refreshFolderEntry(nextParentId);
     if (nextId !== id) {
-      await this.rekeyNoteTags(movedIds);
+      await this.rekeyNoteTags(movedEntries);
     }
 
     return this.requireLiveNote(nextId);
@@ -467,9 +472,8 @@ export class NotesManager {
 
     await this.dropPrunedTrashFolders(path.dirname(metadata.path));
     const parentId = await this.indexFolderChain(path.dirname(restoredPath));
-    const tagNamesByNoteId = new Map<string, string[]>();
-    await this.putMovedEntries(entries, metadata.path, restoredPath, parentId, tagNamesByNoteId);
-    await this.setNoteTags(ENTITY_TYPE.NOTE, tagNamesByNoteId);
+    const restoredEntries = await this.putMovedEntries(entries, metadata.path, restoredPath, parentId);
+    await this.applyParsedContent(await this.parseNoteFiles(restoredEntries.values()));
 
     return this.requireLiveNote(this.toNoteId(restoredPath));
   }
@@ -527,17 +531,15 @@ export class NotesManager {
    * Index the entries a move carried from `fromPath` to `toPath`. Files keep the
    * timestamp and size the move preserves; folders are stat'd, since a merge-move
    * recreates them. An entry overwriting a folder with a file drops that folder's subtree.
-   * When `tagNamesByNoteId` is given, each moved text note is parsed as it is indexed.
-   * Returns the new id of each moved entry by its old id.
+   * Returns each moved entry by its old id.
    */
   private async putMovedEntries(
     entries: ReadonlyArray<NoteMetadata>,
     fromPath: string,
     toPath: string,
-    parentId: string | undefined,
-    tagNamesByNoteId?: Map<string, string[]>
-  ): Promise<Map<string, string>> {
-    const movedIds = new Map<string, string>();
+    parentId: string | undefined
+  ): Promise<Map<string, NoteMetadata>> {
+    const movedEntries = new Map<string, NoteMetadata>();
     for (const entry of entries) {
       const relativePath = path.join(toPath, path.relative(fromPath, entry.path));
       const entryParentId = entry.path === fromPath ? parentId : this.toNoteId(path.dirname(relativePath));
@@ -550,13 +552,10 @@ export class NotesManager {
       }
 
       this.putEntry(moved);
-      movedIds.set(entry.id, moved.id);
-      if (tagNamesByNoteId && moved.entityType === ENTITY_TYPE.NOTE) {
-        await this.collectNoteTags(moved, tagNamesByNoteId);
-      }
+      movedEntries.set(entry.id, moved);
     }
 
-    return movedIds;
+    return movedEntries;
   }
 
   private async toMovedEntry(
@@ -787,13 +786,6 @@ export class NotesManager {
 
   private getIndex(isTrashed: boolean): Map<string, NoteMetadata> {
     return isTrashed ? this.trashIndex : this.index;
-  }
-
-  /** The one write path: text is converted to bytes once, like every other file write. */
-  private writeNoteFile(absolutePath: string, content: string | Buffer, options?: WriteFileOptions): Promise<boolean> {
-    const bytes = Buffer.isBuffer(content) ? content : Buffer.from(content, "utf-8");
-
-    return writeBinaryFile(absolutePath, bytes, options);
   }
 
   /** Whether `candidatePath` is `ancestorPath` itself or sits underneath it */
@@ -1116,40 +1108,32 @@ export class NotesManager {
   }
 
   private async loadIndexes(): Promise<void> {
-    const tagNamesByNoteId = new Map<string, string[]>();
-    this.index = await this.buildIndex(this.notesPath, tagNamesByNoteId);
-    this.trashIndex = await this.buildIndex(this.trashPath);
+    const liveScan = await this.scanTree(this.notesPath, true);
+    const trashScan = await this.scanTree(this.trashPath, false);
+    this.index = liveScan.index;
+    this.trashIndex = trashScan.index;
 
     log.info({ notesPath: this.notesPath, notes: this.index.size, trashed: this.trashIndex.size }, "Notes index built");
 
-    await this.setNoteTags(ENTITY_TYPE.NOTE, tagNamesByNoteId);
+    await this.applyParsedContent(liveScan.parsedContentByNoteId);
   }
 
   /**
-   * Walk one subtree into its own index. The two indexes never merge: the live
+   * Walk one tree into its own index. The two indexes never merge: the live
    * walk skips every dot-entry, so the trash structurally cannot surface in a
-   * listing, and only an explicit by-id lookup reaches the trash index. When
-   * `tagNamesByNoteId` is given, each text note is parsed as it is indexed and its tags collected there.
+   * listing, and only an explicit by-id lookup reaches the trash index. With
+   * `isContentParsed`, each text note is read and parsed as it is indexed, so no second walk is needed.
    */
-  private async buildIndex(
-    walkPath: string,
-    tagNamesByNoteId?: Map<string, string[]>
-  ): Promise<Map<string, NoteMetadata>> {
-    const index = new Map<string, NoteMetadata>();
+  private async scanTree(walkPath: string, isContentParsed: boolean): Promise<NoteTreeScan> {
+    const scan: NoteTreeScan = { walkPath, isContentParsed, index: new Map(), parsedContentByNoteId: new Map() };
     if (await isPathExists(walkPath)) {
-      await this.indexDirectory(walkPath, undefined, index, walkPath, tagNamesByNoteId);
+      await this.scanDirectory(walkPath, undefined, scan);
     }
 
-    return index;
+    return scan;
   }
 
-  private async indexDirectory(
-    dirPath: string,
-    parentId: string | undefined,
-    index: Map<string, NoteMetadata>,
-    walkPath: string,
-    tagNamesByNoteId: Map<string, string[]> | undefined
-  ): Promise<void> {
+  private async scanDirectory(dirPath: string, parentId: string | undefined, scan: NoteTreeScan): Promise<void> {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
     for (const entry of entries) {
@@ -1159,35 +1143,73 @@ export class NotesManager {
       }
 
       const entryPath = path.join(dirPath, entry.name);
-      assertWithinBase(entryPath, walkPath);
+      assertWithinBase(entryPath, scan.walkPath);
 
       // Dirent flags do not follow symlinks, so a link out of the root is neither file nor directory.
       if (entry.isDirectory()) {
         const metadata = await this.buildFolderMetadata(entryPath, entry.name, parentId);
-        if (this.addToIndex(index, metadata)) {
-          await this.indexDirectory(entryPath, metadata.id, index, walkPath, tagNamesByNoteId);
+        if (this.addToIndex(scan.index, metadata)) {
+          await this.scanDirectory(entryPath, metadata.id, scan);
         }
       } else if (entry.isFile()) {
-        const metadata = await this.buildNoteMetadata(entryPath, entry.name, parentId);
-        if (this.addToIndex(index, metadata) && tagNamesByNoteId) {
-          await this.collectNoteTags(metadata, tagNamesByNoteId);
-        }
+        await this.scanFile(entryPath, entry.name, parentId, scan);
       }
     }
   }
 
-  /** Read and parse a live text note, adding its tags to `tagNamesByNoteId`; a note that can't be read is logged and left out. */
-  private async collectNoteTags(metadata: NoteFileMetadata, tagNamesByNoteId: Map<string, string[]>): Promise<void> {
-    if (metadata.contentType !== NOTE_CONTENT_TYPE.TEXT) {
+  private async scanFile(
+    entryPath: string,
+    entryName: string,
+    parentId: string | undefined,
+    scan: NoteTreeScan
+  ): Promise<void> {
+    const metadata = await this.buildNoteMetadata(entryPath, entryName, parentId);
+    if (!this.addToIndex(scan.index, metadata) || !scan.isContentParsed) {
       return;
     }
 
-    try {
-      const content = await readTextFile(this.resolvePath(metadata.path));
-      tagNamesByNoteId.set(metadata.id, this.parseNoteContent(content).tags);
-    } catch (error) {
-      log.warn({ error, noteId: metadata.id }, "Failed to read note for tags");
+    const parsedContent = await this.parseNoteFile(metadata);
+    if (parsedContent) {
+      scan.parsedContentByNoteId.set(metadata.id, parsedContent);
     }
+  }
+
+  /** Parse every text note among `entries` from disk, for notes whose content is not in hand. */
+  private async parseNoteFiles(entries: Iterable<NoteMetadata>): Promise<Map<string, ParsedNoteContent>> {
+    const parsedContentByNoteId = new Map<string, ParsedNoteContent>();
+    for (const entry of entries) {
+      const parsedContent = entry.entityType === ENTITY_TYPE.NOTE ? await this.parseNoteFile(entry) : undefined;
+      if (parsedContent) {
+        parsedContentByNoteId.set(entry.id, parsedContent);
+      }
+    }
+
+    return parsedContentByNoteId;
+  }
+
+  /** Read a text note and parse it; any other note, or one that can't be read, yields undefined. */
+  private async parseNoteFile(metadata: NoteFileMetadata): Promise<ParsedNoteContent | undefined> {
+    if (metadata.contentType !== NOTE_CONTENT_TYPE.TEXT) {
+      return undefined;
+    }
+
+    try {
+      return this.parseNoteContent(await readTextFile(this.resolvePath(metadata.path)));
+    } catch (error) {
+      log.warn({ error, noteId: metadata.id }, "Failed to read note content");
+
+      return undefined;
+    }
+  }
+
+  /** Apply what each note's parsed content drives; every content-derived relationship is synced here. */
+  private async applyParsedContent(parsedContentByNoteId: ReadonlyMap<string, ParsedNoteContent>): Promise<void> {
+    const tagNamesByNoteId = new Map<string, string[]>();
+    for (const [noteId, parsedContent] of parsedContentByNoteId) {
+      tagNamesByNoteId.set(noteId, parsedContent.tags);
+    }
+
+    await this.setNoteTags(ENTITY_TYPE.NOTE, tagNamesByNoteId);
   }
 
   /** The tokens of a text note the notes collection cares about, from one parse. */
@@ -1227,7 +1249,12 @@ export class NotesManager {
   }
 
   /** Move the tag edges of re-keyed notes to their new ids; a failure is logged and never fails the move. */
-  private async rekeyNoteTags(idMap: ReadonlyMap<string, string>): Promise<void> {
+  private async rekeyNoteTags(movedEntries: ReadonlyMap<string, NoteMetadata>): Promise<void> {
+    const idMap = new Map<string, string>();
+    for (const [previousId, entry] of movedEntries) {
+      idMap.set(previousId, entry.id);
+    }
+
     try {
       await this.relationshipManager.rekeyEntities(idMap);
     } catch (error) {
