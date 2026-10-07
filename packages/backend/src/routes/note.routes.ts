@@ -48,7 +48,7 @@ function sendNoteContent(reply: FastifyReply, { metadata, content }: ReadNoteRes
 export async function registerNoteRoutes(server: FastifyInstance, notesManager: NotesManager) {
   /** List the live note tree as a flat array */
   server.get("/api/notes", async () => {
-    return { success: true, data: notesManager.getTree() };
+    return { success: true, data: notesManager.listNotes({ isRecursive: true }) };
   });
 
   /** Create a folder or a text note */
@@ -57,8 +57,8 @@ export async function registerNoteRoutes(server: FastifyInstance, notesManager: 
       const input = CreateNoteInputSchema.parse(request.body);
       const metadata: NoteMetadata =
         input.entityType === ENTITY_TYPE.NOTE_FOLDER
-          ? await notesManager.createFolder(input.parentId, input.name)
-          : await notesManager.createTextNote(input.parentId, input.name, input.content);
+          ? await notesManager.createFolder(input.name, { parentId: input.parentId })
+          : await notesManager.createNote(input.name, input.content ?? "", { parentId: input.parentId });
 
       return { success: true, data: metadata };
     } catch (error) {
@@ -131,7 +131,7 @@ export async function registerNoteRoutes(server: FastifyInstance, notesManager: 
 
   /** List the trash tree as a flat array */
   server.get(TRASH_ROUTE, async () => {
-    return { success: true, data: notesManager.getTrashTree() };
+    return { success: true, data: notesManager.listTrashNotes({ isRecursive: true }) };
   });
 
   /** Restore a trashed note to the path it was deleted from */

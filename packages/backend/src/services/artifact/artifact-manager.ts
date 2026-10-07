@@ -49,7 +49,7 @@ import {
   safeNormalizeArtifactFilename,
 } from "./artifact-filename.js";
 import { detectArtifactContentType } from "./artifact-content-detector.js";
-import { normalizeTags } from "./artifact-tags.js";
+import { normalizeTags } from "../tag/tag-name.js";
 
 const log = logger.child({ context: "artifact-manager" });
 
@@ -512,7 +512,9 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
         return false;
       }
 
-      if (requiredTags && !requiredTags.every((tag) => artifact.tags?.includes(tag))) {
+      // Stored tags are normalized too, since they may predate the current normalization.
+      const artifactTags = requiredTags ? normalizeTags(artifact.tags) : undefined;
+      if (requiredTags && !requiredTags.every((tag) => artifactTags?.includes(tag))) {
         return false;
       }
 

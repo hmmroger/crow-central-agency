@@ -69,7 +69,7 @@ export const NoteContentSchema = z.object({
 
 export type NoteContent = z.infer<typeof NoteContentSchema>;
 
-export const NOTE_NAME_MAX_LENGTH = 128;
+export const NOTE_NAME_MAX_LENGTH = 250;
 
 /** Image types a note accepts as an uploaded asset. SVG is left out on purpose: it can carry script. */
 export const NOTE_IMAGE_ASSET_MIME_TYPES: ReadonlySet<string> = new Set([

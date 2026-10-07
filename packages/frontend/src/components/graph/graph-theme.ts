@@ -52,6 +52,7 @@ export const EDGE_COLOR_BY_RELATIONSHIP: Record<RelationshipType, string> = {
   [RELATIONSHIP_TYPE.MEMBERSHIP]: GRAPH_COLORS.edge,
   [RELATIONSHIP_TYPE.ASSOCIATION]: GRAPH_COLORS.edgeAssociation,
   [RELATIONSHIP_TYPE.LINK]: GRAPH_COLORS.edgeLink,
+  [RELATIONSHIP_TYPE.TAGGED]: GRAPH_COLORS.edge,
 };
 
 /** Maps agent status to node color and size */

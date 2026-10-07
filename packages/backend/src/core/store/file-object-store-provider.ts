@@ -171,6 +171,20 @@ export class FileObjectStoreProvider implements ObjectStoreProvider {
     });
   }
 
+  public async deleteMany(table: string, keys: ReadonlyArray<string>): Promise<number> {
+    await this.ensureTable(table);
+    const state = this.getTableState(table);
+
+    return this.serializedWithResult(state, async () => {
+      const deletedCount = keys.filter((key) => state.data.delete(key)).length;
+      if (deletedCount > 0) {
+        await this.persistTable(state);
+      }
+
+      return deletedCount;
+    });
+  }
+
   public async query<T extends Record<string, unknown>>(
     table: string,
     conditions: StoreQueryCondition<T>[]

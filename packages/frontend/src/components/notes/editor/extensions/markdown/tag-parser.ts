@@ -11,8 +11,8 @@ import type {
 import { TAG_LINE_SOURCE, TAG_SOURCE } from "@crow-central-agency/shared";
 import type { TagPosition } from "./tag-parser.types.js";
 
-const TAG_LINE_PATTERN = new RegExp(`^${TAG_LINE_SOURCE}$`);
-const TAG_PATTERN = new RegExp(TAG_SOURCE, "g");
+const TAG_LINE_PATTERN = new RegExp(`^${TAG_LINE_SOURCE}$`, "u");
+const TAG_PATTERN = new RegExp(TAG_SOURCE, "gu");
 const DOCUMENT_DEPTH = 1;
 
 function isOnlyTagsAndWhitespace(text: string): boolean {
