@@ -552,9 +552,8 @@ export class NotesManager {
 
   /**
    * Index `root` and its `descendants` after a move carried `root` to `toPath`; only `root`
-   * takes `parentId`, the rest keep their place under it. Files keep the timestamp and size
-   * the move preserves; folders are stat'd, since a merge-move recreates them.
-   * Returns each moved entry by its old id.
+   * takes `parentId`, the rest keep their place under it. Each entry is rebuilt from disk at
+   * its new path. Returns each moved entry by its old id.
    */
   private async reindexMoved(
     root: NoteMetadata,
@@ -579,7 +578,12 @@ export class NotesManager {
     relativePath: string,
     parentId: string | undefined
   ): Promise<NoteMetadata> {
-    const moved = await this.toMovedEntry(entry, relativePath, parentId);
+    const absolutePath = this.resolvePath(relativePath);
+    const entryName = path.basename(relativePath);
+    const moved =
+      entry.entityType === ENTITY_TYPE.NOTE_FOLDER
+        ? await this.buildFolderMetadata(absolutePath, entryName, parentId)
+        : await this.buildNoteMetadata(absolutePath, entryName, parentId);
     const existing = this.getIndex(moved.isTrashed).get(moved.id);
     if (existing?.entityType === ENTITY_TYPE.NOTE_FOLDER && moved.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
       this.removeEntry(existing.id);
@@ -589,29 +593,6 @@ export class NotesManager {
     this.putEntry(moved);
 
     return moved;
-  }
-
-  private async toMovedEntry(
-    entry: NoteMetadata,
-    relativePath: string,
-    parentId: string | undefined
-  ): Promise<NoteMetadata> {
-    const entryName = path.basename(relativePath);
-    if (entry.entityType === ENTITY_TYPE.NOTE_FOLDER) {
-      return this.buildFolderMetadata(this.resolvePath(relativePath), entryName, parentId);
-    }
-
-    const isTrashed = this.isWithinRelativePath(relativePath, TRASH_DIRECTORY);
-
-    return {
-      ...entry,
-      id: this.toNoteId(relativePath),
-      name: this.toNoteName(entryName, ENTITY_TYPE.NOTE),
-      path: relativePath,
-      parentId,
-      isTrashed,
-      isReadOnly: isTrashed || entry.contentType !== NOTE_CONTENT_TYPE.TEXT,
-    };
   }
 
   /**
