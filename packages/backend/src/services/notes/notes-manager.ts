@@ -52,10 +52,8 @@ import type {
   ParsedNoteContent,
   ReadNoteResult,
   ResolvedNotePath,
-  WikilinkMatch,
-  WikilinkPlacement,
-  WikilinkSuggestionMatch,
 } from "./notes-manager.types.js";
+import { WikilinkResolver } from "./wikilink-resolver.js";
 
 const log = logger.child({ context: "notes-manager" });
 
@@ -67,9 +65,6 @@ const TRASH_DIRECTORY = ".trash";
 
 /** Replaces the path separator in a note id — invalid in filenames, so it cannot collide */
 const NOTE_ID_SEPARATOR = ":";
-
-/** Separates the folder segments and the note name in a wikilink target */
-const WIKILINK_TARGET_SEPARATOR = "/";
 
 /** Characters that are invalid in a filename on at least one supported platform */
 const INVALID_NAME_CHARACTERS = /[<>:"/\\|?*]/;
@@ -86,9 +81,6 @@ const DATE_PART_LENGTH = 2;
 /** Bounds the `-n` suffix search for images saved in the same second */
 const MAX_ASSET_NAME_ATTEMPTS = 100;
 
-const RECENT_SUGGESTION_LIMIT = 5;
-const MATCH_SUGGESTION_LIMIT = 10;
-
 /**
  * Manages the user's note tree, stored as plain files under the notes root.
  * A file is a note, a directory is a folder, and the in-memory index is a pure
@@ -104,6 +96,7 @@ export class NotesManager {
   private readonly trashPath: string;
   private index = new Map<string, NoteMetadata>();
   private trashIndex = new Map<string, NoteMetadata>();
+  private wikilinkResolver = new WikilinkResolver(this.index);
   private readonly markdownParser = new Marked({ extensions: [taglineExtension, hashtagExtension] });
 
   constructor(
@@ -209,7 +202,7 @@ export class NotesManager {
 
   /** What each target names in the live tree; never creates. */
   public resolveWikilinkBatch(targets: string[]): WikilinkResolution[] {
-    return targets.map((target) => ({ target, note: this.findWikilinkNote(target) }));
+    return targets.map((target) => ({ target, note: this.wikilinkResolver.findNote(target) }));
   }
 
   /**
@@ -218,7 +211,7 @@ export class NotesManager {
    * @throws AppError VALIDATION when the target is blank or names a folder.
    */
   public async resolveWikilink(target: string, sourceNoteId: string): Promise<NoteMetadata> {
-    const existing = this.findWikilinkNote(target);
+    const existing = this.wikilinkResolver.findNote(target);
     if (existing?.entityType === ENTITY_TYPE.NOTE_FOLDER) {
       throw new AppError(`"${target}" names a folder, not a note`, APP_ERROR_CODES.VALIDATION);
     }
@@ -227,7 +220,7 @@ export class NotesManager {
       return existing;
     }
 
-    const placement = this.findWikilinkPlacement(target, this.requireLiveNote(sourceNoteId));
+    const placement = this.wikilinkResolver.findPlacement(target, this.requireLiveNote(sourceNoteId));
     if (!placement) {
       throw new AppError("A link needs a note name", APP_ERROR_CODES.VALIDATION);
     }
@@ -240,35 +233,9 @@ export class NotesManager {
     return this.createNote(placement.noteName, "", { parentId });
   }
 
-  /**
-   * The notes `[[` or `![[` offers: every note, or only images for an embed. With no query the
-   * most recently updated; otherwise those whose name (or path, for a query with `/`) contains the query,
-   * those starting with it first, then the most recent.
-   */
+  /** The notes `[[` or `![[` offers for `query`. */
   public suggestWikilinks(query: SuggestWikilinksQuery): WikilinkSuggestion[] {
-    const candidates: NoteFileMetadata[] = [];
-    for (const metadata of this.index.values()) {
-      if (
-        metadata.entityType === ENTITY_TYPE.NOTE &&
-        metadata.id !== query.excludeId &&
-        (!query.isEmbed || metadata.contentType === NOTE_CONTENT_TYPE.IMAGE)
-      ) {
-        candidates.push(metadata);
-      }
-    }
-
-    const needle = this.toComparableNoteName(query.query.trim());
-    const notes = needle
-      ? this.rankSuggestionMatches(candidates, needle)
-      : candidates
-          .sort((first, second) => second.updatedTimestamp - first.updatedTimestamp)
-          .slice(0, RECENT_SUGGESTION_LIMIT);
-
-    return notes.map((note) => ({
-      note,
-      folderPath: this.getFolderDisplayPath(note),
-      target: this.findShortestWikilinkTarget(note),
-    }));
+    return this.wikilinkResolver.suggest(query);
   }
 
   /** Every live folder a note may move into: all but the note itself and its descendants. */
@@ -316,7 +283,7 @@ export class NotesManager {
       if (await writeBinaryFile(target.absolutePath, content, { overwrite: false })) {
         const note = await this.indexCreatedNote(target, assetsFolder.id);
 
-        return { note, target: this.findShortestWikilinkTarget(note) };
+        return { note, target: this.wikilinkResolver.findShortestTarget(note) };
       }
     }
 
@@ -824,165 +791,6 @@ export class NotesManager {
   }
 
   /**
-   * The last `/` segment is the note's name and any leading segments end its
-   * folder path. A root-anchored match wins; otherwise the first match by path,
-   * preferring a note over a folder. Never filters by content type.
-   */
-  private findWikilinkNote(target: string): NoteMetadata | undefined {
-    const matches = this.findWikilinkMatches(this.toWikilinkTargetSegments(target));
-    const preferred =
-      matches.find((match) => match.isRootAnchored) ??
-      matches.find((match) => match.note.entityType !== ENTITY_TYPE.NOTE_FOLDER) ??
-      matches[0];
-
-    return preferred?.note;
-  }
-
-  /** Every live note `segments` name, in path order. */
-  private findWikilinkMatches(segments: string[]): WikilinkMatch[] {
-    const matches: WikilinkMatch[] = [];
-    if (segments.length === 0) {
-      return matches;
-    }
-
-    for (const note of this.index.values()) {
-      const match = this.matchWikilinkSegments(note, segments);
-      if (match) {
-        matches.push(match);
-      }
-    }
-
-    return matches.sort((first, second) => (first.note.path < second.note.path ? -1 : 1));
-  }
-
-  /** `note` matches when the last segment is its name and the leading ones end its folder path. */
-  private matchWikilinkSegments(note: NoteMetadata, segments: string[]): WikilinkMatch | undefined {
-    const lastIndex = segments.length - 1;
-    if (!this.isSameNoteName(note.name, segments[lastIndex])) {
-      return undefined;
-    }
-
-    let parentId = note.parentId;
-    for (let segmentIndex = lastIndex - 1; segmentIndex >= 0; segmentIndex--) {
-      const parent = parentId === undefined ? undefined : this.index.get(parentId);
-      if (!parent || !this.isSameNoteName(parent.name, segments[segmentIndex])) {
-        return undefined;
-      }
-
-      parentId = parent.parentId;
-    }
-
-    return { note, isRootAnchored: parentId === undefined };
-  }
-
-  /**
-   * The shortest target that names exactly `note`: its bare name, qualified with
-   * one parent folder at a time until no other note matches. A full path always
-   * resolves back to `note` because root-anchored matches win.
-   */
-  private findShortestWikilinkTarget(note: NoteMetadata): string {
-    const segments = [note.name];
-    let parentId = note.parentId;
-
-    while (this.findWikilinkMatches(segments).length > 1) {
-      const parent = parentId === undefined ? undefined : this.index.get(parentId);
-      if (!parent) {
-        break;
-      }
-
-      segments.unshift(parent.name);
-      parentId = parent.parentId;
-    }
-
-    return segments.join(WIKILINK_TARGET_SEPARATOR);
-  }
-
-  /**
-   * Where to create the text note an unresolved target names. A bare name goes beside `sourceNote`;
-   * a qualified `a/b/name` goes at that path from the notes root, reusing the folders that exist.
-   */
-  private findWikilinkPlacement(target: string, sourceNote: NoteMetadata): WikilinkPlacement | undefined {
-    const segments = this.toWikilinkTargetSegments(target);
-    const noteName = segments.pop();
-    if (noteName === undefined) {
-      return undefined;
-    }
-
-    if (segments.length === 0) {
-      return { parentId: sourceNote.parentId, missingFolderNames: [], noteName };
-    }
-
-    let parentId: string | undefined;
-    let existingCount = 0;
-    for (const folderName of segments) {
-      const folder = this.findChildFolder(parentId, folderName);
-      if (!folder) {
-        break;
-      }
-
-      parentId = folder.id;
-      existingCount++;
-    }
-
-    return { parentId, missingFolderNames: segments.slice(existingCount), noteName };
-  }
-
-  private findChildFolder(parentId: string | undefined, name: string): NoteMetadata | undefined {
-    for (const metadata of this.index.values()) {
-      if (
-        metadata.entityType === ENTITY_TYPE.NOTE_FOLDER &&
-        metadata.parentId === parentId &&
-        this.isSameNoteName(metadata.name, name)
-      ) {
-        return metadata;
-      }
-    }
-
-    return undefined;
-  }
-
-  /** The folders above `note`, outermost first, or `undefined` at the notes root. */
-  private getFolderDisplayPath(note: NoteMetadata): string | undefined {
-    const folderNames: string[] = [];
-    let parentId = note.parentId;
-
-    while (parentId !== undefined) {
-      const parent = this.index.get(parentId);
-      if (!parent) {
-        break;
-      }
-
-      folderNames.unshift(parent.name);
-      parentId = parent.parentId;
-    }
-
-    return folderNames.length > 0 ? folderNames.join(WIKILINK_TARGET_SEPARATOR) : undefined;
-  }
-
-  /** A needle with a `/` matches against the folder path too, so `trip/pl` narrows to notes in `trip`. */
-  private rankSuggestionMatches(candidates: NoteFileMetadata[], needle: string): NoteFileMetadata[] {
-    const isPathQuery = needle.includes(WIKILINK_TARGET_SEPARATOR);
-    const matches: WikilinkSuggestionMatch[] = [];
-    for (const note of candidates) {
-      const folderPath = isPathQuery ? this.getFolderDisplayPath(note) : undefined;
-      const text = this.toComparableNoteName(
-        folderPath === undefined ? note.name : `${folderPath}${WIKILINK_TARGET_SEPARATOR}${note.name}`
-      );
-      if (text.includes(needle)) {
-        matches.push({ note, isPrefix: text.startsWith(needle) });
-      }
-    }
-
-    return matches
-      .sort(
-        (first, second) =>
-          Number(second.isPrefix) - Number(first.isPrefix) || second.note.updatedTimestamp - first.note.updatedTimestamp
-      )
-      .slice(0, MATCH_SUGGESTION_LIMIT)
-      .map((match) => match.note);
-  }
-
-  /**
    * Validate a user-supplied note or folder name. Names are never normalized or
    * auto-resolved — an unusable name is rejected so the user renames it.
    * @throws AppError INVALID_FILENAME
@@ -1083,23 +891,6 @@ export class NotesManager {
     return NOTE_CONTENT_TYPE.UNKNOWN;
   }
 
-  /** The form note names compare in; names match case-insensitively. */
-  private toComparableNoteName(name: string): string {
-    return name.toLowerCase();
-  }
-
-  private isSameNoteName(name: string, otherName: string): boolean {
-    return this.toComparableNoteName(name) === this.toComparableNoteName(otherName);
-  }
-
-  /** A wikilink target's `/`-separated segments, blank ones dropped; the last is the note's name. */
-  private toWikilinkTargetSegments(target: string): string[] {
-    return target
-      .split(WIKILINK_TARGET_SEPARATOR)
-      .map((segment) => segment.trim())
-      .filter((segment) => segment.length > 0);
-  }
-
   /** The extension an uploaded image is stored with, or undefined when its type is not accepted. */
   private toImageAssetExtension(mimeType: string): string | undefined {
     const normalizedMimeType = mimeType.trim().toLowerCase();
@@ -1135,12 +926,18 @@ export class NotesManager {
   private async loadIndexes(): Promise<void> {
     const liveScan = await this.scanTree(this.notesPath, true);
     const trashScan = await this.scanTree(this.trashPath, false);
-    this.index = liveScan.index;
+    this.setLiveIndex(liveScan.index);
     this.trashIndex = trashScan.index;
 
     log.info({ notesPath: this.notesPath, notes: this.index.size, trashed: this.trashIndex.size }, "Notes index built");
 
     await this.applyParsedContent(liveScan.parsedContentByNoteId);
+  }
+
+  /** Replace the live index together with the resolver that reads it, so the two never disagree. */
+  private setLiveIndex(index: Map<string, NoteMetadata>): void {
+    this.index = index;
+    this.wikilinkResolver = new WikilinkResolver(index);
   }
 
   /**
