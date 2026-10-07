@@ -124,12 +124,12 @@ export class NotesManager {
 
   /** Live notes directly under `parentId` (the root when omitted), or everything under it when recursive. */
   public listNotes(options: ListNotesOptions = {}): NoteMetadata[] {
-    return this.listEntries(this.index, options);
+    return this.listEntries(false, options);
   }
 
   /** Trashed notes, listed like `listNotes`. Their ids carry the `.trash:` prefix of their path. */
   public listTrashNotes(options: ListNotesOptions = {}): NoteMetadata[] {
-    return this.listEntries(this.trashIndex, options);
+    return this.listEntries(true, options);
   }
 
   /**
@@ -139,7 +139,7 @@ export class NotesManager {
    * @throws AppError NOT_FOUND when the id is not indexed.
    */
   public getNote(id: string): NoteMetadata {
-    const metadata = this.index.get(id) ?? this.trashIndex.get(id);
+    const metadata = this.findEntry(id);
     if (!metadata) {
       throw new AppError(`Note not found: ${id}`, APP_ERROR_CODES.NOT_FOUND);
     }
@@ -274,9 +274,10 @@ export class NotesManager {
   /** Every live folder a note may move into: all but the note itself and its descendants. */
   public getMoveDestinations(id: string): NoteFolderMetadata[] {
     const note = this.requireLiveNote(id);
+    const excludedIds = new Set(this.listDescendants(note).map((entry) => entry.id)).add(note.id);
     const destinations: NoteFolderMetadata[] = [];
     for (const metadata of this.index.values()) {
-      if (metadata.entityType === ENTITY_TYPE.NOTE_FOLDER && !this.isWithinRelativePath(metadata.path, note.path)) {
+      if (metadata.entityType === ENTITY_TYPE.NOTE_FOLDER && !excludedIds.has(metadata.id)) {
         destinations.push(metadata);
       }
     }
@@ -388,19 +389,18 @@ export class NotesManager {
     const nextAbsolutePath = path.join(this.notesPath, nextRelativePath);
     await assertRealPathWithinBase(nextAbsolutePath, this.notesPath);
 
-    const entries = this.collectSubtree(this.index, metadata.path);
+    const descendants = this.listDescendants(metadata);
     const renamed = await renameFile(this.resolvePath(metadata.path), nextAbsolutePath);
     if (!renamed) {
       throw new AppError(`Note not found: ${id}`, APP_ERROR_CODES.NOT_FOUND);
     }
 
     if (nextId !== id) {
-      for (const entry of entries) {
-        this.removeEntry(entry.id);
-      }
+      this.removeEntry(metadata.id);
+      this.removeEntries(descendants);
     }
 
-    const movedEntries = await this.putMovedEntries(entries, metadata.path, nextRelativePath, nextParentId);
+    const movedEntries = await this.putMovedEntries(metadata, descendants, nextRelativePath, nextParentId);
     await this.refreshFolderEntry(metadata.parentId);
     await this.refreshFolderEntry(nextParentId);
     if (nextId !== id) {
@@ -434,18 +434,17 @@ export class NotesManager {
     // resolve exists.
     await ensureDir(path.dirname(targetPath));
     await assertRealPathWithinBase(targetPath, this.notesPath);
-    const entries = this.collectSubtree(this.index, metadata.path);
+    const descendants = this.listDescendants(metadata);
     await mergeMove(sourcePath, targetPath);
 
-    for (const entry of entries) {
-      this.removeEntry(entry.id);
-    }
+    this.removeEntry(metadata.id);
+    this.removeEntries(descendants);
 
     await this.refreshFolderEntry(metadata.parentId);
     const trashParentId = await this.indexFolderChain(path.dirname(trashedPath));
-    await this.putMovedEntries(entries, metadata.path, trashedPath, trashParentId);
-    await this.setNoteTags(ENTITY_TYPE.NOTE, this.toClearedTags(entries, ENTITY_TYPE.NOTE));
-    await this.setNoteTags(ENTITY_TYPE.NOTE_FOLDER, this.toClearedTags(entries, ENTITY_TYPE.NOTE_FOLDER));
+    const trashedEntries = await this.putMovedEntries(metadata, descendants, trashedPath, trashParentId);
+    await this.setNoteTags(ENTITY_TYPE.NOTE, this.toClearedTags(trashedEntries, ENTITY_TYPE.NOTE));
+    await this.setNoteTags(ENTITY_TYPE.NOTE_FOLDER, this.toClearedTags(trashedEntries, ENTITY_TYPE.NOTE_FOLDER));
   }
 
   /**
@@ -462,17 +461,16 @@ export class NotesManager {
     await this.assertRestorable(sourcePath, targetPath);
     await ensureDir(path.dirname(targetPath));
     await assertRealPathWithinBase(targetPath, this.notesPath);
-    const entries = this.collectSubtree(this.trashIndex, metadata.path);
+    const descendants = this.listDescendants(metadata);
     await mergeMove(sourcePath, targetPath);
     await removeEmptyAncestors(path.dirname(sourcePath), this.trashPath);
 
-    for (const entry of entries) {
-      this.removeEntry(entry.id);
-    }
+    this.removeEntry(metadata.id);
+    this.removeEntries(descendants);
 
     await this.dropPrunedTrashFolders(path.dirname(metadata.path));
     const parentId = await this.indexFolderChain(path.dirname(restoredPath));
-    const restoredEntries = await this.putMovedEntries(entries, metadata.path, restoredPath, parentId);
+    const restoredEntries = await this.putMovedEntries(metadata, descendants, restoredPath, parentId);
     await this.applyParsedContent(await this.parseNoteFiles(restoredEntries.values()));
 
     return this.requireLiveNote(this.toNoteId(restoredPath));
@@ -491,6 +489,7 @@ export class NotesManager {
   private async purgeNote(id: string): Promise<void> {
     const metadata = this.requireTrashedNote(id);
     const targetPath = this.resolvePath(metadata.path);
+    const descendants = this.listDescendants(metadata);
 
     if (metadata.entityType === ENTITY_TYPE.NOTE_FOLDER) {
       await removeDir(targetPath);
@@ -500,14 +499,15 @@ export class NotesManager {
 
     await removeEmptyAncestors(path.dirname(targetPath), this.trashPath);
 
-    for (const entry of this.collectSubtree(this.trashIndex, metadata.path)) {
-      this.removeEntry(entry.id);
-    }
+    this.removeEntry(metadata.id);
+    this.removeEntries(descendants);
 
     await this.dropPrunedTrashFolders(path.dirname(metadata.path));
   }
 
-  private listEntries(index: ReadonlyMap<string, NoteMetadata>, options: ListNotesOptions): NoteMetadata[] {
+  /** Entries of one tree directly under `parentId` (the tree root when omitted), or everything under it when recursive; order unspecified. */
+  private listEntries(isTrashed: boolean, options: ListNotesOptions): NoteMetadata[] {
+    const index = this.getIndex(isTrashed);
     const parent = options.parentId === undefined ? undefined : index.get(options.parentId);
     if (options.parentId !== undefined && parent?.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
       throw new AppError(`Folder not found: ${options.parentId}`, APP_ERROR_CODES.NOT_FOUND);
@@ -517,45 +517,79 @@ export class NotesManager {
       return Array.from(index.values()).filter((entry) => entry.parentId === options.parentId);
     }
 
-    return parent
-      ? this.collectSubtree(index, parent.path).filter((entry) => entry.id !== parent.id)
-      : Array.from(index.values());
+    if (!parent) {
+      return Array.from(index.values());
+    }
+
+    const childrenByParentId = this.groupByParentId(index.values());
+    const descendants = Array.from(childrenByParentId.get(parent.id) ?? []);
+    for (let position = 0; position < descendants.length; position++) {
+      descendants.push(...(childrenByParentId.get(descendants[position].id) ?? []));
+    }
+
+    return descendants;
   }
 
-  /** Every entry of `index` at `relativePath` or under it. */
-  private collectSubtree(index: ReadonlyMap<string, NoteMetadata>, relativePath: string): NoteMetadata[] {
-    return Array.from(index.values()).filter((entry) => this.isWithinRelativePath(entry.path, relativePath));
+  /** Every entry under `entry` in its own tree; a note has none. */
+  private listDescendants(entry: NoteMetadata): NoteMetadata[] {
+    return entry.entityType === ENTITY_TYPE.NOTE_FOLDER
+      ? this.listEntries(entry.isTrashed, { parentId: entry.id, isRecursive: true })
+      : [];
+  }
+
+  private groupByParentId(entries: Iterable<NoteMetadata>): Map<string | undefined, NoteMetadata[]> {
+    const childrenByParentId = new Map<string | undefined, NoteMetadata[]>();
+    for (const entry of entries) {
+      const children = childrenByParentId.get(entry.parentId);
+      if (children) {
+        children.push(entry);
+      } else {
+        childrenByParentId.set(entry.parentId, [entry]);
+      }
+    }
+
+    return childrenByParentId;
   }
 
   /**
-   * Index the entries a move carried from `fromPath` to `toPath`. Files keep the
-   * timestamp and size the move preserves; folders are stat'd, since a merge-move
-   * recreates them. An entry overwriting a folder with a file drops that folder's subtree.
+   * Index `root` and its `descendants` after a move carried `root` to `toPath`; only `root`
+   * takes `parentId`, the rest keep their place under it. Files keep the timestamp and size
+   * the move preserves; folders are stat'd, since a merge-move recreates them.
    * Returns each moved entry by its old id.
    */
   private async putMovedEntries(
-    entries: ReadonlyArray<NoteMetadata>,
-    fromPath: string,
+    root: NoteMetadata,
+    descendants: ReadonlyArray<NoteMetadata>,
     toPath: string,
     parentId: string | undefined
   ): Promise<Map<string, NoteMetadata>> {
     const movedEntries = new Map<string, NoteMetadata>();
-    for (const entry of entries) {
-      const relativePath = path.join(toPath, path.relative(fromPath, entry.path));
-      const entryParentId = entry.path === fromPath ? parentId : this.toNoteId(path.dirname(relativePath));
-      const moved = await this.toMovedEntry(entry, relativePath, entryParentId);
-      const existing = this.getIndex(moved.isTrashed).get(moved.id);
-      if (existing?.entityType === ENTITY_TYPE.NOTE_FOLDER && moved.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
-        for (const stale of this.collectSubtree(this.getIndex(moved.isTrashed), existing.path)) {
-          this.removeEntry(stale.id);
-        }
-      }
-
-      this.putEntry(moved);
+    movedEntries.set(root.id, await this.putMovedEntry(root, toPath, parentId));
+    for (const entry of descendants) {
+      const relativePath = path.join(toPath, path.relative(root.path, entry.path));
+      const moved = await this.putMovedEntry(entry, relativePath, this.toNoteId(path.dirname(relativePath)));
       movedEntries.set(entry.id, moved);
     }
 
     return movedEntries;
+  }
+
+  /** Index one moved entry at `relativePath`; a file landing on an indexed folder drops that folder and everything under it. */
+  private async putMovedEntry(
+    entry: NoteMetadata,
+    relativePath: string,
+    parentId: string | undefined
+  ): Promise<NoteMetadata> {
+    const moved = await this.toMovedEntry(entry, relativePath, parentId);
+    const existing = this.getIndex(moved.isTrashed).get(moved.id);
+    if (existing?.entityType === ENTITY_TYPE.NOTE_FOLDER && moved.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
+      this.removeEntry(existing.id);
+      this.removeEntries(this.listDescendants(existing));
+    }
+
+    this.putEntry(moved);
+
+    return moved;
   }
 
   private async toMovedEntry(
@@ -754,7 +788,7 @@ export class NotesManager {
 
   /** Re-stat a folder whose entries changed, updating it when its timestamp moved. */
   private async refreshFolderEntry(folderId: string | undefined): Promise<void> {
-    const folder = folderId === undefined ? undefined : (this.index.get(folderId) ?? this.trashIndex.get(folderId));
+    const folder = folderId === undefined ? undefined : this.findEntry(folderId);
     if (folder?.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
       return;
     }
@@ -782,6 +816,17 @@ export class NotesManager {
     if (this.index.delete(id) || this.trashIndex.delete(id)) {
       this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_DELETED, noteId: id });
     }
+  }
+
+  private removeEntries(entries: Iterable<NoteMetadata>): void {
+    for (const entry of entries) {
+      this.removeEntry(entry.id);
+    }
+  }
+
+  /** An entry from either tree; ids are unique across both. */
+  private findEntry(id: string): NoteMetadata | undefined {
+    return this.index.get(id) ?? this.trashIndex.get(id);
   }
 
   private getIndex(isTrashed: boolean): Map<string, NoteMetadata> {
@@ -1236,12 +1281,15 @@ export class NotesManager {
     }
   }
 
-  /** An empty tag list for every entry of `entityType`, which clears its tags. */
-  private toClearedTags(entries: ReadonlyArray<NoteMetadata>, entityType: NoteEntityType): Map<string, string[]> {
+  /** An empty tag list under the old id of every moved entry of `entityType`, which clears its tags. */
+  private toClearedTags(
+    movedEntries: ReadonlyMap<string, NoteMetadata>,
+    entityType: NoteEntityType
+  ): Map<string, string[]> {
     const tagNamesByNoteId = new Map<string, string[]>();
-    for (const entry of entries) {
+    for (const [previousId, entry] of movedEntries) {
       if (entry.entityType === entityType) {
-        tagNamesByNoteId.set(entry.id, []);
+        tagNamesByNoteId.set(previousId, []);
       }
     }
 
