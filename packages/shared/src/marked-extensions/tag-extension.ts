@@ -1,8 +1,8 @@
 import type { RendererThis, Token, Tokens, TokenizerAndRendererExtension } from "marked";
 import { TAG_TOKEN, type HashtagToken, type TagLineToken } from "./tag-extension.types.js";
 
-/** Regex source of one tag */
-export const TAG_SOURCE = String.raw`#\w+`;
+/** Regex source of one tag: letters, numbers and marks of any script, or `_`. Needs the `u` flag. */
+export const TAG_SOURCE = String.raw`#[\p{L}\p{N}\p{M}_]+`;
 /** Regex source of one line of tags */
 export const TAG_LINE_SOURCE = `(?:${TAG_SOURCE}[ \t]*)+`;
 /** The class a rendered tag carries */
@@ -11,9 +11,9 @@ export const MARKDOWN_TAG_CLASS = "md-tag";
 // One or more tag lines, blank lines allowed between them, followed only by whitespace until the end. start()
 // checks it too, so a tag-like line mid-document never reaches the tokenizer.
 const TAG_LINES_AT_END_SOURCE = String.raw`^((?:[ \t]*\n)*${TAG_LINE_SOURCE}(?:\n|$))+\s*$`;
-const TAG_LINES_AT_END_START_PATTERN = new RegExp(TAG_LINES_AT_END_SOURCE, "m");
-const TAG_LINES_AT_END_PATTERN = new RegExp(TAG_LINES_AT_END_SOURCE);
-const TAG_PATTERN = new RegExp(TAG_SOURCE, "g");
+const TAG_LINES_AT_END_START_PATTERN = new RegExp(TAG_LINES_AT_END_SOURCE, "mu");
+const TAG_LINES_AT_END_PATTERN = new RegExp(TAG_LINES_AT_END_SOURCE, "u");
+const TAG_PATTERN = new RegExp(TAG_SOURCE, "gu");
 const HASHES_ONLY_PATTERN = /^#+$/;
 const TAG_MARK_LENGTH = 1;
 
@@ -66,7 +66,7 @@ export const hashtagExtension: TokenizerAndRendererExtension = {
     return undefined;
   },
   renderer(token) {
-    // The text is `\w+`, so it needs no escaping.
+    // The text is only letters, numbers, marks and `_`, so it needs no escaping.
     return isHashtagToken(token) ? `<span class="${MARKDOWN_TAG_CLASS}">#${token.text}</span>` : false;
   },
 };

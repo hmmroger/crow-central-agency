@@ -45,6 +45,16 @@ describe("marked tag extension", () => {
     it("should handle tags-only content (no preceding text)", () => {
       expect(readTags("#tag1 #tag2")).toEqual(["tag1", "tag2"]);
     });
+
+    it("should accept tags in any script alongside ASCII tags", () => {
+      expect(readTags("Hello\n\n#startup #日本 #café #हिन्दी #한국어_2")).toEqual([
+        "startup",
+        "日本",
+        "café",
+        "हिन्दी",
+        "한국어_2",
+      ]);
+    });
   });
 
   describe("mid-document tag rejection", () => {
