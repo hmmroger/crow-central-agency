@@ -227,7 +227,7 @@ export class NotesManager {
       return existing;
     }
 
-    const placement = this.toWikilinkPlacement(target, this.requireLiveNote(sourceNoteId));
+    const placement = this.findWikilinkPlacement(target, this.requireLiveNote(sourceNoteId));
     if (!placement) {
       throw new AppError("A link needs a note name", APP_ERROR_CODES.VALIDATION);
     }
@@ -266,8 +266,8 @@ export class NotesManager {
 
     return notes.map((note) => ({
       note,
-      folderPath: this.toFolderPath(note),
-      target: this.toShortestWikilinkTarget(note),
+      folderPath: this.getFolderDisplayPath(note),
+      target: this.findShortestWikilinkTarget(note),
     }));
   }
 
@@ -316,7 +316,7 @@ export class NotesManager {
       if (await writeBinaryFile(target.absolutePath, content, { overwrite: false })) {
         const note = await this.indexCreatedNote(target, assetsFolder.id);
 
-        return { note, target: this.toShortestWikilinkTarget(note) };
+        return { note, target: this.findShortestWikilinkTarget(note) };
       }
     }
 
@@ -400,9 +400,9 @@ export class NotesManager {
       this.removeEntries(descendants);
     }
 
-    const movedEntries = await this.putMovedEntries(metadata, descendants, nextRelativePath, nextParentId);
-    await this.refreshFolderEntry(metadata.parentId);
-    await this.refreshFolderEntry(nextParentId);
+    const movedEntries = await this.reindexMoved(metadata, descendants, nextRelativePath, nextParentId);
+    await this.refreshFolder(metadata.parentId);
+    await this.refreshFolder(nextParentId);
     if (nextId !== id) {
       await this.rekeyNoteTags(movedEntries);
     }
@@ -440,11 +440,10 @@ export class NotesManager {
     this.removeEntry(metadata.id);
     this.removeEntries(descendants);
 
-    await this.refreshFolderEntry(metadata.parentId);
+    await this.refreshFolder(metadata.parentId);
     const trashParentId = await this.indexFolderChain(path.dirname(trashedPath));
-    const trashedEntries = await this.putMovedEntries(metadata, descendants, trashedPath, trashParentId);
-    await this.setNoteTags(ENTITY_TYPE.NOTE, this.toClearedTags(trashedEntries, ENTITY_TYPE.NOTE));
-    await this.setNoteTags(ENTITY_TYPE.NOTE_FOLDER, this.toClearedTags(trashedEntries, ENTITY_TYPE.NOTE_FOLDER));
+    const trashedEntries = await this.reindexMoved(metadata, descendants, trashedPath, trashParentId);
+    await this.clearNoteTags(trashedEntries);
   }
 
   /**
@@ -470,7 +469,7 @@ export class NotesManager {
 
     await this.dropPrunedTrashFolders(path.dirname(metadata.path));
     const parentId = await this.indexFolderChain(path.dirname(restoredPath));
-    const restoredEntries = await this.putMovedEntries(metadata, descendants, restoredPath, parentId);
+    const restoredEntries = await this.reindexMoved(metadata, descendants, restoredPath, parentId);
     await this.applyParsedContent(await this.parseNoteFiles(restoredEntries.values()));
 
     return this.requireLiveNote(this.toNoteId(restoredPath));
@@ -557,17 +556,17 @@ export class NotesManager {
    * the move preserves; folders are stat'd, since a merge-move recreates them.
    * Returns each moved entry by its old id.
    */
-  private async putMovedEntries(
+  private async reindexMoved(
     root: NoteMetadata,
     descendants: ReadonlyArray<NoteMetadata>,
     toPath: string,
     parentId: string | undefined
   ): Promise<Map<string, NoteMetadata>> {
     const movedEntries = new Map<string, NoteMetadata>();
-    movedEntries.set(root.id, await this.putMovedEntry(root, toPath, parentId));
+    movedEntries.set(root.id, await this.reindexMovedEntry(root, toPath, parentId));
     for (const entry of descendants) {
       const relativePath = path.join(toPath, path.relative(root.path, entry.path));
-      const moved = await this.putMovedEntry(entry, relativePath, this.toNoteId(path.dirname(relativePath)));
+      const moved = await this.reindexMovedEntry(entry, relativePath, this.toNoteId(path.dirname(relativePath)));
       movedEntries.set(entry.id, moved);
     }
 
@@ -575,7 +574,7 @@ export class NotesManager {
   }
 
   /** Index one moved entry at `relativePath`; a file landing on an indexed folder drops that folder and everything under it. */
-  private async putMovedEntry(
+  private async reindexMovedEntry(
     entry: NoteMetadata,
     relativePath: string,
     parentId: string | undefined
@@ -643,7 +642,7 @@ export class NotesManager {
     for (let current = folderPath; !this.isTreeRoot(current); current = path.dirname(current)) {
       const folderId = this.toNoteId(current);
       if (await isPathExists(this.resolvePath(current))) {
-        await this.refreshFolderEntry(folderId);
+        await this.refreshFolder(folderId);
 
         return;
       }
@@ -772,7 +771,7 @@ export class NotesManager {
     await ensureDir(target.absolutePath);
     const metadata = await this.buildFolderMetadata(target.absolutePath, path.basename(target.relativePath), parentId);
     this.putEntry(metadata);
-    await this.refreshFolderEntry(parentId);
+    await this.refreshFolder(parentId);
 
     return metadata;
   }
@@ -781,13 +780,13 @@ export class NotesManager {
   private async indexCreatedNote(target: ResolvedNotePath, parentId: string | undefined): Promise<NoteFileMetadata> {
     const metadata = await this.buildNoteMetadata(target.absolutePath, path.basename(target.relativePath), parentId);
     this.putEntry(metadata);
-    await this.refreshFolderEntry(parentId);
+    await this.refreshFolder(parentId);
 
     return metadata;
   }
 
   /** Re-stat a folder whose entries changed, updating it when its timestamp moved. */
-  private async refreshFolderEntry(folderId: string | undefined): Promise<void> {
+  private async refreshFolder(folderId: string | undefined): Promise<void> {
     const folder = folderId === undefined ? undefined : this.findEntry(folderId);
     if (folder?.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
       return;
@@ -900,7 +899,7 @@ export class NotesManager {
    * one parent folder at a time until no other note matches. A full path always
    * resolves back to `note` because root-anchored matches win.
    */
-  private toShortestWikilinkTarget(note: NoteMetadata): string {
+  private findShortestWikilinkTarget(note: NoteMetadata): string {
     const segments = [note.name];
     let parentId = note.parentId;
 
@@ -921,7 +920,7 @@ export class NotesManager {
    * Where to create the text note an unresolved target names. A bare name goes beside `sourceNote`;
    * a qualified `a/b/name` goes at that path from the notes root, reusing the folders that exist.
    */
-  private toWikilinkPlacement(target: string, sourceNote: NoteMetadata): WikilinkPlacement | undefined {
+  private findWikilinkPlacement(target: string, sourceNote: NoteMetadata): WikilinkPlacement | undefined {
     const segments = this.toWikilinkTargetSegments(target);
     const noteName = segments.pop();
     if (noteName === undefined) {
@@ -962,7 +961,7 @@ export class NotesManager {
   }
 
   /** The folders above `note`, outermost first, or `undefined` at the notes root. */
-  private toFolderPath(note: NoteMetadata): string | undefined {
+  private getFolderDisplayPath(note: NoteMetadata): string | undefined {
     const folderNames: string[] = [];
     let parentId = note.parentId;
 
@@ -984,7 +983,7 @@ export class NotesManager {
     const isPathQuery = needle.includes(WIKILINK_TARGET_SEPARATOR);
     const matches: WikilinkSuggestionMatch[] = [];
     for (const note of candidates) {
-      const folderPath = isPathQuery ? this.toFolderPath(note) : undefined;
+      const folderPath = isPathQuery ? this.getFolderDisplayPath(note) : undefined;
       const text = this.toComparableNoteName(
         folderPath === undefined ? note.name : `${folderPath}${WIKILINK_TARGET_SEPARATOR}${note.name}`
       );
@@ -1281,19 +1280,17 @@ export class NotesManager {
     }
   }
 
-  /** An empty tag list under the old id of every moved entry of `entityType`, which clears its tags. */
-  private toClearedTags(
-    movedEntries: ReadonlyMap<string, NoteMetadata>,
-    entityType: NoteEntityType
-  ): Map<string, string[]> {
-    const tagNamesByNoteId = new Map<string, string[]>();
+  /** Clear the tags held under the old id of every moved note and folder. */
+  private async clearNoteTags(movedEntries: ReadonlyMap<string, NoteMetadata>): Promise<void> {
+    const clearedNoteTags = new Map<string, string[]>();
+    const clearedFolderTags = new Map<string, string[]>();
     for (const [previousId, entry] of movedEntries) {
-      if (entry.entityType === entityType) {
-        tagNamesByNoteId.set(previousId, []);
-      }
+      const clearedTags = entry.entityType === ENTITY_TYPE.NOTE_FOLDER ? clearedFolderTags : clearedNoteTags;
+      clearedTags.set(previousId, []);
     }
 
-    return tagNamesByNoteId;
+    await this.setNoteTags(ENTITY_TYPE.NOTE, clearedNoteTags);
+    await this.setNoteTags(ENTITY_TYPE.NOTE_FOLDER, clearedFolderTags);
   }
 
   /** Move the tag edges of re-keyed notes to their new ids; a failure is logged and never fails the move. */
