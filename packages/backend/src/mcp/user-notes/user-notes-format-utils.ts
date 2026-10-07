@@ -5,7 +5,7 @@ import { formatLocalDateTime } from "../../utils/date-utils.js";
 export function compareNoteEntries(left: NoteMetadata, right: NoteMetadata): number {
   const leftRank = left.entityType === ENTITY_TYPE.NOTE_FOLDER ? 0 : 1;
   const rightRank = right.entityType === ENTITY_TYPE.NOTE_FOLDER ? 0 : 1;
-  return leftRank - rightRank || left.name.localeCompare(right.name);
+  return leftRank - rightRank || left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
 }
 
 export function formatNoteEntry(entry: NoteMetadata, userTimezone: string): string {

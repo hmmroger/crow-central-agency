@@ -13,6 +13,8 @@ import { RelationshipManager } from "../../services/relationship-manager.js";
 import { WsBroadcaster } from "../../services/ws-broadcaster.js";
 import { SensorManager } from "../../sensors/sensor-manager.js";
 import { InMemoryObjectStore } from "../../core/store/in-memory-object-store.mock.js";
+import { AppError } from "../../core/error/app-error.js";
+import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 
 vi.mock("../../services/notes/notes-manager.js");
 vi.mock("../../services/tag/tag-manager.js");
@@ -148,6 +150,18 @@ describe("read_note", () => {
     expect(result.isError).toBe(true);
     expect(getResultText(result)).toBe(`Note not found: .trash:${TEXT_NOTE.id}`);
     expect(harness.notesManager.getNoteContent).not.toHaveBeenCalled();
+  });
+
+  it("reports an unknown id as not found", async () => {
+    const harness = createHarness(TEXT_NOTE);
+    vi.mocked(harness.notesManager.getNote).mockImplementation((noteId) => {
+      throw new AppError(`Note not found: ${noteId}`, APP_ERROR_CODES.NOT_FOUND);
+    });
+
+    const result = await harness.handler({ id: "missing.md" }, undefined);
+
+    expect(result.isError).toBe(true);
+    expect(getResultText(result)).toBe("Note not found: missing.md");
   });
 
   it("rejects a folder id and points to list_notes", async () => {

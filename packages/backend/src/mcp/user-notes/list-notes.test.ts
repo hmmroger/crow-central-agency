@@ -99,6 +99,25 @@ describe("list_notes", () => {
     expect(text).not.toContain("- Id: alpha.md");
   });
 
+  it("points to the next page when more entries remain", async () => {
+    const harness = createHarness();
+    vi.mocked(harness.notesManager.listNotes).mockReturnValue([NOTE_Z, NOTE_A]);
+
+    const result = await harness.handler({ limit: 1 }, undefined);
+
+    expect(getResultText(result)).toContain("[More available: use offset=1 for next page]");
+  });
+
+  it("reports an empty folder", async () => {
+    const harness = createHarness();
+    vi.mocked(harness.notesManager.listNotes).mockReturnValue([]);
+
+    const result = await harness.handler({ folderId: FOLDER.id }, undefined);
+
+    expect(result.isError).toBeFalsy();
+    expect(getResultText(result)).toBe(`No notes or folders in folder ${FOLDER.id}.`);
+  });
+
   it("returns an error when the id is not a live folder", async () => {
     const harness = createHarness();
     vi.mocked(harness.notesManager.listNotes).mockImplementation(() => {
