@@ -79,13 +79,15 @@ export class DocumentSearchService {
 
   public async initialize(): Promise<void> {
     this.isLoading = true;
-    for (const source of this.sources) {
-      source.subscribe(this.sink);
-      await this.loadSource(source);
+    try {
+      for (const source of this.sources) {
+        source.subscribe(this.sink);
+        await this.loadSource(source);
+      }
+    } finally {
+      this.isLoading = false;
+      this.liveChangedUids.clear();
     }
-
-    this.isLoading = false;
-    this.liveChangedUids.clear();
   }
 
   public search(query: string, options?: DocumentSearchOptions): DocumentSearchHit[] {
