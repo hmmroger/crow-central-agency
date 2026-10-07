@@ -37,9 +37,18 @@ export class DocumentSearchService {
   private readonly index: MiniSearch<IndexedDocument>;
   private readonly sources: SearchSource[] = [];
   private readonly claimedTypes = new Set<DataSourceType>();
+  /** Uids changed by live events while sources load; the startup load must not overwrite them with older data. */
+  private readonly liveChangedUids = new Set<string>();
+  private isLoading = false;
   private readonly sink: SearchIndexSink = {
-    upsert: (document) => this.upsertDocument(document),
-    remove: (ref) => this.removeDocument(ref),
+    upsert: (document) => {
+      this.trackLiveChange(document);
+      this.upsertDocument(document);
+    },
+    remove: (ref) => {
+      this.trackLiveChange(ref);
+      this.removeDocument(ref);
+    },
   };
 
   constructor() {
@@ -69,10 +78,14 @@ export class DocumentSearchService {
   }
 
   public async initialize(): Promise<void> {
+    this.isLoading = true;
     for (const source of this.sources) {
       source.subscribe(this.sink);
       await this.loadSource(source);
     }
+
+    this.isLoading = false;
+    this.liveChangedUids.clear();
   }
 
   public search(query: string, options?: DocumentSearchOptions): DocumentSearchHit[] {
@@ -107,10 +120,18 @@ export class DocumentSearchService {
   private async loadSource(source: SearchSource): Promise<void> {
     try {
       for await (const document of source.loadAll()) {
-        this.upsertDocument(document);
+        if (!this.liveChangedUids.has(this.toUid(document))) {
+          this.upsertDocument(document);
+        }
       }
     } catch (error) {
       log.error({ error, dataSourceTypes: source.dataSourceTypes }, "Failed to load search source");
+    }
+  }
+
+  private trackLiveChange(ref: DocumentRef): void {
+    if (this.isLoading) {
+      this.liveChangedUids.add(this.toUid(ref));
     }
   }
 

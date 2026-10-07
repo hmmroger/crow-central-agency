@@ -1,4 +1,9 @@
-import { ARTIFACT_CONTENT_TYPE, ENTITY_TYPE, type ArtifactMetadata } from "@crow-central-agency/shared";
+import {
+  ARTIFACT_CONTENT_TYPE,
+  ENTITY_TYPE,
+  type ArtifactMetadata,
+  type EntityType,
+} from "@crow-central-agency/shared";
 import { logger } from "../../../utils/logger.js";
 import type { ArtifactManager } from "../../artifact/artifact-manager.js";
 import type { AgentRegistry } from "../../agent-registry.js";
@@ -25,17 +30,28 @@ export class ArtifactSearchSource implements SearchSource {
 
   public async *loadAll(): AsyncIterable<SearchDocument> {
     for (const agent of this.registry.getAllAgents(true)) {
-      yield* this.loadArtifacts(await this.artifactManager.listArtifacts(agent.id));
+      yield* this.loadArtifacts(await this.listContainerArtifacts(ENTITY_TYPE.AGENT, agent.id));
     }
 
     for (const circle of this.circleManager.getAllCircles()) {
-      yield* this.loadArtifacts(await this.artifactManager.listCircleArtifacts(circle.id));
+      yield* this.loadArtifacts(await this.listContainerArtifacts(ENTITY_TYPE.AGENT_CIRCLE, circle.id));
     }
   }
 
   public subscribe(sink: SearchIndexSink): void {
     this.artifactManager.on("artifactSaved", ({ metadata }) => void this.indexArtifact(sink, metadata));
     this.artifactManager.on("artifactDeleted", ({ metadata }) => sink.remove(this.toRef(metadata)));
+  }
+
+  private async listContainerArtifacts(entityType: EntityType, entityId: string): Promise<ArtifactMetadata[]> {
+    try {
+      return entityType === ENTITY_TYPE.AGENT_CIRCLE
+        ? await this.artifactManager.listCircleArtifacts(entityId)
+        : await this.artifactManager.listArtifacts(entityId);
+    } catch (error) {
+      log.error({ error, entityType, entityId }, "Failed to list artifacts for indexing");
+      return [];
+    }
   }
 
   private async *loadArtifacts(artifacts: ArtifactMetadata[]): AsyncIterable<SearchDocument> {
