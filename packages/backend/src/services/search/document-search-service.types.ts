@@ -51,3 +51,22 @@ export interface DocumentSearchHit {
   tags?: string[];
   score: number;
 }
+
+/** Narrow write access to the search index handed to a `SearchSource`. */
+export interface SearchIndexSink {
+  /** Add a new document, or replace the existing one with the same identity. */
+  upsert(document: SearchDocument): void;
+  remove(ref: DocumentRef): void;
+}
+
+/**
+ * Adapter that feeds one data source into the search index. Each `DataSourceType` is produced
+ * by exactly one registered source.
+ */
+export interface SearchSource {
+  readonly dataSourceTypes: readonly DataSourceType[];
+  /** Yields every existing document for the startup index build; failed documents are logged and skipped. */
+  loadAll(): AsyncIterable<SearchDocument>;
+  /** Attaches to the source's change events and pushes updates into the sink. */
+  subscribe(sink: SearchIndexSink): void;
+}

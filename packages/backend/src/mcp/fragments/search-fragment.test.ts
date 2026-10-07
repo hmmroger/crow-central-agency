@@ -5,12 +5,9 @@ import { getSearchFragmentToolConfig } from "./search-fragment.js";
 import { FragmentManager } from "../../services/fragment/fragment-manager.js";
 import type { FragmentParent } from "../../services/fragment/fragment-manager.types.js";
 import { RelationshipManager } from "../../services/relationship-manager.js";
-import { AgentCircleManager } from "../../services/agent-circle-manager.js";
-import { AgentRegistry } from "../../services/agent-registry.js";
-import { AgentTaskManager } from "../../services/agent-task-manager.js";
-import { ArtifactManager } from "../../services/artifact/artifact-manager.js";
 import { WsBroadcaster } from "../../services/ws-broadcaster.js";
 import { DocumentSearchService } from "../../services/search/document-search-service.js";
+import { FragmentSearchSource } from "../../services/search/sources/fragment-search-source.js";
 import { InMemoryObjectStore } from "../../core/store/in-memory-object-store.mock.js";
 
 const AGENT_ID_A = "11111111-1111-4111-8111-111111111111";
@@ -24,29 +21,14 @@ interface Harness {
 async function createHarness(): Promise<Harness> {
   const broadcaster = new WsBroadcaster();
   const relationshipManager = new RelationshipManager(new InMemoryObjectStore());
-  const circleManager = new AgentCircleManager(new InMemoryObjectStore(), relationshipManager, broadcaster);
   const fragmentManager = new FragmentManager(
     new InMemoryObjectStore(),
     new InMemoryObjectStore(),
     relationshipManager,
     broadcaster
   );
-  const registry = new AgentRegistry(
-    new InMemoryObjectStore(),
-    new InMemoryObjectStore(),
-    broadcaster,
-    circleManager,
-    fragmentManager
-  );
-  const taskManager = new AgentTaskManager(new InMemoryObjectStore(), broadcaster, circleManager);
-  const artifactManager = new ArtifactManager(new InMemoryObjectStore(), registry, circleManager);
-  const documentSearchService = new DocumentSearchService(
-    artifactManager,
-    taskManager,
-    registry,
-    circleManager,
-    fragmentManager
-  );
+  const documentSearchService = new DocumentSearchService();
+  documentSearchService.registerSource(new FragmentSearchSource(fragmentManager));
   await relationshipManager.initialize();
   await fragmentManager.initialize();
 
