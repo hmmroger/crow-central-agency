@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { ChevronDown, Plus, Tag } from "lucide-react";
+import { normalizeTagName } from "@crow-central-agency/shared";
 import { cn } from "../../../utils/cn.js";
 import { ComboboxDropdown } from "../../common/combobox-dropdown.js";
 import { ComboboxOption } from "../../common/combobox-option.js";
@@ -25,11 +26,6 @@ interface TagOption {
   isNew: boolean;
 }
 
-/** Light canonicalization mirroring the backend's normalize-on-write (trim + lowercase) */
-function canonicalizeTag(value: string): string {
-  return value.trim().toLowerCase();
-}
-
 /**
  * Type-ahead combobox for selecting tags. Typing narrows the autosuggest list and
  * the chevron browses every available tag; Enter/Tab toggles the highlighted option.
@@ -50,7 +46,7 @@ export function TagCombobox({
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const candidate = canonicalizeTag(inputValue);
+  const candidate = normalizeTagName(inputValue);
 
   const options = useMemo<TagOption[]>(() => {
     const knownTags = availableTags.concat(selectedTags.filter((tag) => !availableTags.includes(tag)));

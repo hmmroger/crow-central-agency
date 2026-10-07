@@ -512,7 +512,9 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
         return false;
       }
 
-      if (requiredTags && !requiredTags.every((tag) => artifact.tags?.includes(tag))) {
+      // Stored tags are normalized too, since they may predate the current normalization.
+      const artifactTags = requiredTags ? normalizeTags(artifact.tags) : undefined;
+      if (requiredTags && !requiredTags.every((tag) => artifactTags?.includes(tag))) {
         return false;
       }
 
