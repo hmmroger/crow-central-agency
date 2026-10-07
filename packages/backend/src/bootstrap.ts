@@ -31,6 +31,7 @@ import { getTasksMcpServerDefinition } from "./mcp/tasks/tasks-mcp-server.js";
 import { getSuperTasksMcpServerDefinition } from "./mcp/tasks/super-tasks-mcp-server.js";
 import { getRemindersMcpServerDefinition } from "./mcp/reminders/reminders-mcp-server.js";
 import { getToolboxMcpServerDefinition } from "./mcp/toolbox/toolbox-mcp-server.js";
+import { getUserNotesMcpServerDefinition } from "./mcp/user-notes/user-notes-mcp-server.js";
 import { FileObjectStoreProvider } from "./core/store/file-object-store-provider.js";
 import { CrowScheduler } from "./services/crow-scheduler.js";
 import { ScheduleManager } from "./services/schedule-manager.js";
@@ -242,6 +243,7 @@ export async function bootstrap(options: BootstrapOptions) {
   mcpManager.registerMcpServer(getBuilderAgentMcpServerDefinition(registry, mcpManager));
   mcpManager.registerMcpServer(getRemindersMcpServerDefinition(crowScheduler, sensorManager));
   mcpManager.registerMcpServer(getToolboxMcpServerDefinition(sensorManager, registry));
+  mcpManager.registerMcpServer(getUserNotesMcpServerDefinition(notesManager, sensorManager));
   mcpManager.registerMcpServer(getGmailMcpServerDefinition(connectorManager, sensorManager));
   mcpManager.registerMcpServer(getGoogleCalendarMcpServerDefinition(connectorManager, sensorManager));
   mcpManager.registerMcpServer(getGoogleContactsMcpServerDefinition(connectorManager, sensorManager));

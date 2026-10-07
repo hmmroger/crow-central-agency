@@ -1,7 +1,7 @@
-import { ARTIFACT_CONTENT_TYPE, ARTIFACT_TYPE, getMimeTypeByFilename, MIME_TYPE } from "@crow-central-agency/shared";
+import { ARTIFACT_CONTENT_TYPE, ARTIFACT_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { formatLocalDateTime } from "../../utils/date-utils.js";
-import { formatVersionToken, processTextContent, textToolResult, type ReadLineOptions } from "../tool-utils.js";
+import { buildFileContentResult, formatVersionToken, textToolResult, type ReadLineOptions } from "../tool-utils.js";
 import { last } from "es-toolkit";
 import { ARTIFACT_WRITE_PRECONDITION } from "../../services/artifact/artifact-manager.types.js";
 import type {
@@ -16,9 +16,6 @@ export interface LineEditResult {
 
 export const ARTIFACT_TYPE_VALUES = Object.values(ARTIFACT_TYPE);
 export const ARTIFACT_CONTENT_TYPE_VALUES = Object.values(ARTIFACT_CONTENT_TYPE);
-
-/** Default cap on lines returned by read artifact tools to avoid flooding the context with large text artifacts. */
-export const DEFAULT_READ_ARTIFACT_LINE_LIMIT = 100;
 
 export const WRITE_ARTIFACT_VERSION_DESCRIPTION =
   "Required to replace an existing artifact: the Version token from your most recent read. Omit to create a new artifact — omitting it against an existing filename is a conflict.";
@@ -109,14 +106,6 @@ export function buildEditArtifactNote(
   return `lines ${startLine}-${startLine + insertedLineCount - 1} now hold your content; ${formatLineShift(shift)}`;
 }
 
-/** Image types that Claude can process natively via base64 */
-const SUPPORTED_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
-  MIME_TYPE.JPEG,
-  MIME_TYPE.PNG,
-  MIME_TYPE.GIF,
-  MIME_TYPE.WEBP,
-]);
-
 /** Build the MCP content blocks for a read artifact result */
 export function buildReadArtifactResult(
   content: string | Buffer,
@@ -132,43 +121,17 @@ export function buildReadArtifactResult(
     header.push(`[Tags: ${metadata.tags.join(", ")}]`);
   }
 
-  if (typeof content === "string" || metadata.contentType === ARTIFACT_CONTENT_TYPE.TEXT) {
-    const rawText = typeof content === "string" ? content : content.toString("utf-8");
-    const processed = processTextContent(rawText, lineOptions);
-    return textToolResult(header.concat(processed.headerParts).concat(["", processed.text]));
-  }
-
-  const mimeType = getMimeTypeByFilename(metadata.filename);
-
-  if (mimeType && SUPPORTED_IMAGE_MIME_TYPES.has(mimeType)) {
-    return {
-      content: [
-        { type: "text" as const, text: header.join("\n") },
-        { type: "image" as const, data: content.toString("base64"), mimeType },
-      ],
-    };
-  }
-
-  if (mimeType === MIME_TYPE.PDF) {
-    return {
-      content: [
-        { type: "text" as const, text: header.join("\n") },
-        {
-          type: "resource" as const,
-          resource: {
-            uri: `artifact://${metadata.entityId}/${metadata.filename}`,
-            mimeType,
-            blob: content.toString("base64"),
-          },
-        },
-      ],
-    };
-  }
-
-  return textToolResult([
-    ...header,
-    `[Binary artifact: ${metadata.contentType} content (${metadata.size} bytes). This binary format is not supported for interpretation.]`,
-  ]);
+  return buildFileContentResult(
+    header,
+    content,
+    {
+      filename: metadata.filename,
+      isText: metadata.contentType === ARTIFACT_CONTENT_TYPE.TEXT,
+      resourceUri: `artifact://${metadata.entityId}/${metadata.filename}`,
+      unsupportedNotice: `[Binary artifact: ${metadata.contentType} content (${metadata.size} bytes). This binary format is not supported for interpretation.]`,
+    },
+    lineOptions
+  );
 }
 
 /** Build the MCP text result for a find-content search. Dedupes by line; honors an optional limit on lines. */

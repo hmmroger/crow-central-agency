@@ -2,8 +2,8 @@ import { z } from "zod";
 import type { ArtifactManager } from "../../services/artifact/artifact-manager.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
-import { getErrorToolResult, textToolResult } from "../tool-utils.js";
-import { buildReadArtifactResult, DEFAULT_READ_ARTIFACT_LINE_LIMIT } from "./artifacts-mcp-server-utils.js";
+import { DEFAULT_READ_LINE_LIMIT, getErrorToolResult, textToolResult } from "../tool-utils.js";
+import { buildReadArtifactResult } from "./artifacts-mcp-server-utils.js";
 
 export const READ_CIRCLE_ARTIFACT_TOOL_NAME = "read_circle_artifact";
 
@@ -26,7 +26,7 @@ export function getReadCircleArtifactToolConfig(
       .min(1)
       .optional()
       .describe(
-        `Optional. Maximum number of lines to return starting from startLine (default: ${DEFAULT_READ_ARTIFACT_LINE_LIMIT}).`
+        `Optional. Maximum number of lines to return starting from startLine (default: ${DEFAULT_READ_LINE_LIMIT}).`
       ),
   };
 
@@ -50,7 +50,7 @@ export function getReadCircleArtifactToolConfig(
       return buildReadArtifactResult(content, metadata, userTimezone, {
         showLineNumber,
         startLine,
-        limit: limit ?? DEFAULT_READ_ARTIFACT_LINE_LIMIT,
+        limit: limit ?? DEFAULT_READ_LINE_LIMIT,
       });
     } catch (error) {
       return getErrorToolResult(error, "Failed to read circle artifact.");
