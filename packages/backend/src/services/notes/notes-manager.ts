@@ -34,7 +34,6 @@ import {
   isPathExists,
   mergeMove,
   readBinaryFile,
-  readTextFile,
   removeDir,
   removeEmptyAncestors,
   renameFile,
@@ -59,6 +58,9 @@ const log = logger.child({ context: "notes-manager" });
 
 /** Extension of every note created in the app; text notes are markdown */
 const MARKDOWN_EXTENSION = ".md";
+
+/** Every note file is read and written as bytes; text notes encode and decode them as UTF-8 */
+const NOTE_TEXT_ENCODING = "utf-8";
 
 /** Mirror of the live tree holding deleted notes at their original relative paths */
 const TRASH_DIRECTORY = ".trash";
@@ -153,9 +155,8 @@ export class NotesManager {
       throw new AppError(`Not a readable note: ${id}`, APP_ERROR_CODES.NOT_SUPPORTED);
     }
 
-    const notePath = this.resolvePath(metadata.path);
-    const content =
-      metadata.contentType === NOTE_CONTENT_TYPE.TEXT ? await readTextFile(notePath) : await readBinaryFile(notePath);
+    const bytes = await readBinaryFile(this.resolvePath(metadata.path));
+    const content = metadata.contentType === NOTE_CONTENT_TYPE.TEXT ? bytes.toString(NOTE_TEXT_ENCODING) : bytes;
 
     return { metadata, content };
   }
@@ -174,7 +175,7 @@ export class NotesManager {
     const filename = isText ? `${name}${MARKDOWN_EXTENSION}` : name;
     const target = await this.resolveNewTarget(options.parentId, name, filename);
     if (
-      !(await writeBinaryFile(target.absolutePath, isText ? Buffer.from(content, "utf-8") : content, {
+      !(await writeBinaryFile(target.absolutePath, isText ? Buffer.from(content, NOTE_TEXT_ENCODING) : content, {
         overwrite: false,
       }))
     ) {
@@ -313,7 +314,7 @@ export class NotesManager {
       throw new AppError(`Note changed on disk since it was loaded: ${id}`, APP_ERROR_CODES.CONFLICT);
     }
 
-    await writeBinaryFile(notePath, Buffer.from(content, "utf-8"));
+    await writeBinaryFile(notePath, Buffer.from(content, NOTE_TEXT_ENCODING));
     const updated = await this.buildNoteMetadata(notePath, path.basename(metadata.path), metadata.parentId);
     this.putEntry(updated);
     await this.applyParsedContent(new Map([[updated.id, this.parseNoteContent(content)]]));
@@ -1016,7 +1017,9 @@ export class NotesManager {
     }
 
     try {
-      return this.parseNoteContent(await readTextFile(this.resolvePath(metadata.path)));
+      const bytes = await readBinaryFile(this.resolvePath(metadata.path));
+
+      return this.parseNoteContent(bytes.toString(NOTE_TEXT_ENCODING));
     } catch (error) {
       log.warn({ error, noteId: metadata.id }, "Failed to read note content");
 
