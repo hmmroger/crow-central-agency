@@ -72,6 +72,15 @@ export class TagManager {
     return normalizedName ? this.tagsByName.get(normalizedName) : undefined;
   }
 
+  /** The tags of one entity; an untagged entity has none */
+  public getEntityTags(entityType: EntityType, entityId: string): Tag[] {
+    return this.getEntityTagEdges(entityType, entityId).flatMap((relationship) => {
+      const tag = this.tagsById.get(relationship.targetEntityId);
+
+      return tag ? [tag] : [];
+    });
+  }
+
   /**
    * Replace the tags of each entity in the map with the given names. An empty
    * list clears the entity's tags.

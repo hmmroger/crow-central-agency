@@ -23,6 +23,7 @@ import {
   type WikilinkResolution,
   type WikilinkSuggestion,
 } from "@crow-central-agency/shared";
+import { EventBus } from "../../core/event-bus/event-bus.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import {
@@ -46,7 +47,9 @@ import type { TagManager } from "../tag/tag-manager.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
 import type {
   CreateNoteOptions,
+  IndexedFolderChain,
   ListNotesOptions,
+  NotesManagerEvents,
   NoteTreeScan,
   ParsedNoteContent,
   ReadNoteResult,
@@ -93,7 +96,7 @@ const MAX_ASSET_NAME_ATTEMPTS = 100;
  * derives from the same notes-root-relative path, so a trashed note's id is its
  * original prefixed with `.trash:` — unique across both.
  */
-export class NotesManager {
+export class NotesManager extends EventBus<NotesManagerEvents> {
   private readonly notesPath: string;
   private readonly trashPath: string;
   private index = new Map<string, NoteMetadata>();
@@ -107,6 +110,7 @@ export class NotesManager {
     private readonly relationshipManager: RelationshipManager,
     private readonly tagManager: TagManager
   ) {
+    super();
     this.notesPath = notesPath;
     this.trashPath = path.join(notesPath, TRASH_DIRECTORY);
   }
@@ -187,6 +191,8 @@ export class NotesManager {
     if (isText) {
       await this.applyParsedContent(new Map([[metadata.id, this.parseNoteContent(content)]]));
     }
+
+    this.emit("noteCreated", { metadata });
 
     return metadata;
   }
@@ -283,6 +289,7 @@ export class NotesManager {
       await assertRealPathWithinBase(target.absolutePath, this.notesPath);
       if (await writeBinaryFile(target.absolutePath, content, { overwrite: false })) {
         const note = await this.indexCreatedNote(target, assetsFolder.id);
+        this.emit("noteCreated", { metadata: note });
 
         return { note, target: this.wikilinkResolver.findShortestTarget(note) };
       }
@@ -318,6 +325,7 @@ export class NotesManager {
     const updated = await this.buildNoteMetadata(notePath, path.basename(metadata.path), metadata.parentId);
     this.putEntry(updated);
     await this.applyParsedContent(new Map([[updated.id, this.parseNoteContent(content)]]));
+    this.emit("noteUpdated", { metadata: updated });
 
     return updated;
   }
@@ -373,6 +381,10 @@ export class NotesManager {
     await this.refreshFolder(nextParentId);
     if (nextId !== id) {
       await this.rekeyNoteTags(movedEntries);
+      this.emitNotesDeleted([metadata].concat(descendants));
+      this.emitNotesCreated(movedEntries.values());
+    } else {
+      this.emitNotesUpdated(movedEntries.values());
     }
 
     return this.requireLiveNote(nextId);
@@ -409,9 +421,10 @@ export class NotesManager {
     this.removeEntries(descendants);
 
     await this.refreshFolder(metadata.parentId);
-    const trashParentId = await this.indexFolderChain(path.dirname(trashedPath));
-    const trashedEntries = await this.reindexMoved(metadata, descendants, trashedPath, trashParentId);
+    const trashFolderChain = await this.indexFolderChain(path.dirname(trashedPath));
+    const trashedEntries = await this.reindexMoved(metadata, descendants, trashedPath, trashFolderChain.parentId);
     await this.clearNoteTags(trashedEntries);
+    this.emitNotesDeleted([metadata].concat(descendants));
   }
 
   /**
@@ -436,9 +449,11 @@ export class NotesManager {
     this.removeEntries(descendants);
 
     await this.dropPrunedTrashFolders(path.dirname(metadata.path));
-    const parentId = await this.indexFolderChain(path.dirname(restoredPath));
-    const restoredEntries = await this.reindexMoved(metadata, descendants, restoredPath, parentId);
+    const folderChain = await this.indexFolderChain(path.dirname(restoredPath));
+    const restoredEntries = await this.reindexMoved(metadata, descendants, restoredPath, folderChain.parentId);
     await this.applyParsedContent(await this.parseNoteFiles(restoredEntries.values()));
+    this.emitNotesCreated(folderChain.createdFolders);
+    this.emitNotesCreated(restoredEntries.values());
 
     return this.requireLiveNote(this.toNoteId(restoredPath));
   }
@@ -565,25 +580,30 @@ export class NotesManager {
 
   /**
    * Index the folders down to `folderPath` that a move created, and update those
-   * whose timestamp changed. Returns the id of the innermost folder, or undefined at a tree root.
+   * whose timestamp changed.
    */
-  private async indexFolderChain(folderPath: string): Promise<string | undefined> {
+  private async indexFolderChain(folderPath: string): Promise<IndexedFolderChain> {
     const folderPaths: string[] = [];
     for (let current = folderPath; !this.isTreeRoot(current); current = path.dirname(current)) {
       folderPaths.unshift(current);
     }
 
-    let parentId: string | undefined;
+    const chain: IndexedFolderChain = { createdFolders: [] };
     for (const current of folderPaths) {
-      const folder = await this.buildFolderMetadata(this.resolvePath(current), path.basename(current), parentId);
-      if (this.getIndex(folder.isTrashed).get(folder.id)?.updatedTimestamp !== folder.updatedTimestamp) {
+      const folder = await this.buildFolderMetadata(this.resolvePath(current), path.basename(current), chain.parentId);
+      const existing = this.getIndex(folder.isTrashed).get(folder.id);
+      if (!existing) {
+        chain.createdFolders.push(folder);
+      }
+
+      if (existing?.updatedTimestamp !== folder.updatedTimestamp) {
         this.putEntry(folder);
       }
 
-      parentId = folder.id;
+      chain.parentId = folder.id;
     }
 
-    return parentId;
+    return chain;
   }
 
   /** Drop the trash folders from `folderPath` up that removeEmptyAncestors pruned, and refresh the first one left. */
@@ -721,6 +741,7 @@ export class NotesManager {
     const metadata = await this.buildFolderMetadata(target.absolutePath, path.basename(target.relativePath), parentId);
     this.putEntry(metadata);
     await this.refreshFolder(parentId);
+    this.emit("noteCreated", { metadata });
 
     return metadata;
   }
@@ -769,6 +790,24 @@ export class NotesManager {
   private removeEntries(entries: Iterable<NoteMetadata>): void {
     for (const entry of entries) {
       this.removeEntry(entry.id);
+    }
+  }
+
+  private emitNotesCreated(entries: Iterable<NoteMetadata>): void {
+    for (const metadata of entries) {
+      this.emit("noteCreated", { metadata });
+    }
+  }
+
+  private emitNotesUpdated(entries: Iterable<NoteMetadata>): void {
+    for (const metadata of entries) {
+      this.emit("noteUpdated", { metadata });
+    }
+  }
+
+  private emitNotesDeleted(entries: Iterable<NoteMetadata>): void {
+    for (const entry of entries) {
+      this.emit("noteDeleted", { noteId: entry.id });
     }
   }
 

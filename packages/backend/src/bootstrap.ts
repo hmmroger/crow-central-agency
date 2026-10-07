@@ -15,6 +15,7 @@ import { DocumentSearchService } from "./services/search/document-search-service
 import { ArtifactSearchSource } from "./services/search/sources/artifact-search-source.js";
 import { TaskSearchSource } from "./services/search/sources/task-search-source.js";
 import { FragmentSearchSource } from "./services/search/sources/fragment-search-source.js";
+import { NoteSearchSource } from "./services/search/sources/note-search-source.js";
 import { PlacesManager } from "./services/places/places-manager.js";
 import { setupWebSocket } from "./server/setup-websocket.js";
 import { registerArtifactRoutes } from "./routes/artifact.routes.js";
@@ -126,13 +127,14 @@ export async function bootstrap(options: BootstrapOptions) {
   await feedManager.initialize();
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
+  const notesManager = new NotesManager(env.CROW_NOTES_PATH, broadcaster, relationshipManager, tagManager);
+  await notesManager.initialize();
   const documentSearchService = new DocumentSearchService();
   documentSearchService.registerSource(new ArtifactSearchSource(artifactManager, registry, circleManager));
   documentSearchService.registerSource(new TaskSearchSource(taskManager));
   documentSearchService.registerSource(new FragmentSearchSource(fragmentManager));
+  documentSearchService.registerSource(new NoteSearchSource(notesManager, tagManager));
   await documentSearchService.initialize();
-  const notesManager = new NotesManager(env.CROW_NOTES_PATH, broadcaster, relationshipManager, tagManager);
-  await notesManager.initialize();
   const placesManager = new PlacesManager();
   const connectorManager = new ConnectorManager(storeProvider, registry, crowScheduler);
   connectorManager.registerConnector(new GoogleConnector());
