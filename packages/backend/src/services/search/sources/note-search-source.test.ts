@@ -149,4 +149,88 @@ describe("NoteSearchSource.subscribe", () => {
     });
     expect(listener.onDocumentRemove).toHaveBeenCalledWith(toRef(IMAGE_NOTE.id));
   });
+
+  it("skips an update whose read fails", async () => {
+    const harness = createHarness([]);
+    vi.mocked(harness.notesManager.getNoteContent).mockRejectedValue(new Error("read failed"));
+    const listener = { onDocumentUpdate: vi.fn(), onDocumentRemove: vi.fn() };
+    harness.source.subscribe(listener);
+    const handlers = new Map(vi.mocked(harness.notesManager.on).mock.calls);
+
+    handlers.get("noteUpdated")?.({ metadata: TEXT_NOTE });
+    await flushListeners();
+
+    expect(listener.onDocumentUpdate).not.toHaveBeenCalled();
+  });
+
+  it("indexes a text note whose content comes back as bytes without text", async () => {
+    const harness = createHarness([]);
+    vi.mocked(harness.notesManager.getNoteContent).mockResolvedValue({
+      metadata: TEXT_NOTE,
+      content: Buffer.from(TEXT_CONTENT),
+    });
+    const listener = { onDocumentUpdate: vi.fn(), onDocumentRemove: vi.fn() };
+    harness.source.subscribe(listener);
+    const handlers = new Map(vi.mocked(harness.notesManager.on).mock.calls);
+
+    handlers.get("noteCreated")?.({ metadata: TEXT_NOTE });
+    await flushListeners();
+
+    expect(listener.onDocumentUpdate).toHaveBeenCalledWith({
+      ...toRef(TEXT_NOTE.id),
+      title: "Tokyo",
+      text: "",
+      tags: ["food"],
+    });
+  });
+
+  it("drops a read that a later event for the same note overtook", async () => {
+    const harness = createHarness([]);
+    const pendingReads: Array<() => void> = [];
+    vi.mocked(harness.notesManager.getNoteContent).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          const content = `${TEXT_CONTENT} ${pendingReads.length + 1}`;
+          pendingReads.push(() => resolve({ metadata: TEXT_NOTE, content }));
+        })
+    );
+    const listener = { onDocumentUpdate: vi.fn(), onDocumentRemove: vi.fn() };
+    harness.source.subscribe(listener);
+    const handlers = new Map(vi.mocked(harness.notesManager.on).mock.calls);
+
+    handlers.get("noteUpdated")?.({ metadata: TEXT_NOTE });
+    handlers.get("noteUpdated")?.({ metadata: TEXT_NOTE });
+    await flushListeners();
+    const [firstRead, secondRead] = pendingReads;
+    secondRead();
+    await flushListeners();
+    firstRead();
+    await flushListeners();
+
+    expect(listener.onDocumentUpdate).toHaveBeenCalledTimes(1);
+    expect(listener.onDocumentUpdate).toHaveBeenCalledWith(expect.objectContaining({ text: `${TEXT_CONTENT} 2` }));
+  });
+
+  it("drops a read still in flight when the note is deleted", async () => {
+    const harness = createHarness([]);
+    const pendingReads: Array<() => void> = [];
+    vi.mocked(harness.notesManager.getNoteContent).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pendingReads.push(() => resolve({ metadata: TEXT_NOTE, content: TEXT_CONTENT }));
+        })
+    );
+    const listener = { onDocumentUpdate: vi.fn(), onDocumentRemove: vi.fn() };
+    harness.source.subscribe(listener);
+    const handlers = new Map(vi.mocked(harness.notesManager.on).mock.calls);
+
+    handlers.get("noteUpdated")?.({ metadata: TEXT_NOTE });
+    handlers.get("noteDeleted")?.({ noteId: TEXT_NOTE.id });
+    await flushListeners();
+    pendingReads[0]();
+    await flushListeners();
+
+    expect(listener.onDocumentRemove).toHaveBeenCalledWith(toRef(TEXT_NOTE.id));
+    expect(listener.onDocumentUpdate).not.toHaveBeenCalled();
+  });
 });
