@@ -7,13 +7,14 @@ import { getReadNoteToolConfig } from "./read-note.js";
 
 export const USER_NOTES_MCP_SERVER_NAME = "crow-user-notes";
 
-/** Define the crow-user-notes MCP server: read-only access to the user's live notes for every agent. */
+/** Define the crow-user-notes MCP server: read-only access to the user's live notes, opt-in per agent. */
 export function getUserNotesMcpServerDefinition(
   notesManager: NotesManager,
   sensorManager: SensorManager
 ): McpServerDefinition {
   return {
     name: USER_NOTES_MCP_SERVER_NAME,
+    isConfigurable: true,
     displayName: "User Notes",
     getTools: () => [
       defineMcpTool(getListNotesToolConfig(notesManager, sensorManager)),

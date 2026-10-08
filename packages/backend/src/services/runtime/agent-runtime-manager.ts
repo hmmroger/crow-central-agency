@@ -57,6 +57,7 @@ import type { AgentRuntimeManagerEvents, ArtifactRecord } from "./agent-runtime-
 import { startQuerySpan, type AgentQuerySpan } from "../../telemetry/agent-telemetry.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import { ARTIFACTS_MCP_SERVER_NAME } from "../../mcp/artifacts/artifacts-mcp-server.js";
+import { toInternalMcpToolName } from "../../mcp/crow-mcp-manager-utils.js";
 import { WRITE_ARTIFACT_TOOL_NAME } from "../../mcp/artifacts/write-artifact.js";
 import { EDIT_ARTIFACT_TOOL_NAME } from "../../mcp/artifacts/edit-artifact.js";
 import { WRITE_CIRCLE_ARTIFACT_TOOL_NAME } from "../../mcp/artifacts/write-circle-artifact.js";
@@ -553,8 +554,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
                 lastAssistantMessage = msg.content;
               } else if (msg.role === AGENT_MESSAGE_ROLE.SYSTEM && msg.type === AGENT_MESSAGE_TYPE.TOOL_USE) {
                 switch (msg.toolName) {
-                  case this.mcpManager.getCompleteMcpToolName(ARTIFACTS_MCP_SERVER_NAME, WRITE_ARTIFACT_TOOL_NAME):
-                  case this.mcpManager.getCompleteMcpToolName(ARTIFACTS_MCP_SERVER_NAME, EDIT_ARTIFACT_TOOL_NAME): {
+                  case toInternalMcpToolName(ARTIFACTS_MCP_SERVER_NAME, WRITE_ARTIFACT_TOOL_NAME):
+                  case toInternalMcpToolName(ARTIFACTS_MCP_SERVER_NAME, EDIT_ARTIFACT_TOOL_NAME): {
                     const filename = msg.toolInput["filename"];
                     if (isString(filename)) {
                       artifactsWritten.push({ filename });
@@ -563,14 +564,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
                     break;
                   }
 
-                  case this.mcpManager.getCompleteMcpToolName(
-                    ARTIFACTS_MCP_SERVER_NAME,
-                    WRITE_CIRCLE_ARTIFACT_TOOL_NAME
-                  ):
-                  case this.mcpManager.getCompleteMcpToolName(
-                    ARTIFACTS_MCP_SERVER_NAME,
-                    EDIT_CIRCLE_ARTIFACT_TOOL_NAME
-                  ): {
+                  case toInternalMcpToolName(ARTIFACTS_MCP_SERVER_NAME, WRITE_CIRCLE_ARTIFACT_TOOL_NAME):
+                  case toInternalMcpToolName(ARTIFACTS_MCP_SERVER_NAME, EDIT_CIRCLE_ARTIFACT_TOOL_NAME): {
                     const filename = msg.toolInput["filename"];
                     const circleId = msg.toolInput["circle_id"];
                     if (isString(filename) && isString(circleId)) {
