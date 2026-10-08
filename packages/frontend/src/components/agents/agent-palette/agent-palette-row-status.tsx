@@ -17,6 +17,7 @@ export function AgentPaletteRowStatus({ agentId, isCurrent }: AgentPaletteRowSta
     <>
       {status !== AGENT_STATUS.IDLE && (
         <span
+          role="img"
           className={cn("shrink-0 w-2 h-2 rounded-full", STATUS_DOT_COLOR[status])}
           title={STATUS_LABEL[status]}
           aria-label={STATUS_LABEL[status]}

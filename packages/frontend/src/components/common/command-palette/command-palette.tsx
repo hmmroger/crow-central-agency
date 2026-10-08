@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ChangeEvent, type ReactNode } from "react";
+import { useCallback, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
 import { Search } from "lucide-react";
 import { useActiveIndexNav } from "../../../hooks/use-active-index-nav.js";
 import type { CommandPaletteItem } from "./command-palette.types.js";
@@ -14,11 +14,17 @@ interface CommandPaletteProps<TValue> {
   placeholder: string;
   query: string;
   onQueryChange: (query: string) => void;
+  /** Runs before list navigation; call preventDefault to claim the key */
+  onInputKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
+  /** Changing this returns the highlight to the first row; defaults to the query */
+  resetKey?: string;
   /** Content of the fixed-height row between input and list: a section label or filter controls */
   header: ReactNode;
   items: CommandPaletteItem<TValue>[];
+  /** Suppresses the empty message while results are pending */
+  isLoading?: boolean;
   emptyMessage: string;
-  /** Replaces the rows while set */
+  /** Shown above the rows; the consumer clears it */
   errorMessage?: string;
   onSelect: (value: TValue) => void;
 }
@@ -35,34 +41,48 @@ export function CommandPalette<TValue>({
   placeholder,
   query,
   onQueryChange,
+  onInputKeyDown,
+  resetKey,
   header,
   items,
+  isLoading,
   emptyMessage,
   errorMessage,
   onSelect,
 }: CommandPaletteProps<TValue>) {
-  const visibleItems = useMemo(() => (errorMessage ? [] : items), [errorMessage, items]);
-  const message = errorMessage ?? (visibleItems.length === 0 ? emptyMessage : undefined);
   const listId = `${idPrefix}-list`;
   const rowIdPrefix = `${idPrefix}-row-`;
+  const showEmptyMessage = items.length === 0 && !isLoading && !errorMessage;
 
   const handleCommit = useCallback(
     (index: number) => {
-      const item = visibleItems[index];
+      const item = items[index];
       if (!item) {
         return;
       }
 
       onSelect(item.value);
     },
-    [visibleItems, onSelect]
+    [items, onSelect]
   );
 
   const { activeIndex, setActiveIndex, handleKeyDown } = useActiveIndexNav({
-    itemCount: visibleItems.length,
-    resetToken: query,
+    itemCount: items.length,
+    resetToken: resetKey ?? query,
     onCommit: handleCommit,
   });
+
+  const handleInputKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      onInputKeyDown?.(event);
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      handleKeyDown(event);
+    },
+    [onInputKeyDown, handleKeyDown]
+  );
 
   const handleQueryChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -71,7 +91,7 @@ export function CommandPalette<TValue>({
     [onQueryChange]
   );
 
-  const activeRowId = visibleItems[activeIndex] ? `${rowIdPrefix}${activeIndex}` : undefined;
+  const activeRowId = items[activeIndex] ? `${rowIdPrefix}${activeIndex}` : undefined;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -86,7 +106,7 @@ export function CommandPalette<TValue>({
           autoFocus
           value={query}
           onChange={handleQueryChange}
-          onKeyDown={handleKeyDown}
+          onKeyDown={handleInputKeyDown}
           placeholder={placeholder}
           aria-label={inputLabel}
           role="combobox"
@@ -101,8 +121,18 @@ export function CommandPalette<TValue>({
       <div className="flex h-8 shrink-0 items-center gap-1.5 px-3 pt-1">{header}</div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2">
-        <div id={listId} role="listbox" aria-labelledby={labelId} className="flex flex-col gap-0.5">
-          {visibleItems.map((item, index) => (
+        <div role="alert" className="px-1 text-sm text-error empty:hidden">
+          {errorMessage}
+        </div>
+
+        <div
+          id={listId}
+          role="listbox"
+          aria-labelledby={labelId}
+          aria-busy={isLoading}
+          className="flex flex-col gap-0.5"
+        >
+          {items.map((item, index) => (
             <CommandPaletteRow
               key={item.key}
               item={item}
@@ -115,11 +145,9 @@ export function CommandPalette<TValue>({
           ))}
         </div>
 
-        {message && (
-          <p role={errorMessage ? "alert" : undefined} className="px-1 py-1 text-sm text-text-muted">
-            {message}
-          </p>
-        )}
+        <div role="status" className="px-1 py-1 text-sm text-text-muted empty:hidden">
+          {showEmptyMessage && emptyMessage}
+        </div>
       </div>
     </div>
   );
