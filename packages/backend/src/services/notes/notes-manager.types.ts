@@ -1,14 +1,14 @@
-import type { NoteFileMetadata, NoteFolderMetadata, NoteMetadata } from "@crow-central-agency/shared";
+import type { NoteFileMetadata, NoteMetadata } from "@crow-central-agency/shared";
 import type { EventMap } from "../../core/event-bus/event-bus.types.js";
 
 /**
- * Live-tree lifecycle events, raised once an operation's index update and tag
- * work are done, consumed by the search index. The trash raises none; WS
- * broadcasts are sent inline through the injected broadcaster.
+ * Note lifecycle events for backend listeners such as search, live and trash
+ * alike. Each is raised together with the matching WS message and carries the
+ * same payload; a note's event comes after its tag work.
  */
 export interface NotesManagerEvents extends EventMap {
-  noteCreated: { metadata: NoteMetadata };
-  noteUpdated: { metadata: NoteMetadata };
+  noteCreated: { noteId: string; metadata: NoteMetadata };
+  noteUpdated: { noteId: string; metadata: NoteMetadata };
   noteDeleted: { noteId: string };
 }
 
@@ -42,14 +42,6 @@ export interface NoteTreeScan {
   isContentParsed: boolean;
   index: Map<string, NoteMetadata>;
   parsedContentByNoteId: Map<string, ParsedNoteContent>;
-}
-
-/** The folders down to a path, indexed after a move */
-export interface IndexedFolderChain {
-  /** The innermost folder, or undefined at a tree root */
-  parentId?: string;
-  /** The folders the move created, outermost first */
-  createdFolders: NoteFolderMetadata[];
 }
 
 /** Where a new note would land; the caller checks the id and guards the path before writing. */

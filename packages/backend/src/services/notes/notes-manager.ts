@@ -47,7 +47,6 @@ import type { TagManager } from "../tag/tag-manager.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
 import type {
   CreateNoteOptions,
-  IndexedFolderChain,
   ListNotesOptions,
   NotesManagerEvents,
   NoteTreeScan,
@@ -192,7 +191,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
       await this.applyParsedContent(new Map([[metadata.id, this.parseNoteContent(content)]]));
     }
 
-    this.emit("noteCreated", { metadata });
+    this.emitNotesCreated([metadata]);
 
     return metadata;
   }
@@ -289,7 +288,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
       await assertRealPathWithinBase(target.absolutePath, this.notesPath);
       if (await writeBinaryFile(target.absolutePath, content, { overwrite: false })) {
         const note = await this.indexCreatedNote(target, assetsFolder.id);
-        this.emit("noteCreated", { metadata: note });
+        this.emitNotesCreated([note]);
 
         return { note, target: this.wikilinkResolver.findShortestTarget(note) };
       }
@@ -325,7 +324,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     const updated = await this.buildNoteMetadata(notePath, path.basename(metadata.path), metadata.parentId);
     this.putEntry(updated);
     await this.applyParsedContent(new Map([[updated.id, this.parseNoteContent(content)]]));
-    this.emit("noteUpdated", { metadata: updated });
+    this.emitNotesUpdated([updated]);
 
     return updated;
   }
@@ -421,10 +420,11 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     this.removeEntries(descendants);
 
     await this.refreshFolder(metadata.parentId);
-    const trashFolderChain = await this.indexFolderChain(path.dirname(trashedPath));
-    const trashedEntries = await this.reindexMoved(metadata, descendants, trashedPath, trashFolderChain.parentId);
+    const trashParentId = await this.indexFolderChain(path.dirname(trashedPath));
+    const trashedEntries = await this.reindexMoved(metadata, descendants, trashedPath, trashParentId);
     await this.clearNoteTags(trashedEntries);
     this.emitNotesDeleted([metadata].concat(descendants));
+    this.emitNotesCreated(trashedEntries.values());
   }
 
   /**
@@ -447,12 +447,12 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
 
     this.removeEntry(metadata.id);
     this.removeEntries(descendants);
+    this.emitNotesDeleted([metadata].concat(descendants));
 
     await this.dropPrunedTrashFolders(path.dirname(metadata.path));
-    const folderChain = await this.indexFolderChain(path.dirname(restoredPath));
-    const restoredEntries = await this.reindexMoved(metadata, descendants, restoredPath, folderChain.parentId);
+    const parentId = await this.indexFolderChain(path.dirname(restoredPath));
+    const restoredEntries = await this.reindexMoved(metadata, descendants, restoredPath, parentId);
     await this.applyParsedContent(await this.parseNoteFiles(restoredEntries.values()));
-    this.emitNotesCreated(folderChain.createdFolders);
     this.emitNotesCreated(restoredEntries.values());
 
     return this.requireLiveNote(this.toNoteId(restoredPath));
@@ -462,9 +462,9 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
   public async emptyTrash(): Promise<void> {
     await removeDir(this.trashPath);
 
-    for (const id of this.trashIndex.keys()) {
-      this.removeEntry(id);
-    }
+    const trashedEntries = this.listTrashNotes({ isRecursive: true });
+    this.removeEntries(trashedEntries);
+    this.emitNotesDeleted(trashedEntries);
   }
 
   /** Permanently remove a single trashed note. */
@@ -483,6 +483,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
 
     this.removeEntry(metadata.id);
     this.removeEntries(descendants);
+    this.emitNotesDeleted([metadata].concat(descendants));
 
     await this.dropPrunedTrashFolders(path.dirname(metadata.path));
   }
@@ -569,8 +570,10 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
         : await this.buildNoteMetadata(absolutePath, entryName, parentId);
     const existing = this.getIndex(moved.isTrashed).get(moved.id);
     if (existing?.entityType === ENTITY_TYPE.NOTE_FOLDER && moved.entityType !== ENTITY_TYPE.NOTE_FOLDER) {
-      this.removeEntry(existing.id);
-      this.removeEntries(this.listDescendants(existing));
+      const droppedEntries = this.listDescendants(existing);
+      droppedEntries.unshift(existing);
+      this.removeEntries(droppedEntries);
+      this.emitNotesDeleted(droppedEntries);
     }
 
     this.putEntry(moved);
@@ -580,30 +583,30 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
 
   /**
    * Index the folders down to `folderPath` that a move created, and update those
-   * whose timestamp changed.
+   * whose timestamp changed. Returns the id of the innermost folder, or undefined at a tree root.
    */
-  private async indexFolderChain(folderPath: string): Promise<IndexedFolderChain> {
+  private async indexFolderChain(folderPath: string): Promise<string | undefined> {
     const folderPaths: string[] = [];
     for (let current = folderPath; !this.isTreeRoot(current); current = path.dirname(current)) {
       folderPaths.unshift(current);
     }
 
-    const chain: IndexedFolderChain = { createdFolders: [] };
+    let parentId: string | undefined;
     for (const current of folderPaths) {
-      const folder = await this.buildFolderMetadata(this.resolvePath(current), path.basename(current), chain.parentId);
+      const folder = await this.buildFolderMetadata(this.resolvePath(current), path.basename(current), parentId);
       const existing = this.getIndex(folder.isTrashed).get(folder.id);
       if (!existing) {
-        chain.createdFolders.push(folder);
-      }
-
-      if (existing?.updatedTimestamp !== folder.updatedTimestamp) {
         this.putEntry(folder);
+        this.emitNotesCreated([folder]);
+      } else if (existing.updatedTimestamp !== folder.updatedTimestamp) {
+        this.putEntry(folder);
+        this.emitNotesUpdated([folder]);
       }
 
-      chain.parentId = folder.id;
+      parentId = folder.id;
     }
 
-    return chain;
+    return parentId;
   }
 
   /** Drop the trash folders from `folderPath` up that removeEmptyAncestors pruned, and refresh the first one left. */
@@ -616,7 +619,11 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
         return;
       }
 
-      this.removeEntry(folderId);
+      const folder = this.trashIndex.get(folderId);
+      if (folder) {
+        this.removeEntry(folder.id);
+        this.emitNotesDeleted([folder]);
+      }
     }
   }
 
@@ -741,7 +748,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     const metadata = await this.buildFolderMetadata(target.absolutePath, path.basename(target.relativePath), parentId);
     this.putEntry(metadata);
     await this.refreshFolder(parentId);
-    this.emit("noteCreated", { metadata });
+    this.emitNotesCreated([metadata]);
 
     return metadata;
   }
@@ -769,21 +776,19 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     );
     if (refreshed.updatedTimestamp !== folder.updatedTimestamp) {
       this.putEntry(refreshed);
+      this.emitNotesUpdated([refreshed]);
     }
   }
 
-  /** Index an entry in the tree it belongs to and tell clients it was created or updated. */
+  /** Index an entry in the tree it belongs to. */
   private putEntry(metadata: NoteMetadata): void {
-    const index = this.getIndex(metadata.isTrashed);
-    const type = index.has(metadata.id) ? SERVER_MESSAGE_TYPE.NOTE_UPDATED : SERVER_MESSAGE_TYPE.NOTE_CREATED;
-    index.set(metadata.id, metadata);
-    this.broadcaster.broadcast({ type, noteId: metadata.id, metadata });
+    this.getIndex(metadata.isTrashed).set(metadata.id, metadata);
   }
 
-  /** Drop an entry from whichever tree holds it and tell clients it is gone. */
+  /** Drop an entry from whichever tree holds it. */
   private removeEntry(id: string): void {
-    if (this.index.delete(id) || this.trashIndex.delete(id)) {
-      this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_DELETED, noteId: id });
+    if (!this.index.delete(id)) {
+      this.trashIndex.delete(id);
     }
   }
 
@@ -793,21 +798,30 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     }
   }
 
+  /** Tell clients and backend listeners, with one payload, that each entry was created. */
   private emitNotesCreated(entries: Iterable<NoteMetadata>): void {
     for (const metadata of entries) {
-      this.emit("noteCreated", { metadata });
+      const payload = { noteId: metadata.id, metadata };
+      this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_CREATED, ...payload });
+      this.emit("noteCreated", payload);
     }
   }
 
+  /** Tell clients and backend listeners, with one payload, that each entry was updated. */
   private emitNotesUpdated(entries: Iterable<NoteMetadata>): void {
     for (const metadata of entries) {
-      this.emit("noteUpdated", { metadata });
+      const payload = { noteId: metadata.id, metadata };
+      this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_UPDATED, ...payload });
+      this.emit("noteUpdated", payload);
     }
   }
 
+  /** Tell clients and backend listeners, with one payload, that each entry is gone. */
   private emitNotesDeleted(entries: Iterable<NoteMetadata>): void {
     for (const entry of entries) {
-      this.emit("noteDeleted", { noteId: entry.id });
+      const payload = { noteId: entry.id };
+      this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.NOTE_DELETED, ...payload });
+      this.emit("noteDeleted", payload);
     }
   }
 

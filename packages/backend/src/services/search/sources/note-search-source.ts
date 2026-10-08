@@ -40,7 +40,12 @@ export class NoteSearchSource implements SearchSource {
     this.notesManager.on("noteDeleted", ({ noteId }) => this.reportDeletedNote(listener, noteId));
   }
 
+  /** Reports a live entry; the trash is never indexed, so a trashed entry is ignored */
   private async reportNote(listener: SearchSourceListener, metadata: NoteMetadata): Promise<void> {
+    if (metadata.isTrashed) {
+      return;
+    }
+
     const generation = ++this.nextGeneration;
     this.generationByNoteId.set(metadata.id, generation);
     const document = await this.readDocument(metadata);

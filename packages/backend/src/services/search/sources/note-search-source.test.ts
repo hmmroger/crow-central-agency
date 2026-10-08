@@ -130,8 +130,8 @@ describe("NoteSearchSource.subscribe", () => {
     harness.source.subscribe(listener);
     const handlers = new Map(vi.mocked(harness.notesManager.on).mock.calls);
 
-    handlers.get("noteCreated")?.({ metadata: TEXT_NOTE });
-    handlers.get("noteUpdated")?.({ metadata: FOLDER });
+    handlers.get("noteCreated")?.({ noteId: TEXT_NOTE.id, metadata: TEXT_NOTE });
+    handlers.get("noteUpdated")?.({ noteId: FOLDER.id, metadata: FOLDER });
     handlers.get("noteDeleted")?.({ noteId: IMAGE_NOTE.id });
     await flushListeners();
 
@@ -150,6 +150,23 @@ describe("NoteSearchSource.subscribe", () => {
     expect(listener.onDocumentRemove).toHaveBeenCalledWith(toRef(IMAGE_NOTE.id));
   });
 
+  it("ignores a trashed entry's create and update, and still forwards its delete", async () => {
+    const harness = createHarness([]);
+    const trashedNote: NoteFileMetadata = { ...TEXT_NOTE, id: `.trash:${TEXT_NOTE.id}`, isTrashed: true };
+    const listener = { onDocumentUpdate: vi.fn(), onDocumentRemove: vi.fn() };
+    harness.source.subscribe(listener);
+    const handlers = new Map(vi.mocked(harness.notesManager.on).mock.calls);
+
+    handlers.get("noteCreated")?.({ noteId: trashedNote.id, metadata: trashedNote });
+    handlers.get("noteUpdated")?.({ noteId: trashedNote.id, metadata: trashedNote });
+    handlers.get("noteDeleted")?.({ noteId: trashedNote.id });
+    await flushListeners();
+
+    expect(harness.notesManager.getNoteContent).not.toHaveBeenCalled();
+    expect(listener.onDocumentUpdate).not.toHaveBeenCalled();
+    expect(listener.onDocumentRemove).toHaveBeenCalledWith(toRef(trashedNote.id));
+  });
+
   it("skips an update whose read fails", async () => {
     const harness = createHarness([]);
     vi.mocked(harness.notesManager.getNoteContent).mockRejectedValue(new Error("read failed"));
@@ -157,7 +174,7 @@ describe("NoteSearchSource.subscribe", () => {
     harness.source.subscribe(listener);
     const handlers = new Map(vi.mocked(harness.notesManager.on).mock.calls);
 
-    handlers.get("noteUpdated")?.({ metadata: TEXT_NOTE });
+    handlers.get("noteUpdated")?.({ noteId: TEXT_NOTE.id, metadata: TEXT_NOTE });
     await flushListeners();
 
     expect(listener.onDocumentUpdate).not.toHaveBeenCalled();
@@ -173,7 +190,7 @@ describe("NoteSearchSource.subscribe", () => {
     harness.source.subscribe(listener);
     const handlers = new Map(vi.mocked(harness.notesManager.on).mock.calls);
 
-    handlers.get("noteCreated")?.({ metadata: TEXT_NOTE });
+    handlers.get("noteCreated")?.({ noteId: TEXT_NOTE.id, metadata: TEXT_NOTE });
     await flushListeners();
 
     expect(listener.onDocumentUpdate).toHaveBeenCalledWith({
@@ -198,8 +215,8 @@ describe("NoteSearchSource.subscribe", () => {
     harness.source.subscribe(listener);
     const handlers = new Map(vi.mocked(harness.notesManager.on).mock.calls);
 
-    handlers.get("noteUpdated")?.({ metadata: TEXT_NOTE });
-    handlers.get("noteUpdated")?.({ metadata: TEXT_NOTE });
+    handlers.get("noteUpdated")?.({ noteId: TEXT_NOTE.id, metadata: TEXT_NOTE });
+    handlers.get("noteUpdated")?.({ noteId: TEXT_NOTE.id, metadata: TEXT_NOTE });
     await flushListeners();
     const [firstRead, secondRead] = pendingReads;
     secondRead();
@@ -224,7 +241,7 @@ describe("NoteSearchSource.subscribe", () => {
     harness.source.subscribe(listener);
     const handlers = new Map(vi.mocked(harness.notesManager.on).mock.calls);
 
-    handlers.get("noteUpdated")?.({ metadata: TEXT_NOTE });
+    handlers.get("noteUpdated")?.({ noteId: TEXT_NOTE.id, metadata: TEXT_NOTE });
     handlers.get("noteDeleted")?.({ noteId: TEXT_NOTE.id });
     await flushListeners();
     pendingReads[0]();
