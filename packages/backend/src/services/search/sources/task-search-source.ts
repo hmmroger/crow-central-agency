@@ -1,7 +1,6 @@
-import { AGENT_TASK_STATE, type AgentTaskItem } from "@crow-central-agency/shared";
+import { AGENT_TASK_STATE, DATA_SOURCE_TYPE, type AgentTaskItem } from "@crow-central-agency/shared";
 import type { AgentTaskManager } from "../../agent-task-manager.js";
 import {
-  DATA_SOURCE_TYPE,
   GLOBAL_PROVENANCE_ID,
   type DocumentRef,
   type SearchDocument,

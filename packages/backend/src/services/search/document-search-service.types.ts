@@ -1,11 +1,4 @@
-export const DATA_SOURCE_TYPE = {
-  ARTIFACT: "artifact",
-  CIRCLE_ARTIFACT: "circleArtifact",
-  TASK: "task",
-  FRAGMENT: "fragment",
-  NOTE: "note",
-} as const;
-export type DataSourceType = (typeof DATA_SOURCE_TYPE)[keyof typeof DATA_SOURCE_TYPE];
+import type { DataSourceType } from "@crow-central-agency/shared";
 
 /**
  * Provenance for documents that share one global pool instead of belonging to an agent or
@@ -42,15 +35,6 @@ export type DocumentSearchFilter = (ref: DocumentRef) => boolean;
 export interface DocumentSearchOptions {
   filter?: DocumentSearchFilter;
   limit?: number;
-}
-
-export interface DocumentSearchHit {
-  documentId: string;
-  dataSourceType: DataSourceType;
-  provenanceId: string;
-  title: string;
-  tags?: string[];
-  score: number;
 }
 
 /** Change callbacks a `SearchSource` reports through; the search service decides what to do with them. */

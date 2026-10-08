@@ -1,7 +1,6 @@
-import type { Fragment } from "@crow-central-agency/shared";
+import { DATA_SOURCE_TYPE, type Fragment } from "@crow-central-agency/shared";
 import type { FragmentManager } from "../../fragment/fragment-manager.js";
 import {
-  DATA_SOURCE_TYPE,
   GLOBAL_PROVENANCE_ID,
   type DocumentRef,
   type SearchDocument,

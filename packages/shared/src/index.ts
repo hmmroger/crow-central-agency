@@ -530,6 +530,18 @@ export {
 export { TagSchema, type Tag } from "./schemas/tag.schema.js";
 
 export {
+  DATA_SOURCE_TYPE,
+  DataSourceTypeSchema,
+  SEARCH_DEFAULT_LIMIT,
+  SEARCH_MAX_LIMIT,
+  SearchQuerySchema,
+  DocumentSearchHitSchema,
+  type DataSourceType,
+  type SearchQuery,
+  type DocumentSearchHit,
+} from "./schemas/search.schema.js";
+
+export {
   SessionHistoryNodeSchema,
   RenameSessionRequestSchema,
   SESSION_LABEL_MAX_LENGTH,

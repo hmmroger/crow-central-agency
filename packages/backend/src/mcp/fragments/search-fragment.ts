@@ -1,7 +1,7 @@
 import { z } from "zod";
+import { DATA_SOURCE_TYPE, type DocumentSearchHit } from "@crow-central-agency/shared";
 import type { FragmentManager } from "../../services/fragment/fragment-manager.js";
 import type { DocumentSearchService } from "../../services/search/document-search-service.js";
-import { DATA_SOURCE_TYPE, type DocumentSearchHit } from "../../services/search/document-search-service.types.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { getErrorToolResult, textToolResult } from "../tool-utils.js";
 import { READ_FRAGMENT_TOOL_NAME } from "./read-fragment.js";

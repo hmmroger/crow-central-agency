@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  DATA_SOURCE_TYPE,
   ENTITY_TYPE,
   NOTE_CONTENT_TYPE,
   type NoteFileMetadata,
@@ -12,7 +13,7 @@ import { TagManager } from "../../tag/tag-manager.js";
 import { RelationshipManager } from "../../relationship-manager.js";
 import { WsBroadcaster } from "../../ws-broadcaster.js";
 import { InMemoryObjectStore } from "../../../core/store/in-memory-object-store.mock.js";
-import { DATA_SOURCE_TYPE, GLOBAL_PROVENANCE_ID, type SearchDocument } from "../document-search-service.types.js";
+import { GLOBAL_PROVENANCE_ID, type SearchDocument } from "../document-search-service.types.js";
 
 vi.mock("../../notes/notes-manager.js");
 vi.mock("../../tag/tag-manager.js");

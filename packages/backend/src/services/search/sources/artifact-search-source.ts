@@ -1,5 +1,6 @@
 import {
   ARTIFACT_CONTENT_TYPE,
+  DATA_SOURCE_TYPE,
   ENTITY_TYPE,
   type ArtifactMetadata,
   type EntityType,
@@ -8,12 +9,11 @@ import { logger } from "../../../utils/logger.js";
 import type { ArtifactManager } from "../../artifact/artifact-manager.js";
 import type { AgentRegistry } from "../../agent-registry.js";
 import type { AgentCircleManager } from "../../agent-circle-manager.js";
-import {
-  DATA_SOURCE_TYPE,
-  type DocumentRef,
-  type SearchDocument,
-  type SearchSource,
-  type SearchSourceListener,
+import type {
+  DocumentRef,
+  SearchDocument,
+  SearchSource,
+  SearchSourceListener,
 } from "../document-search-service.types.js";
 import { LatestReadTracker } from "./latest-read-tracker.js";
 

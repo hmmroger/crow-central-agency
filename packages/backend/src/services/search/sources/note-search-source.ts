@@ -1,9 +1,8 @@
-import { ENTITY_TYPE, NOTE_CONTENT_TYPE, type NoteMetadata } from "@crow-central-agency/shared";
+import { DATA_SOURCE_TYPE, ENTITY_TYPE, NOTE_CONTENT_TYPE, type NoteMetadata } from "@crow-central-agency/shared";
 import { logger } from "../../../utils/logger.js";
 import type { NotesManager } from "../../notes/notes-manager.js";
 import type { TagManager } from "../../tag/tag-manager.js";
 import {
-  DATA_SOURCE_TYPE,
   GLOBAL_PROVENANCE_ID,
   type DocumentRef,
   type SearchDocument,
