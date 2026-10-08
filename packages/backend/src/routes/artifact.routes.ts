@@ -8,12 +8,14 @@ import {
   ARTIFACT_CONTENT_TYPE,
   ARTIFACT_TYPE,
   ArtifactContentTypeSchema,
+  ArtifactListQuerySchema,
   ArtifactUpdateSchema,
   getMimeTypeByFilename,
 } from "@crow-central-agency/shared";
-import type { ArtifactContentType, ArtifactUpdate } from "@crow-central-agency/shared";
+import type { ArtifactContentType, ArtifactListQuery, ArtifactUpdate } from "@crow-central-agency/shared";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
+import { wrapZodError } from "./route-utils.js";
 import type { Multipart } from "@fastify/multipart";
 
 /** Resolve MIME type from filename and artifact content type */
@@ -65,14 +67,23 @@ function parseArtifactUpdate(body: unknown): ArtifactUpdate {
   return result.data;
 }
 
+function parseArtifactListQuery(query: unknown): ArtifactListQuery {
+  try {
+    return ArtifactListQuerySchema.parse(query);
+  } catch (error) {
+    return wrapZodError(error);
+  }
+}
+
 /**
  * Register artifact REST routes
  */
 export async function registerArtifactRoutes(server: FastifyInstance, artifactManager: ArtifactManager) {
-  /** List artifacts for an agent */
-  server.get<{ Params: { id: string } }>("/api/agents/:id/artifacts", async (request) => {
+  /** List artifacts for an agent, optionally narrowed to one filename */
+  server.get<{ Params: { id: string }; Querystring: unknown }>("/api/agents/:id/artifacts", async (request) => {
     const agentId = validateAgentIdParam(request.params.id);
-    const artifacts = await artifactManager.listArtifacts(agentId);
+    const { filename } = parseArtifactListQuery(request.query);
+    const artifacts = await artifactManager.listArtifacts(agentId, { filename });
     return { success: true, data: artifacts };
   });
 
@@ -152,6 +163,14 @@ export async function registerArtifactRoutes(server: FastifyInstance, artifactMa
       return { success: true, data: { metadata, content } };
     }
   );
+
+  /** List a circle's own artifacts, optionally narrowed to one filename */
+  server.get<{ Params: { id: string }; Querystring: unknown }>("/api/circles/:id/artifacts", async (request) => {
+    const circleId = validateCircleIdParam(request.params.id);
+    const { filename } = parseArtifactListQuery(request.query);
+    const artifacts = await artifactManager.listCircleArtifacts(circleId, { filename });
+    return { success: true, data: artifacts };
+  });
 
   /** Upload an artifact to a circle via multipart form data */
   server.post<{ Params: { id: string } }>("/api/circles/:id/artifacts", async (request) => {

@@ -63,6 +63,13 @@ export const ArtifactMetadataSchema = z.object({
 
 export type ArtifactMetadata = z.infer<typeof ArtifactMetadataSchema>;
 
+/** `filename` narrows the list to the artifact with exactly that name. */
+export const ArtifactListQuerySchema = z.object({
+  filename: z.string().min(1).optional(),
+});
+
+export type ArtifactListQuery = z.infer<typeof ArtifactListQuerySchema>;
+
 /**
  * Request body for a PATCH artifact update. Tag changes apply a remove-then-add delta to the current
  * set; `content` replaces the raw text. `expectedUpdatedTimestamp` guards against clobbering a

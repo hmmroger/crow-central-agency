@@ -299,11 +299,13 @@ export {
   ArtifactEntityTypeSchema,
   ArtifactMetadataSchema,
   ArtifactUpdateSchema,
+  ArtifactListQuerySchema,
   type ArtifactType,
   type ArtifactContentType,
   type ArtifactEntityType,
   type ArtifactMetadata,
   type ArtifactUpdate,
+  type ArtifactListQuery,
 } from "./schemas/artifact.schema.js";
 
 export {
