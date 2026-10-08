@@ -78,7 +78,7 @@ function toHitEntry(
           kind: NOTE_PALETTE_TARGET_KIND.ARTIFACT,
           ownerType,
           ownerId: hit.provenanceId,
-          filename: hit.title,
+          filename: hit.documentId,
         },
       };
     }
