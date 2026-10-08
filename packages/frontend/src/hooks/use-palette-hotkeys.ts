@@ -34,11 +34,12 @@ export function usePaletteHotkeys() {
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey) {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) {
         return;
       }
 
-      const requested = palettes.find((palette) => palette.key === event.key);
+      const pressedKey = event.key.toLowerCase();
+      const requested = palettes.find((palette) => palette.key === pressedKey);
       if (!requested) {
         return;
       }
