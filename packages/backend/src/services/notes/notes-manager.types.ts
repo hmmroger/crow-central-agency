@@ -1,4 +1,16 @@
 import type { NoteFileMetadata, NoteMetadata } from "@crow-central-agency/shared";
+import type { EventMap } from "../../core/event-bus/event-bus.types.js";
+
+/**
+ * Note lifecycle events for backend listeners such as search, live and trash
+ * alike. Each is raised together with the matching WS message and carries the
+ * same payload; a note's event comes after its tag work.
+ */
+export interface NotesManagerEvents extends EventMap {
+  noteCreated: { noteId: string; metadata: NoteMetadata };
+  noteUpdated: { noteId: string; metadata: NoteMetadata };
+  noteDeleted: { noteId: string };
+}
 
 /** Content of a single note: a string for text notes, raw bytes otherwise. */
 export interface ReadNoteResult {

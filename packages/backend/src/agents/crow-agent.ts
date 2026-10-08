@@ -16,6 +16,10 @@ import path from "node:path";
 import { SYSTEM_AGENTS_PROJECT_DIR_NAME } from "../config/constants.js";
 import { GEOLOCATION_SENSOR_ID } from "../sensors/geolocation-sensor.js";
 import { WEATHER_SENSOR_ID } from "../sensors/weather-sensor.js";
+import { toInternalMcpToolName } from "../mcp/crow-mcp-manager-utils.js";
+import { USER_NOTES_MCP_SERVER_NAME } from "../mcp/user-notes/user-notes-mcp-server.js";
+import { LIST_NOTES_TOOL_NAME } from "../mcp/user-notes/list-notes.js";
+import { READ_NOTE_TOOL_NAME } from "../mcp/user-notes/read-note.js";
 
 const CROW_SYSTEM_AGENT_NAME = env.CROW_SYSTEM_AGENT_NAME ?? "Crow";
 const CROW_SYSTEM_AGENT_PERSONA: MessageTemplate = {
@@ -56,6 +60,11 @@ const SUPER_CROW_TOOLS = [
   CLAUDE_CODE_TOOL.WEB_FETCH,
   CLAUDE_CODE_TOOL.WEB_SEARCH,
 ];
+const SUPER_CROW_MCP_SERVER_IDS = [USER_NOTES_MCP_SERVER_NAME];
+const SUPER_CROW_AUTO_APPROVED_MCP_TOOLS = [
+  toInternalMcpToolName(USER_NOTES_MCP_SERVER_NAME, LIST_NOTES_TOOL_NAME),
+  toInternalMcpToolName(USER_NOTES_MCP_SERVER_NAME, READ_NOTE_TOOL_NAME),
+];
 const SUPER_CROW_TOOLS_COPILOT = [
   GITHUB_COPILOT_TOOL.GLOB,
   GITHUB_COPILOT_TOOL.GREP,
@@ -83,9 +92,9 @@ export function getCrowAgent(): AgentConfig {
     toolConfig: {
       mode: TOOL_MODE.RESTRICTED,
       tools,
-      autoApprovedTools: tools,
+      autoApprovedTools: SUPER_CROW_AUTO_APPROVED_MCP_TOOLS.concat(tools),
     },
-    mcpServerIds: [],
+    mcpServerIds: SUPER_CROW_MCP_SERVER_IDS,
     sensorIds: [GEOLOCATION_SENSOR_ID, WEATHER_SENSOR_ID],
     isPinned: true,
     excludeClaudeCodeSystemPrompt: true,

@@ -1,5 +1,6 @@
 import MiniSearch from "minisearch";
 import { logger } from "../../utils/logger.js";
+import { toDocumentUid } from "./document-ref-utils.js";
 import type {
   DataSourceType,
   DocumentRef,
@@ -122,7 +123,7 @@ export class DocumentSearchService {
   private async loadSource(source: SearchSource): Promise<void> {
     try {
       for await (const document of source.loadAll()) {
-        if (!this.liveChangedUids.has(this.toUid(document))) {
+        if (!this.liveChangedUids.has(toDocumentUid(document))) {
           this.upsertDocument(document);
         }
       }
@@ -133,7 +134,7 @@ export class DocumentSearchService {
 
   private trackLiveChange(ref: DocumentRef): void {
     if (this.isLoading) {
-      this.liveChangedUids.add(this.toUid(ref));
+      this.liveChangedUids.add(toDocumentUid(ref));
     }
   }
 
@@ -147,21 +148,16 @@ export class DocumentSearchService {
   }
 
   private removeDocument(ref: DocumentRef): void {
-    const uid = this.toUid(ref);
+    const uid = toDocumentUid(ref);
     if (this.index.has(uid)) {
       this.index.discard(uid);
     }
   }
 
-  /** Identity is the (dataSourceType, provenanceId, documentId) triple, since documentIds (e.g. artifact filenames) repeat across containers. */
-  private toUid(ref: DocumentRef): string {
-    return `${ref.dataSourceType}:${ref.provenanceId}:${ref.documentId}`;
-  }
-
   private toIndexedDocument(document: SearchDocument): IndexedDocument {
     return {
       ...document,
-      uid: this.toUid(document),
+      uid: toDocumentUid(document),
       tagText: document.tags?.join(" ") ?? "",
     };
   }

@@ -26,6 +26,7 @@ import type {
 import type { AgentRegistry } from "../services/agent-registry.js";
 import type { SystemSettingsManager } from "../services/system-settings-manager.js";
 import { FEED_MCP_SERVER_NAME } from "./feed/feed-mcp-server.js";
+import { toInternalMcpToolPrefix } from "./crow-mcp-manager-utils.js";
 
 const log = logger.child({ context: "mcp-manager" });
 
@@ -103,7 +104,7 @@ export class CrowMcpManager {
       serverConfigMap.set(definition.name, {
         kind: "internal",
         name: definition.name,
-        mcpToolPrefix: `mcp__${definition.name}__`,
+        mcpToolPrefix: toInternalMcpToolPrefix(definition.name),
         isAutoApproved: !definition.isConfigurable,
         tools: definition.getTools(agentId),
         connectionProfiles,
@@ -131,10 +132,6 @@ export class CrowMcpManager {
     }
 
     return Array.from(serverConfigMap.values());
-  }
-
-  public getCompleteMcpToolName(serverName: string, toolName: string): string {
-    return `mcp__${serverName}__${toolName}`;
   }
 
   public async getMcpConfigsForAgent(agentId: string): Promise<(McpServerConfig | InternalMcpConfig)[]> {

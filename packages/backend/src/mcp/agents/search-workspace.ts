@@ -23,6 +23,7 @@ const SEARCH_SOURCE_VALUES = [
   DATA_SOURCE_TYPE.CIRCLE_ARTIFACT,
   DATA_SOURCE_TYPE.TASK,
   DATA_SOURCE_TYPE.FRAGMENT,
+  DATA_SOURCE_TYPE.NOTE,
 ];
 
 export function getSearchWorkspaceToolConfig(
@@ -37,7 +38,7 @@ export function getSearchWorkspaceToolConfig(
       .string()
       .min(1)
       .describe(
-        "Full-text query matched against artifact filenames and contents, task titles and results, fragment cues and bodies, and tags. Supports fuzzy and prefix matching."
+        "Full-text query matched against artifact filenames and contents, task titles and results, fragment cues and bodies, user note names and contents, and tags. Supports fuzzy and prefix matching."
       ),
     sources: z
       .array(z.enum(SEARCH_SOURCE_VALUES))
@@ -70,7 +71,7 @@ export function getSearchWorkspaceToolConfig(
   const config: McpToolConfig<typeof inputSchema> = {
     name: SEARCH_WORKSPACE_TOOL_NAME,
     description:
-      "Full-text search across your own artifacts, artifacts in circles you directly belong to, the results of tasks you own, and fragments in your memory. Supports fuzzy and prefix matching, ranked by relevance. Results are grouped by source; open a hit with the read tool named in its section.",
+      "Full-text search across your own artifacts, artifacts in circles you directly belong to, the results of tasks you own, fragments in your memory, and the user's notes. Supports fuzzy and prefix matching, ranked by relevance. Results are grouped by source; open a hit with the read tool named in its section.",
     inputSchema,
     handler,
   };
@@ -80,8 +81,8 @@ export function getSearchWorkspaceToolConfig(
 
 /**
  * Build the predicate that limits results to what the agent may see: its own artifacts, artifacts
- * in circles it directly belongs to, tasks it owns, and fragments within its resolved reachable
- * scope. An optional `sources` list narrows further.
+ * in circles it directly belongs to, tasks it owns, fragments within its resolved reachable
+ * scope, and every user note. An optional `sources` list narrows further.
  */
 function buildAccessFilter(
   agentId: string,
@@ -115,6 +116,9 @@ function buildAccessFilter(
       case DATA_SOURCE_TYPE.FRAGMENT:
         return scopedFragmentIds.has(ref.documentId);
 
+      case DATA_SOURCE_TYPE.NOTE:
+        return true;
+
       default:
         return false;
     }
@@ -127,6 +131,7 @@ function renderHits(hits: DocumentSearchHit[]): string[] {
   );
   const taskHits = hits.filter((hit) => hit.dataSourceType === DATA_SOURCE_TYPE.TASK);
   const fragmentHits = hits.filter((hit) => hit.dataSourceType === DATA_SOURCE_TYPE.FRAGMENT);
+  const noteHits = hits.filter((hit) => hit.dataSourceType === DATA_SOURCE_TYPE.NOTE);
 
   const sections: string[][] = [];
   if (artifactHits.length > 0) {
@@ -143,6 +148,14 @@ function renderHits(hits: DocumentSearchHit[]): string[] {
 
   if (fragmentHits.length > 0) {
     sections.push(["Fragments:", "[Read with read_fragment]", ...fragmentHits.map(renderFragmentHit)]);
+  }
+
+  if (noteHits.length > 0) {
+    sections.push([
+      "Notes:",
+      "[Read with read_note, or list_notes for a hit that is a folder]",
+      ...noteHits.map(renderNoteHit),
+    ]);
   }
 
   const lines: string[] = [];
@@ -170,4 +183,9 @@ function renderTaskHit(hit: DocumentSearchHit): string {
 function renderFragmentHit(hit: DocumentSearchHit): string {
   const kind = hit.tags?.length ? ` (${hit.tags.join(", ")})` : "";
   return `- Id: ${hit.documentId}${kind} Cue: ${hit.title}`;
+}
+
+function renderNoteHit(hit: DocumentSearchHit): string {
+  const tags = hit.tags?.length ? ` tags: [${hit.tags.join(", ")}]` : "";
+  return `- Id: ${hit.documentId} Name: ${hit.title}${tags}`;
 }

@@ -1,5 +1,17 @@
 import { z } from "zod";
 import type { ZodError, ZodRawShape } from "zod";
+import { getMimeTypeByFilename, MIME_TYPE } from "@crow-central-agency/shared";
+
+/** How a read tool presents one file's content after its metadata header. */
+export interface FileContentPresentation {
+  /** Decides the image or PDF presentation of binary content */
+  filename: string;
+  isText: boolean;
+  /** Identifies an embedded PDF resource */
+  resourceUri: string;
+  /** Shown in place of binary content that cannot be presented */
+  unsupportedNotice: string;
+}
 
 export interface ReadLineOptions {
   showLineNumber?: boolean;
@@ -18,6 +30,17 @@ export interface PaginationResult<T> {
   effectiveOffset: number;
   hasMore: boolean;
 }
+
+/** Default cap on lines returned by read tools to avoid flooding the context with large text files. */
+export const DEFAULT_READ_LINE_LIMIT = 100;
+
+/** Image types that Claude can process natively via base64 */
+const SUPPORTED_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
+  MIME_TYPE.JPEG,
+  MIME_TYPE.PNG,
+  MIME_TYPE.GIF,
+  MIME_TYPE.WEBP,
+]);
 
 /**
  * Creates a tool result object with text content.
@@ -112,6 +135,48 @@ export const formatPaginationHeader = (
 
   return lines;
 };
+
+/**
+ * Build the MCP content blocks of a file read: text in line windows, supported images as image
+ * content, PDFs as an embedded resource, and any other binary content as a notice.
+ */
+export function buildFileContentResult(
+  header: string[],
+  content: string | Buffer,
+  file: FileContentPresentation,
+  lineOptions?: ReadLineOptions
+) {
+  if (typeof content === "string" || file.isText) {
+    const rawText = typeof content === "string" ? content : content.toString("utf-8");
+    const processed = processTextContent(rawText, lineOptions);
+    return textToolResult(header.concat(processed.headerParts).concat(["", processed.text]));
+  }
+
+  const mimeType = getMimeTypeByFilename(file.filename);
+
+  if (mimeType && SUPPORTED_IMAGE_MIME_TYPES.has(mimeType)) {
+    return {
+      content: [
+        { type: "text" as const, text: header.join("\n") },
+        { type: "image" as const, data: content.toString("base64"), mimeType },
+      ],
+    };
+  }
+
+  if (mimeType === MIME_TYPE.PDF) {
+    return {
+      content: [
+        { type: "text" as const, text: header.join("\n") },
+        {
+          type: "resource" as const,
+          resource: { uri: file.resourceUri, mimeType, blob: content.toString("base64") },
+        },
+      ],
+    };
+  }
+
+  return textToolResult(header.concat(file.unsupportedNotice));
+}
 
 /** Process text content: build header info, apply line slicing and optional line numbering */
 export function processTextContent(text: string, options?: ReadLineOptions): ProcessedTextContent {
