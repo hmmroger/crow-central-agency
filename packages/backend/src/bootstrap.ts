@@ -243,7 +243,7 @@ export async function bootstrap(options: BootstrapOptions) {
   mcpManager.registerMcpServer(getBuilderAgentMcpServerDefinition(registry, mcpManager));
   mcpManager.registerMcpServer(getRemindersMcpServerDefinition(crowScheduler, sensorManager));
   mcpManager.registerMcpServer(getToolboxMcpServerDefinition(sensorManager, registry));
-  mcpManager.registerMcpServer(getUserNotesMcpServerDefinition(notesManager, sensorManager));
+  mcpManager.registerMcpServer(getUserNotesMcpServerDefinition(notesManager, tagManager, sensorManager));
   mcpManager.registerMcpServer(getGmailMcpServerDefinition(connectorManager, sensorManager));
   mcpManager.registerMcpServer(getGoogleCalendarMcpServerDefinition(connectorManager, sensorManager));
   mcpManager.registerMcpServer(getGoogleContactsMcpServerDefinition(connectorManager, sensorManager));

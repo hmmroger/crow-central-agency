@@ -78,6 +78,7 @@ const BYTES = Buffer.from([1, 2, 3]);
 
 interface Harness {
   notesManager: NotesManager;
+  tagManager: TagManager;
   handler: ReturnType<typeof getReadNoteToolConfig>["handler"];
 }
 
@@ -89,11 +90,23 @@ function createHarness(note: NoteFileMetadata | NoteFolderMetadata, content: str
   const sensorManager = new SensorManager(store);
   vi.mocked(sensorManager.getUserTimezone).mockResolvedValue("UTC");
   vi.mocked(notesManager.getNote).mockReturnValue(note);
+  vi.mocked(tagManager.getEntityTags).mockImplementation((_entityType, entityId) =>
+    entityId === TEXT_NOTE.id
+      ? [
+          { id: "tag-1", name: "food", createdTimestamp: 0 },
+          { id: "tag-2", name: "japan", createdTimestamp: 0 },
+        ]
+      : []
+  );
   if (note.entityType === ENTITY_TYPE.NOTE) {
     vi.mocked(notesManager.getNoteContent).mockResolvedValue({ metadata: note, content });
   }
 
-  return { notesManager, handler: getReadNoteToolConfig(notesManager, sensorManager).handler };
+  return {
+    notesManager,
+    tagManager,
+    handler: getReadNoteToolConfig(notesManager, tagManager, sensorManager).handler,
+  };
 }
 
 function getResultText(result: CallToolResult): string {
@@ -110,8 +123,18 @@ describe("read_note", () => {
 
     expect(result.isError).toBeFalsy();
     expect(text).toContain("[Id: travel:tokyo.md | Name: Tokyo | Content: TEXT |");
+    expect(text).toContain("\n[Tags: food, japan]\n");
+    expect(harness.tagManager.getEntityTags).toHaveBeenCalledWith(ENTITY_TYPE.NOTE, TEXT_NOTE.id);
     expect(text).toContain("[More available: use startLine=3 to continue]");
     expect(text.endsWith("\nline two")).toBe(true);
+  });
+
+  it("omits the tags line for a note without tags", async () => {
+    const harness = createHarness(IMAGE_NOTE);
+
+    const result = await harness.handler({ id: IMAGE_NOTE.id }, undefined);
+
+    expect(getResultText(result)).not.toContain("[Tags:");
   });
 
   it("returns an image note as image content", async () => {
