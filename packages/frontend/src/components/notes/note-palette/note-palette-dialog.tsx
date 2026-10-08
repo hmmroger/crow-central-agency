@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { FileBox, FileText } from "lucide-react";
 import { ENTITY_TYPE, type ArtifactEntityType, type ArtifactMetadata } from "@crow-central-agency/shared";
 import { useCirclesQuery } from "../../../hooks/queries/use-circles-query.js";
@@ -71,6 +71,15 @@ export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
   const [filter, setFilter] = useState<NotePaletteFilter>(NOTE_PALETTE_FILTER.ALL);
   const [artifactError, setArtifactError] = useState<string>();
   const isOpeningArtifactRef = useRef(false);
+  const isMountedRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const trimmedQuery = query.trim();
   const isSearching = trimmedQuery.length > 0;
@@ -143,6 +152,10 @@ export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
       setArtifactError(undefined);
       try {
         const metadata = await fetchArtifactMetadata(target);
+        if (!isMountedRef.current) {
+          return;
+        }
+
         if (!metadata) {
           setArtifactError(MISSING_ARTIFACT_MESSAGE);
           return;
@@ -151,7 +164,9 @@ export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
         onClose();
         openArtifactViewer(metadata);
       } catch (error) {
-        setArtifactError(getErrorMessage(error));
+        if (isMountedRef.current) {
+          setArtifactError(getErrorMessage(error));
+        }
       } finally {
         isOpeningArtifactRef.current = false;
       }

@@ -20,6 +20,7 @@ export function useSearchQuery(query: string, sources: readonly DataSourceType[]
       return unwrapResponse(await apiClient.get<DocumentSearchHit[]>(`/search?${params.toString()}`));
     },
     enabled: query.length > 0,
+    staleTime: 0,
     placeholderData: keepPreviousData,
   });
 }

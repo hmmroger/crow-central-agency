@@ -20,7 +20,7 @@ const NOTE_PALETTE_HOTKEY_KEY = "p";
  * the browser while another dialog owns the screen.
  */
 export function usePaletteHotkeys() {
-  const { hideDialog, isDialogOpen, openDialogIds } = useModalDialog();
+  const { hideDialog, openDialogIds } = useModalDialog();
   const openAgentPalette = useOpenAgentPalette();
   const openNotePalette = useOpenNotePalette();
 
@@ -49,12 +49,13 @@ export function usePaletteHotkeys() {
         return;
       }
 
-      if (isDialogOpen(requested.dialogId)) {
+      const topDialogId = openDialogIds.at(-1);
+      if (topDialogId === requested.dialogId) {
         hideDialog(requested.dialogId);
         return;
       }
 
-      const openPalette = palettes.find((palette) => isDialogOpen(palette.dialogId));
+      const openPalette = palettes.find((palette) => palette.dialogId === topDialogId);
       if (openPalette) {
         hideDialog(openPalette.dialogId);
         requested.open();
@@ -67,7 +68,7 @@ export function usePaletteHotkeys() {
 
       requested.open();
     },
-    [palettes, isDialogOpen, hideDialog, openDialogIds]
+    [palettes, hideDialog, openDialogIds]
   );
 
   useEffect(() => {
