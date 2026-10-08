@@ -1,4 +1,4 @@
-import type { RelationshipDirection } from "@crow-central-agency/shared";
+import type { DataSourceType, RelationshipDirection } from "@crow-central-agency/shared";
 
 /**
  * Query key factory for consistent key management.
@@ -192,6 +192,16 @@ export const noteKeys = {
   suggest: (query: string, isEmbed: boolean, excludeId?: string) =>
     [...noteKeys.links(), "suggest", query, isEmbed, excludeId] as const,
   moveDestinations: (noteId: string) => [...noteKeys.links(), "move-destinations", noteId] as const,
+};
+
+/**
+ * Query key factory for workspace search queries.
+ */
+export const searchKeys = {
+  /** Root key for all search queries */
+  all: ["search"] as const,
+  /** Ranked hits for a query, narrowed to the given sources */
+  results: (query: string, sources: readonly DataSourceType[]) => [...searchKeys.all, query, sources] as const,
 };
 
 /**
