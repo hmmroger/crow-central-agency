@@ -10,15 +10,14 @@ import {
   type SearchSource,
   type SearchSourceListener,
 } from "../document-search-service.types.js";
+import { LatestReadTracker } from "./latest-read-tracker.js";
 
 const log = logger.child({ context: "note-search-source" });
 
 /** Indexes every live note and folder: name as title, content as text for text notes, tags from TagManager. */
 export class NoteSearchSource implements SearchSource {
   public readonly dataSourceTypes = [DATA_SOURCE_TYPE.NOTE];
-  /** Latest live event per note with a read in flight, so a slower earlier read never overwrites it */
-  private readonly generationByNoteId = new Map<string, number>();
-  private nextGeneration = 0;
+  private readonly liveReads = new LatestReadTracker();
 
   constructor(
     private readonly notesManager: NotesManager,
@@ -46,14 +45,7 @@ export class NoteSearchSource implements SearchSource {
       return;
     }
 
-    const generation = ++this.nextGeneration;
-    this.generationByNoteId.set(metadata.id, generation);
-    const document = await this.readDocument(metadata);
-    if (this.generationByNoteId.get(metadata.id) !== generation) {
-      return;
-    }
-
-    this.generationByNoteId.delete(metadata.id);
+    const document = await this.liveReads.readLatest(this.toRef(metadata.id), () => this.readDocument(metadata));
     if (document) {
       listener.onDocumentUpdate(document);
     }
@@ -61,8 +53,9 @@ export class NoteSearchSource implements SearchSource {
 
   /** A removal also cancels any read still in flight for the note */
   private reportDeletedNote(listener: SearchSourceListener, noteId: string): void {
-    this.generationByNoteId.delete(noteId);
-    listener.onDocumentRemove(this.toRef(noteId));
+    const ref = this.toRef(noteId);
+    this.liveReads.cancel(ref);
+    listener.onDocumentRemove(ref);
   }
 
   /** Builds the entry's document, reading content for types that have text; a failed read is logged and returns undefined. */

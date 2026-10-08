@@ -15,12 +15,14 @@ import {
   type SearchSource,
   type SearchSourceListener,
 } from "../document-search-service.types.js";
+import { LatestReadTracker } from "./latest-read-tracker.js";
 
 const log = logger.child({ context: "artifact-search-source" });
 
 /** Indexes text artifacts owned by agents and circles. */
 export class ArtifactSearchSource implements SearchSource {
   public readonly dataSourceTypes = [DATA_SOURCE_TYPE.ARTIFACT, DATA_SOURCE_TYPE.CIRCLE_ARTIFACT];
+  private readonly liveReads = new LatestReadTracker();
 
   constructor(
     private readonly artifactManager: ArtifactManager,
@@ -40,7 +42,7 @@ export class ArtifactSearchSource implements SearchSource {
 
   public subscribe(listener: SearchSourceListener): void {
     this.artifactManager.on("artifactSaved", ({ metadata }) => void this.reportSavedArtifact(listener, metadata));
-    this.artifactManager.on("artifactDeleted", ({ metadata }) => listener.onDocumentRemove(this.toRef(metadata)));
+    this.artifactManager.on("artifactDeleted", ({ metadata }) => this.reportRemovedArtifact(listener, metadata));
   }
 
   private async listContainerArtifacts(entityType: EntityType, entityId: string): Promise<ArtifactMetadata[]> {
@@ -69,14 +71,21 @@ export class ArtifactSearchSource implements SearchSource {
 
   private async reportSavedArtifact(listener: SearchSourceListener, metadata: ArtifactMetadata): Promise<void> {
     if (metadata.contentType !== ARTIFACT_CONTENT_TYPE.TEXT) {
-      listener.onDocumentRemove(this.toRef(metadata));
+      this.reportRemovedArtifact(listener, metadata);
       return;
     }
 
-    const document = await this.readDocument(metadata);
+    const document = await this.liveReads.readLatest(this.toRef(metadata), () => this.readDocument(metadata));
     if (document) {
       listener.onDocumentUpdate(document);
     }
+  }
+
+  /** A removal also cancels any read still in flight for the artifact */
+  private reportRemovedArtifact(listener: SearchSourceListener, metadata: ArtifactMetadata): void {
+    const ref = this.toRef(metadata);
+    this.liveReads.cancel(ref);
+    listener.onDocumentRemove(ref);
   }
 
   /** Reads the artifact's content and builds its document; a failed read is logged and returns undefined. */
