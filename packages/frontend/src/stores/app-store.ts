@@ -38,6 +38,8 @@ export const NOTES_SIDEBAR_MIN_WIDTH = 256;
 export const NOTES_SIDEBAR_MAX_WIDTH = 480;
 /** Maximum number of recently visited agent ids kept */
 const RECENT_AGENT_IDS_MAX = 12;
+/** Maximum number of recently opened note ids kept */
+const RECENT_NOTE_IDS_MAX = 12;
 
 interface AppState {
   /** Current view mode - controlled by sidebar */
@@ -68,6 +70,8 @@ interface AppState {
   initialTaskFilter: AgentTaskState | undefined;
   /** Ids of recently visited agent consoles, most recent first */
   recentAgentIds: string[];
+  /** Ids of recently opened notes, most recent first */
+  recentNoteIds: string[];
   /** Switch view mode via sidebar. Falls selectedAgentId back to the Crow system agent when nothing is selected */
   setViewMode: (mode: ViewMode) => void;
   /** Select an agent in the Agents view to show its console */
@@ -106,6 +110,8 @@ interface AppState {
   toggleDashboardTopCollapsed: () => void;
   /** Record an agent console visit, moving the agent to the front of the recents list */
   recordAgentVisit: (agentId: string) => void;
+  /** Record a note being opened, moving it to the front of the recents list */
+  recordNoteVisit: (noteId: string) => void;
 }
 
 /** Shape of the state that is persisted to localStorage */
@@ -121,6 +127,7 @@ interface PersistedAppState {
   collapsedCircles?: Record<string, boolean>;
   dashboardTopCollapsed?: boolean;
   recentAgentIds?: string[];
+  recentNoteIds?: string[];
 }
 
 /** localStorage key for persisted app state */
@@ -148,6 +155,7 @@ export const useAppStore = create<AppState>()(
       dashboardTopCollapsed: false,
       initialTaskFilter: undefined,
       recentAgentIds: [],
+      recentNoteIds: [],
 
       setViewMode: (mode: ViewMode) =>
         set((state) => {
@@ -223,6 +231,16 @@ export const useAppStore = create<AppState>()(
           const remaining = state.recentAgentIds.filter((recentId) => recentId !== agentId);
           return { recentAgentIds: [agentId, ...remaining].slice(0, RECENT_AGENT_IDS_MAX) };
         }),
+
+      recordNoteVisit: (noteId: string) =>
+        set((state) => {
+          if (state.recentNoteIds[0] === noteId) {
+            return state;
+          }
+
+          const remaining = state.recentNoteIds.filter((recentId) => recentId !== noteId);
+          return { recentNoteIds: [noteId, ...remaining].slice(0, RECENT_NOTE_IDS_MAX) };
+        }),
     }),
     {
       name: APP_STORE_STORAGE_KEY,
@@ -239,6 +257,7 @@ export const useAppStore = create<AppState>()(
         collapsedCircles: state.collapsedCircles,
         dashboardTopCollapsed: state.dashboardTopCollapsed,
         recentAgentIds: state.recentAgentIds,
+        recentNoteIds: state.recentNoteIds,
       }),
     }
   )

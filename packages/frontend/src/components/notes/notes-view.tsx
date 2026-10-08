@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useRecordNoteVisit } from "../../hooks/use-record-note-visit.js";
 import { useResizablePanel } from "../../hooks/use-resizable-panel.js";
 import type { HeaderBreadcrumb } from "../../providers/header-provider.types.js";
 import { useNotesContext } from "../../providers/notes-provider.js";
@@ -26,6 +27,8 @@ export function NotesView() {
   const openNoteId = useAppStore((state) => (isTrashTab ? state.selectedTrashNoteId : state.selectedNoteId));
   const selectNote = useAppStore((state) => state.selectNote);
   const selectTrashNote = useAppStore((state) => state.selectTrashNote);
+
+  useRecordNoteVisit(isTrashTab ? undefined : openNoteId);
 
   const resizeHandle = useResizablePanel({
     minWidth: NOTES_SIDEBAR_MIN_WIDTH,
