@@ -1,4 +1,5 @@
 import { DATA_SOURCE_TYPE, type ArtifactEntityType, type DataSourceType } from "@crow-central-agency/shared";
+import type { DocumentRef } from "../../../utils/document-ref.types.js";
 
 /** Which hits the search narrows to; reset to ALL each time the palette opens */
 export const NOTE_PALETTE_FILTER = {
@@ -28,31 +29,12 @@ export const NOTE_PALETTE_FILTER_SOURCES: Record<NotePaletteFilter, readonly Dat
   [NOTE_PALETTE_FILTER.ARTIFACTS]: [DATA_SOURCE_TYPE.ARTIFACT, DATA_SOURCE_TYPE.CIRCLE_ARTIFACT],
 };
 
-export const NOTE_PALETTE_TARGET_KIND = {
-  NOTE: "note",
-  ARTIFACT: "artifact",
-} as const;
-
-export interface NotePaletteNoteTarget {
-  kind: typeof NOTE_PALETTE_TARGET_KIND.NOTE;
-  noteId: string;
-}
-
-export interface NotePaletteArtifactTarget {
-  kind: typeof NOTE_PALETTE_TARGET_KIND.ARTIFACT;
-  ownerType: ArtifactEntityType;
-  ownerId: string;
-  filename: string;
-}
-
-/** What selecting a palette row opens */
-export type NotePaletteTarget = NotePaletteNoteTarget | NotePaletteArtifactTarget;
-
 export interface NotePaletteEntry {
   key: string;
   title: string;
   subtitle?: string;
-  target: NotePaletteTarget;
+  /** What selecting the row opens */
+  target: DocumentRef;
 }
 
 /** Display name of an artifact's owning agent or circle */

@@ -1,4 +1,4 @@
-import { useCallback, useImperativeHandle, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useState } from "react";
 import type { ChangeEvent, Ref } from "react";
 import { Pencil } from "lucide-react";
 import { ARTIFACT_CONTENT_TYPE } from "@crow-central-agency/shared";
@@ -12,6 +12,8 @@ import type { ModalDialogHandle } from "../../../providers/modal-dialog-provider
 import { useConfirmDiscard } from "../../../hooks/dialogs/use-confirm-discard.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../../common/action-button.js";
 import { CopyButton } from "../../common/copy-button.js";
+import { useAppStore } from "../../../stores/app-store.js";
+import { toArtifactDocumentRef } from "../../../utils/document-ref.js";
 
 /** Tags shown before collapsing in the wider dialog viewer */
 const VISIBLE_TAG_LIMIT = 12;
@@ -35,6 +37,12 @@ interface ArtifactViewerDialogProps {
 export function ArtifactViewerDialog({ artifact, onClose, ref }: ArtifactViewerDialogProps) {
   const { entityType, entityId, filename, tags } = artifact;
   const { data, refetch } = useArtifactContentQuery(entityType, entityId, filename);
+  const recordDocumentVisit = useAppStore((state) => state.recordDocumentVisit);
+
+  useEffect(() => {
+    recordDocumentVisit(toArtifactDocumentRef(artifact));
+  }, [artifact, recordDocumentVisit]);
+
   const textContent = data?.type === "text" ? data.content : undefined;
   // Server metadata as last read — the optimistic-lock timestamp comes from here, not the open-time
   // prop, so it stays fresh across consecutive saves and after a Reload.

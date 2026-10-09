@@ -1,6 +1,8 @@
 import { CROW_SYSTEM_AGENT_ID, type AgentTaskState } from "@crow-central-agency/shared";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { isSameDocumentRef } from "../utils/document-ref.js";
+import type { DocumentRef } from "../utils/document-ref.types.js";
 
 /** View modes for the app - flat navigation via sidebar */
 export const VIEW_MODE = {
@@ -38,8 +40,8 @@ export const NOTES_SIDEBAR_MIN_WIDTH = 256;
 export const NOTES_SIDEBAR_MAX_WIDTH = 480;
 /** Maximum number of recently visited agent ids kept */
 const RECENT_AGENT_IDS_MAX = 12;
-/** Maximum number of recently opened note ids kept */
-const RECENT_NOTE_IDS_MAX = 12;
+/** Maximum number of recently opened notes and artifacts kept */
+const RECENT_DOCUMENTS_MAX = 30;
 
 interface AppState {
   /** Current view mode - controlled by sidebar */
@@ -70,8 +72,8 @@ interface AppState {
   initialTaskFilter: AgentTaskState | undefined;
   /** Ids of recently visited agent consoles, most recent first */
   recentAgentIds: string[];
-  /** Ids of recently opened notes, most recent first */
-  recentNoteIds: string[];
+  /** Recently opened notes and artifacts, most recent first */
+  recentDocuments: DocumentRef[];
   /** Switch view mode via sidebar. Falls selectedAgentId back to the Crow system agent when nothing is selected */
   setViewMode: (mode: ViewMode) => void;
   /** Select an agent in the Agents view to show its console */
@@ -110,8 +112,10 @@ interface AppState {
   toggleDashboardTopCollapsed: () => void;
   /** Record an agent console visit, moving the agent to the front of the recents list */
   recordAgentVisit: (agentId: string) => void;
-  /** Record a note being opened, moving it to the front of the recents list */
-  recordNoteVisit: (noteId: string) => void;
+  /** Record a note or artifact being opened, moving it to the front of the recents list */
+  recordDocumentVisit: (documentRef: DocumentRef) => void;
+  /** Remove a note or artifact from the recents list */
+  forgetRecentDocument: (documentRef: DocumentRef) => void;
 }
 
 /** Shape of the state that is persisted to localStorage */
@@ -127,7 +131,7 @@ interface PersistedAppState {
   collapsedCircles?: Record<string, boolean>;
   dashboardTopCollapsed?: boolean;
   recentAgentIds?: string[];
-  recentNoteIds?: string[];
+  recentDocuments?: DocumentRef[];
 }
 
 /** localStorage key for persisted app state */
@@ -155,7 +159,7 @@ export const useAppStore = create<AppState>()(
       dashboardTopCollapsed: false,
       initialTaskFilter: undefined,
       recentAgentIds: [],
-      recentNoteIds: [],
+      recentDocuments: [],
 
       setViewMode: (mode: ViewMode) =>
         set((state) => {
@@ -232,14 +236,26 @@ export const useAppStore = create<AppState>()(
           return { recentAgentIds: [agentId, ...remaining].slice(0, RECENT_AGENT_IDS_MAX) };
         }),
 
-      recordNoteVisit: (noteId: string) =>
+      recordDocumentVisit: (documentRef: DocumentRef) =>
         set((state) => {
-          if (state.recentNoteIds[0] === noteId) {
+          const [mostRecent] = state.recentDocuments;
+          if (mostRecent && isSameDocumentRef(mostRecent, documentRef)) {
             return state;
           }
 
-          const remaining = state.recentNoteIds.filter((recentId) => recentId !== noteId);
-          return { recentNoteIds: [noteId, ...remaining].slice(0, RECENT_NOTE_IDS_MAX) };
+          const remaining = state.recentDocuments.filter((recent) => !isSameDocumentRef(recent, documentRef));
+          return { recentDocuments: [documentRef, ...remaining].slice(0, RECENT_DOCUMENTS_MAX) };
+        }),
+
+      forgetRecentDocument: (documentRef: DocumentRef) =>
+        set((state) => {
+          if (!state.recentDocuments.some((recent) => isSameDocumentRef(recent, documentRef))) {
+            return state;
+          }
+
+          return {
+            recentDocuments: state.recentDocuments.filter((recent) => !isSameDocumentRef(recent, documentRef)),
+          };
         }),
     }),
     {
@@ -257,7 +273,7 @@ export const useAppStore = create<AppState>()(
         collapsedCircles: state.collapsedCircles,
         dashboardTopCollapsed: state.dashboardTopCollapsed,
         recentAgentIds: state.recentAgentIds,
-        recentNoteIds: state.recentNoteIds,
+        recentDocuments: state.recentDocuments,
       }),
     }
   )

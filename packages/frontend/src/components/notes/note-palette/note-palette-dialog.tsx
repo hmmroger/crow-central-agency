@@ -8,6 +8,7 @@ import { useAgentsContext } from "../../../providers/agents-provider.js";
 import { useNotesContext } from "../../../providers/notes-provider.js";
 import { listAgentArtifacts, listCircleArtifacts, unwrapResponse } from "../../../services/api-client.js";
 import { NOTES_SIDEBAR_TAB, useAppStore, VIEW_MODE } from "../../../stores/app-store.js";
+import { DOCUMENT_REF_KIND, type ArtifactDocumentRef, type DocumentRef } from "../../../utils/document-ref.types.js";
 import { getErrorMessage } from "../../../utils/error-message.js";
 import { useOpenArtifactViewer } from "../../agents/artifact/use-open-artifact-viewer.js";
 import { CommandPalette } from "../../common/command-palette/command-palette.js";
@@ -18,12 +19,9 @@ import {
   NOTE_PALETTE_FILTER_SOURCES,
   NOTE_PALETTE_FILTERS,
   NOTE_PALETTE_LABEL_ID,
-  NOTE_PALETTE_TARGET_KIND,
-  type NotePaletteArtifactTarget,
   type NotePaletteFilter,
-  type NotePaletteTarget,
 } from "./note-palette.types.js";
-import { resolveRecentNoteEntries, resolveSearchHitEntries } from "./resolve-note-palette-entries.js";
+import { resolveRecentEntries, resolveSearchHitEntries } from "./resolve-note-palette-entries.js";
 import { NotePaletteFilterPills } from "./note-palette-filter-pills.js";
 
 interface NotePaletteDialogProps {
@@ -45,7 +43,7 @@ function cycleFilter(filter: NotePaletteFilter, step: number): NotePaletteFilter
   return NOTE_PALETTE_FILTERS[nextIndex] ?? NOTE_PALETTE_FILTER.ALL;
 }
 
-async function fetchArtifactMetadata(target: NotePaletteArtifactTarget): Promise<ArtifactMetadata | undefined> {
+async function fetchArtifactMetadata(target: ArtifactDocumentRef): Promise<ArtifactMetadata | undefined> {
   const query = { filename: target.filename };
   const response =
     target.ownerType === ENTITY_TYPE.AGENT
@@ -59,7 +57,8 @@ export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
   const notes = useNotesContext();
   const { getAgent } = useAgentsContext();
   const { data: circles } = useCirclesQuery();
-  const recentNoteIds = useAppStore((state) => state.recentNoteIds);
+  const recentDocuments = useAppStore((state) => state.recentDocuments);
+  const forgetRecentDocument = useAppStore((state) => state.forgetRecentDocument);
   const currentNoteId = useAppStore((state) =>
     state.viewMode === VIEW_MODE.NOTES && state.notesSidebarTab === NOTES_SIDEBAR_TAB.NOTES
       ? state.selectedNoteId
@@ -99,18 +98,18 @@ export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
     () =>
       isSearching
         ? resolveSearchHitEntries({ notes, hits: search.data ?? [], getOwnerName })
-        : resolveRecentNoteEntries({ notes, recentNoteIds, currentNoteId }),
-    [isSearching, notes, search.data, getOwnerName, recentNoteIds, currentNoteId]
+        : resolveRecentEntries({ notes, recentDocuments, currentNoteId, getOwnerName }),
+    [isSearching, notes, search.data, getOwnerName, recentDocuments, currentNoteId]
   );
 
-  const items = useMemo<CommandPaletteItem<NotePaletteTarget>[]>(
+  const items = useMemo<CommandPaletteItem<DocumentRef>[]>(
     () =>
       entries.map((entry) => ({
         key: entry.key,
         title: entry.title,
         subtitle: entry.subtitle,
         leading:
-          entry.target.kind === NOTE_PALETTE_TARGET_KIND.NOTE ? (
+          entry.target.kind === DOCUMENT_REF_KIND.NOTE ? (
             <FileText className={PALETTE_ICON_CLASS_NAME} />
           ) : (
             <FileBox className={PALETTE_ICON_CLASS_NAME} />
@@ -143,7 +142,7 @@ export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
   );
 
   const openArtifact = useCallback(
-    async (target: NotePaletteArtifactTarget) => {
+    async (target: ArtifactDocumentRef) => {
       if (isOpeningArtifactRef.current) {
         return;
       }
@@ -152,6 +151,10 @@ export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
       setArtifactError(undefined);
       try {
         const metadata = await fetchArtifactMetadata(target);
+        if (!metadata) {
+          forgetRecentDocument(target);
+        }
+
         if (!isMountedRef.current) {
           return;
         }
@@ -171,12 +174,12 @@ export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
         isOpeningArtifactRef.current = false;
       }
     },
-    [onClose, openArtifactViewer]
+    [onClose, openArtifactViewer, forgetRecentDocument]
   );
 
   const handleSelect = useCallback(
-    (target: NotePaletteTarget) => {
-      if (target.kind === NOTE_PALETTE_TARGET_KIND.ARTIFACT) {
+    (target: DocumentRef) => {
+      if (target.kind === DOCUMENT_REF_KIND.ARTIFACT) {
         void openArtifact(target);
         return;
       }
