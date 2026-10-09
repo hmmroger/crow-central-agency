@@ -42,7 +42,6 @@ import {
   writeBinaryFile,
 } from "../../utils/fs-utils.js";
 import { logger } from "../../utils/logger.js";
-import type { RelationshipManager } from "../relationship-manager.js";
 import type { TagManager } from "../tag/tag-manager.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
 import type {
@@ -106,7 +105,6 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
   constructor(
     notesPath: string,
     private readonly broadcaster: WsBroadcaster,
-    private readonly relationshipManager: RelationshipManager,
     private readonly tagManager: TagManager
   ) {
     super();
@@ -1127,7 +1125,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     await this.setNoteTags(ENTITY_TYPE.NOTE_FOLDER, clearedFolderTags);
   }
 
-  /** Move the tag edges of re-keyed notes to their new ids; a failure is logged and never fails the move. */
+  /** Move the edges of re-keyed notes to their new ids; a failure is logged and never fails the move. */
   private async rekeyNoteTags(movedEntries: ReadonlyMap<string, NoteMetadata>): Promise<void> {
     const idMap = new Map<string, string>();
     for (const [previousId, entry] of movedEntries) {
@@ -1135,7 +1133,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     }
 
     try {
-      await this.relationshipManager.rekeyEntities(idMap);
+      await this.tagManager.rekeyEntities(idMap);
     } catch (error) {
       log.error({ error, notes: idMap.size }, "Failed to rekey note tags");
     }

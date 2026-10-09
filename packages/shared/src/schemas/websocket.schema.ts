@@ -12,6 +12,7 @@ import {
 } from "./agent-runtime-state.schema.js";
 import { MessageSourceSchema } from "./message-source.schema.js";
 import { NoteMetadataSchema } from "./note.schema.js";
+import { TagEdgeSchema, TagSchema } from "./tag.schema.js";
 import { AgentCommandSchema } from "./agent-command.schema.js";
 import { AgentBuilderDraftViewSchema } from "./agent-builder.schema.js";
 import {
@@ -69,6 +70,7 @@ export const SERVER_MESSAGE_TYPE = {
   NOTE_CREATED: "note_created",
   NOTE_UPDATED: "note_updated",
   NOTE_DELETED: "note_deleted",
+  TAGS_CHANGED: "tags_changed",
   AGENT_BUILDER_DRAFT_UPDATED: "agent_builder_draft_updated",
   AGENT_SESSIONS_UPDATED: "agent_sessions_updated",
 } as const;
@@ -325,6 +327,15 @@ export const NoteDeletedWsMessageSchema = z.object({
   noteId: z.string(),
 });
 
+/** One tag mutation; a client applies the lists in field order */
+export const TagsChangedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.TAGS_CHANGED),
+  createdTags: z.array(TagSchema),
+  removedEdges: z.array(TagEdgeSchema),
+  addedEdges: z.array(TagEdgeSchema),
+  deletedTagIds: z.array(z.string()),
+});
+
 /** The single agent-builder draft changed; carries the resolved view, or null when it was cleared. */
 export const AgentBuilderDraftUpdatedWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.AGENT_BUILDER_DRAFT_UPDATED),
@@ -371,6 +382,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   NoteCreatedWsMessageSchema,
   NoteUpdatedWsMessageSchema,
   NoteDeletedWsMessageSchema,
+  TagsChangedWsMessageSchema,
   AgentBuilderDraftUpdatedWsMessageSchema,
   AgentSessionsUpdatedWsMessageSchema,
 ]);
@@ -407,6 +419,7 @@ export type FragmentDeletedWsMessage = z.infer<typeof FragmentDeletedWsMessageSc
 export type NoteCreatedWsMessage = z.infer<typeof NoteCreatedWsMessageSchema>;
 export type NoteUpdatedWsMessage = z.infer<typeof NoteUpdatedWsMessageSchema>;
 export type NoteDeletedWsMessage = z.infer<typeof NoteDeletedWsMessageSchema>;
+export type TagsChangedWsMessage = z.infer<typeof TagsChangedWsMessageSchema>;
 export type AgentBuilderDraftUpdatedWsMessage = z.infer<typeof AgentBuilderDraftUpdatedWsMessageSchema>;
 export type AgentSessionsUpdatedWsMessage = z.infer<typeof AgentSessionsUpdatedWsMessageSchema>;
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;

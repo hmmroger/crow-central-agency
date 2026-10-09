@@ -111,7 +111,7 @@ export async function bootstrap(options: BootstrapOptions) {
   const systemSettingsManager = new SystemSettingsManager(storeProvider);
   const relationshipManager = new RelationshipManager(storeProvider);
   await relationshipManager.initialize();
-  const tagManager = new TagManager(storeProvider, relationshipManager);
+  const tagManager = new TagManager(storeProvider, relationshipManager, broadcaster);
   await tagManager.initialize();
   const circleManager = new AgentCircleManager(storeProvider, relationshipManager, broadcaster);
   await circleManager.initialize();
@@ -129,7 +129,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await feedManager.initialize();
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
-  const notesManager = new NotesManager(env.CROW_NOTES_PATH, broadcaster, relationshipManager, tagManager);
+  const notesManager = new NotesManager(env.CROW_NOTES_PATH, broadcaster, tagManager);
   await notesManager.initialize();
   const documentSearchService = new DocumentSearchService();
   documentSearchService.registerSource(new ArtifactSearchSource(artifactManager, registry, circleManager));
