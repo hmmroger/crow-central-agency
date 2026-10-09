@@ -1,15 +1,17 @@
-import { Archive, NotebookText } from "lucide-react";
+import { Archive, NotebookText, Tags } from "lucide-react";
 import { NOTES_SIDEBAR_TAB, useAppStore, type NotesSidebarTab } from "../../stores/app-store.js";
 import { TabBar, type TabDefinition } from "../common/tab-bar.js";
 import { NotesBrowseTab } from "./notes-browse-tab.js";
+import { NotesTagsTab } from "./notes-tags-tab.js";
 import { NotesTrashTab } from "./notes-trash-tab.js";
 
 const NOTES_SIDEBAR_TABS: TabDefinition<NotesSidebarTab>[] = [
   { id: NOTES_SIDEBAR_TAB.NOTES, label: "Notes", icon: NotebookText },
+  { id: NOTES_SIDEBAR_TAB.TAGS, label: "Tags", icon: Tags },
   { id: NOTES_SIDEBAR_TAB.TRASH, label: "Trash", icon: Archive },
 ];
 
-/** The notes and trash tabs; each tab keeps its own selection. */
+/** The notes, tags and trash tabs; notes and tags share the live selection, trash keeps its own. */
 export function NotesSidebar() {
   const activeTab = useAppStore((state) => state.notesSidebarTab);
   const setNotesSidebarTab = useAppStore((state) => state.setNotesSidebarTab);
@@ -24,6 +26,7 @@ export function NotesSidebar() {
       />
 
       {activeTab === NOTES_SIDEBAR_TAB.NOTES && <NotesBrowseTab />}
+      {activeTab === NOTES_SIDEBAR_TAB.TAGS && <NotesTagsTab />}
       {activeTab === NOTES_SIDEBAR_TAB.TRASH && <NotesTrashTab />}
     </div>
   );
