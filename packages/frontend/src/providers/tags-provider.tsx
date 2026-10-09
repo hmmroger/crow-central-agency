@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ENTITY_TYPE, SERVER_MESSAGE_TYPE, type TagSnapshot } from "@crow-central-agency/shared";
+import { ENTITY_TYPE, SERVER_MESSAGE_TYPE, type EntityType, type TagSnapshot } from "@crow-central-agency/shared";
 import { useWs } from "../hooks/use-ws.js";
 import { apiClient, unwrapResponse } from "../services/api-client.js";
 import type { ApiError } from "../services/api-client.types.js";
@@ -11,6 +11,7 @@ import type { TagListStatus, TagsContextValue } from "./tags-provider.types.js";
 
 const TAGS_PATH = "/tags";
 const SNAPSHOT_ENTITY_TYPE = ENTITY_TYPE.NOTE;
+const TRACKED_ENTITY_TYPES: ReadonlySet<EntityType> = new Set([SNAPSHOT_ENTITY_TYPE]);
 
 const TagsContext = createContext<TagsContextValue | undefined>(undefined);
 
@@ -22,8 +23,9 @@ const TagsContext = createContext<TagsContextValue | undefined>(undefined);
 export function TagsProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const { onMessage, connectionState } = useWs();
-  const tagsIndexRef = useRef(new TagsIndex(new Set([SNAPSHOT_ENTITY_TYPE])));
-  const [tagsIndex, setTagsIndex] = useState(() => tagsIndexRef.current.snapshot());
+  const [initialTagsIndex] = useState(() => new TagsIndex(TRACKED_ENTITY_TYPES));
+  const tagsIndexRef = useRef(initialTagsIndex);
+  const [tagsIndex, setTagsIndex] = useState(() => initialTagsIndex.snapshot());
 
   const snapshotQuery = useQuery<TagSnapshot, ApiError>({
     queryKey: tagKeys.snapshot(SNAPSHOT_ENTITY_TYPE),
