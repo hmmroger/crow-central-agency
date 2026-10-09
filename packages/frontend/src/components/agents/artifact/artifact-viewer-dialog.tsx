@@ -13,7 +13,7 @@ import { useConfirmDiscard } from "../../../hooks/dialogs/use-confirm-discard.js
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../../common/action-button.js";
 import { CopyButton } from "../../common/copy-button.js";
 import { useAppStore } from "../../../stores/app-store.js";
-import { toArtifactDocumentRef } from "../../../utils/document-ref.js";
+import { DOCUMENT_REF_KIND } from "../../../utils/document-ref.types.js";
 
 /** Tags shown before collapsing in the wider dialog viewer */
 const VISIBLE_TAG_LIMIT = 12;
@@ -40,8 +40,8 @@ export function ArtifactViewerDialog({ artifact, onClose, ref }: ArtifactViewerD
   const recordDocumentVisit = useAppStore((state) => state.recordDocumentVisit);
 
   useEffect(() => {
-    recordDocumentVisit(toArtifactDocumentRef(artifact));
-  }, [artifact, recordDocumentVisit]);
+    recordDocumentVisit({ kind: DOCUMENT_REF_KIND.ARTIFACT, ownerType: entityType, ownerId: entityId, filename });
+  }, [entityType, entityId, filename, recordDocumentVisit]);
 
   const textContent = data?.type === "text" ? data.content : undefined;
   // Server metadata as last read — the optimistic-lock timestamp comes from here, not the open-time

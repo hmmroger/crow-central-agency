@@ -1,5 +1,4 @@
-import type { ArtifactMetadata } from "@crow-central-agency/shared";
-import { DOCUMENT_REF_KIND, type ArtifactDocumentRef, type DocumentRef } from "./document-ref.types.js";
+import { DOCUMENT_REF_KIND, type DocumentRef } from "./document-ref.types.js";
 
 export function isSameDocumentRef(refA: DocumentRef, refB: DocumentRef): boolean {
   switch (refA.kind) {
@@ -14,13 +13,4 @@ export function isSameDocumentRef(refA: DocumentRef, refB: DocumentRef): boolean
         refA.filename === refB.filename
       );
   }
-}
-
-export function toArtifactDocumentRef(artifact: ArtifactMetadata): ArtifactDocumentRef {
-  return {
-    kind: DOCUMENT_REF_KIND.ARTIFACT,
-    ownerType: artifact.entityType,
-    ownerId: artifact.entityId,
-    filename: artifact.filename,
-  };
 }
