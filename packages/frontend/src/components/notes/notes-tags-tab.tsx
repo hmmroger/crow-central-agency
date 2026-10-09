@@ -53,7 +53,7 @@ export function NotesTagsTab() {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1 px-2">
-        <span className="min-w-0 flex-1 truncate text-2xs text-secondary">{tagCountLabel}</span>
+        <span className="min-w-0 flex-1 truncate text-2xs text-text-muted">{tagCountLabel}</span>
       </div>
 
       {error && <p className="px-2 py-1 text-xs text-error">{getErrorMessage(error)}</p>}
