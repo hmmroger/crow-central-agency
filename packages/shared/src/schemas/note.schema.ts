@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MIME_TYPE } from "../utils/mime-type.js";
-import { ENTITY_TYPE } from "./agent-circle.schema.js";
+import { ENTITY_TYPE, EntitySchema } from "./agent-circle.schema.js";
 
 /** Entity types that live in the notes tree */
 export const NoteEntityTypeSchema = z.enum([ENTITY_TYPE.NOTE, ENTITY_TYPE.NOTE_FOLDER]);
@@ -24,9 +24,7 @@ export const NoteContentTypeSchema = z.enum([
  * Fields shared by every note, file or folder. All of them are recomputable
  * from a rescan (relative path + stat), which keeps the index a pure cache.
  */
-const NoteBaseSchema = z.object({
-  /** Relative path, lowercased, with the path separator replaced by `:` */
-  id: z.string().min(1),
+const NoteBaseSchema = EntitySchema.extend({
   /** Cased basename, extension stripped for text notes only */
   name: z.string().min(1),
   /** Path relative to the notes root; a trashed note keeps its `.trash/` prefix */

@@ -74,8 +74,8 @@ function createHarness(notes: NoteMetadata[]): Harness {
   const notesManager = new NotesManager(MOCK_NOTES_PATH, broadcaster, tagManager);
   vi.mocked(notesManager.listNotes).mockReturnValue(notes);
   vi.mocked(notesManager.getNoteContent).mockResolvedValue({ metadata: TEXT_NOTE, content: TEXT_CONTENT });
-  vi.mocked(tagManager.getEntityTags).mockImplementation((_entityType, entityId) =>
-    entityId === TEXT_NOTE.id ? [{ id: "tag-1", name: "food", createdTimestamp: 0 }] : []
+  vi.mocked(tagManager.getEntityTags).mockImplementation((entity) =>
+    entity.id === TEXT_NOTE.id ? [{ id: "tag-1", name: "food", createdTimestamp: 0 }] : []
   );
 
   return { notesManager, tagManager, source: new NoteSearchSource(notesManager, tagManager) };
@@ -107,7 +107,7 @@ describe("NoteSearchSource.loadAll", () => {
     expect(harness.notesManager.listNotes).toHaveBeenCalledWith({ isRecursive: true });
     expect(harness.notesManager.getNoteContent).toHaveBeenCalledTimes(1);
     expect(harness.notesManager.getNoteContent).toHaveBeenCalledWith(TEXT_NOTE.id);
-    expect(harness.tagManager.getEntityTags).toHaveBeenCalledWith(ENTITY_TYPE.NOTE_FOLDER, FOLDER.id);
+    expect(harness.tagManager.getEntityTags).toHaveBeenCalledWith(FOLDER);
     expect(documents).toEqual([
       { ...toRef(FOLDER.id), title: "Travel", text: "", tags: undefined },
       { ...toRef(TEXT_NOTE.id), title: "Tokyo", text: TEXT_CONTENT, tags: ["food"] },

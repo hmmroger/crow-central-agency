@@ -7,7 +7,7 @@ import {
   type RelationshipType,
 } from "@crow-central-agency/shared";
 import { minBy } from "es-toolkit";
-import type { QueryRelationshipOptions } from "./relationship-manager.types.js";
+import type { QueryRelationshipOptions, RekeyedRelationship } from "./relationship-manager.types.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
@@ -234,28 +234,38 @@ export class RelationshipManager {
   }
 
   /**
-   * Replace entity ids across every edge touching an old id and move saved node
-   * positions to the new id. Relationship ids are kept. Mappings apply
+   * Replace entity ids across every edge touching an old id, returning each
+   * re-keyed relationship. Relationship ids are kept. Mappings apply
    * simultaneously, so chained or swapped ids are handled. A new id must not
    * already belong to another entity with edges; that collision is not checked.
+   * With a filter, only matching edges move and saved node positions stay;
+   * without one, positions move to the new id too.
    */
-  public async rekeyEntities(idMap: ReadonlyMap<string, string>): Promise<void> {
+  public async rekeyEntities(
+    idMap: ReadonlyMap<string, string>,
+    filter?: QueryRelationshipOptions
+  ): Promise<RekeyedRelationship[]> {
     const affectedIds = new Set<string>();
     for (const oldId of idMap.keys()) {
       this.collectEntityRelationshipIds(oldId, affectedIds);
     }
 
-    const rekeyed = Array.from(affectedIds, (relationshipId) => {
+    const rekeyed = Array.from(affectedIds).flatMap((relationshipId) => {
       const relationship = this.getRelationship(relationshipId);
+      if (filter && !relationshipMatchesQuery(relationship, filter)) {
+        return [];
+      }
 
-      return {
-        previous: relationship,
-        next: {
-          ...relationship,
-          sourceEntityId: idMap.get(relationship.sourceEntityId) ?? relationship.sourceEntityId,
-          targetEntityId: idMap.get(relationship.targetEntityId) ?? relationship.targetEntityId,
+      return [
+        {
+          previous: relationship,
+          next: {
+            ...relationship,
+            sourceEntityId: idMap.get(relationship.sourceEntityId) ?? relationship.sourceEntityId,
+            targetEntityId: idMap.get(relationship.targetEntityId) ?? relationship.targetEntityId,
+          },
         },
-      };
+      ];
     });
 
     for (const { previous, next } of rekeyed) {
@@ -270,9 +280,13 @@ export class RelationshipManager {
       );
     }
 
-    await this.rekeyPositions(idMap);
+    if (!filter) {
+      await this.rekeyPositions(idMap);
+    }
 
     log.info({ entities: idMap.size, relationships: rekeyed.length }, "Rekeyed entities");
+
+    return rekeyed;
   }
 
   /**

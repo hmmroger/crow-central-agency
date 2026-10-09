@@ -461,6 +461,7 @@ export {
   CreateAgentCircleInputSchema,
   UpdateAgentCircleInputSchema,
   EntityTypeSchema,
+  EntitySchema,
   RelationshipTypeSchema,
   RelationshipSchema,
   CreateRelationshipInputSchema,
@@ -474,6 +475,7 @@ export {
   type DeleteRelationshipResult,
   type CircleMember,
   type EntityType,
+  type Entity,
   type RelationshipType,
 } from "./schemas/agent-circle.schema.js";
 

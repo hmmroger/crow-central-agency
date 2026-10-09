@@ -90,8 +90,8 @@ function createHarness(note: NoteFileMetadata | NoteFolderMetadata, content: str
   const sensorManager = new SensorManager(store);
   vi.mocked(sensorManager.getUserTimezone).mockResolvedValue("UTC");
   vi.mocked(notesManager.getNote).mockReturnValue(note);
-  vi.mocked(tagManager.getEntityTags).mockImplementation((_entityType, entityId) =>
-    entityId === TEXT_NOTE.id
+  vi.mocked(tagManager.getEntityTags).mockImplementation((entity) =>
+    entity.id === TEXT_NOTE.id
       ? [
           { id: "tag-1", name: "food", createdTimestamp: 0 },
           { id: "tag-2", name: "japan", createdTimestamp: 0 },
@@ -124,7 +124,7 @@ describe("read_note", () => {
     expect(result.isError).toBeFalsy();
     expect(text).toContain("[Id: travel:tokyo.md | Name: Tokyo | Content: TEXT |");
     expect(text).toContain("\n[Tags: food, japan]\n");
-    expect(harness.tagManager.getEntityTags).toHaveBeenCalledWith(ENTITY_TYPE.NOTE, TEXT_NOTE.id);
+    expect(harness.tagManager.getEntityTags).toHaveBeenCalledWith(TEXT_NOTE);
     expect(text).toContain("[More available: use startLine=3 to continue]");
     expect(text.endsWith("\nline two")).toBe(true);
   });

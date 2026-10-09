@@ -3,6 +3,7 @@ import {
   RELATIONSHIP_TYPE,
   SERVER_MESSAGE_TYPE,
   TagSchema,
+  type Entity,
   type EntityType,
   type Relationship,
   type Tag,
@@ -12,7 +13,7 @@ import {
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
 import type { RelationshipManager } from "../relationship-manager.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
-import type { PendingTagEdge, TagChange } from "./tag-manager.types.js";
+import type { EntityTagNames, PendingTagEdge, TagChange } from "./tag-manager.types.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { generateId } from "../../utils/id-utils.js";
@@ -79,8 +80,8 @@ export class TagManager {
   }
 
   /** The tags of one entity; an untagged entity has none */
-  public getEntityTags(entityType: EntityType, entityId: string): Tag[] {
-    return this.getEntityTagEdges(entityType, entityId).flatMap((relationship) => {
+  public getEntityTags(entity: Entity): Tag[] {
+    return this.getEntityTagEdges(entity).flatMap((relationship) => {
       const tag = this.tagsById.get(relationship.targetEntityId);
 
       return tag ? [tag] : [];
@@ -111,12 +112,13 @@ export class TagManager {
   }
 
   /**
-   * Replace the tags of each entity in the map with the given names. An empty
-   * list clears the entity's tags.
-   * @throws AppError with VALIDATION for a TAG entity type or an empty entity id.
+   * Replace the tags of each listed entity with the given names, in one
+   * mutation; entity types can be mixed. An empty list clears the entity's tags.
+   * @throws AppError with VALIDATION for a TAG entity, an empty entity id, or
+   *         the same entity listed twice.
    */
-  public setEntityTags(entityType: EntityType, tagNamesByEntityId: ReadonlyMap<string, string[]>): Promise<void> {
-    return this.serialize(() => this.applyEntityTags(entityType, tagNamesByEntityId));
+  public setEntityTags(entityTagNames: ReadonlyArray<EntityTagNames>): Promise<void> {
+    return this.serialize(() => this.applyEntityTags(entityTagNames));
   }
 
   /**
@@ -124,14 +126,14 @@ export class TagManager {
    * @throws AppError with VALIDATION for a TAG entity, TAG_NOT_FOUND if the tag
    *         does not exist, or DUPLICATE_RELATIONSHIP if the entity already has the tag.
    */
-  public tagEntity(entityType: EntityType, entityId: string, tagId: string): Promise<Relationship> {
+  public tagEntity(entity: Entity, tagId: string): Promise<Relationship> {
     return this.serialize(async () => {
-      this.assertTaggableEntityType(entityType);
+      this.assertTaggableEntityType(entity.entityType);
       this.getTag(tagId);
 
       const relationship = await this.relationshipManager.createRelationship({
-        sourceEntityId: entityId,
-        sourceEntityType: entityType,
+        sourceEntityId: entity.id,
+        sourceEntityType: entity.entityType,
         targetEntityId: tagId,
         targetEntityType: ENTITY_TYPE.TAG,
         relationshipType: RELATIONSHIP_TYPE.TAGGED,
@@ -171,48 +173,51 @@ export class TagManager {
   }
 
   /**
-   * Move every edge of the old entity ids to the new ones, with saved graph
-   * positions, through RelationshipManager.rekeyEntities. Each moved TAGGED
-   * edge is announced as removed under the old id and added under the new one.
+   * Move the TAGGED edges of entities whose id changed, given each previous id
+   * and the entity as it is now. Each moved edge is announced as removed under
+   * the previous entity and added under the current one.
    */
-  public rekeyEntities(idMap: ReadonlyMap<string, string>): Promise<void> {
+  public changeEntityIds(currentEntitiesByPreviousId: ReadonlyMap<string, Entity>): Promise<void> {
     return this.serialize(async () => {
-      const removedEdges: TagEdge[] = [];
-      const addedEdges: TagEdge[] = [];
-      for (const [oldId, newId] of idMap) {
-        const relationships = this.relationshipManager.queryRelationships({
-          sourceEntityId: oldId,
-          relationshipType: RELATIONSHIP_TYPE.TAGGED,
-        });
-        for (const relationship of relationships) {
-          const edge = this.toTagEdge(relationship);
-          removedEdges.push(edge);
-          addedEdges.push({ ...edge, entityId: newId });
-        }
+      const idMap = new Map<string, string>();
+      for (const [previousId, entity] of currentEntitiesByPreviousId) {
+        idMap.set(previousId, entity.id);
       }
 
-      await this.relationshipManager.rekeyEntities(idMap);
-      this.broadcastChange({ createdTags: [], removedEdges, addedEdges, deletedTagIds: [] });
+      const rekeyed = await this.relationshipManager.rekeyEntities(idMap, {
+        relationshipType: RELATIONSHIP_TYPE.TAGGED,
+      });
+      this.broadcastChange({
+        createdTags: [],
+        removedEdges: rekeyed.map(({ previous }) => this.toTagEdge(previous)),
+        addedEdges: rekeyed.map(({ next }) => this.toTagEdge(next)),
+        deletedTagIds: [],
+      });
     });
   }
 
-  private async applyEntityTags(
-    entityType: EntityType,
-    tagNamesByEntityId: ReadonlyMap<string, string[]>
-  ): Promise<void> {
+  private async applyEntityTags(entityTagNames: ReadonlyArray<EntityTagNames>): Promise<void> {
     const removedRelationships: Relationship[] = [];
     const removedTagIds = new Set<string>();
     const pendingEdges: PendingTagEdge[] = [];
-    this.assertTaggableEntityType(entityType);
+    const seenEntityKeys = new Set<string>();
 
-    for (const [entityId, tagNames] of tagNamesByEntityId) {
-      if (!entityId) {
+    for (const { entity, tagNames } of entityTagNames) {
+      this.assertTaggableEntityType(entity.entityType);
+      if (!entity.id) {
         throw new AppError("Entity id is required to set tags", APP_ERROR_CODES.VALIDATION);
       }
 
+      const entityKey = JSON.stringify([entity.entityType, entity.id]);
+      if (seenEntityKeys.has(entityKey)) {
+        throw new AppError(`Entity listed twice: ${entity.id}`, APP_ERROR_CODES.VALIDATION);
+      }
+
+      seenEntityKeys.add(entityKey);
+
       const desiredNames = new Set(normalizeTags(tagNames));
       const keptNames = new Set<string>();
-      for (const relationship of this.getEntityTagEdges(entityType, entityId)) {
+      for (const relationship of this.getEntityTagEdges(entity)) {
         const tag = this.tagsById.get(relationship.targetEntityId);
         if (tag && desiredNames.has(tag.name)) {
           keptNames.add(tag.name);
@@ -224,7 +229,7 @@ export class TagManager {
 
       for (const tagName of desiredNames) {
         if (!keptNames.has(tagName)) {
-          pendingEdges.push({ entityId, tagName });
+          pendingEdges.push({ entity, tagName });
         }
       }
     }
@@ -233,8 +238,8 @@ export class TagManager {
     await this.relationshipManager.deleteRelationships(removedRelationships.map((relationship) => relationship.id));
     const addedRelationships = await this.relationshipManager.createRelationships(
       pendingEdges.map((pendingEdge) => ({
-        sourceEntityId: pendingEdge.entityId,
-        sourceEntityType: entityType,
+        sourceEntityId: pendingEdge.entity.id,
+        sourceEntityType: pendingEdge.entity.entityType,
         targetEntityId: this.requireTagByName(pendingEdge.tagName).id,
         targetEntityType: ENTITY_TYPE.TAG,
         relationshipType: RELATIONSHIP_TYPE.TAGGED,
@@ -250,7 +255,7 @@ export class TagManager {
     });
 
     if (removedRelationships.length > 0 || pendingEdges.length > 0) {
-      log.info({ entityType, removed: removedRelationships.length, added: pendingEdges.length }, "Entity tags updated");
+      log.info({ removed: removedRelationships.length, added: pendingEdges.length }, "Entity tags updated");
     }
   }
 
@@ -260,10 +265,10 @@ export class TagManager {
     }
   }
 
-  private getEntityTagEdges(entityType: EntityType, entityId: string): Relationship[] {
+  private getEntityTagEdges(entity: Entity): Relationship[] {
     return this.relationshipManager.queryRelationships({
-      sourceEntityId: entityId,
-      sourceEntityType: entityType,
+      sourceEntityId: entity.id,
+      sourceEntityType: entity.entityType,
       relationshipType: RELATIONSHIP_TYPE.TAGGED,
     });
   }
@@ -329,8 +334,7 @@ export class TagManager {
   private toTagEdge(relationship: Relationship): TagEdge {
     return {
       tagId: relationship.targetEntityId,
-      entityType: relationship.sourceEntityType,
-      entityId: relationship.sourceEntityId,
+      entity: { id: relationship.sourceEntityId, entityType: relationship.sourceEntityType },
     };
   }
 

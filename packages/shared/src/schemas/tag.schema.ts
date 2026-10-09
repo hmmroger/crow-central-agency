@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EntityTypeSchema } from "./agent-circle.schema.js";
+import { EntitySchema, EntityTypeSchema } from "./agent-circle.schema.js";
 
 export const TagSchema = z.object({
   id: z.string().min(1),
@@ -11,8 +11,7 @@ export const TagSchema = z.object({
 /** One tagging, identified by its endpoints */
 export const TagEdgeSchema = z.object({
   tagId: z.string().min(1),
-  entityType: EntityTypeSchema,
-  entityId: z.string().min(1),
+  entity: EntitySchema,
 });
 
 export const TagSnapshotSchema = z.object({

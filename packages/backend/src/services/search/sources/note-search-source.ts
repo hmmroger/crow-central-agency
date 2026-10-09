@@ -78,7 +78,7 @@ export class NoteSearchSource implements SearchSource {
   }
 
   private toDocument(metadata: NoteMetadata, text: string): SearchDocument {
-    const tags = this.tagManager.getEntityTags(metadata.entityType, metadata.id).map((tag) => tag.name);
+    const tags = this.tagManager.getEntityTags(metadata).map((tag) => tag.name);
     return {
       ...this.toRef(metadata.id),
       title: metadata.name,

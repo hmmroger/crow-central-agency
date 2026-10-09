@@ -103,7 +103,9 @@ async function createHarness(agentIds: string[]): Promise<Harness> {
 }
 
 async function createTag(harness: Harness, name: string): Promise<string> {
-  await harness.tagManager.setEntityTags(ENTITY_TYPE.AGENT, new Map([[`tag-holder-${name}`, [name]]]));
+  await harness.tagManager.setEntityTags([
+    { entity: { id: `tag-holder-${name}`, entityType: ENTITY_TYPE.AGENT }, tagNames: [name] },
+  ]);
   const tag = harness.tagManager.findTagByName(name);
   if (!tag) {
     throw new Error(`Missing tag: ${name}`);
