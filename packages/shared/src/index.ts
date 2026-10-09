@@ -299,11 +299,13 @@ export {
   ArtifactEntityTypeSchema,
   ArtifactMetadataSchema,
   ArtifactUpdateSchema,
+  ArtifactListQuerySchema,
   type ArtifactType,
   type ArtifactContentType,
   type ArtifactEntityType,
   type ArtifactMetadata,
   type ArtifactUpdate,
+  type ArtifactListQuery,
 } from "./schemas/artifact.schema.js";
 
 export {
@@ -528,6 +530,22 @@ export {
 } from "./schemas/graph.schema.js";
 
 export { TagSchema, type Tag } from "./schemas/tag.schema.js";
+
+export {
+  DATA_SOURCE_TYPE,
+  DataSourceTypeSchema,
+  SEARCH_DEFAULT_LIMIT,
+  SEARCH_MAX_LIMIT,
+  GLOBAL_PROVENANCE_ID,
+  SearchQuerySchema,
+  DocumentRefSchema,
+  DocumentSearchHitSchema,
+  type DataSourceType,
+  type SearchQuery,
+  type DocumentRef,
+  type DocumentSearchHit,
+} from "./schemas/search.schema.js";
+export { toArtifactDocumentRef, toDocumentUid } from "./utils/document-ref-utils.js";
 
 export {
   SessionHistoryNodeSchema,

@@ -1,6 +1,8 @@
 import {
   ARTIFACT_CONTENT_TYPE,
+  DATA_SOURCE_TYPE,
   ENTITY_TYPE,
+  toArtifactDocumentRef,
   type ArtifactMetadata,
   type EntityType,
 } from "@crow-central-agency/shared";
@@ -8,13 +10,7 @@ import { logger } from "../../../utils/logger.js";
 import type { ArtifactManager } from "../../artifact/artifact-manager.js";
 import type { AgentRegistry } from "../../agent-registry.js";
 import type { AgentCircleManager } from "../../agent-circle-manager.js";
-import {
-  DATA_SOURCE_TYPE,
-  type DocumentRef,
-  type SearchDocument,
-  type SearchSource,
-  type SearchSourceListener,
-} from "../document-search-service.types.js";
+import type { SearchDocument, SearchSource, SearchSourceListener } from "../document-search-service.types.js";
 import { LatestReadTracker } from "./latest-read-tracker.js";
 
 const log = logger.child({ context: "artifact-search-source" });
@@ -75,7 +71,9 @@ export class ArtifactSearchSource implements SearchSource {
       return;
     }
 
-    const document = await this.liveReads.readLatest(this.toRef(metadata), () => this.readDocument(metadata));
+    const document = await this.liveReads.readLatest(toArtifactDocumentRef(metadata), () =>
+      this.readDocument(metadata)
+    );
     if (document) {
       listener.onDocumentUpdate(document);
     }
@@ -83,7 +81,7 @@ export class ArtifactSearchSource implements SearchSource {
 
   /** A removal also cancels any read still in flight for the artifact */
   private reportRemovedArtifact(listener: SearchSourceListener, metadata: ArtifactMetadata): void {
-    const ref = this.toRef(metadata);
+    const ref = toArtifactDocumentRef(metadata);
     this.liveReads.cancel(ref);
     listener.onDocumentRemove(ref);
   }
@@ -105,19 +103,10 @@ export class ArtifactSearchSource implements SearchSource {
 
   private toDocument(metadata: ArtifactMetadata, content: string | Buffer): SearchDocument {
     return {
-      ...this.toRef(metadata),
+      ...toArtifactDocumentRef(metadata),
       title: metadata.filename,
       text: typeof content === "string" ? content : "",
       tags: metadata.tags?.length ? metadata.tags : undefined,
-    };
-  }
-
-  private toRef(metadata: ArtifactMetadata): DocumentRef {
-    return {
-      documentId: metadata.filename,
-      dataSourceType:
-        metadata.entityType === ENTITY_TYPE.AGENT_CIRCLE ? DATA_SOURCE_TYPE.CIRCLE_ARTIFACT : DATA_SOURCE_TYPE.ARTIFACT,
-      provenanceId: metadata.entityId,
     };
   }
 }

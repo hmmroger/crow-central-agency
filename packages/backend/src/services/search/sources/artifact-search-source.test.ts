@@ -3,6 +3,7 @@ import {
   AGENT_TASK_SOURCE_TYPE,
   ARTIFACT_CONTENT_TYPE,
   ARTIFACT_TYPE,
+  DATA_SOURCE_TYPE,
   ENTITY_TYPE,
   type ArtifactMetadata,
 } from "@crow-central-agency/shared";
@@ -14,7 +15,6 @@ import { RelationshipManager } from "../../relationship-manager.js";
 import { FragmentManager } from "../../fragment/fragment-manager.js";
 import { WsBroadcaster } from "../../ws-broadcaster.js";
 import { InMemoryObjectStore } from "../../../core/store/in-memory-object-store.mock.js";
-import { DATA_SOURCE_TYPE } from "../document-search-service.types.js";
 import type { ReadArtifactResult } from "../../artifact/artifact-manager.types.js";
 
 vi.mock("../../artifact/artifact-manager.js");

@@ -71,6 +71,7 @@ export interface UpdateArtifactOptions {
 }
 
 export interface ArtifactListOptions {
+  filename?: string;
   type?: ArtifactType;
   tags?: string[];
 }

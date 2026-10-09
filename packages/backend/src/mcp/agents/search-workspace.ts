@@ -1,15 +1,16 @@
 import { z } from "zod";
-import { ENTITY_TYPE } from "@crow-central-agency/shared";
+import {
+  DATA_SOURCE_TYPE,
+  DataSourceTypeSchema,
+  ENTITY_TYPE,
+  type DataSourceType,
+  type DocumentSearchHit,
+} from "@crow-central-agency/shared";
 import type { AgentTaskManager } from "../../services/agent-task-manager.js";
 import type { AgentCircleManager } from "../../services/agent-circle-manager.js";
 import type { FragmentManager } from "../../services/fragment/fragment-manager.js";
 import type { DocumentSearchService } from "../../services/search/document-search-service.js";
-import {
-  DATA_SOURCE_TYPE,
-  type DataSourceType,
-  type DocumentSearchFilter,
-  type DocumentSearchHit,
-} from "../../services/search/document-search-service.types.js";
+import type { DocumentSearchFilter } from "../../services/search/document-search-service.types.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
 import { applyPagination, formatPaginationHeader, getErrorToolResult, textToolResult } from "../tool-utils.js";
 
@@ -17,14 +18,6 @@ const DEFAULT_SEARCH_LIMIT = 25;
 const MAX_SEARCH_LIMIT = 200;
 
 export const SEARCH_WORKSPACE_TOOL_NAME = "search_workspace";
-
-const SEARCH_SOURCE_VALUES = [
-  DATA_SOURCE_TYPE.ARTIFACT,
-  DATA_SOURCE_TYPE.CIRCLE_ARTIFACT,
-  DATA_SOURCE_TYPE.TASK,
-  DATA_SOURCE_TYPE.FRAGMENT,
-  DATA_SOURCE_TYPE.NOTE,
-];
 
 export function getSearchWorkspaceToolConfig(
   agentId: string,
@@ -41,10 +34,12 @@ export function getSearchWorkspaceToolConfig(
         "Full-text query matched against artifact filenames and contents, task titles and results, fragment cues and bodies, user note names and contents, and tags. Supports fuzzy and prefix matching."
       ),
     sources: z
-      .array(z.enum(SEARCH_SOURCE_VALUES))
+      .array(DataSourceTypeSchema)
       .min(1)
       .optional()
-      .describe(`Restrict to specific sources. Values: ${SEARCH_SOURCE_VALUES.join(", ")}. Omit to search all.`),
+      .describe(
+        `Restrict to specific sources. Values: ${DataSourceTypeSchema.options.join(", ")}. Omit to search all.`
+      ),
     limit: z
       .number()
       .optional()

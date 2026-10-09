@@ -1,5 +1,4 @@
-import type { DocumentRef } from "../document-search-service.types.js";
-import { toDocumentUid } from "../document-ref-utils.js";
+import { toDocumentUid, type DocumentRef } from "@crow-central-agency/shared";
 
 /** Keeps live-event reads per document in order: a read overtaken by a later one, or cancelled by a removal, is dropped. */
 export class LatestReadTracker {

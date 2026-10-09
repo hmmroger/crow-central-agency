@@ -1,4 +1,5 @@
 import type {
+  ArtifactListQuery,
   ArtifactMetadata,
   ArtifactUpdate,
   CreateNoteInput,
@@ -194,6 +195,25 @@ export async function createNote(input: CreateNoteInput): Promise<ApiResponse<No
 /** Upload an image into the `assets` folder beside a text note; the server names the file */
 export async function uploadNoteAsset(noteId: string, file: File): Promise<ApiResponse<NoteImageAsset>> {
   return uploadFormData(`/notes/${encodeURIComponent(noteId)}/assets`, file);
+}
+
+function toArtifactListPath(basePath: string, query?: ArtifactListQuery): string {
+  if (query?.filename === undefined) {
+    return basePath;
+  }
+
+  const params = new URLSearchParams({ filename: query.filename });
+  return `${basePath}?${params.toString()}`;
+}
+
+/** List an agent's artifacts, optionally narrowed to one filename */
+export async function listAgentArtifacts(agentId: string, query?: ArtifactListQuery) {
+  return apiClient.get<ArtifactMetadata[]>(toArtifactListPath(`/agents/${agentId}/artifacts`, query));
+}
+
+/** List a circle's own artifacts, optionally narrowed to one filename */
+export async function listCircleArtifacts(circleId: string, query?: ArtifactListQuery) {
+  return apiClient.get<ArtifactMetadata[]>(toArtifactListPath(`/circles/${circleId}/artifacts`, query));
 }
 
 /** Delete an agent artifact */

@@ -1,7 +1,7 @@
-import { useCallback, useImperativeHandle, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useState } from "react";
 import type { ChangeEvent, Ref } from "react";
 import { Pencil } from "lucide-react";
-import { ARTIFACT_CONTENT_TYPE } from "@crow-central-agency/shared";
+import { ARTIFACT_CONTENT_TYPE, toArtifactDocumentRef } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { ArtifactContentRenderer } from "./artifact-content-renderer.js";
 import { ArtifactTagList } from "./artifact-tag-list.js";
@@ -12,6 +12,7 @@ import type { ModalDialogHandle } from "../../../providers/modal-dialog-provider
 import { useConfirmDiscard } from "../../../hooks/dialogs/use-confirm-discard.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../../common/action-button.js";
 import { CopyButton } from "../../common/copy-button.js";
+import { useAppStore } from "../../../stores/app-store.js";
 
 /** Tags shown before collapsing in the wider dialog viewer */
 const VISIBLE_TAG_LIMIT = 12;
@@ -35,6 +36,12 @@ interface ArtifactViewerDialogProps {
 export function ArtifactViewerDialog({ artifact, onClose, ref }: ArtifactViewerDialogProps) {
   const { entityType, entityId, filename, tags } = artifact;
   const { data, refetch } = useArtifactContentQuery(entityType, entityId, filename);
+  const recordDocumentVisit = useAppStore((state) => state.recordDocumentVisit);
+
+  useEffect(() => {
+    recordDocumentVisit(toArtifactDocumentRef({ entityType, entityId, filename }));
+  }, [entityType, entityId, filename, recordDocumentVisit]);
+
   const textContent = data?.type === "text" ? data.content : undefined;
   // Server metadata as last read — the optimistic-lock timestamp comes from here, not the open-time
   // prop, so it stays fresh across consecutive saves and after a Reload.
@@ -118,7 +125,7 @@ export function ArtifactViewerDialog({ artifact, onClose, ref }: ArtifactViewerD
           onChange={handleContentChange}
           spellCheck={false}
           aria-label={`Edit content of ${filename}`}
-          className="flex-1 min-h-(--min-height-artifact-editor) resize-none overflow-y-auto m-3 p-3 rounded-md bg-surface-inset border border-border-subtle text-xs font-mono text-text-neutral focus:outline-none focus:ring-1 focus:ring-border-focus"
+          className="flex-1 min-h-artifact-editor resize-none overflow-y-auto m-3 p-3 rounded-md bg-surface-inset border border-border-subtle text-xs font-mono text-text-neutral focus:outline-none focus:ring-1 focus:ring-border-focus"
         />
       ) : (
         <div className="flex-1 overflow-y-auto m-3 p-3 rounded-md bg-surface-inset border border-border-subtle">

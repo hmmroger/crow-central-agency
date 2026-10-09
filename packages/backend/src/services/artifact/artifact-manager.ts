@@ -508,6 +508,10 @@ export class ArtifactManager extends EventBus<ArtifactManagerEvents> {
     const artifacts = entries.map((entry) => entry.value);
     const requiredTags = options?.tags?.length ? normalizeTags(options.tags) : undefined;
     const filtered = artifacts.filter((artifact) => {
+      if (options?.filename !== undefined && artifact.filename !== options.filename) {
+        return false;
+      }
+
       if (options?.type && artifact.type !== options.type) {
         return false;
       }

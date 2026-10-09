@@ -1,13 +1,6 @@
-import type { Fragment } from "@crow-central-agency/shared";
+import { DATA_SOURCE_TYPE, GLOBAL_PROVENANCE_ID, type DocumentRef, type Fragment } from "@crow-central-agency/shared";
 import type { FragmentManager } from "../../fragment/fragment-manager.js";
-import {
-  DATA_SOURCE_TYPE,
-  GLOBAL_PROVENANCE_ID,
-  type DocumentRef,
-  type SearchDocument,
-  type SearchSource,
-  type SearchSourceListener,
-} from "../document-search-service.types.js";
+import type { SearchDocument, SearchSource, SearchSourceListener } from "../document-search-service.types.js";
 
 /** Indexes memory fragments: cue as title, body as text, kind as tag. */
 export class FragmentSearchSource implements SearchSource {

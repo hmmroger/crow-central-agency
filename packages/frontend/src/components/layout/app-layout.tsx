@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useAgentPaletteHotkey } from "../../hooks/use-agent-palette-hotkey.js";
+import { usePaletteHotkeys } from "../../hooks/use-palette-hotkeys.js";
 import { AppHeader } from "./app-header.js";
 import { AppSidebar } from "./app-sidebar.js";
 import { SidePanel } from "./side-panel.js";
@@ -12,7 +12,7 @@ interface AppLayoutProps {
  * App layout shell - header spans full width, then sidebar + content side by side.
  */
 export function AppLayout({ children }: AppLayoutProps) {
-  useAgentPaletteHotkey();
+  usePaletteHotkeys();
 
   return (
     <div className="flex flex-col h-screen bg-base text-text-base">

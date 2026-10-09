@@ -1,4 +1,9 @@
-import { CROW_SYSTEM_AGENT_ID, type AgentTaskState } from "@crow-central-agency/shared";
+import {
+  CROW_SYSTEM_AGENT_ID,
+  toDocumentUid,
+  type AgentTaskState,
+  type DocumentRef,
+} from "@crow-central-agency/shared";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -38,6 +43,8 @@ export const NOTES_SIDEBAR_MIN_WIDTH = 256;
 export const NOTES_SIDEBAR_MAX_WIDTH = 480;
 /** Maximum number of recently visited agent ids kept */
 const RECENT_AGENT_IDS_MAX = 12;
+/** Maximum number of recently opened notes and artifacts kept */
+const RECENT_DOCUMENTS_MAX = 30;
 
 interface AppState {
   /** Current view mode - controlled by sidebar */
@@ -68,6 +75,8 @@ interface AppState {
   initialTaskFilter: AgentTaskState | undefined;
   /** Ids of recently visited agent consoles, most recent first */
   recentAgentIds: string[];
+  /** Recently opened notes and artifacts, most recent first */
+  recentDocuments: DocumentRef[];
   /** Switch view mode via sidebar. Falls selectedAgentId back to the Crow system agent when nothing is selected */
   setViewMode: (mode: ViewMode) => void;
   /** Select an agent in the Agents view to show its console */
@@ -106,6 +115,10 @@ interface AppState {
   toggleDashboardTopCollapsed: () => void;
   /** Record an agent console visit, moving the agent to the front of the recents list */
   recordAgentVisit: (agentId: string) => void;
+  /** Record a note or artifact being opened, moving it to the front of the recents list */
+  recordDocumentVisit: (documentRef: DocumentRef) => void;
+  /** Remove a note or artifact from the recents list */
+  forgetRecentDocument: (documentRef: DocumentRef) => void;
 }
 
 /** Shape of the state that is persisted to localStorage */
@@ -121,6 +134,7 @@ interface PersistedAppState {
   collapsedCircles?: Record<string, boolean>;
   dashboardTopCollapsed?: boolean;
   recentAgentIds?: string[];
+  recentDocuments?: DocumentRef[];
 }
 
 /** localStorage key for persisted app state */
@@ -148,6 +162,7 @@ export const useAppStore = create<AppState>()(
       dashboardTopCollapsed: false,
       initialTaskFilter: undefined,
       recentAgentIds: [],
+      recentDocuments: [],
 
       setViewMode: (mode: ViewMode) =>
         set((state) => {
@@ -223,6 +238,28 @@ export const useAppStore = create<AppState>()(
           const remaining = state.recentAgentIds.filter((recentId) => recentId !== agentId);
           return { recentAgentIds: [agentId, ...remaining].slice(0, RECENT_AGENT_IDS_MAX) };
         }),
+
+      recordDocumentVisit: (documentRef: DocumentRef) =>
+        set((state) => {
+          const uid = toDocumentUid(documentRef);
+          const [mostRecent] = state.recentDocuments;
+          if (mostRecent && toDocumentUid(mostRecent) === uid) {
+            return state;
+          }
+
+          const remaining = state.recentDocuments.filter((recent) => toDocumentUid(recent) !== uid);
+          return { recentDocuments: [documentRef, ...remaining].slice(0, RECENT_DOCUMENTS_MAX) };
+        }),
+
+      forgetRecentDocument: (documentRef: DocumentRef) =>
+        set((state) => {
+          const uid = toDocumentUid(documentRef);
+          if (!state.recentDocuments.some((recent) => toDocumentUid(recent) === uid)) {
+            return state;
+          }
+
+          return { recentDocuments: state.recentDocuments.filter((recent) => toDocumentUid(recent) !== uid) };
+        }),
     }),
     {
       name: APP_STORE_STORAGE_KEY,
@@ -239,6 +276,7 @@ export const useAppStore = create<AppState>()(
         collapsedCircles: state.collapsedCircles,
         dashboardTopCollapsed: state.dashboardTopCollapsed,
         recentAgentIds: state.recentAgentIds,
+        recentDocuments: state.recentDocuments,
       }),
     }
   )

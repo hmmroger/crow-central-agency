@@ -1,8 +1,9 @@
 import { useCallback, useMemo, type MouseEvent } from "react";
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, FileSearch, Search } from "lucide-react";
 import { CrowIcon } from "../common/icons/crow.js";
 import { useHeader } from "../../hooks/use-header.js";
 import { useOpenAgentPalette } from "../../hooks/dialogs/use-open-agent-palette.js";
+import { useOpenDocumentPalette } from "../../hooks/dialogs/use-open-document-palette.js";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
 import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import type { HeaderAction } from "../../providers/header-provider.types.js";
@@ -24,6 +25,7 @@ export function AppHeader() {
   const { title, dropdown, actions, breadcrumbs } = useHeader();
   const { toggleMenu, isMenuOpen } = useContextMenu();
   const openAgentPalette = useOpenAgentPalette();
+  const openDocumentPalette = useOpenDocumentPalette();
   const viewMode = useAppStore((state) => state.viewMode);
   const setViewMode = useAppStore((state) => state.setViewMode);
   const isDropdownOpen = dropdown ? isMenuOpen(dropdown.menuId) : false;
@@ -171,6 +173,16 @@ export function AppHeader() {
         className="mr-1 p-1.5 rounded-md text-text-muted hover:text-text-base hover:bg-surface-hover transition-colors"
       >
         <Search className="h-4 w-4" />
+      </button>
+
+      <button
+        type="button"
+        onClick={openDocumentPalette}
+        title="Find note or artifact (Ctrl/⌘+P)"
+        aria-label="Find note or artifact (Ctrl/⌘+P)"
+        className="mr-1 p-1.5 rounded-md text-text-muted hover:text-text-base hover:bg-surface-hover transition-colors"
+      >
+        <FileSearch className="h-4 w-4" />
       </button>
 
       <div className="hidden lg:flex items-center">
