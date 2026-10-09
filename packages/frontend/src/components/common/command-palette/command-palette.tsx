@@ -120,7 +120,7 @@ export function CommandPalette<TValue>({
 
       <div className="flex h-8 shrink-0 items-center gap-1.5 px-3 pt-1">{header}</div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-2">
         <div role="alert" className="px-1 text-sm text-error empty:hidden">
           {errorMessage}
         </div>
