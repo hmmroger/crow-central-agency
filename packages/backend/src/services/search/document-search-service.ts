@@ -1,9 +1,12 @@
 import MiniSearch from "minisearch";
-import type { DataSourceType, DocumentSearchHit } from "@crow-central-agency/shared";
+import {
+  toDocumentUid,
+  type DataSourceType,
+  type DocumentRef,
+  type DocumentSearchHit,
+} from "@crow-central-agency/shared";
 import { logger } from "../../utils/logger.js";
-import { toDocumentUid } from "./document-ref-utils.js";
 import type {
-  DocumentRef,
   DocumentSearchOptions,
   SearchDocument,
   SearchSource,

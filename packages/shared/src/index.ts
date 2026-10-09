@@ -536,12 +536,16 @@ export {
   DataSourceTypeSchema,
   SEARCH_DEFAULT_LIMIT,
   SEARCH_MAX_LIMIT,
+  GLOBAL_PROVENANCE_ID,
   SearchQuerySchema,
+  DocumentRefSchema,
   DocumentSearchHitSchema,
   type DataSourceType,
   type SearchQuery,
+  type DocumentRef,
   type DocumentSearchHit,
 } from "./schemas/search.schema.js";
+export { toArtifactDocumentRef, toDocumentUid } from "./utils/document-ref-utils.js";
 
 export {
   SessionHistoryNodeSchema,

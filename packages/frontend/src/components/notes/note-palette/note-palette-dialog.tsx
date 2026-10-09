@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { FileBox, FileText } from "lucide-react";
-import { ENTITY_TYPE, type ArtifactEntityType, type ArtifactMetadata } from "@crow-central-agency/shared";
+import { DATA_SOURCE_TYPE, type ArtifactMetadata, type DocumentRef } from "@crow-central-agency/shared";
 import { useCirclesQuery } from "../../../hooks/queries/use-circles-query.js";
 import { useSearchQuery } from "../../../hooks/queries/use-search-query.js";
 import { useDebouncedValue } from "../../../hooks/use-debounced-value.js";
@@ -8,7 +8,6 @@ import { useAgentsContext } from "../../../providers/agents-provider.js";
 import { useNotesContext } from "../../../providers/notes-provider.js";
 import { listAgentArtifacts, listCircleArtifacts, unwrapResponse } from "../../../services/api-client.js";
 import { NOTES_SIDEBAR_TAB, useAppStore, VIEW_MODE } from "../../../stores/app-store.js";
-import { DOCUMENT_REF_KIND, type ArtifactDocumentRef, type DocumentRef } from "../../../utils/document-ref.types.js";
 import { getErrorMessage } from "../../../utils/error-message.js";
 import { useOpenArtifactViewer } from "../../agents/artifact/use-open-artifact-viewer.js";
 import { CommandPalette } from "../../common/command-palette/command-palette.js";
@@ -21,7 +20,7 @@ import {
   NOTE_PALETTE_LABEL_ID,
   type NotePaletteFilter,
 } from "./note-palette.types.js";
-import { resolveRecentEntries, resolveSearchHitEntries } from "./resolve-note-palette-entries.js";
+import { resolveNotePaletteEntries } from "./resolve-note-palette-entries.js";
 import { NotePaletteFilterPills } from "./note-palette-filter-pills.js";
 
 interface NotePaletteDialogProps {
@@ -43,14 +42,20 @@ function cycleFilter(filter: NotePaletteFilter, step: number): NotePaletteFilter
   return NOTE_PALETTE_FILTERS[nextIndex] ?? NOTE_PALETTE_FILTER.ALL;
 }
 
-async function fetchArtifactMetadata(target: ArtifactDocumentRef): Promise<ArtifactMetadata | undefined> {
-  const query = { filename: target.filename };
-  const response =
-    target.ownerType === ENTITY_TYPE.AGENT
-      ? await listAgentArtifacts(target.ownerId, query)
-      : await listCircleArtifacts(target.ownerId, query);
+async function fetchArtifactMetadata(documentRef: DocumentRef): Promise<ArtifactMetadata | undefined> {
+  const query = { filename: documentRef.documentId };
+  switch (documentRef.dataSourceType) {
+    case DATA_SOURCE_TYPE.ARTIFACT:
+      return unwrapResponse(await listAgentArtifacts(documentRef.provenanceId, query))[0];
 
-  return unwrapResponse(response)[0];
+    case DATA_SOURCE_TYPE.CIRCLE_ARTIFACT:
+      return unwrapResponse(await listCircleArtifacts(documentRef.provenanceId, query))[0];
+
+    case DATA_SOURCE_TYPE.NOTE:
+    case DATA_SOURCE_TYPE.TASK:
+    case DATA_SOURCE_TYPE.FRAGMENT:
+      return undefined;
+  }
 }
 
 export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
@@ -89,16 +94,28 @@ export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
   const circleNames = useMemo(() => new Map(circles?.map((circle) => [circle.id, circle.name])), [circles]);
 
   const getOwnerName = useCallback(
-    (ownerType: ArtifactEntityType, ownerId: string) =>
-      ownerType === ENTITY_TYPE.AGENT ? getAgent(ownerId)?.name : circleNames.get(ownerId),
+    (documentRef: DocumentRef) => {
+      switch (documentRef.dataSourceType) {
+        case DATA_SOURCE_TYPE.ARTIFACT:
+          return getAgent(documentRef.provenanceId)?.name;
+
+        case DATA_SOURCE_TYPE.CIRCLE_ARTIFACT:
+          return circleNames.get(documentRef.provenanceId);
+
+        case DATA_SOURCE_TYPE.NOTE:
+        case DATA_SOURCE_TYPE.TASK:
+        case DATA_SOURCE_TYPE.FRAGMENT:
+          return undefined;
+      }
+    },
     [getAgent, circleNames]
   );
 
   const entries = useMemo(
     () =>
       isSearching
-        ? resolveSearchHitEntries({ notes, hits: search.data ?? [], getOwnerName })
-        : resolveRecentEntries({ notes, recentDocuments, currentNoteId, getOwnerName }),
+        ? resolveNotePaletteEntries({ notes, documents: search.data ?? [], getOwnerName })
+        : resolveNotePaletteEntries({ notes, documents: recentDocuments, getOwnerName, excludedNoteId: currentNoteId }),
     [isSearching, notes, search.data, getOwnerName, recentDocuments, currentNoteId]
   );
 
@@ -109,7 +126,7 @@ export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
         title: entry.title,
         subtitle: entry.subtitle,
         leading:
-          entry.target.kind === DOCUMENT_REF_KIND.NOTE ? (
+          entry.target.dataSourceType === DATA_SOURCE_TYPE.NOTE ? (
             <FileText className={PALETTE_ICON_CLASS_NAME} />
           ) : (
             <FileBox className={PALETTE_ICON_CLASS_NAME} />
@@ -142,7 +159,7 @@ export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
   );
 
   const openArtifact = useCallback(
-    async (target: ArtifactDocumentRef) => {
+    async (target: DocumentRef) => {
       if (isOpeningArtifactRef.current) {
         return;
       }
@@ -179,13 +196,21 @@ export function NotePaletteDialog({ onClose }: NotePaletteDialogProps) {
 
   const handleSelect = useCallback(
     (target: DocumentRef) => {
-      if (target.kind === DOCUMENT_REF_KIND.ARTIFACT) {
-        void openArtifact(target);
-        return;
-      }
+      switch (target.dataSourceType) {
+        case DATA_SOURCE_TYPE.NOTE:
+          goToNote(target.documentId);
+          onClose();
+          return;
 
-      goToNote(target.noteId);
-      onClose();
+        case DATA_SOURCE_TYPE.ARTIFACT:
+        case DATA_SOURCE_TYPE.CIRCLE_ARTIFACT:
+          void openArtifact(target);
+          return;
+
+        case DATA_SOURCE_TYPE.TASK:
+        case DATA_SOURCE_TYPE.FRAGMENT:
+          return;
+      }
     },
     [openArtifact, goToNote, onClose]
   );

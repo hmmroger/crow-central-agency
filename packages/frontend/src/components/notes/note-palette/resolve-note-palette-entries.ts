@@ -1,37 +1,31 @@
-import { DATA_SOURCE_TYPE, ENTITY_TYPE, type DocumentSearchHit } from "@crow-central-agency/shared";
+import { DATA_SOURCE_TYPE, toDocumentUid, type DocumentRef } from "@crow-central-agency/shared";
 import type { NotesContextValue } from "../../../providers/notes-provider.types.js";
-import { DOCUMENT_REF_KIND, type ArtifactDocumentRef, type DocumentRef } from "../../../utils/document-ref.types.js";
 import { isLiveNoteFile } from "../../../utils/note-utils.js";
-import type { ArtifactOwnerNameResolver, NotePaletteEntry } from "./note-palette.types.js";
+import type { DocumentOwnerNameResolver, NotePaletteEntry } from "./note-palette.types.js";
 
 type NoteAccessors = Pick<NotesContextValue, "getNote" | "getAncestorIds">;
 
-interface ResolveRecentEntriesParams {
+interface ResolveNotePaletteEntriesParams {
   notes: NoteAccessors;
-  recentDocuments: DocumentRef[];
+  /** Recent documents or search hits, in display order */
+  documents: readonly DocumentRef[];
+  getOwnerName: DocumentOwnerNameResolver;
   /** The note on screen in the Notes tab, left out of the list */
-  currentNoteId: string | undefined;
-  getOwnerName: ArtifactOwnerNameResolver;
-}
-
-interface ResolveSearchHitEntriesParams {
-  notes: NoteAccessors;
-  hits: DocumentSearchHit[];
-  getOwnerName: ArtifactOwnerNameResolver;
+  excludedNoteId?: string;
 }
 
 const FOLDER_PATH_SEPARATOR = " / ";
 
-/** Recent notes and artifacts in recency order; the open note and entries that no longer resolve are dropped. */
-export function resolveRecentEntries({
+/** Rows in input order; the excluded note, folders, unknown notes, ownerless artifacts and other sources are dropped. */
+export function resolveNotePaletteEntries({
   notes,
-  recentDocuments,
-  currentNoteId,
+  documents,
   getOwnerName,
-}: ResolveRecentEntriesParams): NotePaletteEntry[] {
+  excludedNoteId,
+}: ResolveNotePaletteEntriesParams): NotePaletteEntry[] {
   const entries: NotePaletteEntry[] = [];
-  for (const documentRef of recentDocuments) {
-    const entry = toRecentEntry(notes, documentRef, currentNoteId, getOwnerName);
+  for (const { documentId, dataSourceType, provenanceId } of documents) {
+    const entry = toEntry(notes, { documentId, dataSourceType, provenanceId }, getOwnerName, excludedNoteId);
     if (entry) {
       entries.push(entry);
     }
@@ -40,58 +34,19 @@ export function resolveRecentEntries({
   return entries;
 }
 
-/** Search hits in rank order; folders, unknown notes, ownerless artifacts and other sources are dropped. */
-export function resolveSearchHitEntries({
-  notes,
-  hits,
-  getOwnerName,
-}: ResolveSearchHitEntriesParams): NotePaletteEntry[] {
-  const entries: NotePaletteEntry[] = [];
-  for (const hit of hits) {
-    const entry = toHitEntry(notes, hit, getOwnerName);
-    if (entry) {
-      entries.push(entry);
-    }
-  }
-
-  return entries;
-}
-
-function toRecentEntry(
+function toEntry(
   notes: NoteAccessors,
   documentRef: DocumentRef,
-  currentNoteId: string | undefined,
-  getOwnerName: ArtifactOwnerNameResolver
+  getOwnerName: DocumentOwnerNameResolver,
+  excludedNoteId: string | undefined
 ): NotePaletteEntry | undefined {
-  switch (documentRef.kind) {
-    case DOCUMENT_REF_KIND.NOTE:
-      return documentRef.noteId === currentNoteId ? undefined : toNoteEntry(notes, documentRef.noteId);
-
-    case DOCUMENT_REF_KIND.ARTIFACT:
-      return toArtifactEntry(documentRef, getOwnerName);
-  }
-}
-
-function toHitEntry(
-  notes: NoteAccessors,
-  hit: DocumentSearchHit,
-  getOwnerName: ArtifactOwnerNameResolver
-): NotePaletteEntry | undefined {
-  switch (hit.dataSourceType) {
+  switch (documentRef.dataSourceType) {
     case DATA_SOURCE_TYPE.NOTE:
-      return toNoteEntry(notes, hit.documentId);
+      return documentRef.documentId === excludedNoteId ? undefined : toNoteEntry(notes, documentRef);
 
     case DATA_SOURCE_TYPE.ARTIFACT:
     case DATA_SOURCE_TYPE.CIRCLE_ARTIFACT:
-      return toArtifactEntry(
-        {
-          kind: DOCUMENT_REF_KIND.ARTIFACT,
-          ownerType: hit.dataSourceType === DATA_SOURCE_TYPE.ARTIFACT ? ENTITY_TYPE.AGENT : ENTITY_TYPE.AGENT_CIRCLE,
-          ownerId: hit.provenanceId,
-          filename: hit.documentId,
-        },
-        getOwnerName
-      );
+      return toArtifactEntry(documentRef, getOwnerName);
 
     case DATA_SOURCE_TYPE.TASK:
     case DATA_SOURCE_TYPE.FRAGMENT:
@@ -99,7 +54,8 @@ function toHitEntry(
   }
 }
 
-function toNoteEntry(notes: NoteAccessors, noteId: string): NotePaletteEntry | undefined {
+function toNoteEntry(notes: NoteAccessors, documentRef: DocumentRef): NotePaletteEntry | undefined {
+  const noteId = documentRef.documentId;
   const metadata = notes.getNote(noteId);
   if (!isLiveNoteFile(metadata)) {
     return undefined;
@@ -108,25 +64,25 @@ function toNoteEntry(notes: NoteAccessors, noteId: string): NotePaletteEntry | u
   const folderNames = notes.getAncestorIds(noteId).map((folderId) => notes.getNote(folderId)?.name ?? folderId);
 
   return {
-    key: `${DOCUMENT_REF_KIND.NOTE}:${noteId}`,
+    key: toDocumentUid(documentRef),
     title: metadata.name,
     subtitle: folderNames.length > 0 ? folderNames.join(FOLDER_PATH_SEPARATOR) : undefined,
-    target: { kind: DOCUMENT_REF_KIND.NOTE, noteId },
+    target: documentRef,
   };
 }
 
 function toArtifactEntry(
-  documentRef: ArtifactDocumentRef,
-  getOwnerName: ArtifactOwnerNameResolver
+  documentRef: DocumentRef,
+  getOwnerName: DocumentOwnerNameResolver
 ): NotePaletteEntry | undefined {
-  const ownerName = getOwnerName(documentRef.ownerType, documentRef.ownerId);
+  const ownerName = getOwnerName(documentRef);
   if (!ownerName) {
     return undefined;
   }
 
   return {
-    key: `${DOCUMENT_REF_KIND.ARTIFACT}:${documentRef.ownerType}:${documentRef.ownerId}:${documentRef.filename}`,
-    title: documentRef.filename,
+    key: toDocumentUid(documentRef),
+    title: documentRef.documentId,
     subtitle: ownerName,
     target: documentRef,
   };

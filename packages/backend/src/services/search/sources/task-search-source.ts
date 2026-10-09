@@ -1,12 +1,12 @@
-import { AGENT_TASK_STATE, DATA_SOURCE_TYPE, type AgentTaskItem } from "@crow-central-agency/shared";
-import type { AgentTaskManager } from "../../agent-task-manager.js";
 import {
+  AGENT_TASK_STATE,
+  DATA_SOURCE_TYPE,
   GLOBAL_PROVENANCE_ID,
+  type AgentTaskItem,
   type DocumentRef,
-  type SearchDocument,
-  type SearchSource,
-  type SearchSourceListener,
-} from "../document-search-service.types.js";
+} from "@crow-central-agency/shared";
+import type { AgentTaskManager } from "../../agent-task-manager.js";
+import type { SearchDocument, SearchSource, SearchSourceListener } from "../document-search-service.types.js";
 
 /** Indexes agent tasks: the task text as title and its result as body. */
 export class TaskSearchSource implements SearchSource {

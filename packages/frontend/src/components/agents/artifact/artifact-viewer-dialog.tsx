@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useImperativeHandle, useState } from "react";
 import type { ChangeEvent, Ref } from "react";
 import { Pencil } from "lucide-react";
-import { ARTIFACT_CONTENT_TYPE } from "@crow-central-agency/shared";
+import { ARTIFACT_CONTENT_TYPE, toArtifactDocumentRef } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { ArtifactContentRenderer } from "./artifact-content-renderer.js";
 import { ArtifactTagList } from "./artifact-tag-list.js";
@@ -13,7 +13,6 @@ import { useConfirmDiscard } from "../../../hooks/dialogs/use-confirm-discard.js
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../../common/action-button.js";
 import { CopyButton } from "../../common/copy-button.js";
 import { useAppStore } from "../../../stores/app-store.js";
-import { DOCUMENT_REF_KIND } from "../../../utils/document-ref.types.js";
 
 /** Tags shown before collapsing in the wider dialog viewer */
 const VISIBLE_TAG_LIMIT = 12;
@@ -40,7 +39,7 @@ export function ArtifactViewerDialog({ artifact, onClose, ref }: ArtifactViewerD
   const recordDocumentVisit = useAppStore((state) => state.recordDocumentVisit);
 
   useEffect(() => {
-    recordDocumentVisit({ kind: DOCUMENT_REF_KIND.ARTIFACT, ownerType: entityType, ownerId: entityId, filename });
+    recordDocumentVisit(toArtifactDocumentRef({ entityType, entityId, filename }));
   }, [entityType, entityId, filename, recordDocumentVisit]);
 
   const textContent = data?.type === "text" ? data.content : undefined;

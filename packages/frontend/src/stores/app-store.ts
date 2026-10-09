@@ -1,8 +1,11 @@
-import { CROW_SYSTEM_AGENT_ID, type AgentTaskState } from "@crow-central-agency/shared";
+import {
+  CROW_SYSTEM_AGENT_ID,
+  toDocumentUid,
+  type AgentTaskState,
+  type DocumentRef,
+} from "@crow-central-agency/shared";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { isSameDocumentRef } from "../utils/document-ref.js";
-import type { DocumentRef } from "../utils/document-ref.types.js";
 
 /** View modes for the app - flat navigation via sidebar */
 export const VIEW_MODE = {
@@ -238,24 +241,24 @@ export const useAppStore = create<AppState>()(
 
       recordDocumentVisit: (documentRef: DocumentRef) =>
         set((state) => {
+          const uid = toDocumentUid(documentRef);
           const [mostRecent] = state.recentDocuments;
-          if (mostRecent && isSameDocumentRef(mostRecent, documentRef)) {
+          if (mostRecent && toDocumentUid(mostRecent) === uid) {
             return state;
           }
 
-          const remaining = state.recentDocuments.filter((recent) => !isSameDocumentRef(recent, documentRef));
+          const remaining = state.recentDocuments.filter((recent) => toDocumentUid(recent) !== uid);
           return { recentDocuments: [documentRef, ...remaining].slice(0, RECENT_DOCUMENTS_MAX) };
         }),
 
       forgetRecentDocument: (documentRef: DocumentRef) =>
         set((state) => {
-          if (!state.recentDocuments.some((recent) => isSameDocumentRef(recent, documentRef))) {
+          const uid = toDocumentUid(documentRef);
+          if (!state.recentDocuments.some((recent) => toDocumentUid(recent) === uid)) {
             return state;
           }
 
-          return {
-            recentDocuments: state.recentDocuments.filter((recent) => !isSameDocumentRef(recent, documentRef)),
-          };
+          return { recentDocuments: state.recentDocuments.filter((recent) => toDocumentUid(recent) !== uid) };
         }),
     }),
     {

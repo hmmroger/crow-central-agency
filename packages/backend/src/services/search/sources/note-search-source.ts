@@ -1,14 +1,15 @@
-import { DATA_SOURCE_TYPE, ENTITY_TYPE, NOTE_CONTENT_TYPE, type NoteMetadata } from "@crow-central-agency/shared";
+import {
+  DATA_SOURCE_TYPE,
+  ENTITY_TYPE,
+  GLOBAL_PROVENANCE_ID,
+  NOTE_CONTENT_TYPE,
+  type DocumentRef,
+  type NoteMetadata,
+} from "@crow-central-agency/shared";
 import { logger } from "../../../utils/logger.js";
 import type { NotesManager } from "../../notes/notes-manager.js";
 import type { TagManager } from "../../tag/tag-manager.js";
-import {
-  GLOBAL_PROVENANCE_ID,
-  type DocumentRef,
-  type SearchDocument,
-  type SearchSource,
-  type SearchSourceListener,
-} from "../document-search-service.types.js";
+import type { SearchDocument, SearchSource, SearchSourceListener } from "../document-search-service.types.js";
 import { LatestReadTracker } from "./latest-read-tracker.js";
 
 const log = logger.child({ context: "note-search-source" });

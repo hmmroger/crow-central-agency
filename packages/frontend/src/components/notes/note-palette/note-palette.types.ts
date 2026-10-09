@@ -1,5 +1,4 @@
-import { DATA_SOURCE_TYPE, type ArtifactEntityType, type DataSourceType } from "@crow-central-agency/shared";
-import type { DocumentRef } from "../../../utils/document-ref.types.js";
+import { DATA_SOURCE_TYPE, type DataSourceType, type DocumentRef } from "@crow-central-agency/shared";
 
 /** Which hits the search narrows to; reset to ALL each time the palette opens */
 export const NOTE_PALETTE_FILTER = {
@@ -37,8 +36,8 @@ export interface NotePaletteEntry {
   target: DocumentRef;
 }
 
-/** Display name of an artifact's owning agent or circle */
-export type ArtifactOwnerNameResolver = (ownerType: ArtifactEntityType, ownerId: string) => string | undefined;
+/** Display name of the agent or circle a document belongs to; undefined when it has no such owner or the owner is gone */
+export type DocumentOwnerNameResolver = (documentRef: DocumentRef) => string | undefined;
 
 /** Dialog id, shared by the open hook and the palette hotkey */
 export const NOTE_PALETTE_DIALOG_ID = "note-palette";
