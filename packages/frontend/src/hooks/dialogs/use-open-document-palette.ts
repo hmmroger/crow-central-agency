@@ -1,21 +1,21 @@
 import { useCallback } from "react";
 import { useModalDialog } from "../../providers/modal-dialog-provider.js";
-import { NotePaletteDialog } from "../../components/notes/note-palette/note-palette-dialog.js";
+import { DocumentPaletteDialog } from "../../components/document-palette/document-palette-dialog.js";
 import {
-  NOTE_PALETTE_DIALOG_ID,
-  NOTE_PALETTE_LABEL_ID,
-} from "../../components/notes/note-palette/note-palette.types.js";
+  DOCUMENT_PALETTE_DIALOG_ID,
+  DOCUMENT_PALETTE_LABEL_ID,
+} from "../../components/document-palette/document-palette.types.js";
 import { COMMAND_PALETTE_DIALOG_CLASS_NAME } from "../../components/common/command-palette/command-palette.types.js";
 
-export function useOpenNotePalette() {
+export function useOpenDocumentPalette() {
   const { showDialog } = useModalDialog();
 
   return useCallback(() => {
     showDialog({
-      id: NOTE_PALETTE_DIALOG_ID,
-      component: NotePaletteDialog,
+      id: DOCUMENT_PALETTE_DIALOG_ID,
+      component: DocumentPaletteDialog,
       className: COMMAND_PALETTE_DIALOG_CLASS_NAME,
-      ariaLabelledBy: NOTE_PALETTE_LABEL_ID,
+      ariaLabelledBy: DOCUMENT_PALETTE_LABEL_ID,
     });
   }, [showDialog]);
 }

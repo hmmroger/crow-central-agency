@@ -1,11 +1,11 @@
 import { DATA_SOURCE_TYPE, toDocumentUid, type DocumentRef } from "@crow-central-agency/shared";
-import type { NotesContextValue } from "../../../providers/notes-provider.types.js";
-import { isLiveNoteFile } from "../../../utils/note-utils.js";
-import type { DocumentOwnerNameResolver, NotePaletteEntry } from "./note-palette.types.js";
+import type { NotesContextValue } from "../../providers/notes-provider.types.js";
+import { isLiveNoteFile } from "../../utils/note-utils.js";
+import type { DocumentOwnerNameResolver, DocumentPaletteEntry } from "./document-palette.types.js";
 
 type NoteAccessors = Pick<NotesContextValue, "getNote" | "getAncestorIds">;
 
-interface ResolveNotePaletteEntriesParams {
+interface ResolveDocumentPaletteEntriesParams {
   notes: NoteAccessors;
   /** Recent documents or search hits, in display order */
   documents: readonly DocumentRef[];
@@ -17,13 +17,13 @@ interface ResolveNotePaletteEntriesParams {
 const FOLDER_PATH_SEPARATOR = " / ";
 
 /** Rows in input order; the excluded note, folders, unknown notes, ownerless artifacts and other sources are dropped. */
-export function resolveNotePaletteEntries({
+export function resolveDocumentPaletteEntries({
   notes,
   documents,
   getOwnerName,
   excludedNoteId,
-}: ResolveNotePaletteEntriesParams): NotePaletteEntry[] {
-  const entries: NotePaletteEntry[] = [];
+}: ResolveDocumentPaletteEntriesParams): DocumentPaletteEntry[] {
+  const entries: DocumentPaletteEntry[] = [];
   for (const { documentId, dataSourceType, provenanceId } of documents) {
     const entry = toEntry(notes, { documentId, dataSourceType, provenanceId }, getOwnerName, excludedNoteId);
     if (entry) {
@@ -39,7 +39,7 @@ function toEntry(
   documentRef: DocumentRef,
   getOwnerName: DocumentOwnerNameResolver,
   excludedNoteId: string | undefined
-): NotePaletteEntry | undefined {
+): DocumentPaletteEntry | undefined {
   switch (documentRef.dataSourceType) {
     case DATA_SOURCE_TYPE.NOTE:
       return documentRef.documentId === excludedNoteId ? undefined : toNoteEntry(notes, documentRef);
@@ -54,7 +54,7 @@ function toEntry(
   }
 }
 
-function toNoteEntry(notes: NoteAccessors, documentRef: DocumentRef): NotePaletteEntry | undefined {
+function toNoteEntry(notes: NoteAccessors, documentRef: DocumentRef): DocumentPaletteEntry | undefined {
   const noteId = documentRef.documentId;
   const metadata = notes.getNote(noteId);
   if (!isLiveNoteFile(metadata)) {
@@ -74,7 +74,7 @@ function toNoteEntry(notes: NoteAccessors, documentRef: DocumentRef): NotePalett
 function toArtifactEntry(
   documentRef: DocumentRef,
   getOwnerName: DocumentOwnerNameResolver
-): NotePaletteEntry | undefined {
+): DocumentPaletteEntry | undefined {
   const ownerName = getOwnerName(documentRef);
   if (!ownerName) {
     return undefined;

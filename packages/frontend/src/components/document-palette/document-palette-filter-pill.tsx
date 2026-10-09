@@ -1,11 +1,11 @@
 import { useCallback, type MouseEvent } from "react";
-import { cn } from "../../../utils/cn.js";
-import { NOTE_PALETTE_FILTER_LABEL, type NotePaletteFilter } from "./note-palette.types.js";
+import { cn } from "../../utils/cn.js";
+import { DOCUMENT_PALETTE_FILTER_LABEL, type DocumentPaletteFilter } from "./document-palette.types.js";
 
-interface NotePaletteFilterPillProps {
-  filter: NotePaletteFilter;
+interface DocumentPaletteFilterPillProps {
+  filter: DocumentPaletteFilter;
   isSelected: boolean;
-  onSelect: (filter: NotePaletteFilter) => void;
+  onSelect: (filter: DocumentPaletteFilter) => void;
 }
 
 /** Keeps focus in the palette's search input when a pill is clicked */
@@ -13,7 +13,7 @@ function preventFocusShift(event: MouseEvent<HTMLButtonElement>) {
   event.preventDefault();
 }
 
-export function NotePaletteFilterPill({ filter, isSelected, onSelect }: NotePaletteFilterPillProps) {
+export function DocumentPaletteFilterPill({ filter, isSelected, onSelect }: DocumentPaletteFilterPillProps) {
   const handleClick = useCallback(() => onSelect(filter), [onSelect, filter]);
 
   return (
@@ -28,7 +28,7 @@ export function NotePaletteFilterPill({ filter, isSelected, onSelect }: NotePale
         isSelected ? "bg-surface-accent text-text-base" : "text-text-muted hover:text-text-base hover:bg-surface-hover"
       )}
     >
-      {NOTE_PALETTE_FILTER_LABEL[filter]}
+      {DOCUMENT_PALETTE_FILTER_LABEL[filter]}
     </button>
   );
 }
