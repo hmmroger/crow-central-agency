@@ -138,12 +138,7 @@ export class TagManager {
         targetEntityType: ENTITY_TYPE.TAG,
         relationshipType: RELATIONSHIP_TYPE.TAGGED,
       });
-      this.broadcastChange({
-        createdTags: [],
-        removedEdges: [],
-        addedEdges: [this.toTagEdge(relationship)],
-        deletedTagIds: [],
-      });
+      this.broadcastChange({ removedEdges: [], addedEdges: [this.toTagEdge(relationship)], deletedTagIds: [] });
 
       return relationship;
     });
@@ -163,12 +158,7 @@ export class TagManager {
 
       await this.relationshipManager.deleteRelationship(relationshipId);
       const deletedTagIds = await this.deleteUnusedTags([relationship.targetEntityId]);
-      this.broadcastChange({
-        createdTags: [],
-        removedEdges: [this.toTagEdge(relationship)],
-        addedEdges: [],
-        deletedTagIds,
-      });
+      this.broadcastChange({ removedEdges: [this.toTagEdge(relationship)], addedEdges: [], deletedTagIds });
     });
   }
 
@@ -188,7 +178,6 @@ export class TagManager {
         relationshipType: RELATIONSHIP_TYPE.TAGGED,
       });
       this.broadcastChange({
-        createdTags: [],
         removedEdges: rekeyed.map(({ previous }) => this.toTagEdge(previous)),
         addedEdges: rekeyed.map(({ next }) => this.toTagEdge(next)),
         deletedTagIds: [],
@@ -234,7 +223,7 @@ export class TagManager {
       }
     }
 
-    const createdTags = await this.createMissingTags(pendingEdges.map((pendingEdge) => pendingEdge.tagName));
+    await this.createMissingTags(pendingEdges.map((pendingEdge) => pendingEdge.tagName));
     await this.relationshipManager.deleteRelationships(removedRelationships.map((relationship) => relationship.id));
     const addedRelationships = await this.relationshipManager.createRelationships(
       pendingEdges.map((pendingEdge) => ({
@@ -248,7 +237,6 @@ export class TagManager {
     const deletedTagIds = await this.deleteUnusedTags(Array.from(removedTagIds));
 
     this.broadcastChange({
-      createdTags,
       removedEdges: removedRelationships.map((relationship) => this.toTagEdge(relationship)),
       addedEdges: addedRelationships.map((relationship) => this.toTagEdge(relationship)),
       deletedTagIds,
@@ -273,7 +261,7 @@ export class TagManager {
     });
   }
 
-  private async createMissingTags(tagNames: ReadonlyArray<string>): Promise<Tag[]> {
+  private async createMissingTags(tagNames: ReadonlyArray<string>): Promise<void> {
     const createdTimestamp = Date.now();
     const newTags = new Map<string, Tag>();
     for (const tagName of tagNames) {
@@ -282,23 +270,20 @@ export class TagManager {
       }
     }
 
-    const createdTags = Array.from(newTags.values());
-    if (createdTags.length === 0) {
-      return createdTags;
+    if (newTags.size === 0) {
+      return;
     }
 
-    for (const tag of createdTags) {
+    for (const tag of newTags.values()) {
       this.putTag(tag);
     }
 
     await this.store.setMany(
       TAG_STORE_TABLE,
-      createdTags.map((tag) => [tag.id, tag] as const)
+      Array.from(newTags.values(), (tag) => [tag.id, tag] as const)
     );
 
     log.info({ names: Array.from(newTags.keys()) }, "Tags created");
-
-    return createdTags;
   }
 
   /** Delete the candidate tags left without a TAGGED edge, returning their ids */
@@ -338,18 +323,22 @@ export class TagManager {
     };
   }
 
-  /** Broadcast one TAGS_CHANGED, unless the mutation changed nothing */
+  /**
+   * Broadcast one TAGS_CHANGED, unless the mutation changed nothing. It carries
+   * the record of every tag an added edge points at, so a client that never
+   * had the tag can apply the edge.
+   */
   private broadcastChange(change: TagChange): void {
     const isEmpty =
-      change.createdTags.length === 0 &&
-      change.removedEdges.length === 0 &&
-      change.addedEdges.length === 0 &&
-      change.deletedTagIds.length === 0;
+      change.removedEdges.length === 0 && change.addedEdges.length === 0 && change.deletedTagIds.length === 0;
     if (isEmpty) {
       return;
     }
 
-    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.TAGS_CHANGED, ...change });
+    const addedTagIds = new Set(change.addedEdges.map((edge) => edge.tagId));
+    const tags = Array.from(addedTagIds, (tagId) => this.getTag(tagId));
+
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.TAGS_CHANGED, tags, ...change });
   }
 
   private requireTagByName(tagName: string): Tag {

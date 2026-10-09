@@ -327,10 +327,10 @@ export const NoteDeletedWsMessageSchema = z.object({
   noteId: z.string(),
 });
 
-/** One tag mutation; a client applies the lists in field order */
+/** One tag mutation; a client applies the lists in field order. `tags` holds every tag an added edge points at */
 export const TagsChangedWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.TAGS_CHANGED),
-  createdTags: z.array(TagSchema),
+  tags: z.array(TagSchema),
   removedEdges: z.array(TagEdgeSchema),
   addedEdges: z.array(TagEdgeSchema),
   deletedTagIds: z.array(z.string()),

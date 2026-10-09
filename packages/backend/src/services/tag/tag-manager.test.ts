@@ -296,7 +296,7 @@ describe("TagManager TAGS_CHANGED", () => {
     expect(broadcastSpy).toHaveBeenCalledTimes(1);
     expect(broadcastSpy).toHaveBeenCalledWith({
       type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
-      createdTags: [harness.tagManager.getTag(betaId)],
+      tags: [harness.tagManager.getTag(betaId)],
       removedEdges: [{ tagId: alphaId, entity: note("note-a") }],
       addedEdges: [
         { tagId: betaId, entity: note("note-a") },
@@ -316,10 +316,28 @@ describe("TagManager TAGS_CHANGED", () => {
     expect(broadcastSpy).not.toHaveBeenCalled();
   });
 
+  it("carries the record of an existing tag a new edge points at", async () => {
+    const harness = await createHarness();
+    await harness.tagManager.setEntityTags([{ entity: agent("agent-a"), tagNames: ["alpha"] }]);
+    const alphaTag = harness.tagManager.getTag(tagIdByName(harness, "alpha"));
+    const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
+
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
+
+    expect(broadcastSpy).toHaveBeenCalledWith({
+      type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
+      tags: [alphaTag],
+      removedEdges: [],
+      addedEdges: [{ tagId: alphaTag.id, entity: note("note-a") }],
+      deletedTagIds: [],
+    });
+  });
+
   it("broadcasts the edge of tagEntity and untagEntity", async () => {
     const harness = await createHarness();
     await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
     const alphaId = tagIdByName(harness, "alpha");
+    const alphaTag = harness.tagManager.getTag(alphaId);
     const [noteEdge] = harness.relationshipManager.queryRelationships({ sourceEntityId: "note-a" });
     const agentEdge = { tagId: alphaId, entity: agent("agent-a") };
     const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
@@ -332,7 +350,7 @@ describe("TagManager TAGS_CHANGED", () => {
       [
         {
           type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
-          createdTags: [],
+          tags: [alphaTag],
           removedEdges: [],
           addedEdges: [agentEdge],
           deletedTagIds: [],
@@ -341,7 +359,7 @@ describe("TagManager TAGS_CHANGED", () => {
       [
         {
           type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
-          createdTags: [],
+          tags: [],
           removedEdges: [{ tagId: alphaId, entity: note("note-a") }],
           addedEdges: [],
           deletedTagIds: [],
@@ -350,7 +368,7 @@ describe("TagManager TAGS_CHANGED", () => {
       [
         {
           type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
-          createdTags: [],
+          tags: [],
           removedEdges: [agentEdge],
           addedEdges: [],
           deletedTagIds: [alphaId],
@@ -395,7 +413,7 @@ describe("TagManager.changeEntityIds", () => {
     expect(broadcastSpy).toHaveBeenCalledTimes(1);
     expect(broadcastSpy).toHaveBeenCalledWith({
       type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
-      createdTags: [],
+      tags: [harness.tagManager.getTag(alphaId)],
       removedEdges: [{ tagId: alphaId, entity: note("note-a") }],
       addedEdges: [{ tagId: alphaId, entity: note("note-b") }],
       deletedTagIds: [],

@@ -12,5 +12,5 @@ export interface PendingTagEdge {
   tagName: string;
 }
 
-/** The changes of one tag mutation, as broadcast in TAGS_CHANGED */
-export type TagChange = Omit<TagsChangedWsMessage, "type">;
+/** The edge changes of one tag mutation; TAGS_CHANGED adds the tag records the added edges point at */
+export type TagChange = Omit<TagsChangedWsMessage, "type" | "tags">;
