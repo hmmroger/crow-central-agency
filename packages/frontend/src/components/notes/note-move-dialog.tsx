@@ -34,8 +34,7 @@ export function NoteMoveDialog({ noteId, onClose }: NoteMoveDialogProps) {
   const isUnchanged = destinationId === note?.parentId;
 
   const destinationIds = useMemo(() => new Set(destinations?.map((folder) => folder.id)), [destinations]);
-  const isDestination = useCallback((candidateId: string) => destinationIds.has(candidateId), [destinationIds]);
-  const nodes = useNoteTreeNodes({ isTrashed: false, isIncluded: isDestination, hasRoot: true });
+  const nodes = useNoteTreeNodes({ isTrashed: false, includedIds: destinationIds, hasRoot: true });
 
   const handleSelect = useCallback((nodeId: string) => {
     setDestinationId(nodeId === NOTES_ROOT_NODE_ID ? undefined : nodeId);

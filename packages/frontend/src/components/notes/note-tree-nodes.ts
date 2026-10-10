@@ -3,6 +3,7 @@ import { ENTITY_TYPE, NOTE_CONTENT_TYPE, type NoteContentType, type NoteMetadata
 import type { TreeNode } from "../common/tree/tree.types.js";
 import type { NotesContextValue } from "../../providers/notes-provider.types.js";
 import type { TagsContextValue } from "../../providers/tags-provider.types.js";
+import type { NoteNodesOptions } from "./note-tree-nodes.types.js";
 
 /** Note ids are lowercased, so an uppercase id never collides with one */
 export const NOTES_ROOT_NODE_ID = "NOTES_ROOT";
@@ -17,27 +18,15 @@ const NOTE_CONTENT_ICON: Record<NoteContentType, LucideIcon> = {
 };
 
 /**
- * Tree nodes for the live or trashed notes under `parentId`, folders first and
- * then by name, each carrying its metadata. `isIncluded` leaves out a note and
- * everything under it.
+ * Tree nodes for the live or trashed notes, folders first and then by name,
+ * each carrying its metadata. A note left out of `includedIds` is left out
+ * with everything under it.
  */
 export function buildNoteNodes(
   notes: Pick<NotesContextValue, "getNote" | "getChildIds">,
-  parentId: string | undefined,
-  isTrashed: boolean,
-  isIncluded?: (noteId: string) => boolean
+  options: NoteNodesOptions
 ): TreeNode<NoteMetadata>[] {
-  const children: NoteMetadata[] = [];
-  for (const childId of notes.getChildIds(parentId, isTrashed)) {
-    const metadata = notes.getNote(childId);
-    if (metadata && (isIncluded?.(childId) ?? true)) {
-      children.push(metadata);
-    }
-  }
-
-  return children
-    .sort(compareNotes)
-    .map((metadata) => toTreeNode(metadata, buildNoteNodes(notes, metadata.id, isTrashed, isIncluded)));
+  return buildChildNodes(notes, undefined, options);
 }
 
 /** A tree containing only the notes root, with `children` under it. */
@@ -84,6 +73,24 @@ export function buildTagNodes(
 
 function toTagNoteRowId(tagId: string, noteId: string): string {
   return JSON.stringify([tagId, noteId]);
+}
+
+function buildChildNodes(
+  notes: Pick<NotesContextValue, "getNote" | "getChildIds">,
+  parentId: string | undefined,
+  options: NoteNodesOptions
+): TreeNode<NoteMetadata>[] {
+  const children: NoteMetadata[] = [];
+  for (const childId of notes.getChildIds(parentId, options.isTrashed)) {
+    const metadata = notes.getNote(childId);
+    if (metadata && (options.includedIds?.has(childId) ?? true)) {
+      children.push(metadata);
+    }
+  }
+
+  return children
+    .sort(compareNotes)
+    .map((metadata) => toTreeNode(metadata, buildChildNodes(notes, metadata.id, options)));
 }
 
 function toTreeNode(metadata: NoteMetadata, children: TreeNode<NoteMetadata>[]): TreeNode<NoteMetadata> {
