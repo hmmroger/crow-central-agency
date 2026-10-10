@@ -15,11 +15,11 @@ import { tagKeys } from "../services/query-keys.js";
 import { WS_STATE } from "../services/ws-client.types.js";
 import type { TagListStatus, TagsContextValue } from "./tags-provider.types.js";
 
-type EntityIdsByTagId = ReadonlyMap<string, ReadonlyMap<EntityType, string[]>>;
+type EntityIdsByTagId = ReadonlyMap<string, ReadonlyMap<EntityType, readonly string[]>>;
 
 const TAGS_PATH = "/tags";
 const SNAPSHOT_ENTITY_TYPE = ENTITY_TYPE.NOTE;
-const EMPTY_ENTITY_IDS: string[] = [];
+const EMPTY_ENTITY_IDS: readonly string[] = [];
 
 const TagsContext = createContext<TagsContextValue | undefined>(undefined);
 
