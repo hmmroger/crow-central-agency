@@ -1,47 +1,20 @@
-import { FileQuestion, FileText, Folder, FolderOpen, FolderTree, Image, type LucideIcon } from "lucide-react";
+import { FileQuestion, FileText, Folder, FolderOpen, Image, type LucideIcon } from "lucide-react";
 import { ENTITY_TYPE, NOTE_CONTENT_TYPE, type NoteContentType, type NoteMetadata } from "@crow-central-agency/shared";
 import type { TreeNode } from "../common/tree/tree.types.js";
-import type { NotesContextValue } from "../../providers/notes-provider.types.js";
-import type { NoteNodesOptions } from "./note-tree-nodes.types.js";
 
 /** Note ids are lowercased, so an uppercase id never collides with one */
 export const NOTES_ROOT_NODE_ID = "NOTES_ROOT";
 
 /** The name of the notes root, the folder above every top-level note */
 export const NOTES_ROOT_LABEL = "Notes";
-const FOLDER_ICON_CLASS = "text-accent";
+
+export const FOLDER_ICON_CLASS = "text-accent";
 
 const NOTE_CONTENT_ICON: Record<NoteContentType, LucideIcon> = {
   [NOTE_CONTENT_TYPE.TEXT]: FileText,
   [NOTE_CONTENT_TYPE.IMAGE]: Image,
   [NOTE_CONTENT_TYPE.UNKNOWN]: FileQuestion,
 };
-
-/**
- * Tree nodes for the live or trashed notes, folders first and then by name,
- * each carrying its metadata. A note left out of `includedIds` is left out
- * with everything under it.
- */
-export function buildNoteNodes(
-  notes: Pick<NotesContextValue, "getNote" | "getChildIds">,
-  options: NoteNodesOptions
-): TreeNode<NoteMetadata>[] {
-  return buildChildNodes(notes, undefined, options);
-}
-
-/** A tree containing only the notes root, with `children` under it. */
-export function buildNoteRootTree(children: TreeNode<NoteMetadata>[]): TreeNode<NoteMetadata>[] {
-  return [
-    {
-      id: NOTES_ROOT_NODE_ID,
-      label: NOTES_ROOT_LABEL,
-      icon: FolderTree,
-      iconClassName: FOLDER_ICON_CLASS,
-      isExpandable: true,
-      children,
-    },
-  ];
-}
 
 /** The one shape of a note row in every tree; `id` overrides the note id where a note can appear more than once. */
 export function toTreeNode(
@@ -70,33 +43,4 @@ export function toTreeNode(
     children,
     data: metadata,
   };
-}
-
-function buildChildNodes(
-  notes: Pick<NotesContextValue, "getNote" | "getChildIds">,
-  parentId: string | undefined,
-  options: NoteNodesOptions
-): TreeNode<NoteMetadata>[] {
-  const children: NoteMetadata[] = [];
-  for (const childId of notes.getChildIds(parentId, options.isTrashed)) {
-    const metadata = notes.getNote(childId);
-    if (metadata && (options.includedIds?.has(childId) ?? true)) {
-      children.push(metadata);
-    }
-  }
-
-  return children
-    .sort(compareNotes)
-    .map((metadata) => toTreeNode(metadata, buildChildNodes(notes, metadata.id, options)));
-}
-
-/** Folders first, then by name — an order that does not shift as notes are edited. */
-function compareNotes(first: NoteMetadata, second: NoteMetadata): number {
-  const isFirstFolder = first.entityType === ENTITY_TYPE.NOTE_FOLDER;
-  const isSecondFolder = second.entityType === ENTITY_TYPE.NOTE_FOLDER;
-  if (isFirstFolder !== isSecondFolder) {
-    return isFirstFolder ? -1 : 1;
-  }
-
-  return first.name.localeCompare(second.name);
 }
