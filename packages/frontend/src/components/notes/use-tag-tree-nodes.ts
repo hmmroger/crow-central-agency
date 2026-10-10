@@ -1,17 +1,47 @@
 import { useMemo } from "react";
-import type { NoteMetadata } from "@crow-central-agency/shared";
+import { Tag as TagIcon } from "lucide-react";
+import { ENTITY_TYPE, type NoteMetadata, type Tag } from "@crow-central-agency/shared";
 import { useNotesContext } from "../../providers/notes-provider.js";
 import { useTagsContext } from "../../providers/tags-provider.js";
 import type { TreeNode } from "../common/tree/tree.types.js";
-import { buildTagNodes } from "./tag-tree-nodes.js";
+import { toTreeNode } from "./note-tree-nodes.js";
 
-/** Live notes grouped under their tags, rebuilt whenever the tags or notes index changes. */
+/**
+ * One node per tag with at least one live note in the notes index, in name
+ * order, holding its live notes in name order. A tag row's id is the tag id
+ * and carries no data; a note row's id is unique to its tag and note.
+ * Rebuilt whenever the tags or notes index changes.
+ */
 export function useTagTreeNodes() {
   const { getTags, getEntityIds } = useTagsContext();
   const { getNote } = useNotesContext();
 
-  return useMemo<TreeNode<NoteMetadata>[]>(
-    () => buildTagNodes({ getTags, getEntityIds }, { getNote }),
-    [getTags, getEntityIds, getNote]
-  );
+  return useMemo<TreeNode<NoteMetadata>[]>(() => {
+    const nodes: TreeNode<NoteMetadata>[] = [];
+    for (const tag of getTags()) {
+      const liveNotes = getEntityIds(tag.id, ENTITY_TYPE.NOTE)
+        .map((noteId) => getNote(noteId))
+        .filter((metadata) => metadata !== undefined)
+        .filter((metadata) => !metadata.isTrashed);
+
+      if (liveNotes.length > 0) {
+        nodes.push(toTagNode(tag, liveNotes));
+      }
+    }
+
+    return nodes;
+  }, [getTags, getEntityIds, getNote]);
+}
+
+function toTagNode(tag: Tag, liveNotes: NoteMetadata[]): TreeNode<NoteMetadata> {
+  const children = liveNotes
+    .toSorted((first, second) => first.name.localeCompare(second.name))
+    .map((metadata) => toTreeNode(metadata, [], toTagNoteRowId(tag.id, metadata.id)));
+
+  return { id: tag.id, label: tag.name, icon: TagIcon, isExpandable: true, children };
+}
+
+/** Tag ids never contain ":", so a placement row's id never equals a tag row's */
+function toTagNoteRowId(tagId: string, noteId: string): string {
+  return `${tagId}:${noteId}`;
 }
