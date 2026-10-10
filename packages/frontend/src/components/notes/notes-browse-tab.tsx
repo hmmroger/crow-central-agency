@@ -6,14 +6,13 @@ import { useOpenNoteMoveDialog } from "../../hooks/dialogs/use-open-note-move-di
 import { usePromptDialog } from "../../hooks/dialogs/use-prompt-dialog.js";
 import { useNotesContext } from "../../providers/notes-provider.js";
 import { useAppStore } from "../../stores/app-store.js";
-import { getErrorMessage } from "../../utils/error-message.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { Tree } from "../common/tree/tree.js";
 import type { TreeNodeAction } from "../common/tree/tree.types.js";
+import { NotesTreeStatus } from "./notes-tree-status.js";
 import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
 
 const ROOT_FOLDER_NAME = "Notes";
-const STATUS_CLASS = "px-2 py-1 text-xs text-text-muted";
 
 /**
  * The live notes tree and everything done to live notes. Name validation and
@@ -126,13 +125,12 @@ export function NotesBrowseTab() {
         />
       </div>
 
-      {error && <p className="px-2 py-1 text-xs text-error">{getErrorMessage(error)}</p>}
-
-      {isLoading ? (
-        <p className={STATUS_CLASS}>Loading...</p>
-      ) : isEmpty ? (
-        <p className={STATUS_CLASS}>No notes yet. Create one to get started.</p>
-      ) : (
+      <NotesTreeStatus
+        isLoading={isLoading}
+        error={error}
+        isEmpty={isEmpty}
+        emptyMessage="No notes yet. Create one to get started."
+      >
         <Tree
           nodes={nodes}
           selectedId={selectedNoteId}
@@ -141,7 +139,7 @@ export function NotesBrowseTab() {
           onSelect={selectNote}
           ariaLabel="Notes"
         />
-      )}
+      </NotesTreeStatus>
     </div>
   );
 }

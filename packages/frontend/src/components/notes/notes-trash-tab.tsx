@@ -4,13 +4,11 @@ import type { NoteMetadata } from "@crow-central-agency/shared";
 import { useConfirmDialog } from "../../hooks/dialogs/use-confirm-dialog.js";
 import { useNotesContext } from "../../providers/notes-provider.js";
 import { useAppStore } from "../../stores/app-store.js";
-import { getErrorMessage } from "../../utils/error-message.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { Tree } from "../common/tree/tree.js";
 import type { TreeNodeAction } from "../common/tree/tree.types.js";
+import { NotesTreeStatus } from "./notes-tree-status.js";
 import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
-
-const STATUS_CLASS = "px-2 py-1 text-xs text-text-muted";
 
 /** The trash tree: trashed notes preview read-only and can be restored or deleted for good. */
 export function NotesTrashTab() {
@@ -93,13 +91,7 @@ export function NotesTrashTab() {
         />
       </div>
 
-      {error && <p className="px-2 py-1 text-xs text-error">{getErrorMessage(error)}</p>}
-
-      {isLoading ? (
-        <p className={STATUS_CLASS}>Loading...</p>
-      ) : isEmpty ? (
-        <p className={STATUS_CLASS}>The trash is empty.</p>
-      ) : (
+      <NotesTreeStatus isLoading={isLoading} error={error} isEmpty={isEmpty} emptyMessage="The trash is empty.">
         <Tree
           nodes={nodes}
           selectedId={selectedTrashNoteId}
@@ -108,7 +100,7 @@ export function NotesTrashTab() {
           onSelect={selectTrashNote}
           ariaLabel="Trash"
         />
-      )}
+      </NotesTreeStatus>
     </div>
   );
 }
