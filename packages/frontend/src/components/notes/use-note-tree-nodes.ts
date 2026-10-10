@@ -13,8 +13,6 @@ interface NoteTreeNodesOptions {
   hasRoot?: boolean;
 }
 
-type ChildrenByParentId = ReadonlyMap<string | undefined, NoteMetadata[]>;
-
 /**
  * The live or trashed notes tree, folders first and then by name, each node
  * carrying its metadata. Rebuilt whenever the notes index changes.
@@ -23,31 +21,18 @@ export function useNoteTreeNodes({ isTrashed, includedIds, hasRoot = false }: No
   const { getNote, getChildIds } = useNotesContext();
 
   return useMemo<TreeNode<NoteMetadata>[]>(() => {
-    const childrenByParentId = new Map<string | undefined, NoteMetadata[]>();
-    const parentIds: (string | undefined)[] = [undefined];
-    for (let index = 0; index < parentIds.length; index++) {
-      const parentId = parentIds[index];
-      const children = getChildIds(parentId, isTrashed)
+    const buildChildNodes = (parentId: string | undefined): TreeNode<NoteMetadata>[] =>
+      getChildIds(parentId, isTrashed)
         .filter((childId) => includedIds?.has(childId) ?? true)
         .map((childId) => getNote(childId))
-        .filter((metadata) => metadata !== undefined);
+        .filter((metadata) => metadata !== undefined)
+        .sort(compareNotes)
+        .map((metadata) => toTreeNode(metadata, buildChildNodes(metadata.id)));
 
-      childrenByParentId.set(parentId, children);
-      for (const child of children) {
-        parentIds.push(child.id);
-      }
-    }
-
-    const nodes = toNoteNodes(childrenByParentId, undefined);
+    const nodes = buildChildNodes(undefined);
 
     return hasRoot ? [toRootNode(nodes)] : nodes;
   }, [getNote, getChildIds, isTrashed, includedIds, hasRoot]);
-}
-
-function toNoteNodes(childrenByParentId: ChildrenByParentId, parentId: string | undefined): TreeNode<NoteMetadata>[] {
-  return (childrenByParentId.get(parentId) ?? [])
-    .toSorted(compareNotes)
-    .map((metadata) => toTreeNode(metadata, toNoteNodes(childrenByParentId, metadata.id)));
 }
 
 function toRootNode(children: TreeNode<NoteMetadata>[]): TreeNode<NoteMetadata> {
