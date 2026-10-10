@@ -1,54 +1,22 @@
-import { useCallback, useMemo, useState } from "react";
-import type { NoteMetadata } from "@crow-central-agency/shared";
 import { useNotesContext } from "../../providers/notes-provider.js";
 import { useTagsContext } from "../../providers/tags-provider.js";
-import { useAppStore } from "../../stores/app-store.js";
 import { getErrorMessage } from "../../utils/error-message.js";
 import { Tree } from "../common/tree/tree.js";
-import { buildTagNodes } from "./note-tree-nodes.js";
+import { useTagTreeNodes } from "./use-tag-tree-nodes.js";
+import { useTagTreeSelection } from "./use-tag-tree-selection.js";
 
 const STATUS_CLASS = "px-2 py-1 text-xs text-text-muted";
 
-/**
- * Live notes grouped under their tags, read-only. Shares the live selection
- * with the Notes tab: the clicked row stays highlighted, and a selection made
- * elsewhere highlights the note's first row.
- */
+/** Live notes grouped under their tags, read-only, sharing the live selection with the Notes tab. */
 export function NotesTagsTab() {
-  const { getTags, getEntityIds, listStatus } = useTagsContext();
-  const { getNote, getListStatus } = useNotesContext();
-  const selectedNoteId = useAppStore((state) => state.selectedNoteId);
-  const selectNote = useAppStore((state) => state.selectNote);
-  const [clickedRowId, setClickedRowId] = useState<string>();
+  const { listStatus } = useTagsContext();
+  const { getListStatus } = useNotesContext();
+  const nodes = useTagTreeNodes();
+  const { selectedRowId, selectRow } = useTagTreeSelection(nodes);
   const notesStatus = getListStatus(false);
   const isLoading = listStatus.isLoading || notesStatus.isLoading;
   const error = listStatus.error ?? notesStatus.error;
-  const nodes = useMemo(() => buildTagNodes({ getTags, getEntityIds }, { getNote }), [getTags, getEntityIds, getNote]);
   const tagCountLabel = `${nodes.length} ${nodes.length === 1 ? "tag" : "tags"}`;
-
-  const selectedRowId = useMemo(() => {
-    if (!selectedNoteId) {
-      return undefined;
-    }
-
-    const matchingRows = nodes
-      .flatMap((tagNode) => tagNode.children)
-      .filter((noteRow) => noteRow.data?.id === selectedNoteId);
-
-    return matchingRows.find((noteRow) => noteRow.id === clickedRowId)?.id ?? matchingRows[0]?.id;
-  }, [nodes, selectedNoteId, clickedRowId]);
-
-  const handleSelect = useCallback(
-    (rowId: string, metadata?: NoteMetadata) => {
-      if (!metadata) {
-        return;
-      }
-
-      setClickedRowId(rowId);
-      selectNote(metadata.id);
-    },
-    [selectNote]
-  );
 
   return (
     <div className="flex flex-col gap-1">
@@ -63,13 +31,7 @@ export function NotesTagsTab() {
       ) : nodes.length === 0 ? (
         <p className={STATUS_CLASS}>No tags yet. Add #tags at the end of a note.</p>
       ) : (
-        <Tree
-          nodes={nodes}
-          selectedId={selectedRowId}
-          revealId={selectedRowId}
-          onSelect={handleSelect}
-          ariaLabel="Tags"
-        />
+        <Tree nodes={nodes} selectedId={selectedRowId} revealId={selectedRowId} onSelect={selectRow} ariaLabel="Tags" />
       )}
     </div>
   );

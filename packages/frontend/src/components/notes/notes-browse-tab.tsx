@@ -10,7 +10,7 @@ import { getErrorMessage } from "../../utils/error-message.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { Tree } from "../common/tree/tree.js";
 import type { TreeNodeAction } from "../common/tree/tree.types.js";
-import { buildNoteNodes } from "./note-tree-nodes.js";
+import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
 
 const ROOT_FOLDER_NAME = "Notes";
 const STATUS_CLASS = "px-2 py-1 text-xs text-text-muted";
@@ -22,6 +22,7 @@ const STATUS_CLASS = "px-2 py-1 text-xs text-text-muted";
  */
 export function NotesBrowseTab() {
   const { getNote, getChildIds, getListStatus, createNote, createFolder, updateNote, deleteNote } = useNotesContext();
+  const nodes = useNoteTreeNodes({ isTrashed: false });
   const prompt = usePromptDialog();
   const confirm = useConfirmDialog();
   const openMoveDialog = useOpenNoteMoveDialog();
@@ -29,7 +30,6 @@ export function NotesBrowseTab() {
   const selectNote = useAppStore((state) => state.selectNote);
   const { isLoading, error } = getListStatus(false);
   const isEmpty = getChildIds(undefined, false).length === 0;
-  const nodes = useMemo(() => buildNoteNodes({ getNote, getChildIds }, undefined, false), [getNote, getChildIds]);
 
   // New notes land in the selected folder, or beside the selected note.
   const targetFolder = useMemo(() => {
