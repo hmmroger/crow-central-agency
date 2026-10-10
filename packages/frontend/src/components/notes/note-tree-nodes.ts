@@ -8,8 +8,6 @@ export const NOTES_ROOT_NODE_ID = "NOTES_ROOT";
 /** The name of the notes root, the folder above every top-level note */
 export const NOTES_ROOT_LABEL = "Notes";
 
-export const FOLDER_ICON_CLASS = "text-accent";
-
 const NOTE_CONTENT_ICON: Record<NoteContentType, LucideIcon> = {
   [NOTE_CONTENT_TYPE.TEXT]: FileText,
   [NOTE_CONTENT_TYPE.IMAGE]: Image,
@@ -28,7 +26,7 @@ export function toTreeNode(
       label: metadata.name,
       icon: Folder,
       expandedIcon: FolderOpen,
-      iconClassName: FOLDER_ICON_CLASS,
+      iconClassName: "text-accent",
       isExpandable: true,
       children,
       data: metadata,

@@ -3,7 +3,7 @@ import { FolderTree } from "lucide-react";
 import { ENTITY_TYPE, type NoteMetadata } from "@crow-central-agency/shared";
 import { useNotesContext } from "../../providers/notes-provider.js";
 import type { TreeNode } from "../common/tree/tree.types.js";
-import { FOLDER_ICON_CLASS, NOTES_ROOT_LABEL, NOTES_ROOT_NODE_ID, toTreeNode } from "./note-tree-nodes.js";
+import { NOTES_ROOT_LABEL, NOTES_ROOT_NODE_ID, toTreeNode } from "./note-tree-nodes.js";
 
 interface NoteTreeNodesOptions {
   isTrashed: boolean;
@@ -55,7 +55,7 @@ function toRootNode(children: TreeNode<NoteMetadata>[]): TreeNode<NoteMetadata> 
     id: NOTES_ROOT_NODE_ID,
     label: NOTES_ROOT_LABEL,
     icon: FolderTree,
-    iconClassName: FOLDER_ICON_CLASS,
+    iconClassName: "text-accent",
     isExpandable: true,
     children,
   };
