@@ -8,7 +8,7 @@ export interface TagListStatus {
 
 /** Value exposed by the TagsProvider context: read-only tag accessors, never the index itself */
 export interface TagsContextValue {
-  /** Every tag with at least one tracked edge, in name order */
+  /** Every tag the server has sent, in name order; a tag may have no edge of a tracked type */
   getTags: () => Tag[];
   /** Ids of the entities of `entityType` tagged with the tag; always empty for a type the provider does not track */
   getEntityIds: (tagId: string, entityType: EntityType) => string[];
