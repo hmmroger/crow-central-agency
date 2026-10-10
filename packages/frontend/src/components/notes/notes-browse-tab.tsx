@@ -9,10 +9,9 @@ import { useAppStore } from "../../stores/app-store.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { Tree } from "../common/tree/tree.js";
 import type { TreeNodeAction } from "../common/tree/tree.types.js";
+import { NOTES_ROOT_LABEL } from "./note-tree-nodes.js";
 import { NotesTreeStatus } from "./notes-tree-status.js";
 import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
-
-const ROOT_FOLDER_NAME = "Notes";
 
 /**
  * The live notes tree and everything done to live notes. Name validation and
@@ -40,7 +39,7 @@ export function NotesBrowseTab() {
     return selectedNote?.parentId ? getNote(selectedNote.parentId) : undefined;
   }, [getNote, selectedNoteId]);
 
-  const targetName = targetFolder?.name ?? ROOT_FOLDER_NAME;
+  const targetName = targetFolder?.name ?? NOTES_ROOT_LABEL;
 
   const handleCreateNote = useCallback(() => {
     prompt({

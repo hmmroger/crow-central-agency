@@ -1,14 +1,14 @@
-import { FileQuestion, FileText, Folder, FolderOpen, FolderTree, Image, Tag, type LucideIcon } from "lucide-react";
+import { FileQuestion, FileText, Folder, FolderOpen, FolderTree, Image, type LucideIcon } from "lucide-react";
 import { ENTITY_TYPE, NOTE_CONTENT_TYPE, type NoteContentType, type NoteMetadata } from "@crow-central-agency/shared";
 import type { TreeNode } from "../common/tree/tree.types.js";
 import type { NotesContextValue } from "../../providers/notes-provider.types.js";
-import type { TagsContextValue } from "../../providers/tags-provider.types.js";
 import type { NoteNodesOptions } from "./note-tree-nodes.types.js";
 
 /** Note ids are lowercased, so an uppercase id never collides with one */
 export const NOTES_ROOT_NODE_ID = "NOTES_ROOT";
 
-const NOTES_ROOT_LABEL = "Notes";
+/** The name of the notes root, the folder above every top-level note */
+export const NOTES_ROOT_LABEL = "Notes";
 const FOLDER_ICON_CLASS = "text-accent";
 
 const NOTE_CONTENT_ICON: Record<NoteContentType, LucideIcon> = {
@@ -43,36 +43,33 @@ export function buildNoteRootTree(children: TreeNode<NoteMetadata>[]): TreeNode<
   ];
 }
 
-/**
- * One node per tag with at least one live note in the notes index, in name
- * order, holding its live notes in name order. A tag row's id is the tag id
- * and carries no data; a note row's id is unique to its tag and note.
- */
-export function buildTagNodes(
-  tags: Pick<TagsContextValue, "getTags" | "getEntityIds">,
-  notes: Pick<NotesContextValue, "getNote">
-): TreeNode<NoteMetadata>[] {
-  return tags.getTags().flatMap((tag) => {
-    const taggedNotes = tags.getEntityIds(tag.id, ENTITY_TYPE.NOTE).flatMap((noteId) => {
-      const metadata = notes.getNote(noteId);
+/** The one shape of a note row in every tree; `id` overrides the note id where a note can appear more than once. */
+export function toTreeNode(
+  metadata: NoteMetadata,
+  children: TreeNode<NoteMetadata>[],
+  id = metadata.id
+): TreeNode<NoteMetadata> {
+  if (metadata.entityType === ENTITY_TYPE.NOTE_FOLDER) {
+    return {
+      id,
+      label: metadata.name,
+      icon: Folder,
+      expandedIcon: FolderOpen,
+      iconClassName: FOLDER_ICON_CLASS,
+      isExpandable: true,
+      children,
+      data: metadata,
+    };
+  }
 
-      return metadata && !metadata.isTrashed ? [metadata] : [];
-    });
-
-    if (taggedNotes.length === 0) {
-      return [];
-    }
-
-    const children = taggedNotes
-      .sort((first, second) => first.name.localeCompare(second.name))
-      .map((metadata) => ({ ...toTreeNode(metadata, []), id: toTagNoteRowId(tag.id, metadata.id) }));
-
-    return [{ id: tag.id, label: tag.name, icon: Tag, isExpandable: true, children }];
-  });
-}
-
-function toTagNoteRowId(tagId: string, noteId: string): string {
-  return JSON.stringify([tagId, noteId]);
+  return {
+    id,
+    label: metadata.name,
+    icon: NOTE_CONTENT_ICON[metadata.contentType],
+    isExpandable: false,
+    children,
+    data: metadata,
+  };
 }
 
 function buildChildNodes(
@@ -91,30 +88,6 @@ function buildChildNodes(
   return children
     .sort(compareNotes)
     .map((metadata) => toTreeNode(metadata, buildChildNodes(notes, metadata.id, options)));
-}
-
-function toTreeNode(metadata: NoteMetadata, children: TreeNode<NoteMetadata>[]): TreeNode<NoteMetadata> {
-  if (metadata.entityType === ENTITY_TYPE.NOTE_FOLDER) {
-    return {
-      id: metadata.id,
-      label: metadata.name,
-      icon: Folder,
-      expandedIcon: FolderOpen,
-      iconClassName: FOLDER_ICON_CLASS,
-      isExpandable: true,
-      children,
-      data: metadata,
-    };
-  }
-
-  return {
-    id: metadata.id,
-    label: metadata.name,
-    icon: NOTE_CONTENT_ICON[metadata.contentType],
-    isExpandable: false,
-    children,
-    data: metadata,
-  };
 }
 
 /** Folders first, then by name — an order that does not shift as notes are edited. */
