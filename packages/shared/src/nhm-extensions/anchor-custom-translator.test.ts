@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { TranslatorConfig, TranslatorContext } from "node-html-markdown";
+import type { TranslatorConfig } from "node-html-markdown";
+import type { TranslatorContext } from "node-html-markdown/dist/translator.js";
 import { getAnchorCustomTranslator } from "./anchor-custom-translator.js";
 
 interface AnchorAttributes {

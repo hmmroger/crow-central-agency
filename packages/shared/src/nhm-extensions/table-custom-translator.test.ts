@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { PostProcessResult, type TranslatorConfig, type TranslatorContext } from "node-html-markdown";
+import { PostProcessResult, type TranslatorConfig } from "node-html-markdown";
 import type { ElementNode } from "node-html-markdown/dist/nodes.js";
+import type { TranslatorContext } from "node-html-markdown/dist/translator.js";
 import type { NodeMetadataMap } from "node-html-markdown/dist/visitor.js";
 import { getTableCustomTranslator } from "./table-custom-translator.js";
 
