@@ -113,7 +113,6 @@ function applyTagsChanged(snapshot: TagSnapshot, message: TagsChangedWsMessage):
   return { tags: tags.filter((tag) => !deletedTagIds.has(tag.id)), edges };
 }
 
-/** Tag ids and entity types never contain ":", so the entity id, last, may */
 function toEdgeKey(edge: TagEdge): string {
   return `${edge.tagId}:${edge.entity.entityType}:${edge.entity.id}`;
 }
