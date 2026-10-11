@@ -50,7 +50,7 @@ export function getReadNoteToolConfig(
         `--- METADATA ---`,
         `[Id: ${metadata.id} | Name: ${metadata.name} | Content: ${metadata.contentType} | Modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)} | Size: ${metadata.size} bytes]`,
       ];
-      const tagNames = tagManager.getEntityTags(metadata.entityType, metadata.id).map((tag) => tag.name);
+      const tagNames = tagManager.getEntityTags(metadata).map((tag) => tag.name);
       if (tagNames.length) {
         header.push(`[Tags: ${tagNames.join(", ")}]`);
       }

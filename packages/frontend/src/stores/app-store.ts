@@ -24,6 +24,7 @@ export type ViewMode = (typeof VIEW_MODE)[keyof typeof VIEW_MODE];
 /** Tabs of the Notes view sidebar */
 export const NOTES_SIDEBAR_TAB = {
   NOTES: "notes",
+  TAGS: "tags",
   TRASH: "trash",
 } as const;
 

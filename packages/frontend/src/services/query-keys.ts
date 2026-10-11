@@ -1,4 +1,4 @@
-import type { DataSourceType, RelationshipDirection } from "@crow-central-agency/shared";
+import type { DataSourceType, EntityType, RelationshipDirection } from "@crow-central-agency/shared";
 
 /**
  * Query key factory for consistent key management.
@@ -192,6 +192,16 @@ export const noteKeys = {
   suggest: (query: string, isEmbed: boolean, excludeId?: string) =>
     [...noteKeys.links(), "suggest", query, isEmbed, excludeId] as const,
   moveDestinations: (noteId: string) => [...noteKeys.links(), "move-destinations", noteId] as const,
+};
+
+/**
+ * Query key factory for tag queries.
+ */
+export const tagKeys = {
+  /** Root key for all tag queries */
+  all: ["tags"] as const,
+  /** Tag snapshot narrowed to one entity type's edges */
+  snapshot: (entityType: EntityType) => [...tagKeys.all, "snapshot", entityType] as const,
 };
 
 /**

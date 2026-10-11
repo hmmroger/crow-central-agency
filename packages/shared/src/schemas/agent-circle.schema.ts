@@ -23,6 +23,13 @@ export const EntityTypeSchema = z.enum([
 
 export type EntityType = z.infer<typeof EntityTypeSchema>;
 
+export const EntitySchema = z.object({
+  id: z.string(),
+  entityType: EntityTypeSchema,
+});
+
+export type Entity = z.infer<typeof EntitySchema>;
+
 /**
  * Relationship types between entities.
  * MEMBERSHIP means "source contains target as a member" (agent ↔ circle only).

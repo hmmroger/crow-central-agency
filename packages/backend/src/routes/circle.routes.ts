@@ -198,8 +198,7 @@ export async function registerCircleRoutes(
 
         case RELATIONSHIP_TYPE.TAGGED: {
           const relationship = await tagManager.tagEntity(
-            input.sourceEntityType,
-            input.sourceEntityId,
+            { id: input.sourceEntityId, entityType: input.sourceEntityType },
             input.targetEntityId
           );
 

@@ -22,6 +22,7 @@ import { registerArtifactRoutes } from "./routes/artifact.routes.js";
 import { NotesManager } from "./services/notes/notes-manager.js";
 import { registerNoteRoutes } from "./routes/note.routes.js";
 import { registerSearchRoutes } from "./routes/search.routes.js";
+import { registerTagRoutes } from "./routes/tag.routes.js";
 import { getArtifactsMcpServerDefinition } from "./mcp/artifacts/artifacts-mcp-server.js";
 import { getFragmentsMcpServerDefinition } from "./mcp/fragments/fragments-mcp-server.js";
 import { getFragmentsReflectionMcpServerDefinition } from "./mcp/fragments/fragments-reflection-mcp-server.js";
@@ -111,7 +112,7 @@ export async function bootstrap(options: BootstrapOptions) {
   const systemSettingsManager = new SystemSettingsManager(storeProvider);
   const relationshipManager = new RelationshipManager(storeProvider);
   await relationshipManager.initialize();
-  const tagManager = new TagManager(storeProvider, relationshipManager);
+  const tagManager = new TagManager(storeProvider, relationshipManager, broadcaster);
   await tagManager.initialize();
   const circleManager = new AgentCircleManager(storeProvider, relationshipManager, broadcaster);
   await circleManager.initialize();
@@ -129,7 +130,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await feedManager.initialize();
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
-  const notesManager = new NotesManager(env.CROW_NOTES_PATH, broadcaster, relationshipManager, tagManager);
+  const notesManager = new NotesManager(env.CROW_NOTES_PATH, broadcaster, tagManager);
   await notesManager.initialize();
   const documentSearchService = new DocumentSearchService();
   documentSearchService.registerSource(new ArtifactSearchSource(artifactManager, registry, circleManager));
@@ -275,6 +276,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await registerArtifactRoutes(server, artifactManager);
   await registerNoteRoutes(server, notesManager);
   await registerSearchRoutes(server, documentSearchService);
+  await registerTagRoutes(server, tagManager);
   await registerTaskRoutes(server, taskManager, registry);
   await registerGenerationRoutes(server, worldBuilderService);
   await registerAgentBuilderRoutes(server, worldBuilderService);

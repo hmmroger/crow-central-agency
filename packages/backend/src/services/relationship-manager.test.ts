@@ -266,6 +266,33 @@ describe("RelationshipManager.rekeyEntities", () => {
     const persisted = await store.getAll<{ id: string }>(GRAPH_NODE_POSITION_STORE_TABLE);
     expect(persisted.map((entry) => entry.value.id).sort()).toEqual(["fragment-2", "fragment-3", "fragment-5"]);
   });
+
+  it("returns each re-keyed relationship as a before/after pair", async () => {
+    const { relationshipManager } = await createHarness();
+    const [link] = await relationshipManager.createRelationships([edge("fragment-1", "fragment-2")]);
+
+    const rekeyed = await relationshipManager.rekeyEntities(new Map([["fragment-1", "fragment-10"]]));
+
+    expect(rekeyed).toEqual([{ previous: link, next: { ...link, sourceEntityId: "fragment-10" } }]);
+  });
+
+  it("moves only matching edges and leaves positions with a filter", async () => {
+    const { relationshipManager } = await createHarness();
+    const [link, association] = await relationshipManager.createRelationships([
+      edge("fragment-1", "fragment-2"),
+      edge("agent-1", "fragment-1", RELATIONSHIP_TYPE.ASSOCIATION, ENTITY_TYPE.AGENT),
+    ]);
+    await relationshipManager.savePositions([{ id: "fragment-1", x: 1, y: 1 }]);
+
+    const rekeyed = await relationshipManager.rekeyEntities(new Map([["fragment-1", "fragment-10"]]), {
+      relationshipType: RELATIONSHIP_TYPE.LINK,
+    });
+
+    expect(rekeyed.map(({ next }) => next.id)).toEqual([link.id]);
+    expect(relationshipManager.getRelationship(link.id).sourceEntityId).toBe("fragment-10");
+    expect(relationshipManager.getRelationship(association.id).targetEntityId).toBe("fragment-1");
+    expect(Array.from(relationshipManager.getAllPositions().keys())).toEqual(["fragment-1"]);
+  });
 });
 
 describe("RelationshipManager.removeRelationshipsForEntity", () => {

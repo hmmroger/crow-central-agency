@@ -1,7 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { ENTITY_TYPE, RELATIONSHIP_TYPE, type EntityType, type Tag } from "@crow-central-agency/shared";
+import { describe, expect, it, vi } from "vitest";
+import {
+  ENTITY_TYPE,
+  RELATIONSHIP_TYPE,
+  SERVER_MESSAGE_TYPE,
+  type Entity,
+  type Tag,
+} from "@crow-central-agency/shared";
 import { TAG_STORE_TABLE, TagManager } from "./tag-manager.js";
 import { RelationshipManager } from "../relationship-manager.js";
+import { WsBroadcaster } from "../ws-broadcaster.js";
 import { InMemoryObjectStore } from "../../core/store/in-memory-object-store.mock.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
@@ -9,26 +16,32 @@ import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 interface Harness {
   store: InMemoryObjectStore;
   relationshipManager: RelationshipManager;
+  broadcaster: WsBroadcaster;
   tagManager: TagManager;
 }
 
 async function createHarness(store = new InMemoryObjectStore()): Promise<Harness> {
   const relationshipManager = new RelationshipManager(store);
-  const tagManager = new TagManager(store, relationshipManager);
+  const broadcaster = new WsBroadcaster();
+  const tagManager = new TagManager(store, relationshipManager, broadcaster);
   await relationshipManager.initialize();
   await tagManager.initialize();
 
-  return { store, relationshipManager, tagManager };
+  return { store, relationshipManager, broadcaster, tagManager };
 }
 
-function entityTagNames(harness: Harness, entityId: string, entityType: EntityType = ENTITY_TYPE.NOTE): string[] {
-  return harness.relationshipManager
-    .queryRelationships({
-      sourceEntityId: entityId,
-      sourceEntityType: entityType,
-      relationshipType: RELATIONSHIP_TYPE.TAGGED,
-    })
-    .map((relationship) => harness.tagManager.getTag(relationship.targetEntityId).name)
+function note(id: string): Entity {
+  return { id, entityType: ENTITY_TYPE.NOTE };
+}
+
+function agent(id: string): Entity {
+  return { id, entityType: ENTITY_TYPE.AGENT };
+}
+
+function entityTagNames(harness: Harness, entity: Entity): string[] {
+  return harness.tagManager
+    .getEntityTags(entity)
+    .map((tag) => tag.name)
     .sort();
 }
 
@@ -63,16 +76,13 @@ describe("TagManager.setEntityTags", () => {
   it("normalizes names, creates tag records and TAGGED edges", async () => {
     const harness = await createHarness();
 
-    await harness.tagManager.setEntityTags(
-      ENTITY_TYPE.NOTE,
-      new Map([
-        ["note-a", [" Alpha ", "beta", "ALPHA", ""]],
-        ["note-b", ["beta"]],
-      ])
-    );
+    await harness.tagManager.setEntityTags([
+      { entity: note("note-a"), tagNames: [" Alpha ", "beta", "ALPHA", ""] },
+      { entity: note("note-b"), tagNames: ["beta"] },
+    ]);
 
-    expect(entityTagNames(harness, "note-a")).toEqual(["alpha", "beta"]);
-    expect(entityTagNames(harness, "note-b")).toEqual(["beta"]);
+    expect(entityTagNames(harness, note("note-a"))).toEqual(["alpha", "beta"]);
+    expect(entityTagNames(harness, note("note-b"))).toEqual(["beta"]);
     expect(await storedTagNames(harness.store)).toEqual(["alpha", "beta"]);
     expect(harness.tagManager.findTagByName(" BETA ")?.name).toBe("beta");
   });
@@ -82,35 +92,29 @@ describe("TagManager.setEntityTags", () => {
     const composed = "café";
     const decomposed = "café";
 
-    await harness.tagManager.setEntityTags(
-      ENTITY_TYPE.NOTE,
-      new Map([
-        ["note-a", [composed]],
-        ["note-b", [decomposed.toUpperCase()]],
-      ])
-    );
+    await harness.tagManager.setEntityTags([
+      { entity: note("note-a"), tagNames: [composed] },
+      { entity: note("note-b"), tagNames: [decomposed.toUpperCase()] },
+    ]);
 
-    expect(entityTagNames(harness, "note-a")).toEqual([composed]);
-    expect(entityTagNames(harness, "note-b")).toEqual([composed]);
+    expect(entityTagNames(harness, note("note-a"))).toEqual([composed]);
+    expect(entityTagNames(harness, note("note-b"))).toEqual([composed]);
     expect(await storedTagNames(harness.store)).toEqual([composed]);
     expect(harness.tagManager.findTagByName(decomposed)?.name).toBe(composed);
   });
 
   it("replaces changed tags and deletes tags left without edges", async () => {
     const harness = await createHarness();
-    await harness.tagManager.setEntityTags(
-      ENTITY_TYPE.NOTE,
-      new Map([
-        ["note-a", ["alpha", "beta"]],
-        ["note-b", ["beta"]],
-      ])
-    );
+    await harness.tagManager.setEntityTags([
+      { entity: note("note-a"), tagNames: ["alpha", "beta"] },
+      { entity: note("note-b"), tagNames: ["beta"] },
+    ]);
     const betaId = tagIdByName(harness, "beta");
 
-    await harness.tagManager.setEntityTags(ENTITY_TYPE.NOTE, new Map([["note-a", ["beta", "gamma"]]]));
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["beta", "gamma"] }]);
 
-    expect(entityTagNames(harness, "note-a")).toEqual(["beta", "gamma"]);
-    expect(entityTagNames(harness, "note-b")).toEqual(["beta"]);
+    expect(entityTagNames(harness, note("note-a"))).toEqual(["beta", "gamma"]);
+    expect(entityTagNames(harness, note("note-b"))).toEqual(["beta"]);
     expect(harness.tagManager.findTagByName("alpha")).toBeUndefined();
     expect(harness.tagManager.findTagByName("beta")?.id).toBe(betaId);
     expect(await storedTagNames(harness.store)).toEqual(["beta", "gamma"]);
@@ -118,59 +122,83 @@ describe("TagManager.setEntityTags", () => {
 
   it("clears an entity's tags for an empty list", async () => {
     const harness = await createHarness();
-    await harness.tagManager.setEntityTags(ENTITY_TYPE.NOTE, new Map([["note-a", ["alpha"]]]));
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
 
-    await harness.tagManager.setEntityTags(ENTITY_TYPE.NOTE, new Map([["note-a", []]]));
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: [] }]);
 
-    expect(entityTagNames(harness, "note-a")).toEqual([]);
+    expect(entityTagNames(harness, note("note-a"))).toEqual([]);
     expect(await storedTagNames(harness.store)).toEqual([]);
+  });
+
+  it("sets the tags of entities of different types in one call", async () => {
+    const harness = await createHarness();
+
+    await harness.tagManager.setEntityTags([
+      { entity: note("shared-id"), tagNames: ["alpha"] },
+      { entity: agent("shared-id"), tagNames: ["beta"] },
+    ]);
+
+    expect(entityTagNames(harness, note("shared-id"))).toEqual(["alpha"]);
+    expect(entityTagNames(harness, agent("shared-id"))).toEqual(["beta"]);
   });
 
   it("leaves the tags of the same id under another entity type untouched", async () => {
     const harness = await createHarness();
-    await harness.tagManager.setEntityTags(ENTITY_TYPE.AGENT, new Map([["shared-id", ["alpha"]]]));
+    await harness.tagManager.setEntityTags([{ entity: agent("shared-id"), tagNames: ["alpha"] }]);
 
-    await harness.tagManager.setEntityTags(ENTITY_TYPE.NOTE, new Map([["shared-id", []]]));
+    await harness.tagManager.setEntityTags([{ entity: note("shared-id"), tagNames: [] }]);
 
-    expect(entityTagNames(harness, "shared-id", ENTITY_TYPE.AGENT)).toEqual(["alpha"]);
+    expect(entityTagNames(harness, agent("shared-id"))).toEqual(["alpha"]);
   });
 
   it("rejects an empty entity id", async () => {
     const harness = await createHarness();
-    await harness.tagManager.setEntityTags(ENTITY_TYPE.NOTE, new Map([["note-a", ["alpha"]]]));
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
 
     await expectAppErrorCode(
-      harness.tagManager.setEntityTags(ENTITY_TYPE.NOTE, new Map([["", []]])),
+      harness.tagManager.setEntityTags([{ entity: note(""), tagNames: [] }]),
       APP_ERROR_CODES.VALIDATION
     );
 
-    expect(entityTagNames(harness, "note-a")).toEqual(["alpha"]);
+    expect(entityTagNames(harness, note("note-a"))).toEqual(["alpha"]);
+  });
+
+  it("rejects the same entity listed twice without writing", async () => {
+    const harness = await createHarness();
+
+    await expectAppErrorCode(
+      harness.tagManager.setEntityTags([
+        { entity: note("note-a"), tagNames: ["alpha"] },
+        { entity: note("note-a"), tagNames: ["beta"] },
+      ]),
+      APP_ERROR_CODES.VALIDATION
+    );
+
+    expect(entityTagNames(harness, note("note-a"))).toEqual([]);
+    expect(await storedTagNames(harness.store)).toEqual([]);
   });
 
   it("serializes concurrent calls so a name is created once", async () => {
     const harness = await createHarness();
 
     await Promise.all([
-      harness.tagManager.setEntityTags(ENTITY_TYPE.NOTE, new Map([["note-a", ["alpha"]]])),
-      harness.tagManager.setEntityTags(ENTITY_TYPE.NOTE, new Map([["note-b", ["alpha"]]])),
+      harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]),
+      harness.tagManager.setEntityTags([{ entity: note("note-b"), tagNames: ["alpha"] }]),
     ]);
 
     expect(await storedTagNames(harness.store)).toEqual(["alpha"]);
-    expect(entityTagNames(harness, "note-a")).toEqual(["alpha"]);
-    expect(entityTagNames(harness, "note-b")).toEqual(["alpha"]);
+    expect(entityTagNames(harness, note("note-a"))).toEqual(["alpha"]);
+    expect(entityTagNames(harness, note("note-b"))).toEqual(["alpha"]);
   });
 });
 
 describe("TagManager.initialize", () => {
   it("deletes tags left without a TAGGED edge", async () => {
     const harness = await createHarness();
-    await harness.tagManager.setEntityTags(
-      ENTITY_TYPE.AGENT,
-      new Map([
-        ["agent-a", ["alpha"]],
-        ["agent-b", ["beta"]],
-      ])
-    );
+    await harness.tagManager.setEntityTags([
+      { entity: agent("agent-a"), tagNames: ["alpha"] },
+      { entity: agent("agent-b"), tagNames: ["beta"] },
+    ]);
     await harness.relationshipManager.removeRelationshipsForEntity("agent-b");
 
     const reloaded = await createHarness(harness.store);
@@ -184,10 +212,10 @@ describe("TagManager.initialize", () => {
 describe("TagManager.tagEntity / untagEntity", () => {
   it("tags an entity with an existing tag", async () => {
     const harness = await createHarness();
-    await harness.tagManager.setEntityTags(ENTITY_TYPE.NOTE, new Map([["note-a", ["alpha"]]]));
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
     const alphaId = tagIdByName(harness, "alpha");
 
-    const relationship = await harness.tagManager.tagEntity(ENTITY_TYPE.AGENT, "agent-a", alphaId);
+    const relationship = await harness.tagManager.tagEntity(agent("agent-a"), alphaId);
 
     expect(relationship).toMatchObject({
       sourceEntityId: "agent-a",
@@ -199,14 +227,15 @@ describe("TagManager.tagEntity / untagEntity", () => {
 
   it("rejects a tag as the tagged entity", async () => {
     const harness = await createHarness();
-    await harness.tagManager.setEntityTags(ENTITY_TYPE.NOTE, new Map([["note-a", ["alpha", "beta"]]]));
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha", "beta"] }]);
+    const betaTag: Entity = { id: tagIdByName(harness, "beta"), entityType: ENTITY_TYPE.TAG };
 
     await expectAppErrorCode(
-      harness.tagManager.tagEntity(ENTITY_TYPE.TAG, tagIdByName(harness, "beta"), tagIdByName(harness, "alpha")),
+      harness.tagManager.tagEntity(betaTag, tagIdByName(harness, "alpha")),
       APP_ERROR_CODES.VALIDATION
     );
     await expectAppErrorCode(
-      harness.tagManager.setEntityTags(ENTITY_TYPE.TAG, new Map([[tagIdByName(harness, "beta"), ["alpha"]]])),
+      harness.tagManager.setEntityTags([{ entity: betaTag, tagNames: ["alpha"] }]),
       APP_ERROR_CODES.VALIDATION
     );
     expect(harness.relationshipManager.queryRelationships({ sourceEntityType: ENTITY_TYPE.TAG })).toEqual([]);
@@ -215,21 +244,15 @@ describe("TagManager.tagEntity / untagEntity", () => {
   it("rejects an unknown tag", async () => {
     const harness = await createHarness();
 
-    await expectAppErrorCode(
-      harness.tagManager.tagEntity(ENTITY_TYPE.AGENT, "agent-a", "unknown"),
-      APP_ERROR_CODES.TAG_NOT_FOUND
-    );
+    await expectAppErrorCode(harness.tagManager.tagEntity(agent("agent-a"), "unknown"), APP_ERROR_CODES.TAG_NOT_FOUND);
   });
 
   it("deletes the tag with its last edge only", async () => {
     const harness = await createHarness();
-    await harness.tagManager.setEntityTags(
-      ENTITY_TYPE.NOTE,
-      new Map([
-        ["note-a", ["alpha"]],
-        ["note-b", ["alpha"]],
-      ])
-    );
+    await harness.tagManager.setEntityTags([
+      { entity: note("note-a"), tagNames: ["alpha"] },
+      { entity: note("note-b"), tagNames: ["alpha"] },
+    ]);
     const [first, second] = harness.relationshipManager.queryRelationships({
       relationshipType: RELATIONSHIP_TYPE.TAGGED,
     });
@@ -254,6 +277,184 @@ describe("TagManager.tagEntity / untagEntity", () => {
 
     await expectAppErrorCode(harness.tagManager.untagEntity(link.id), APP_ERROR_CODES.VALIDATION);
     expect(harness.relationshipManager.getRelationship(link.id)).toEqual(link);
+  });
+});
+
+describe("TagManager TAGS_CHANGED", () => {
+  it("broadcasts one message per setEntityTags batch, with tags left unused", async () => {
+    const harness = await createHarness();
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
+    const alphaId = tagIdByName(harness, "alpha");
+    const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
+
+    await harness.tagManager.setEntityTags([
+      { entity: note("note-a"), tagNames: ["beta"] },
+      { entity: agent("agent-a"), tagNames: ["beta"] },
+    ]);
+
+    const betaId = tagIdByName(harness, "beta");
+    expect(broadcastSpy).toHaveBeenCalledTimes(1);
+    expect(broadcastSpy).toHaveBeenCalledWith({
+      type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
+      tags: [harness.tagManager.getTag(betaId)],
+      removedEdges: [{ tagId: alphaId, entity: note("note-a") }],
+      addedEdges: [
+        { tagId: betaId, entity: note("note-a") },
+        { tagId: betaId, entity: agent("agent-a") },
+      ],
+      deletedTagIds: [alphaId],
+    });
+  });
+
+  it("broadcasts nothing when the tags already match", async () => {
+    const harness = await createHarness();
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
+    const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
+
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["Alpha"] }]);
+
+    expect(broadcastSpy).not.toHaveBeenCalled();
+  });
+
+  it("carries the record of an existing tag a new edge points at", async () => {
+    const harness = await createHarness();
+    await harness.tagManager.setEntityTags([{ entity: agent("agent-a"), tagNames: ["alpha"] }]);
+    const alphaTag = harness.tagManager.getTag(tagIdByName(harness, "alpha"));
+    const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
+
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
+
+    expect(broadcastSpy).toHaveBeenCalledWith({
+      type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
+      tags: [alphaTag],
+      removedEdges: [],
+      addedEdges: [{ tagId: alphaTag.id, entity: note("note-a") }],
+      deletedTagIds: [],
+    });
+  });
+
+  it("broadcasts the edge of tagEntity and untagEntity", async () => {
+    const harness = await createHarness();
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
+    const alphaId = tagIdByName(harness, "alpha");
+    const alphaTag = harness.tagManager.getTag(alphaId);
+    const [noteEdge] = harness.relationshipManager.queryRelationships({ sourceEntityId: "note-a" });
+    const agentEdge = { tagId: alphaId, entity: agent("agent-a") };
+    const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
+
+    const relationship = await harness.tagManager.tagEntity(agent("agent-a"), alphaId);
+    await harness.tagManager.untagEntity(noteEdge.id);
+    await harness.tagManager.untagEntity(relationship.id);
+
+    expect(broadcastSpy.mock.calls).toEqual([
+      [
+        {
+          type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
+          tags: [alphaTag],
+          removedEdges: [],
+          addedEdges: [agentEdge],
+          deletedTagIds: [],
+        },
+      ],
+      [
+        {
+          type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
+          tags: [],
+          removedEdges: [{ tagId: alphaId, entity: note("note-a") }],
+          addedEdges: [],
+          deletedTagIds: [],
+        },
+      ],
+      [
+        {
+          type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
+          tags: [],
+          removedEdges: [agentEdge],
+          addedEdges: [],
+          deletedTagIds: [alphaId],
+        },
+      ],
+    ]);
+  });
+
+  it("broadcasts nothing on initialize", async () => {
+    const harness = await createHarness();
+    await harness.tagManager.setEntityTags([{ entity: agent("agent-a"), tagNames: ["alpha"] }]);
+    await harness.relationshipManager.removeRelationshipsForEntity("agent-a");
+    const broadcaster = new WsBroadcaster();
+    const broadcastSpy = vi.spyOn(broadcaster, "broadcast");
+
+    await new TagManager(harness.store, harness.relationshipManager, broadcaster).initialize();
+
+    expect(await storedTagNames(harness.store)).toEqual([]);
+    expect(broadcastSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("TagManager.changeEntityIds", () => {
+  it("moves only TAGGED edges and announces each moved edge", async () => {
+    const harness = await createHarness();
+    await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
+    const alphaId = tagIdByName(harness, "alpha");
+    const association = await harness.relationshipManager.createRelationship({
+      sourceEntityId: "agent-a",
+      sourceEntityType: ENTITY_TYPE.AGENT,
+      targetEntityId: "note-a",
+      targetEntityType: ENTITY_TYPE.NOTE,
+      relationshipType: RELATIONSHIP_TYPE.ASSOCIATION,
+    });
+    const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
+
+    await harness.tagManager.changeEntityIds(new Map([["note-a", note("note-b")]]));
+
+    expect(entityTagNames(harness, note("note-a"))).toEqual([]);
+    expect(entityTagNames(harness, note("note-b"))).toEqual(["alpha"]);
+    expect(harness.relationshipManager.getRelationship(association.id).targetEntityId).toBe("note-a");
+    expect(broadcastSpy).toHaveBeenCalledTimes(1);
+    expect(broadcastSpy).toHaveBeenCalledWith({
+      type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
+      tags: [harness.tagManager.getTag(alphaId)],
+      removedEdges: [{ tagId: alphaId, entity: note("note-a") }],
+      addedEdges: [{ tagId: alphaId, entity: note("note-b") }],
+      deletedTagIds: [],
+    });
+  });
+
+  it("broadcasts nothing when no TAGGED edge moves", async () => {
+    const harness = await createHarness();
+    const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
+
+    await harness.tagManager.changeEntityIds(new Map([["note-a", note("note-b")]]));
+
+    expect(broadcastSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("TagManager.getSnapshot", () => {
+  it("returns every tag and edge without a filter", async () => {
+    const harness = await createHarness();
+    await harness.tagManager.setEntityTags([
+      { entity: note("note-a"), tagNames: ["alpha"] },
+      { entity: agent("agent-a"), tagNames: ["beta"] },
+    ]);
+
+    const snapshot = harness.tagManager.getSnapshot();
+
+    expect(snapshot.tags.map((tag) => tag.name).sort()).toEqual(["alpha", "beta"]);
+    expect(snapshot.edges).toHaveLength(2);
+  });
+
+  it("keeps only the entity type's edges and the tags they use", async () => {
+    const harness = await createHarness();
+    await harness.tagManager.setEntityTags([
+      { entity: note("note-a"), tagNames: ["alpha", "beta"] },
+      { entity: agent("agent-a"), tagNames: ["beta", "gamma"] },
+    ]);
+
+    const snapshot = harness.tagManager.getSnapshot(ENTITY_TYPE.AGENT);
+
+    expect(snapshot.tags.map((tag) => tag.name).sort()).toEqual(["beta", "gamma"]);
+    expect(snapshot.edges.map((edge) => edge.entity)).toEqual([agent("agent-a"), agent("agent-a")]);
   });
 });
 

@@ -25,7 +25,7 @@ export function NotesView() {
   const setSidebarWidth = useAppStore((state) => state.setNotesSidebarWidth);
   const isTrashTab = useAppStore((state) => state.notesSidebarTab === NOTES_SIDEBAR_TAB.TRASH);
   const openNoteId = useAppStore((state) => (isTrashTab ? state.selectedTrashNoteId : state.selectedNoteId));
-  const selectNote = useAppStore((state) => state.selectNote);
+  const goToNote = useAppStore((state) => state.goToNote);
   const selectTrashNote = useAppStore((state) => state.selectTrashNote);
 
   useRecordNoteVisit(isTrashTab ? undefined : openNoteId);
@@ -39,7 +39,8 @@ export function NotesView() {
   });
 
   const breadcrumbs = useMemo<HeaderBreadcrumb[]>(() => {
-    const selectFolder = isTrashTab ? selectTrashNote : selectNote;
+    // Folders aren't rows in the Tags tree, so a live folder crumb opens it in the Notes tab.
+    const selectFolder = isTrashTab ? selectTrashNote : goToNote;
     const folderCrumbs = (openNoteId ? getAncestorIds(openNoteId) : []).map((folderId) => ({
       id: folderId,
       label: getNote(folderId)?.name ?? folderId,
@@ -47,7 +48,7 @@ export function NotesView() {
     }));
 
     return isTrashTab ? [TRASH_CRUMB].concat(folderCrumbs) : folderCrumbs;
-  }, [openNoteId, isTrashTab, getAncestorIds, getNote, selectTrashNote, selectNote]);
+  }, [openNoteId, isTrashTab, getAncestorIds, getNote, selectTrashNote, goToNote]);
 
   return (
     <div className="flex h-full">

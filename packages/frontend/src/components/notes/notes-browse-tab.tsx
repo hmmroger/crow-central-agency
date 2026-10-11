@@ -6,14 +6,12 @@ import { useOpenNoteMoveDialog } from "../../hooks/dialogs/use-open-note-move-di
 import { usePromptDialog } from "../../hooks/dialogs/use-prompt-dialog.js";
 import { useNotesContext } from "../../providers/notes-provider.js";
 import { useAppStore } from "../../stores/app-store.js";
-import { getErrorMessage } from "../../utils/error-message.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { Tree } from "../common/tree/tree.js";
 import type { TreeNodeAction } from "../common/tree/tree.types.js";
-import { buildNoteNodes } from "./note-tree-nodes.js";
-
-const ROOT_FOLDER_NAME = "Notes";
-const STATUS_CLASS = "px-2 py-1 text-xs text-text-muted";
+import { NOTES_ROOT_LABEL } from "./note-tree-nodes.js";
+import { NotesTreeStatus } from "./notes-tree-status.js";
+import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
 
 /**
  * The live notes tree and everything done to live notes. Name validation and
@@ -22,6 +20,7 @@ const STATUS_CLASS = "px-2 py-1 text-xs text-text-muted";
  */
 export function NotesBrowseTab() {
   const { getNote, getChildIds, getListStatus, createNote, createFolder, updateNote, deleteNote } = useNotesContext();
+  const nodes = useNoteTreeNodes({ isTrashed: false });
   const prompt = usePromptDialog();
   const confirm = useConfirmDialog();
   const openMoveDialog = useOpenNoteMoveDialog();
@@ -29,7 +28,6 @@ export function NotesBrowseTab() {
   const selectNote = useAppStore((state) => state.selectNote);
   const { isLoading, error } = getListStatus(false);
   const isEmpty = getChildIds(undefined, false).length === 0;
-  const nodes = useMemo(() => buildNoteNodes({ getNote, getChildIds }, undefined, false), [getNote, getChildIds]);
 
   // New notes land in the selected folder, or beside the selected note.
   const targetFolder = useMemo(() => {
@@ -41,7 +39,7 @@ export function NotesBrowseTab() {
     return selectedNote?.parentId ? getNote(selectedNote.parentId) : undefined;
   }, [getNote, selectedNoteId]);
 
-  const targetName = targetFolder?.name ?? ROOT_FOLDER_NAME;
+  const targetName = targetFolder?.name ?? NOTES_ROOT_LABEL;
 
   const handleCreateNote = useCallback(() => {
     prompt({
@@ -126,13 +124,12 @@ export function NotesBrowseTab() {
         />
       </div>
 
-      {error && <p className="px-2 py-1 text-xs text-error">{getErrorMessage(error)}</p>}
-
-      {isLoading ? (
-        <p className={STATUS_CLASS}>Loading...</p>
-      ) : isEmpty ? (
-        <p className={STATUS_CLASS}>No notes yet. Create one to get started.</p>
-      ) : (
+      <NotesTreeStatus
+        isLoading={isLoading}
+        error={error}
+        isEmpty={isEmpty}
+        emptyMessage="No notes yet. Create one to get started."
+      >
         <Tree
           nodes={nodes}
           selectedId={selectedNoteId}
@@ -141,7 +138,7 @@ export function NotesBrowseTab() {
           onSelect={selectNote}
           ariaLabel="Notes"
         />
-      )}
+      </NotesTreeStatus>
     </div>
   );
 }

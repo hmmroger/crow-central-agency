@@ -73,8 +73,8 @@ async function createHarness(agentIds: string[]): Promise<Harness> {
   const circleManager = new AgentCircleManager(store, relationshipManager, broadcaster);
   const fragmentManager = new FragmentManager(fragmentStore, indexStore, relationshipManager, broadcaster);
   const registry = new AgentRegistry(store, templateStore, broadcaster, circleManager, fragmentManager);
-  const tagManager = new TagManager(store, relationshipManager);
-  const notesManager = new NotesManager(MOCK_NOTES_PATH, broadcaster, relationshipManager, tagManager);
+  const tagManager = new TagManager(store, relationshipManager, broadcaster);
+  const notesManager = new NotesManager(MOCK_NOTES_PATH, broadcaster, tagManager);
   vi.mocked(notesManager.getNote).mockImplementation((noteId) => {
     const note = NOTES_BY_ID.get(noteId);
     if (!note) {
@@ -103,7 +103,9 @@ async function createHarness(agentIds: string[]): Promise<Harness> {
 }
 
 async function createTag(harness: Harness, name: string): Promise<string> {
-  await harness.tagManager.setEntityTags(ENTITY_TYPE.AGENT, new Map([[`tag-holder-${name}`, [name]]]));
+  await harness.tagManager.setEntityTags([
+    { entity: { id: `tag-holder-${name}`, entityType: ENTITY_TYPE.AGENT }, tagNames: [name] },
+  ]);
   const tag = harness.tagManager.findTagByName(name);
   if (!tag) {
     throw new Error(`Missing tag: ${name}`);

@@ -5,7 +5,8 @@ import { useAppStore } from "../../stores/app-store.js";
 import { getErrorMessage } from "../../utils/error-message.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { Tree } from "../common/tree/tree.js";
-import { buildNoteNodes, buildNoteRootTree, NOTES_ROOT_NODE_ID } from "./note-tree-nodes.js";
+import { NOTES_ROOT_NODE_ID } from "./note-tree-nodes.js";
+import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
 
 interface NoteMoveDialogProps {
   /** Note being moved */
@@ -22,7 +23,7 @@ const DEFAULT_EXPANDED_IDS = [NOTES_ROOT_NODE_ID];
  * tree's top node.
  */
 export function NoteMoveDialog({ noteId, onClose }: NoteMoveDialogProps) {
-  const { getNote, getChildIds, updateNote } = useNotesContext();
+  const { getNote, updateNote } = useNotesContext();
   const selectNote = useAppStore((state) => state.selectNote);
   const note = getNote(noteId);
   const { data: destinations } = useNoteMoveDestinationsQuery(noteId);
@@ -32,13 +33,8 @@ export function NoteMoveDialog({ noteId, onClose }: NoteMoveDialogProps) {
   const selectedNodeId = destinationId ?? NOTES_ROOT_NODE_ID;
   const isUnchanged = destinationId === note?.parentId;
 
-  const nodes = useMemo(() => {
-    const destinationIds = new Set(destinations?.map((folder) => folder.id));
-
-    return buildNoteRootTree(
-      buildNoteNodes({ getNote, getChildIds }, undefined, false, (candidateId) => destinationIds.has(candidateId))
-    );
-  }, [destinations, getNote, getChildIds]);
+  const destinationIds = useMemo(() => new Set(destinations?.map((folder) => folder.id)), [destinations]);
+  const nodes = useNoteTreeNodes({ isTrashed: false, includedIds: destinationIds, hasRoot: true });
 
   const handleSelect = useCallback((nodeId: string) => {
     setDestinationId(nodeId === NOTES_ROOT_NODE_ID ? undefined : nodeId);

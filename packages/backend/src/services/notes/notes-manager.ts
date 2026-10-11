@@ -42,8 +42,8 @@ import {
   writeBinaryFile,
 } from "../../utils/fs-utils.js";
 import { logger } from "../../utils/logger.js";
-import type { RelationshipManager } from "../relationship-manager.js";
 import type { TagManager } from "../tag/tag-manager.js";
+import type { EntityTagNames } from "../tag/tag-manager.types.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
 import type {
   CreateNoteOptions,
@@ -106,7 +106,6 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
   constructor(
     notesPath: string,
     private readonly broadcaster: WsBroadcaster,
-    private readonly relationshipManager: RelationshipManager,
     private readonly tagManager: TagManager
   ) {
     super();
@@ -379,7 +378,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     await this.refreshFolder(metadata.parentId);
     await this.refreshFolder(nextParentId);
     if (nextId !== id) {
-      await this.rekeyNoteTags(movedEntries);
+      await this.changeNoteTagIds(movedEntries);
       this.emitNotesDeleted([metadata].concat(descendants));
       this.emitNotesCreated(movedEntries.values());
     } else {
@@ -1082,12 +1081,12 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
 
   /** Apply what each note's parsed content drives; every content-derived relationship is synced here. */
   private async applyParsedContent(parsedContentByNoteId: ReadonlyMap<string, ParsedNoteContent>): Promise<void> {
-    const tagNamesByNoteId = new Map<string, string[]>();
-    for (const [noteId, parsedContent] of parsedContentByNoteId) {
-      tagNamesByNoteId.set(noteId, parsedContent.tags);
-    }
+    const entityTagNames = Array.from(parsedContentByNoteId, ([noteId, parsedContent]) => ({
+      entity: { id: noteId, entityType: ENTITY_TYPE.NOTE },
+      tagNames: parsedContent.tags,
+    }));
 
-    await this.setNoteTags(ENTITY_TYPE.NOTE, tagNamesByNoteId);
+    await this.setNoteTags(entityTagNames);
   }
 
   /** The tokens of a text note the notes collection cares about, from one parse. */
@@ -1103,41 +1102,30 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
   }
 
   /** Replace the tags of the given notes; a tag failure is logged and never fails the note operation. */
-  private async setNoteTags(
-    entityType: NoteEntityType,
-    tagNamesByNoteId: ReadonlyMap<string, string[]>
-  ): Promise<void> {
+  private async setNoteTags(entityTagNames: ReadonlyArray<EntityTagNames>): Promise<void> {
     try {
-      await this.tagManager.setEntityTags(entityType, tagNamesByNoteId);
+      await this.tagManager.setEntityTags(entityTagNames);
     } catch (error) {
-      log.error({ error, entityType, notes: tagNamesByNoteId.size }, "Failed to set note tags");
+      log.error({ error, notes: entityTagNames.length }, "Failed to set note tags");
     }
   }
 
-  /** Clear the tags held under the old id of every moved note and folder. */
+  /** Clear the tags held under the previous id of every moved note and folder. */
   private async clearNoteTags(movedEntries: ReadonlyMap<string, NoteMetadata>): Promise<void> {
-    const clearedNoteTags = new Map<string, string[]>();
-    const clearedFolderTags = new Map<string, string[]>();
-    for (const [previousId, entry] of movedEntries) {
-      const clearedTags = entry.entityType === ENTITY_TYPE.NOTE_FOLDER ? clearedFolderTags : clearedNoteTags;
-      clearedTags.set(previousId, []);
-    }
+    const entityTagNames = Array.from(movedEntries, ([previousId, entry]) => ({
+      entity: { id: previousId, entityType: entry.entityType },
+      tagNames: [],
+    }));
 
-    await this.setNoteTags(ENTITY_TYPE.NOTE, clearedNoteTags);
-    await this.setNoteTags(ENTITY_TYPE.NOTE_FOLDER, clearedFolderTags);
+    await this.setNoteTags(entityTagNames);
   }
 
-  /** Move the tag edges of re-keyed notes to their new ids; a failure is logged and never fails the move. */
-  private async rekeyNoteTags(movedEntries: ReadonlyMap<string, NoteMetadata>): Promise<void> {
-    const idMap = new Map<string, string>();
-    for (const [previousId, entry] of movedEntries) {
-      idMap.set(previousId, entry.id);
-    }
-
+  /** Report the new ids of moved notes to their tags; a failure is logged and never fails the move. */
+  private async changeNoteTagIds(movedEntries: ReadonlyMap<string, NoteMetadata>): Promise<void> {
     try {
-      await this.relationshipManager.rekeyEntities(idMap);
+      await this.tagManager.changeEntityIds(movedEntries);
     } catch (error) {
-      log.error({ error, notes: idMap.size }, "Failed to rekey note tags");
+      log.error({ error, notes: movedEntries.size }, "Failed to change note ids for tags");
     }
   }
 

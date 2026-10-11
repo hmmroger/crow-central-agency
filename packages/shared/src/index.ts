@@ -218,6 +218,7 @@ export {
   NoteCreatedWsMessageSchema,
   NoteUpdatedWsMessageSchema,
   NoteDeletedWsMessageSchema,
+  TagsChangedWsMessageSchema,
   AgentBuilderDraftUpdatedWsMessageSchema,
   AgentSessionsUpdatedWsMessageSchema,
   type CircleCreatedWsMessage,
@@ -231,6 +232,7 @@ export {
   type NoteCreatedWsMessage,
   type NoteUpdatedWsMessage,
   type NoteDeletedWsMessage,
+  type TagsChangedWsMessage,
   type AgentBuilderDraftUpdatedWsMessage,
   type AgentSessionsUpdatedWsMessage,
   type ServerMessage,
@@ -459,6 +461,7 @@ export {
   CreateAgentCircleInputSchema,
   UpdateAgentCircleInputSchema,
   EntityTypeSchema,
+  EntitySchema,
   RelationshipTypeSchema,
   RelationshipSchema,
   CreateRelationshipInputSchema,
@@ -472,6 +475,7 @@ export {
   type DeleteRelationshipResult,
   type CircleMember,
   type EntityType,
+  type Entity,
   type RelationshipType,
 } from "./schemas/agent-circle.schema.js";
 
@@ -529,7 +533,16 @@ export {
   type GraphData,
 } from "./schemas/graph.schema.js";
 
-export { TagSchema, type Tag } from "./schemas/tag.schema.js";
+export {
+  TagSchema,
+  TagEdgeSchema,
+  TagSnapshotSchema,
+  TagSnapshotQuerySchema,
+  type Tag,
+  type TagEdge,
+  type TagSnapshot,
+  type TagSnapshotQuery,
+} from "./schemas/tag.schema.js";
 
 export {
   DATA_SOURCE_TYPE,
