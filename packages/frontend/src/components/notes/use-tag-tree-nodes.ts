@@ -41,7 +41,6 @@ function toTagNode(tag: Tag, liveNotes: NoteMetadata[]): TreeNode<NoteMetadata> 
   return { id: tag.id, label: tag.name, icon: TagIcon, isExpandable: true, children };
 }
 
-/** Tag ids never contain ":", so a placement row's id never equals a tag row's */
 function toTagNoteRowId(tagId: string, noteId: string): string {
   return `${tagId}:${noteId}`;
 }
