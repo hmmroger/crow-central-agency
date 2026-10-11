@@ -13,13 +13,13 @@ import { toTreeNode } from "./note-tree-nodes.js";
  * Rebuilt whenever the tags or notes index changes.
  */
 export function useTagTreeNodes() {
-  const { getTags, getEntityIds } = useTagsContext();
+  const { tags, entityIdsByTagId } = useTagsContext();
   const { getNote } = useNotesContext();
 
   return useMemo<TreeNode<NoteMetadata>[]>(() => {
     const nodes: TreeNode<NoteMetadata>[] = [];
-    for (const tag of getTags()) {
-      const liveNotes = getEntityIds(tag.id, ENTITY_TYPE.NOTE)
+    for (const tag of tags) {
+      const liveNotes = (entityIdsByTagId.get(tag.id)?.get(ENTITY_TYPE.NOTE) ?? [])
         .map((noteId) => getNote(noteId))
         .filter((metadata) => metadata !== undefined)
         .filter((metadata) => !metadata.isTrashed);
@@ -30,7 +30,7 @@ export function useTagTreeNodes() {
     }
 
     return nodes;
-  }, [getTags, getEntityIds, getNote]);
+  }, [tags, entityIdsByTagId, getNote]);
 }
 
 function toTagNode(tag: Tag, liveNotes: NoteMetadata[]): TreeNode<NoteMetadata> {

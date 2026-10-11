@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ENTITY_TYPE,
@@ -13,13 +13,10 @@ import { apiClient, unwrapResponse } from "../services/api-client.js";
 import type { ApiError } from "../services/api-client.types.js";
 import { tagKeys } from "../services/query-keys.js";
 import { WS_STATE } from "../services/ws-client.types.js";
-import type { TagListStatus, TagsContextValue } from "./tags-provider.types.js";
-
-type EntityIdsByTagId = ReadonlyMap<string, ReadonlyMap<EntityType, readonly string[]>>;
+import type { EntityIdsByTagId, TagListStatus, TagsContextValue } from "./tags-provider.types.js";
 
 const TAGS_PATH = "/tags";
 const SNAPSHOT_ENTITY_TYPE = ENTITY_TYPE.NOTE;
-const EMPTY_ENTITY_IDS: readonly string[] = [];
 
 const TagsContext = createContext<TagsContextValue | undefined>(undefined);
 
@@ -76,21 +73,14 @@ export function TagsProvider({ children }: { children: React.ReactNode }) {
 
   const entityIdsByTagId = useMemo(() => groupEntityIds(snapshotQuery.data?.edges ?? []), [snapshotQuery.data]);
 
-  const getTags = useCallback(() => sortedTags, [sortedTags]);
-
-  const getEntityIds = useCallback(
-    (tagId: string, entityType: EntityType) => entityIdsByTagId.get(tagId)?.get(entityType) ?? EMPTY_ENTITY_IDS,
-    [entityIdsByTagId]
-  );
-
   const listStatus = useMemo<TagListStatus>(
     () => ({ isLoading: snapshotQuery.isLoading, error: snapshotQuery.error ?? undefined }),
     [snapshotQuery.isLoading, snapshotQuery.error]
   );
 
   const value = useMemo<TagsContextValue>(
-    () => ({ getTags, getEntityIds, listStatus }),
-    [getTags, getEntityIds, listStatus]
+    () => ({ tags: sortedTags, entityIdsByTagId, listStatus }),
+    [sortedTags, entityIdsByTagId, listStatus]
   );
 
   return <TagsContext.Provider value={value}>{children}</TagsContext.Provider>;

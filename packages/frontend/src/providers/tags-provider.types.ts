@@ -6,11 +6,14 @@ export interface TagListStatus {
   error: ApiError | undefined;
 }
 
-/** Value exposed by the TagsProvider context: read-only lookups derived from the cached tag snapshot */
+/** The ids of the entities tagged with each tag, by entity type */
+export type EntityIdsByTagId = ReadonlyMap<string, ReadonlyMap<EntityType, readonly string[]>>;
+
+/** Value exposed by the TagsProvider context: read-only data derived from the cached tag snapshot */
 export interface TagsContextValue {
   /** Every tag the server has sent, in name order; a tag may have no edge of a tracked type */
-  getTags: () => readonly Tag[];
-  /** Ids of the entities of `entityType` tagged with the tag; always empty for a type the provider does not track */
-  getEntityIds: (tagId: string, entityType: EntityType) => readonly string[];
+  tags: readonly Tag[];
+  /** Holds only the entity types the provider tracks; a tag with no tracked edge has no entry */
+  entityIdsByTagId: EntityIdsByTagId;
   listStatus: TagListStatus;
 }
