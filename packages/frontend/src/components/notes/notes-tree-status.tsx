@@ -12,15 +12,19 @@ interface NotesTreeStatusProps {
 
 const LOADING_MESSAGE = "Loading...";
 
-/** A sidebar tab's error line, then its loading or empty line in place of the tree. */
+/** A sidebar tab's error line, then its loading or empty line in place of the tree, which scrolls on its own. */
 export function NotesTreeStatus({ isLoading, error, isEmpty, emptyMessage, children }: NotesTreeStatusProps) {
   const hasStatus = isLoading || isEmpty;
   const statusMessage = isLoading ? LOADING_MESSAGE : emptyMessage;
 
   return (
     <>
-      {error && <p className="px-2 py-1 text-xs text-error">{getErrorMessage(error)}</p>}
-      {hasStatus ? <p className="px-2 py-1 text-xs text-text-muted">{statusMessage}</p> : children}
+      {error && <p className="shrink-0 px-2 py-1 text-xs text-error">{getErrorMessage(error)}</p>}
+      {hasStatus ? (
+        <p className="shrink-0 px-2 py-1 text-xs text-text-muted">{statusMessage}</p>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      )}
     </>
   );
 }

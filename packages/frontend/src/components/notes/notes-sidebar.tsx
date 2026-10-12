@@ -17,7 +17,7 @@ export function NotesSidebar() {
   const setNotesSidebarTab = useAppStore((state) => state.setNotesSidebarTab);
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex min-h-0 flex-1 flex-col gap-1">
       <TabBar
         tabs={NOTES_SIDEBAR_TABS}
         activeTab={activeTab}
