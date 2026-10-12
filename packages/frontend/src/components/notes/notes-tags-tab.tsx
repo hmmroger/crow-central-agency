@@ -15,8 +15,8 @@ export function NotesTagsTab() {
   const tagCountLabel = `${nodes.length} ${nodes.length === 1 ? "tag" : "tags"}`;
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-1 px-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-1">
+      <div className="flex shrink-0 items-center gap-1 px-2">
         <span className="min-w-0 flex-1 truncate text-2xs text-text-muted">{tagCountLabel}</span>
       </div>
 

@@ -53,7 +53,10 @@ export function NotesView() {
   return (
     <div className="flex h-full">
       <HeaderPortal title={VIEW_TITLE} breadcrumbs={breadcrumbs} />
-      <aside style={{ width: sidebarWidth }} className="shrink-0 overflow-y-auto border-r border-border-subtle p-2">
+      <aside
+        style={{ width: sidebarWidth }}
+        className="flex shrink-0 flex-col overflow-hidden border-r border-border-subtle p-2"
+      >
         <NotesSidebar />
       </aside>
 
