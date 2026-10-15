@@ -18,7 +18,7 @@ export function NotesBacklinks({ targetId }: NotesBacklinksProps) {
   const selectNote = useAppStore((state) => state.selectNote);
 
   return (
-    <section className="flex max-h-2/5 shrink-0 flex-col gap-1 border-t border-border-subtle pt-1">
+    <section className={cn("flex shrink-0 flex-col gap-1 border-t border-border-subtle pt-1", !isCollapsed && "h-2/5")}>
       <button
         type="button"
         className="group flex shrink-0 items-center gap-2 px-2 py-1 text-left"
