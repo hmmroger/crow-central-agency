@@ -15,14 +15,12 @@ import {
   taglineExtension,
   isWikilinkToken,
   wikilinkExtension,
-  type CreateRelationshipInput,
   type NoteContentType,
   type NoteEntityType,
   type NoteFileMetadata,
   type NoteFolderMetadata,
   type NoteImageAsset,
   type NoteMetadata,
-  type Relationship,
   type SuggestWikilinksQuery,
   type UpdateNoteInput,
   type WikilinkResolution,
@@ -47,8 +45,8 @@ import {
   writeBinaryFile,
 } from "../../utils/fs-utils.js";
 import { logger } from "../../utils/logger.js";
-import { SerialQueue } from "../../utils/serial-queue.js";
 import type { RelationshipManager } from "../relationship-manager.js";
+import type { RelationshipTargets } from "../relationship-manager.types.js";
 import type { TagManager } from "../tag/tag-manager.js";
 import type { EntityTagNames } from "../tag/tag-manager.types.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
@@ -110,8 +108,6 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
   private readonly wikilinkResolver = new WikilinkResolver(() => this.index);
   /** Wikilink and embed targets of every live text note, which its REFERENCE edges are synced from */
   private readonly targetsByNoteId = new Map<string, ReadonlyArray<string>>();
-  /** Serializes REFERENCE edge writes, since note operations can overlap */
-  private readonly referenceQueue = new SerialQueue();
   private readonly markdownParser = new Marked({
     extensions: [taglineExtension, hashtagExtension, wikilinkExtension],
   });
@@ -1108,19 +1104,15 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
 
     await this.setNoteTags(entityTagNames);
 
-    const targetsByNoteId = new Map<string, ReadonlyArray<string>>();
     for (const [noteId, parsedContent] of parsedContentByNoteId) {
-      targetsByNoteId.set(noteId, parsedContent.wikilinkTargets);
+      this.targetsByNoteId.set(noteId, parsedContent.wikilinkTargets);
     }
 
     await this.awaitReferenceWork(
-      this.referenceQueue.run(async () => {
-        for (const [noteId, targets] of targetsByNoteId) {
-          this.targetsByNoteId.set(noteId, targets);
-        }
-
-        await this.syncReferenceEdges(targetsByNoteId.keys());
-      }),
+      this.relationshipManager.replaceRelationships(
+        Array.from(parsedContentByNoteId.keys(), (noteId) => this.toReferenceTargets(noteId)),
+        RELATIONSHIP_TYPE.REFERENCE
+      ),
       "Failed to set note references"
     );
   }
@@ -1157,27 +1149,20 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
       return;
     }
 
+    const referenceTargets: RelationshipTargets[] = [];
+    for (const entry of removedLive) {
+      this.targetsByNoteId.delete(entry.id);
+      referenceTargets.push({ source: entry, targets: [] });
+    }
+
+    for (const [noteId, targets] of this.targetsByNoteId) {
+      if (targets.some((target) => this.wikilinkResolver.isNamedByTarget(target, changedNames))) {
+        referenceTargets.push(this.toReferenceTargets(noteId));
+      }
+    }
+
     await this.awaitReferenceWork(
-      this.referenceQueue.run(async () => {
-        const droppedEdgeIds: string[] = [];
-        for (const entry of removedLive) {
-          this.targetsByNoteId.delete(entry.id);
-          for (const relationship of this.getReferenceEdges(entry.id)) {
-            droppedEdgeIds.push(relationship.id);
-          }
-        }
-
-        await this.relationshipManager.deleteRelationships(droppedEdgeIds);
-
-        const holderIds: string[] = [];
-        for (const [noteId, targets] of this.targetsByNoteId) {
-          if (targets.some((target) => this.wikilinkResolver.isNamedByTarget(target, changedNames))) {
-            holderIds.push(noteId);
-          }
-        }
-
-        await this.syncReferenceEdges(holderIds);
-      }),
+      this.relationshipManager.replaceRelationships(referenceTargets, RELATIONSHIP_TYPE.REFERENCE),
       "Failed to update note references"
     );
   }
@@ -1189,59 +1174,31 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
       idMap.set(previousId, entry.id);
     }
 
+    const movedTargets = new Map<string, ReadonlyArray<string>>();
+    for (const [previousId, nextId] of idMap) {
+      const targets = this.targetsByNoteId.get(previousId);
+      if (targets) {
+        this.targetsByNoteId.delete(previousId);
+        movedTargets.set(nextId, targets);
+      }
+    }
+
+    for (const [noteId, targets] of movedTargets) {
+      this.targetsByNoteId.set(noteId, targets);
+    }
+
     await this.awaitReferenceWork(
-      this.referenceQueue.run(async () => {
-        const movedTargets = new Map<string, ReadonlyArray<string>>();
-        for (const [previousId, nextId] of idMap) {
-          const targets = this.targetsByNoteId.get(previousId);
-          if (targets) {
-            this.targetsByNoteId.delete(previousId);
-            movedTargets.set(nextId, targets);
-          }
-        }
-
-        for (const [noteId, targets] of movedTargets) {
-          this.targetsByNoteId.set(noteId, targets);
-        }
-
-        await this.relationshipManager.rekeyEntities(idMap, { relationshipType: RELATIONSHIP_TYPE.REFERENCE });
-      }),
+      this.relationshipManager.rekeyEntities(idMap, { relationshipType: RELATIONSHIP_TYPE.REFERENCE }),
       "Failed to change note ids for references"
     );
   }
 
-  /**
-   * Bring each note's REFERENCE edges in line with what its targets resolve to
-   * now: one edge per resolved live entry, none to the note itself. Only the
-   * difference is written, in one delete and one create.
-   */
-  private async syncReferenceEdges(noteIds: Iterable<string>): Promise<void> {
-    const removedIds: string[] = [];
-    const createdInputs: CreateRelationshipInput[] = [];
-    for (const noteId of noteIds) {
-      const resolvedEntries = this.resolveNoteTargets(noteId);
-      for (const relationship of this.getReferenceEdges(noteId)) {
-        const resolvedEntry = resolvedEntries.get(relationship.targetEntityId);
-        if (resolvedEntry?.entityType === relationship.targetEntityType) {
-          resolvedEntries.delete(relationship.targetEntityId);
-        } else {
-          removedIds.push(relationship.id);
-        }
-      }
-
-      for (const entry of resolvedEntries.values()) {
-        createdInputs.push({
-          sourceEntityId: noteId,
-          sourceEntityType: ENTITY_TYPE.NOTE,
-          targetEntityId: entry.id,
-          targetEntityType: entry.entityType,
-          relationshipType: RELATIONSHIP_TYPE.REFERENCE,
-        });
-      }
-    }
-
-    await this.relationshipManager.deleteRelationships(removedIds);
-    await this.relationshipManager.createRelationships(createdInputs);
+  /** A note's REFERENCE target set: one entry per resolved live entry, none to the note itself */
+  private toReferenceTargets(noteId: string): RelationshipTargets {
+    return {
+      source: { id: noteId, entityType: ENTITY_TYPE.NOTE },
+      targets: Array.from(this.resolveNoteTargets(noteId).values()),
+    };
   }
 
   /** The live entries a note's targets resolve to, by id, without the note itself */
@@ -1257,16 +1214,8 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     return resolvedEntries;
   }
 
-  private getReferenceEdges(noteId: string): Relationship[] {
-    return this.relationshipManager.queryRelationships({
-      sourceEntityId: noteId,
-      sourceEntityType: ENTITY_TYPE.NOTE,
-      relationshipType: RELATIONSHIP_TYPE.REFERENCE,
-    });
-  }
-
   /** Wait for reference work; a failure is logged and never fails the note operation. */
-  private async awaitReferenceWork(work: Promise<void>, message: string): Promise<void> {
+  private async awaitReferenceWork(work: Promise<unknown>, message: string): Promise<void> {
     try {
       await work;
     } catch (error) {
