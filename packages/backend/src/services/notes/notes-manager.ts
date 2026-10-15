@@ -195,7 +195,6 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     }
 
     const metadata = await this.indexCreatedNote(target, options.parentId);
-    // MARKDOWN_EXTENSION determines the contentType
     if (isText) {
       await this.applyParsedContent(new Map([[metadata.id, this.parseNoteContent(content)]]));
     }
@@ -379,20 +378,16 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
       throw new AppError(`Note not found: ${id}`, APP_ERROR_CODES.NOT_FOUND);
     }
 
-    if (nextId !== id) {
-      this.removeEntry(metadata.id);
-      this.removeEntries(descendants);
-    }
-
-    const movedEntries = await this.reindexMoved(metadata, descendants, nextRelativePath, nextParentId);
+    const removedEntries = nextId !== id ? this.removeSubtree(metadata, descendants) : [];
+    const movedEntriesByPreviousId = await this.reindexMoved(metadata, descendants, nextRelativePath, nextParentId);
     await this.refreshFolder(metadata.parentId);
     await this.refreshFolder(nextParentId);
     if (nextId !== id) {
-      await this.changeNoteTagIds(movedEntries);
-      await this.changeNoteReferenceIds(movedEntries);
-      await this.emitIndexChange([metadata].concat(descendants), movedEntries.values());
+      await this.changeNoteTagIds(movedEntriesByPreviousId);
+      await this.changeNoteReferenceIds(movedEntriesByPreviousId);
+      await this.emitIndexChange(removedEntries, movedEntriesByPreviousId.values());
     } else {
-      this.emitNotesUpdated(movedEntries.values());
+      this.emitNotesUpdated(movedEntriesByPreviousId.values());
     }
 
     return this.requireLiveNote(nextId);
@@ -425,14 +420,13 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     const descendants = this.listDescendants(metadata);
     await mergeMove(sourcePath, targetPath);
 
-    this.removeEntry(metadata.id);
-    this.removeEntries(descendants);
+    const removedEntries = this.removeSubtree(metadata, descendants);
 
     await this.refreshFolder(metadata.parentId);
     const trashParentId = await this.indexFolderChain(path.dirname(trashedPath));
-    const trashedEntries = await this.reindexMoved(metadata, descendants, trashedPath, trashParentId);
-    await this.clearNoteTags(trashedEntries);
-    await this.emitIndexChange([metadata].concat(descendants), trashedEntries.values());
+    const trashedEntriesByPreviousId = await this.reindexMoved(metadata, descendants, trashedPath, trashParentId);
+    await this.clearNoteTags(trashedEntriesByPreviousId);
+    await this.emitIndexChange(removedEntries, trashedEntriesByPreviousId.values());
   }
 
   /**
@@ -453,15 +447,13 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     await mergeMove(sourcePath, targetPath);
     await removeEmptyAncestors(path.dirname(sourcePath), this.trashPath);
 
-    this.removeEntry(metadata.id);
-    this.removeEntries(descendants);
-    await this.emitNotesDeleted([metadata].concat(descendants));
+    await this.emitNotesDeleted(this.removeSubtree(metadata, descendants));
 
     await this.dropPrunedTrashFolders(path.dirname(metadata.path));
     const parentId = await this.indexFolderChain(path.dirname(restoredPath));
-    const restoredEntries = await this.reindexMoved(metadata, descendants, restoredPath, parentId);
-    await this.applyParsedContent(await this.parseNoteFiles(restoredEntries.values()));
-    await this.emitNotesCreated(restoredEntries.values());
+    const restoredEntriesByPreviousId = await this.reindexMoved(metadata, descendants, restoredPath, parentId);
+    await this.applyParsedContent(await this.parseNoteFiles(restoredEntriesByPreviousId.values()));
+    await this.emitNotesCreated(restoredEntriesByPreviousId.values());
 
     return this.requireLiveNote(this.toNoteId(restoredPath));
   }
@@ -489,9 +481,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
 
     await removeEmptyAncestors(path.dirname(targetPath), this.trashPath);
 
-    this.removeEntry(metadata.id);
-    this.removeEntries(descendants);
-    await this.emitNotesDeleted([metadata].concat(descendants));
+    await this.emitNotesDeleted(this.removeSubtree(metadata, descendants));
 
     await this.dropPrunedTrashFolders(path.dirname(metadata.path));
   }
@@ -545,7 +535,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
   /**
    * Index `root` and its `descendants` after a move carried `root` to `toPath`; only `root`
    * takes `parentId`, the rest keep their place under it. Each entry is rebuilt from disk at
-   * its new path. Returns each moved entry by its old id.
+   * its new path. Returns each moved entry as it is now, keyed by its previous id.
    */
   private async reindexMoved(
     root: NoteMetadata,
@@ -553,15 +543,15 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     toPath: string,
     parentId: string | undefined
   ): Promise<Map<string, NoteMetadata>> {
-    const movedEntries = new Map<string, NoteMetadata>();
-    movedEntries.set(root.id, await this.reindexMovedEntry(root, toPath, parentId));
+    const movedEntriesByPreviousId = new Map<string, NoteMetadata>();
+    movedEntriesByPreviousId.set(root.id, await this.reindexMovedEntry(root, toPath, parentId));
     for (const entry of descendants) {
       const relativePath = path.join(toPath, path.relative(root.path, entry.path));
       const moved = await this.reindexMovedEntry(entry, relativePath, this.toNoteId(path.dirname(relativePath)));
-      movedEntries.set(entry.id, moved);
+      movedEntriesByPreviousId.set(entry.id, moved);
     }
 
-    return movedEntries;
+    return movedEntriesByPreviousId;
   }
 
   /** Index one moved entry at `relativePath`; a file landing on an indexed folder drops that folder and everything under it. */
@@ -804,6 +794,14 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     for (const entry of entries) {
       this.removeEntry(entry.id);
     }
+  }
+
+  /** Drop `root` and its `descendants` from whichever tree holds them, returning them root first. */
+  private removeSubtree(root: NoteMetadata, descendants: readonly NoteMetadata[]): NoteMetadata[] {
+    const subtree = [root].concat(descendants);
+    this.removeEntries(subtree);
+
+    return subtree;
   }
 
   private async emitNotesCreated(entries: Iterable<NoteMetadata>): Promise<void> {
@@ -1097,16 +1095,13 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
 
   /** Apply what each note's parsed content drives; every content-derived relationship is synced here. */
   private async applyParsedContent(parsedContentByNoteId: ReadonlyMap<string, ParsedNoteContent>): Promise<void> {
-    const entityTagNames = Array.from(parsedContentByNoteId, ([noteId, parsedContent]) => ({
-      entity: { id: noteId, entityType: ENTITY_TYPE.NOTE },
-      tagNames: parsedContent.tags,
-    }));
-
-    await this.setNoteTags(entityTagNames);
-
+    const entityTagNames: EntityTagNames[] = [];
     for (const [noteId, parsedContent] of parsedContentByNoteId) {
+      entityTagNames.push({ entity: { id: noteId, entityType: ENTITY_TYPE.NOTE }, tagNames: parsedContent.tags });
       this.targetsByNoteId.set(noteId, parsedContent.wikilinkTargets);
     }
+
+    await this.setNoteTags(entityTagNames);
 
     try {
       await this.relationshipManager.replaceRelationships(
@@ -1173,9 +1168,9 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
   }
 
   /** Move the targets and REFERENCE edges held under each moved entry's previous id to its current id. */
-  private async changeNoteReferenceIds(movedEntries: ReadonlyMap<string, NoteMetadata>): Promise<void> {
+  private async changeNoteReferenceIds(movedEntriesByPreviousId: ReadonlyMap<string, NoteMetadata>): Promise<void> {
     const idMap = new Map<string, string>();
-    for (const [previousId, entry] of movedEntries) {
+    for (const [previousId, entry] of movedEntriesByPreviousId) {
       idMap.set(previousId, entry.id);
     }
 
@@ -1234,8 +1229,8 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
   }
 
   /** Clear the tags held under the previous id of every moved note and folder. */
-  private async clearNoteTags(movedEntries: ReadonlyMap<string, NoteMetadata>): Promise<void> {
-    const entityTagNames = Array.from(movedEntries, ([previousId, entry]) => ({
+  private async clearNoteTags(movedEntriesByPreviousId: ReadonlyMap<string, NoteMetadata>): Promise<void> {
+    const entityTagNames = Array.from(movedEntriesByPreviousId, ([previousId, entry]) => ({
       entity: { id: previousId, entityType: entry.entityType },
       tagNames: [],
     }));
@@ -1244,11 +1239,11 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
   }
 
   /** Report the new ids of moved notes to their tags; a failure is logged and never fails the move. */
-  private async changeNoteTagIds(movedEntries: ReadonlyMap<string, NoteMetadata>): Promise<void> {
+  private async changeNoteTagIds(movedEntriesByPreviousId: ReadonlyMap<string, NoteMetadata>): Promise<void> {
     try {
-      await this.tagManager.changeEntityIds(movedEntries);
+      await this.tagManager.changeEntityIds(movedEntriesByPreviousId);
     } catch (error) {
-      log.error({ error, notes: movedEntries.size }, "Failed to change note ids for tags");
+      log.error({ error, notes: movedEntriesByPreviousId.size }, "Failed to change note ids for tags");
     }
   }
 
