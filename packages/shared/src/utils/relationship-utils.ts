@@ -1,4 +1,9 @@
-import type { Relationship, RelationshipQuery } from "../schemas/agent-circle.schema.js";
+import type { Entity, Relationship, RelationshipQuery } from "../schemas/agent-circle.schema.js";
+
+/** Identity key of an entity across entity types */
+export function toEntityKey(entity: Entity): string {
+  return `${entity.entityType}:${entity.id}`;
+}
 
 /** Check whether a relationship matches every field the query provides */
 export function relationshipMatchesQuery(relationship: Relationship, query: RelationshipQuery): boolean {

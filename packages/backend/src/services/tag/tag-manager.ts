@@ -3,6 +3,7 @@ import {
   RELATIONSHIP_TYPE,
   SERVER_MESSAGE_TYPE,
   TagSchema,
+  toEntityKey,
   type Entity,
   type EntityType,
   type Relationship,
@@ -173,7 +174,7 @@ export class TagManager {
         throw new AppError("Entity id is required to set tags", APP_ERROR_CODES.VALIDATION);
       }
 
-      const entityKey = JSON.stringify([entity.entityType, entity.id]);
+      const entityKey = toEntityKey(entity);
       if (seenEntityKeys.has(entityKey)) {
         throw new AppError(`Entity listed twice: ${entity.id}`, APP_ERROR_CODES.VALIDATION);
       }

@@ -3,8 +3,8 @@ import {
   RelationshipSchema,
   SERVER_MESSAGE_TYPE,
   relationshipMatchesQuery,
+  toEntityKey,
   type CreateRelationshipInput,
-  type Entity,
   type GraphNodePosition,
   type Relationship,
   type RelationshipQuery,
@@ -213,7 +213,7 @@ export class RelationshipManager {
     const pendingKeys = new Set<string>();
     const seenSourceKeys = new Set<string>();
     for (const { source, targets } of sources) {
-      const sourceKey = this.entityKey(source);
+      const sourceKey = toEntityKey(source);
       if (seenSourceKeys.has(sourceKey)) {
         throw new AppError(`Source listed twice: ${source.id}`, APP_ERROR_CODES.VALIDATION);
       }
@@ -228,13 +228,13 @@ export class RelationshipManager {
       });
       for (const relationship of existing) {
         unmatchedByTargetKey.set(
-          this.entityKey({ id: relationship.targetEntityId, entityType: relationship.targetEntityType }),
+          toEntityKey({ id: relationship.targetEntityId, entityType: relationship.targetEntityType }),
           relationship
         );
       }
 
       for (const target of targets) {
-        if (unmatchedByTargetKey.delete(this.entityKey(target))) {
+        if (unmatchedByTargetKey.delete(toEntityKey(target))) {
           continue;
         }
 
@@ -473,18 +473,8 @@ export class RelationshipManager {
     };
   }
 
-  private entityKey(entity: Entity): string {
-    return JSON.stringify([entity.entityType, entity.id]);
-  }
-
   private relationshipKey(input: CreateRelationshipInput): string {
-    return JSON.stringify([
-      input.sourceEntityType,
-      input.sourceEntityId,
-      input.targetEntityType,
-      input.targetEntityId,
-      input.relationshipType,
-    ]);
+    return `${input.sourceEntityType}:${input.sourceEntityId}:${input.targetEntityType}:${input.targetEntityId}:${input.relationshipType}`;
   }
 
   /** Add the ids of every relationship with the entity as source or target to the given set */
