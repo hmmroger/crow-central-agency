@@ -1108,13 +1108,14 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
       this.targetsByNoteId.set(noteId, parsedContent.wikilinkTargets);
     }
 
-    await this.awaitReferenceWork(
-      this.relationshipManager.replaceRelationships(
+    try {
+      await this.relationshipManager.replaceRelationships(
         Array.from(parsedContentByNoteId.keys(), (noteId) => this.toReferenceTargets(noteId)),
         RELATIONSHIP_TYPE.REFERENCE
-      ),
-      "Failed to set note references"
-    );
+      );
+    } catch (error) {
+      log.error({ error, notes: parsedContentByNoteId.size }, "Failed to set note references from parsed content");
+    }
   }
 
   /** The tokens of a text note the notes collection cares about, from one parse. */
@@ -1161,10 +1162,14 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
       }
     }
 
-    await this.awaitReferenceWork(
-      this.relationshipManager.replaceRelationships(referenceTargets, RELATIONSHIP_TYPE.REFERENCE),
-      "Failed to update note references"
-    );
+    try {
+      await this.relationshipManager.replaceRelationships(referenceTargets, RELATIONSHIP_TYPE.REFERENCE);
+    } catch (error) {
+      log.error(
+        { error, removed: removed.length, added: added.length },
+        "Failed to re-resolve note references after an index change"
+      );
+    }
   }
 
   /** Move the targets and REFERENCE edges held under each moved entry's previous id to its current id. */
@@ -1187,10 +1192,15 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
       this.targetsByNoteId.set(noteId, targets);
     }
 
-    await this.awaitReferenceWork(
-      this.relationshipManager.rekeyEntities(idMap, { relationshipType: RELATIONSHIP_TYPE.REFERENCE }),
-      "Failed to change note ids for references"
-    );
+    try {
+      await this.relationshipManager.rekeyEntities(idMap, { relationshipType: RELATIONSHIP_TYPE.REFERENCE });
+    } catch (error) {
+      log.error(
+        { error, moved: idMap.size },
+        "Failed to move note references to new ids; the re-resolve that follows drops outgoing edges left under " +
+          "previous ids, so moved notes may lack outgoing references until their content is saved again"
+      );
+    }
   }
 
   /** A note's REFERENCE target set: one entry per resolved live entry, none to the note itself */
@@ -1212,15 +1222,6 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     }
 
     return resolvedEntries;
-  }
-
-  /** Wait for reference work; a failure is logged and never fails the note operation. */
-  private async awaitReferenceWork(work: Promise<unknown>, message: string): Promise<void> {
-    try {
-      await work;
-    } catch (error) {
-      log.error({ error }, message);
-    }
   }
 
   /** Replace the tags of the given notes; a tag failure is logged and never fails the note operation. */
