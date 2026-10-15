@@ -11,7 +11,7 @@ import {
 import type { ObjectStoreProvider } from "../../core/store/object-store.types.js";
 import type { RelationshipManager } from "../relationship-manager.js";
 import type { WsBroadcaster } from "../ws-broadcaster.js";
-import type { EntityTagNames, PendingTagEdge } from "./tag-manager.types.js";
+import type { EntityTagNames } from "./tag-manager.types.js";
 import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { generateId } from "../../utils/id-utils.js";
@@ -82,7 +82,13 @@ export class TagManager {
 
   /** The tags of one entity; an untagged entity has none */
   public getEntityTags(entity: Entity): Tag[] {
-    return this.getEntityTagEdges(entity).flatMap((relationship) => {
+    const tagEdges = this.relationshipManager.queryRelationships({
+      sourceEntityId: entity.id,
+      sourceEntityType: entity.entityType,
+      relationshipType: RELATIONSHIP_TYPE.TAGGED,
+    });
+
+    return tagEdges.flatMap((relationship) => {
       const tag = this.tagsById.get(relationship.targetEntityId);
 
       return tag ? [tag] : [];
@@ -158,9 +164,7 @@ export class TagManager {
   }
 
   private async applyEntityTags(entityTagNames: ReadonlyArray<EntityTagNames>): Promise<void> {
-    const removedRelationships: Relationship[] = [];
-    const removedTagIds = new Set<string>();
-    const pendingEdges: PendingTagEdge[] = [];
+    const normalizedEntityTagNames: EntityTagNames[] = [];
     const seenEntityKeys = new Set<string>();
 
     for (const { entity, tagNames } of entityTagNames) {
@@ -175,43 +179,30 @@ export class TagManager {
       }
 
       seenEntityKeys.add(entityKey);
-
-      const desiredNames = new Set(normalizeTags(tagNames));
-      const keptNames = new Set<string>();
-      for (const relationship of this.getEntityTagEdges(entity)) {
-        const tag = this.tagsById.get(relationship.targetEntityId);
-        if (tag && desiredNames.has(tag.name)) {
-          keptNames.add(tag.name);
-        } else {
-          removedRelationships.push(relationship);
-          removedTagIds.add(relationship.targetEntityId);
-        }
-      }
-
-      for (const tagName of desiredNames) {
-        if (!keptNames.has(tagName)) {
-          pendingEdges.push({ entity, tagName });
-        }
-      }
+      normalizedEntityTagNames.push({ entity, tagNames: normalizeTags(tagNames) });
     }
 
-    const createdTags = await this.createMissingTags(pendingEdges.map((pendingEdge) => pendingEdge.tagName));
-    this.broadcastChange(createdTags, []);
-    await this.relationshipManager.deleteRelationships(removedRelationships.map((relationship) => relationship.id));
-    await this.relationshipManager.createRelationships(
-      pendingEdges.map((pendingEdge) => ({
-        sourceEntityId: pendingEdge.entity.id,
-        sourceEntityType: pendingEdge.entity.entityType,
-        targetEntityId: this.requireTagByName(pendingEdge.tagName).id,
-        targetEntityType: ENTITY_TYPE.TAG,
-        relationshipType: RELATIONSHIP_TYPE.TAGGED,
-      }))
+    const createdTags = await this.createMissingTags(
+      normalizedEntityTagNames.flatMap((entityTags) => entityTags.tagNames)
     );
-    const deletedTagIds = await this.deleteUnusedTags(Array.from(removedTagIds));
+    this.broadcastChange(createdTags, []);
+    const { created, deleted } = await this.relationshipManager.replaceRelationships(
+      normalizedEntityTagNames.map((entityTags) => ({
+        source: entityTags.entity,
+        targets: entityTags.tagNames.map((tagName) => ({
+          id: this.requireTagByName(tagName).id,
+          entityType: ENTITY_TYPE.TAG,
+        })),
+      })),
+      RELATIONSHIP_TYPE.TAGGED
+    );
+    const deletedTagIds = await this.deleteUnusedTags(
+      Array.from(new Set(deleted.map((relationship) => relationship.targetEntityId)))
+    );
     this.broadcastChange([], deletedTagIds);
 
-    if (removedRelationships.length > 0 || pendingEdges.length > 0) {
-      log.info({ removed: removedRelationships.length, added: pendingEdges.length }, "Entity tags updated");
+    if (created.length > 0 || deleted.length > 0) {
+      log.info({ removed: deleted.length, added: created.length }, "Entity tags updated");
     }
   }
 
@@ -219,14 +210,6 @@ export class TagManager {
     if (entityType === ENTITY_TYPE.TAG) {
       throw new AppError("A tag cannot be tagged", APP_ERROR_CODES.VALIDATION);
     }
-  }
-
-  private getEntityTagEdges(entity: Entity): Relationship[] {
-    return this.relationshipManager.queryRelationships({
-      sourceEntityId: entity.id,
-      sourceEntityType: entity.entityType,
-      relationshipType: RELATIONSHIP_TYPE.TAGGED,
-    });
   }
 
   /** Create and persist the tags not yet known by name, returning them */

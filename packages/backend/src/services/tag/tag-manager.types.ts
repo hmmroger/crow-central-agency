@@ -5,9 +5,3 @@ export interface EntityTagNames {
   entity: Entity;
   tagNames: string[];
 }
-
-/** A TAGGED edge to create once its tag record exists */
-export interface PendingTagEdge {
-  entity: Entity;
-  tagName: string;
-}

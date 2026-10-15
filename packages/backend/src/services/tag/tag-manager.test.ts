@@ -297,8 +297,7 @@ describe("TagManager TAGS_CHANGED", () => {
     const betaEdges = harness.relationshipManager.queryRelationships({ targetEntityId: betaTag.id });
     expect(broadcastSpy.mock.calls.map(([message]) => message)).toEqual([
       { type: SERVER_MESSAGE_TYPE.TAGS_CHANGED, upserted: [betaTag], deletedIds: [] },
-      { type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted: [], deletedIds: [alphaEdge.id] },
-      { type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted: betaEdges, deletedIds: [] },
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted: betaEdges, deletedIds: [alphaEdge.id] },
       { type: SERVER_MESSAGE_TYPE.TAGS_CHANGED, upserted: [], deletedIds: [alphaId] },
     ]);
   });
