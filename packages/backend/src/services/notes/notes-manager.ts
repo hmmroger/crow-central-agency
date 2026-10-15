@@ -1192,8 +1192,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     } catch (error) {
       log.error(
         { error, moved: idMap.size },
-        "Failed to move note references to new ids; the re-resolve that follows drops outgoing edges left under " +
-          "previous ids, so moved notes may lack outgoing references until their content is saved again"
+        "Failed to persist note references under new ids; stored edges keep the previous ids until restart orphans them"
       );
     }
   }
