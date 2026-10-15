@@ -88,7 +88,7 @@ export class RelationshipManager {
   }
 
   /** Persist node layout positions (write-through, single atomic store persist) */
-  public async savePositions(positions: ReadonlyArray<GraphNodePosition>): Promise<void> {
+  public async savePositions(positions: readonly GraphNodePosition[]): Promise<void> {
     if (positions.length === 0) {
       return;
     }
@@ -156,7 +156,7 @@ export class RelationshipManager {
    * @throws AppError with DUPLICATE_RELATIONSHIP for a self-reference, an existing
    *         relationship, or a duplicate within the batch.
    */
-  public async createRelationships(inputs: ReadonlyArray<CreateRelationshipInput>): Promise<Relationship[]> {
+  public async createRelationships(inputs: readonly CreateRelationshipInput[]): Promise<Relationship[]> {
     const createdTimestamp = Date.now();
     const relationships: Relationship[] = [];
     const pendingKeys = new Set<string>();
@@ -298,7 +298,7 @@ export class RelationshipManager {
    * any is deleted, so an unknown ID leaves nothing deleted.
    * @throws AppError with RELATIONSHIP_NOT_FOUND if any ID is not found.
    */
-  public async deleteRelationships(relationshipIds: ReadonlyArray<string>): Promise<void> {
+  public async deleteRelationships(relationshipIds: readonly string[]): Promise<void> {
     const relationships = Array.from(new Set(relationshipIds), (relationshipId) =>
       this.getRelationship(relationshipId)
     );
