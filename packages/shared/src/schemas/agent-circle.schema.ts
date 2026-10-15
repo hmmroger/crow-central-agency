@@ -121,7 +121,7 @@ export const RelationshipQuerySchema = z.object({
 export type RelationshipQuery = z.infer<typeof RelationshipQuerySchema>;
 
 export const DeleteRelationshipResultSchema = z.object({
-  /** Fragment ids removed by the delete cascade; empty for MEMBERSHIP and TAGGED deletes */
+  /** Fragment ids removed by the delete cascade; empty for MEMBERSHIP deletes */
   collectedFragmentIds: z.array(z.string()),
 });
 

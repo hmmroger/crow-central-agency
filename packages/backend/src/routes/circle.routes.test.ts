@@ -241,7 +241,7 @@ describe("POST /api/relationships", () => {
     expect(response.json().error.code).toBe(APP_ERROR_CODES.VALIDATION);
   });
 
-  it("creates a TAGGED edge from an agent to a tag", async () => {
+  it("rejects a valid TAGGED edge from an agent as not supported", async () => {
     const harness = await createHarness([AGENT_ID_A, AGENT_ID_B]);
     const tagId = await createTag(harness, "alpha");
 
@@ -257,8 +257,9 @@ describe("POST /api/relationships", () => {
       },
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json().data.relationshipType).toBe(RELATIONSHIP_TYPE.TAGGED);
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe(APP_ERROR_CODES.NOT_SUPPORTED);
+    expect(harness.relationshipManager.queryRelationships({ sourceEntityId: AGENT_ID_B })).toEqual([]);
   });
 
   it("rejects a TAGGED edge whose target is not a tag", async () => {
@@ -299,7 +300,7 @@ describe("POST /api/relationships", () => {
     expect(response.json().error.code).toBe(APP_ERROR_CODES.TAG_NOT_FOUND);
   });
 
-  it("creates a TAGGED edge from a note", async () => {
+  it("rejects a valid TAGGED edge from a note as not supported", async () => {
     const harness = await createHarness([AGENT_ID_A]);
     const tagId = await createTag(harness, "alpha");
 
@@ -311,8 +312,9 @@ describe("POST /api/relationships", () => {
       relationshipType: RELATIONSHIP_TYPE.TAGGED,
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json().data.sourceEntityId).toBe(NOTE_FILE.id);
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe(APP_ERROR_CODES.NOT_SUPPORTED);
+    expect(harness.relationshipManager.queryRelationships({ sourceEntityId: NOTE_FILE.id })).toEqual([]);
   });
 
   it.each([
@@ -452,7 +454,7 @@ describe("DELETE /api/relationships/:id", () => {
     expect(response.json().data.collectedFragmentIds).toEqual([]);
   });
 
-  it("untags through the TagManager and deletes the tag with its last edge", async () => {
+  it("rejects deleting a TAGGED edge as not supported and keeps the edge and tag", async () => {
     const harness = await createHarness([AGENT_ID_A]);
     const tagId = await createTag(harness, "alpha");
     const [tagged] = harness.relationshipManager.queryRelationships({ targetEntityId: tagId });
@@ -462,8 +464,9 @@ describe("DELETE /api/relationships/:id", () => {
       url: `/api/relationships/${tagged.id}`,
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json().data.collectedFragmentIds).toEqual([]);
-    expect(harness.tagManager.findTagByName("alpha")).toBeUndefined();
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe(APP_ERROR_CODES.NOT_SUPPORTED);
+    expect(harness.relationshipManager.getRelationship(tagged.id)).toEqual(tagged);
+    expect(harness.tagManager.findTagByName("alpha")?.id).toBe(tagId);
   });
 });
