@@ -2,18 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ENTITY_TYPE,
   RELATIONSHIP_TYPE,
+  relationshipMatchesQuery,
   type CreateRelationshipInput,
   type EntityType,
   type Relationship,
+  type RelationshipQuery,
   type RelationshipType,
 } from "@crow-central-agency/shared";
 import {
   GRAPH_NODE_POSITION_STORE_TABLE,
   RELATIONSHIP_STORE_TABLE,
   RelationshipManager,
-  relationshipMatchesQuery,
 } from "./relationship-manager.js";
-import type { QueryRelationshipOptions } from "./relationship-manager.types.js";
 import { WsBroadcaster } from "./ws-broadcaster.js";
 import { InMemoryObjectStore } from "../core/store/in-memory-object-store.mock.js";
 import { AppError } from "../core/error/app-error.js";
@@ -45,7 +45,7 @@ function sortedIds(relationships: Relationship[]): string[] {
   return relationships.map((relationship) => relationship.id).sort();
 }
 
-function scanQuery(relationshipManager: RelationshipManager, options: QueryRelationshipOptions): Relationship[] {
+function scanQuery(relationshipManager: RelationshipManager, options: RelationshipQuery): Relationship[] {
   return relationshipManager
     .getAllRelationships()
     .filter((relationship) => relationshipMatchesQuery(relationship, options));
@@ -73,7 +73,7 @@ const SEED_EDGES: CreateRelationshipInput[] = [
   edge("fragment-1", "fragment-3"),
 ];
 
-const QUERY_CASES: QueryRelationshipOptions[] = [
+const QUERY_CASES: RelationshipQuery[] = [
   {},
   { sourceEntityId: "agent-a" },
   { targetEntityId: "circle-1" },

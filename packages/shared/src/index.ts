@@ -463,6 +463,7 @@ export {
   RelationshipTypeSchema,
   RelationshipSchema,
   CreateRelationshipInputSchema,
+  RelationshipQuerySchema,
   DeleteRelationshipResultSchema,
   CircleMemberSchema,
   type AgentCircle,
@@ -470,12 +471,14 @@ export {
   type UpdateAgentCircleInput,
   type Relationship,
   type CreateRelationshipInput,
+  type RelationshipQuery,
   type DeleteRelationshipResult,
   type CircleMember,
   type EntityType,
   type Entity,
   type RelationshipType,
 } from "./schemas/agent-circle.schema.js";
+export { relationshipMatchesQuery } from "./utils/relationship-utils.js";
 
 export {
   CROW_SYSTEM_AGENT_ID,

@@ -109,6 +109,17 @@ export const CreateRelationshipInputSchema = z.object({
 
 export type CreateRelationshipInput = z.infer<typeof CreateRelationshipInputSchema>;
 
+/** Relationship filter; provided fields are AND-combined, none matches every relationship */
+export const RelationshipQuerySchema = z.object({
+  sourceEntityId: z.string().optional(),
+  sourceEntityType: EntityTypeSchema.optional(),
+  targetEntityId: z.string().optional(),
+  targetEntityType: EntityTypeSchema.optional(),
+  relationshipType: RelationshipTypeSchema.optional(),
+});
+
+export type RelationshipQuery = z.infer<typeof RelationshipQuerySchema>;
+
 export const DeleteRelationshipResultSchema = z.object({
   /** Fragment ids removed by the delete cascade; empty for MEMBERSHIP and TAGGED deletes */
   collectedFragmentIds: z.array(z.string()),

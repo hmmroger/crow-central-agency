@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useAgentsContext } from "../../providers/agents-provider.js";
 import { useCirclesQuery } from "../../hooks/queries/use-circles-query.js";
-import { useRelationshipsQuery } from "../../hooks/queries/use-relationships-query.js";
+import { MEMBERSHIP_RELATIONSHIP_QUERY, useRelationshipsQuery } from "../../hooks/queries/use-relationships-query.js";
 import { useDashboardSettingsQuery } from "../../hooks/queries/use-dashboard-settings.js";
 import { useAppStore } from "../../stores/app-store.js";
 import { flattenAgentsByCircleOrder } from "../../utils/circle-agent-order.js";
@@ -18,7 +18,7 @@ import { AgentCommandPill } from "./agent-command-pill.js";
 export function AgentCommandStrip() {
   const { agents } = useAgentsContext();
   const { data: circles = [] } = useCirclesQuery();
-  const { data: relationships = [] } = useRelationshipsQuery();
+  const { data: relationships = [] } = useRelationshipsQuery(MEMBERSHIP_RELATIONSHIP_QUERY);
   const { data: dashboardSettings } = useDashboardSettingsQuery();
   const selectedAgentId = useAppStore((state) => state.selectedAgentId);
   const selectAgent = useAppStore((state) => state.selectAgent);

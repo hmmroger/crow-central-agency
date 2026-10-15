@@ -10,11 +10,12 @@ import {
   type UpdateAgentCircleInput,
   type CreateRelationshipInput,
   type EntityType,
+  type RelationshipQuery,
+  relationshipMatchesQuery,
 } from "@crow-central-agency/shared";
 import { EventBus } from "../core/event-bus/event-bus.js";
 import type { AgentCircleManagerEvents } from "./agent-circle-manager.types.js";
-import type { QueryRelationshipOptions } from "./relationship-manager.types.js";
-import { relationshipMatchesQuery, type RelationshipManager } from "./relationship-manager.js";
+import type { RelationshipManager } from "./relationship-manager.js";
 import type { WsBroadcaster } from "./ws-broadcaster.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 import { AppError } from "../core/error/app-error.js";
@@ -158,8 +159,13 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
     return this.relationshipManager.getAllRelationships().concat(Array.from(this.virtualRelationships.values()));
   }
 
-  public queryRelationships(options: QueryRelationshipOptions): Relationship[] {
-    return this.getAllRelationships().filter((relationship) => relationshipMatchesQuery(relationship, options));
+  /** Query relationships, including virtual system-agent memberships */
+  public queryRelationships(options: RelationshipQuery): Relationship[] {
+    const virtualMatches = Array.from(this.virtualRelationships.values()).filter((relationship) =>
+      relationshipMatchesQuery(relationship, options)
+    );
+
+    return this.relationshipManager.queryRelationships(options).concat(virtualMatches);
   }
 
   /**

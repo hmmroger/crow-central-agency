@@ -5,6 +5,7 @@ import {
   CreateAgentCircleInputSchema,
   CreateRelationshipInputSchema,
   EntityTypeSchema,
+  RelationshipQuerySchema,
   UpdateAgentCircleInputSchema,
   type EntityType,
   type RelationshipType,
@@ -155,11 +156,15 @@ export async function registerCircleRoutes(
     return { success: true, data: circles };
   });
 
-  /** List all relationships */
-  server.get("/api/relationships", async () => {
-    const relationships = circleManager.getAllRelationships();
+  /** List relationships matching the optional AND-combined query filters; none lists every relationship */
+  server.get<{ Querystring: unknown }>("/api/relationships", async (request) => {
+    try {
+      const query = RelationshipQuerySchema.parse(request.query);
 
-    return { success: true, data: relationships };
+      return { success: true, data: circleManager.queryRelationships(query) };
+    } catch (error) {
+      return wrapZodError(error);
+    }
   });
 
   /** Create a relationship of any type, dispatching kind rules to the owning manager */

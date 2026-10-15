@@ -2,13 +2,15 @@ import {
   GraphNodePositionSchema,
   RelationshipSchema,
   SERVER_MESSAGE_TYPE,
+  relationshipMatchesQuery,
   type CreateRelationshipInput,
   type GraphNodePosition,
   type Relationship,
+  type RelationshipQuery,
   type RelationshipType,
 } from "@crow-central-agency/shared";
 import { minBy } from "es-toolkit";
-import type { QueryRelationshipOptions, RekeyedRelationship } from "./relationship-manager.types.js";
+import type { RekeyedRelationship } from "./relationship-manager.types.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 import type { WsBroadcaster } from "./ws-broadcaster.js";
 import { AppError } from "../core/error/app-error.js";
@@ -25,17 +27,6 @@ export const RELATIONSHIP_STORE_TABLE = "relationships";
 export const GRAPH_NODE_POSITION_STORE_TABLE = "graph-node-positions";
 
 const EMPTY_ID_SET: ReadonlySet<string> = new Set();
-
-/** Check whether a relationship matches the given query options */
-export function relationshipMatchesQuery(relationship: Relationship, options: QueryRelationshipOptions): boolean {
-  return (
-    (!options.sourceEntityId || options.sourceEntityId === relationship.sourceEntityId) &&
-    (!options.sourceEntityType || options.sourceEntityType === relationship.sourceEntityType) &&
-    (!options.targetEntityId || options.targetEntityId === relationship.targetEntityId) &&
-    (!options.targetEntityType || options.targetEntityType === relationship.targetEntityType) &&
-    (!options.relationshipType || options.relationshipType === relationship.relationshipType)
-  );
-}
 
 /**
  * Generic graph-structure engine over the object store: owns both edges and
@@ -121,7 +112,7 @@ export class RelationshipManager {
     log.info("Cleared all node positions");
   }
 
-  public queryRelationships(options: QueryRelationshipOptions): Relationship[] {
+  public queryRelationships(options: RelationshipQuery): Relationship[] {
     const candidateIds = this.selectCandidateIds(options);
     if (!candidateIds) {
       return this.getAllRelationships().filter((relationship) => relationshipMatchesQuery(relationship, options));
@@ -252,7 +243,7 @@ export class RelationshipManager {
    */
   public async rekeyEntities(
     idMap: ReadonlyMap<string, string>,
-    filter?: QueryRelationshipOptions
+    filter?: RelationshipQuery
   ): Promise<RekeyedRelationship[]> {
     const affectedIds = new Set<string>();
     for (const oldId of idMap.keys()) {
@@ -283,14 +274,12 @@ export class RelationshipManager {
     }
 
     if (rekeyed.length > 0) {
+      const upserted = rekeyed.map(({ next }) => next);
       await this.store.setMany(
         RELATIONSHIP_STORE_TABLE,
-        rekeyed.map(({ next }) => [next.id, next] as const)
+        upserted.map((relationship) => [relationship.id, relationship] as const)
       );
-      this.broadcastChange(
-        rekeyed.map(({ next }) => next),
-        []
-      );
+      this.broadcastChange(upserted, []);
     }
 
     if (!filter) {
@@ -327,7 +316,7 @@ export class RelationshipManager {
    * edges that match edgeQuery in source → target direction. Used by callers to
    * reject an edge that would close a cycle.
    */
-  public canReach(fromEntityId: string, toEntityId: string, edgeQuery: QueryRelationshipOptions): boolean {
+  public canReach(fromEntityId: string, toEntityId: string, edgeQuery: RelationshipQuery): boolean {
     const visited = new Set<string>();
 
     const walk = (currentId: string): boolean => {
@@ -354,7 +343,7 @@ export class RelationshipManager {
   }
 
   /** Smallest index set selected by the query's id and type filters; undefined when none apply */
-  private selectCandidateIds(options: QueryRelationshipOptions): ReadonlySet<string> | undefined {
+  private selectCandidateIds(options: RelationshipQuery): ReadonlySet<string> | undefined {
     const candidateSets: ReadonlySet<string>[] = [];
     if (options.sourceEntityId) {
       candidateSets.push(this.idsBySourceId.get(options.sourceEntityId) ?? EMPTY_ID_SET);
