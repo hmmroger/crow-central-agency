@@ -534,16 +534,7 @@ export {
   type GraphData,
 } from "./schemas/graph.schema.js";
 
-export {
-  TagSchema,
-  TagEdgeSchema,
-  TagSnapshotSchema,
-  TagSnapshotQuerySchema,
-  type Tag,
-  type TagEdge,
-  type TagSnapshot,
-  type TagSnapshotQuery,
-} from "./schemas/tag.schema.js";
+export { TagSchema, type Tag } from "./schemas/tag.schema.js";
 
 export {
   DATA_SOURCE_TYPE,

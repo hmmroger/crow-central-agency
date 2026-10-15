@@ -12,7 +12,7 @@ import {
 } from "./agent-runtime-state.schema.js";
 import { MessageSourceSchema } from "./message-source.schema.js";
 import { NoteMetadataSchema } from "./note.schema.js";
-import { TagEdgeSchema, TagSchema } from "./tag.schema.js";
+import { TagSchema } from "./tag.schema.js";
 import { AgentCommandSchema } from "./agent-command.schema.js";
 import { AgentBuilderDraftViewSchema } from "./agent-builder.schema.js";
 import {
@@ -323,13 +323,14 @@ export const NoteDeletedWsMessageSchema = z.object({
   noteId: z.string(),
 });
 
-/** One tag mutation; a client applies the lists in field order. `tags` holds every tag an added edge points at */
+/**
+ * Tag records only. Created tags are announced before the edges that use them;
+ * tags deleted as unused are announced after the edge removal that left them unused.
+ */
 export const TagsChangedWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.TAGS_CHANGED),
-  tags: z.array(TagSchema),
-  removedEdges: z.array(TagEdgeSchema),
-  addedEdges: z.array(TagEdgeSchema),
-  deletedTagIds: z.array(z.string()),
+  upserted: z.array(TagSchema),
+  deletedIds: z.array(z.string()),
 });
 
 /** The single agent-builder draft changed; carries the resolved view, or null when it was cleared. */
