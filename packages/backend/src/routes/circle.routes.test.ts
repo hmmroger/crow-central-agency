@@ -44,7 +44,21 @@ const NOTE_FILE: NoteMetadata = {
   size: 0,
 };
 
-const NOTES_BY_ID = new Map([[NOTE_FILE.id, NOTE_FILE]]);
+const NOTE_FOLDER: NoteMetadata = {
+  id: "projects",
+  name: "projects",
+  path: "projects",
+  parentId: undefined,
+  updatedTimestamp: 0,
+  isReadOnly: true,
+  isTrashed: false,
+  entityType: ENTITY_TYPE.NOTE_FOLDER,
+};
+
+const NOTES_BY_ID = new Map([
+  [NOTE_FILE.id, NOTE_FILE],
+  [NOTE_FOLDER.id, NOTE_FOLDER],
+]);
 
 interface Harness {
   server: FastifyInstance;
@@ -348,6 +362,37 @@ describe("POST /api/relationships", () => {
     expect(response.json().error.code).toBe(errorCode);
   });
 
+  it("rejects a valid REFERENCE edge from a note as not supported", async () => {
+    const harness = await createHarness([AGENT_ID_A]);
+
+    const response = await postRelationship(harness, {
+      sourceEntityId: NOTE_FILE.id,
+      sourceEntityType: ENTITY_TYPE.NOTE,
+      targetEntityId: NOTE_FOLDER.id,
+      targetEntityType: ENTITY_TYPE.NOTE_FOLDER,
+      relationshipType: RELATIONSHIP_TYPE.REFERENCE,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe(APP_ERROR_CODES.NOT_SUPPORTED);
+    expect(harness.relationshipManager.queryRelationships({ sourceEntityId: NOTE_FILE.id })).toEqual([]);
+  });
+
+  it("rejects a REFERENCE edge from a folder", async () => {
+    const harness = await createHarness([AGENT_ID_A]);
+
+    const response = await postRelationship(harness, {
+      sourceEntityId: NOTE_FOLDER.id,
+      sourceEntityType: ENTITY_TYPE.NOTE_FOLDER,
+      targetEntityId: NOTE_FILE.id,
+      targetEntityType: ENTITY_TYPE.NOTE,
+      relationshipType: RELATIONSHIP_TYPE.REFERENCE,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe(APP_ERROR_CODES.VALIDATION);
+  });
+
   it("rejects a TAGGED edge from a tag", async () => {
     const harness = await createHarness([AGENT_ID_A]);
     const alphaId = await createTag(harness, "alpha");
@@ -468,5 +513,27 @@ describe("DELETE /api/relationships/:id", () => {
     expect(response.json().error.code).toBe(APP_ERROR_CODES.NOT_SUPPORTED);
     expect(harness.relationshipManager.getRelationship(tagged.id)).toEqual(tagged);
     expect(harness.tagManager.findTagByName("alpha")?.id).toBe(tagId);
+  });
+
+  it("rejects deleting a REFERENCE edge as not supported and keeps the edge", async () => {
+    const harness = await createHarness([AGENT_ID_A]);
+    const [reference] = await harness.relationshipManager.createRelationships([
+      {
+        sourceEntityId: NOTE_FILE.id,
+        sourceEntityType: ENTITY_TYPE.NOTE,
+        targetEntityId: NOTE_FOLDER.id,
+        targetEntityType: ENTITY_TYPE.NOTE_FOLDER,
+        relationshipType: RELATIONSHIP_TYPE.REFERENCE,
+      },
+    ]);
+
+    const response = await harness.server.inject({
+      method: "DELETE",
+      url: `/api/relationships/${reference.id}`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe(APP_ERROR_CODES.NOT_SUPPORTED);
+    expect(harness.relationshipManager.getRelationship(reference.id)).toEqual(reference);
   });
 });

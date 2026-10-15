@@ -48,15 +48,21 @@ const RELATIONSHIP_ENDPOINT_RULES: Record<RelationshipType, RelationshipEndpoint
     targetEntityTypes: [ENTITY_TYPE.TAG],
     message: "TAGGED requires a non-TAG source and a TAG target",
   },
+  [RELATIONSHIP_TYPE.REFERENCE]: {
+    sourceEntityTypes: [ENTITY_TYPE.NOTE],
+    targetEntityTypes: [ENTITY_TYPE.NOTE, ENTITY_TYPE.NOTE_FOLDER],
+    message: "REFERENCE requires a NOTE source and a NOTE or NOTE_FOLDER target",
+  },
 };
 
-const TAGGED_ROUTE_MESSAGE = "TAGGED relationships come from note content and cannot be created or deleted directly";
+const CONTENT_DERIVED_ROUTE_MESSAGE =
+  "TAGGED and REFERENCE relationships come from note content and cannot be created or deleted directly";
 
 /**
  * Register circle and relationship CRUD routes.
  * Circles group agents; relationships define membership between entities and,
  * for fragments, the ASSOCIATION/LINK edges that anchor and connect them.
- * TAGGED edges are listed but not created or deleted here.
+ * TAGGED and REFERENCE edges are listed but not created or deleted here.
  */
 export async function registerCircleRoutes(
   server: FastifyInstance,
@@ -204,7 +210,8 @@ export async function registerCircleRoutes(
         }
 
         case RELATIONSHIP_TYPE.TAGGED:
-          throw new AppError(TAGGED_ROUTE_MESSAGE, APP_ERROR_CODES.NOT_SUPPORTED);
+        case RELATIONSHIP_TYPE.REFERENCE:
+          throw new AppError(CONTENT_DERIVED_ROUTE_MESSAGE, APP_ERROR_CODES.NOT_SUPPORTED);
       }
     } catch (error) {
       return wrapZodError(error);
@@ -245,7 +252,8 @@ export async function registerCircleRoutes(
       }
 
       case RELATIONSHIP_TYPE.TAGGED:
-        throw new AppError(TAGGED_ROUTE_MESSAGE, APP_ERROR_CODES.NOT_SUPPORTED);
+      case RELATIONSHIP_TYPE.REFERENCE:
+        throw new AppError(CONTENT_DERIVED_ROUTE_MESSAGE, APP_ERROR_CODES.NOT_SUPPORTED);
     }
   });
 }
