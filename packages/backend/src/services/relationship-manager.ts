@@ -1,6 +1,7 @@
 import {
   GraphNodePositionSchema,
   RelationshipSchema,
+  SERVER_MESSAGE_TYPE,
   type CreateRelationshipInput,
   type GraphNodePosition,
   type Relationship,
@@ -9,6 +10,7 @@ import {
 import { minBy } from "es-toolkit";
 import type { QueryRelationshipOptions, RekeyedRelationship } from "./relationship-manager.types.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
+import type { WsBroadcaster } from "./ws-broadcaster.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { generateId } from "../utils/id-utils.js";
@@ -40,6 +42,8 @@ export function relationshipMatchesQuery(relationship: Relationship, options: Qu
  * node layout. Edges cover topology (persistence, queries, reachability checks);
  * positions cover the user-authored layout keyed by entity id. Entity semantics
  * (circle membership rules, virtual relationships) live with the callers.
+ * Every persisted edge write that changed something is announced with one
+ * RELATIONSHIPS_CHANGED; no other component broadcasts edges.
  */
 export class RelationshipManager {
   private relationships = new Map<string, Relationship>();
@@ -48,7 +52,10 @@ export class RelationshipManager {
   private idsByTargetId = new Map<string, Set<string>>();
   private idsByType = new Map<RelationshipType, Set<string>>();
 
-  constructor(private readonly store: ObjectStoreProvider) {}
+  constructor(
+    private readonly store: ObjectStoreProvider,
+    private readonly broadcaster: WsBroadcaster
+  ) {}
 
   /** Load relationships and node positions from the object store */
   public async initialize(): Promise<void> {
@@ -198,6 +205,7 @@ export class RelationshipManager {
       },
       "Relationships created"
     );
+    this.broadcastChange(relationships, []);
 
     return relationships;
   }
@@ -231,6 +239,7 @@ export class RelationshipManager {
     await this.store.deleteMany(RELATIONSHIP_STORE_TABLE, deletedIds);
 
     log.info({ relationshipIds: deletedIds }, "Relationships deleted");
+    this.broadcastChange([], deletedIds);
   }
 
   /**
@@ -277,6 +286,10 @@ export class RelationshipManager {
       await this.store.setMany(
         RELATIONSHIP_STORE_TABLE,
         rekeyed.map(({ next }) => [next.id, next] as const)
+      );
+      this.broadcastChange(
+        rekeyed.map(({ next }) => next),
+        []
       );
     }
 
@@ -420,6 +433,10 @@ export class RelationshipManager {
     if (vacatedIds.length > 0) {
       await this.store.deleteMany(GRAPH_NODE_POSITION_STORE_TABLE, vacatedIds);
     }
+  }
+
+  private broadcastChange(upserted: Relationship[], deletedIds: string[]): void {
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted, deletedIds });
   }
 
   private putRelationship(relationship: Relationship): void {

@@ -110,7 +110,7 @@ export async function bootstrap(options: BootstrapOptions) {
   const folderFileProvider = new FolderFileStoreProvider(env.CROW_SYSTEM_PATH);
   const storeProvider = new FileObjectStoreProvider(env.CROW_SYSTEM_PATH);
   const systemSettingsManager = new SystemSettingsManager(storeProvider);
-  const relationshipManager = new RelationshipManager(storeProvider);
+  const relationshipManager = new RelationshipManager(storeProvider, broadcaster);
   await relationshipManager.initialize();
   const tagManager = new TagManager(storeProvider, relationshipManager, broadcaster);
   await tagManager.initialize();

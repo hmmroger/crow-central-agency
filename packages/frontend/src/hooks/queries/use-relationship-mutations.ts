@@ -11,7 +11,7 @@ import type { ApiError } from "../../services/api-client.types.js";
 
 /**
  * Create a relationship. The relationships list and graph caches refresh via the
- * WS relationship_created event; the relationship-candidate caches are invalidated
+ * WS relationships_changed event; the relationship-candidate caches are invalidated
  * here so an open picker immediately drops the option that was just linked.
  */
 export function useCreateRelationship() {
@@ -31,7 +31,7 @@ export function useCreateRelationship() {
 /**
  * Delete a relationship by ID. Returns the fragment ids collected by the delete
  * cascade (empty for MEMBERSHIP). The relationships list cache is updated via the
- * WS relationship_deleted event; the graph cache is pruned here so dependent views
+ * WS relationships_changed event; the graph cache is pruned here so dependent views
  * update without waiting for the round trip.
  */
 export function useDeleteRelationship() {

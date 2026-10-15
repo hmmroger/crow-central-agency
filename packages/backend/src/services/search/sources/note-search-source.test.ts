@@ -70,7 +70,7 @@ interface Harness {
 function createHarness(notes: NoteMetadata[]): Harness {
   const store = new InMemoryObjectStore();
   const broadcaster = new WsBroadcaster();
-  const tagManager = new TagManager(store, new RelationshipManager(store), broadcaster);
+  const tagManager = new TagManager(store, new RelationshipManager(store, broadcaster), broadcaster);
   const notesManager = new NotesManager(MOCK_NOTES_PATH, broadcaster, tagManager);
   vi.mocked(notesManager.listNotes).mockReturnValue(notes);
   vi.mocked(notesManager.getNoteContent).mockResolvedValue({ metadata: TEXT_NOTE, content: TEXT_CONTENT });

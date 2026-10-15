@@ -21,7 +21,7 @@ interface Harness {
 }
 
 async function createHarness(store = new InMemoryObjectStore()): Promise<Harness> {
-  const relationshipManager = new RelationshipManager(store);
+  const relationshipManager = new RelationshipManager(store, new WsBroadcaster());
   const broadcaster = new WsBroadcaster();
   const tagManager = new TagManager(store, relationshipManager, broadcaster);
   await relationshipManager.initialize();

@@ -20,7 +20,7 @@ interface Harness {
 
 async function createHarness(): Promise<Harness> {
   const broadcaster = new WsBroadcaster();
-  const relationshipManager = new RelationshipManager(new InMemoryObjectStore());
+  const relationshipManager = new RelationshipManager(new InMemoryObjectStore(), broadcaster);
   const fragmentManager = new FragmentManager(
     new InMemoryObjectStore(),
     new InMemoryObjectStore(),

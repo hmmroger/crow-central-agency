@@ -193,12 +193,7 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
       this.assertNoCycle(input.sourceEntityId, input.targetEntityId);
     }
 
-    const relationship = await this.relationshipManager.createRelationship(input);
-
-    this.emit("relationshipCreated", { relationship });
-    this.broadcaster.broadcast({ type: "relationship_created", relationship });
-
-    return relationship;
+    return this.relationshipManager.createRelationship(input);
   }
 
   /**
@@ -220,9 +215,6 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
     }
 
     await this.relationshipManager.deleteRelationship(relationshipId);
-
-    this.emit("relationshipDeleted", { relationshipId });
-    this.broadcaster.broadcast({ type: "relationship_deleted", relationshipId });
   }
 
   // ---------------------------------------------------------------------------
@@ -318,14 +310,9 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
     return false;
   }
 
-  /** Remove all relationships involving an entity and emit events for each */
+  /** Remove all relationships involving an entity */
   public async removeRelationshipsForEntity(entityId: string): Promise<void> {
-    const removedIds = await this.relationshipManager.removeRelationshipsForEntity(entityId);
-
-    for (const relationshipId of removedIds) {
-      this.emit("relationshipDeleted", { relationshipId });
-      this.broadcaster.broadcast({ type: "relationship_deleted", relationshipId });
-    }
+    await this.relationshipManager.removeRelationshipsForEntity(entityId);
   }
 
   // ---------------------------------------------------------------------------

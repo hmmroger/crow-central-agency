@@ -14,6 +14,7 @@ import {
   relationshipMatchesQuery,
 } from "./relationship-manager.js";
 import type { QueryRelationshipOptions } from "./relationship-manager.types.js";
+import { WsBroadcaster } from "./ws-broadcaster.js";
 import { InMemoryObjectStore } from "../core/store/in-memory-object-store.mock.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
@@ -24,7 +25,7 @@ interface Harness {
 }
 
 async function createHarness(store = new InMemoryObjectStore()): Promise<Harness> {
-  const relationshipManager = new RelationshipManager(store);
+  const relationshipManager = new RelationshipManager(store, new WsBroadcaster());
   await relationshipManager.initialize();
 
   return { store, relationshipManager };

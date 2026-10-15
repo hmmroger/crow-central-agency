@@ -33,8 +33,8 @@ async function createHarness(): Promise<Harness> {
   const fragmentStore = new InMemoryObjectStore();
   const indexStore = new InMemoryObjectStore();
   const relationshipStore = new InMemoryObjectStore();
-  const relationshipManager = new RelationshipManager(relationshipStore);
   const broadcaster = new WsBroadcaster();
+  const relationshipManager = new RelationshipManager(relationshipStore, broadcaster);
   const fragmentManager = new FragmentManager(fragmentStore, indexStore, relationshipManager, broadcaster);
   await relationshipManager.initialize();
   await fragmentManager.initialize();
@@ -451,7 +451,7 @@ describe("FragmentManager.removeFragmentsForAgent", () => {
 });
 
 describe("FragmentManager relationship broadcasts", () => {
-  it("broadcasts relationship_created for named edge writes and relationship_deleted for their removals", async () => {
+  it("announces named edge writes and their removals through relationships_changed", async () => {
     const harness = await createHarness();
     const domainA = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
     const domainB = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
@@ -465,17 +465,18 @@ describe("FragmentManager relationship broadcasts", () => {
     await harness.fragmentManager.removeLink(domainB.id, knowledge.id);
 
     expect(broadcastSpy.mock.calls.map(([message]) => message)).toEqual([
-      { type: SERVER_MESSAGE_TYPE.RELATIONSHIP_CREATED, relationship: association },
-      { type: SERVER_MESSAGE_TYPE.RELATIONSHIP_CREATED, relationship: link },
-      { type: SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED, relationshipId: association.id },
-      { type: SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED, relationshipId: link.id },
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted: [association], deletedIds: [] },
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted: [link], deletedIds: [] },
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted: [], deletedIds: [association.id] },
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted: [], deletedIds: [link.id] },
     ]);
   });
 
-  it("broadcasts one fragment_deleted per collected fragment and stays silent on purge-time edge strips", async () => {
+  it("broadcasts one fragment_deleted per collected fragment and announces every removed edge", async () => {
     const harness = await createHarness();
     const domain = await createFragment(harness, FRAGMENT_KIND.DOMAIN, agentParent(AGENT_ID_A));
     const knowledge = await createFragment(harness, FRAGMENT_KIND.KNOWLEDGE, fragmentParent(domain.id));
+    const edgeIds = harness.relationshipManager.getAllRelationships().map((relationship) => relationship.id);
 
     const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
 
@@ -483,14 +484,15 @@ describe("FragmentManager relationship broadcasts", () => {
 
     const messages = broadcastSpy.mock.calls.map(([message]) => message);
     const fragmentDeleted = messages.filter((message) => message.type === SERVER_MESSAGE_TYPE.FRAGMENT_DELETED);
-    const relationshipDeleted = messages.filter((message) => message.type === SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED);
+    const deletedEdgeIds = messages.flatMap((message) =>
+      message.type === SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED ? message.deletedIds : []
+    );
 
     expect(collected).toEqual([domain.id, knowledge.id]);
     expect(fragmentDeleted).toEqual(
       collected.map((fragmentId) => ({ type: SERVER_MESSAGE_TYPE.FRAGMENT_DELETED, fragmentId }))
     );
-    // Only the named unlink edge broadcasts; the cascade's stripped edges do not
-    expect(relationshipDeleted).toHaveLength(1);
+    expect(deletedEdgeIds.sort()).toEqual(edgeIds.sort());
   });
 });
 

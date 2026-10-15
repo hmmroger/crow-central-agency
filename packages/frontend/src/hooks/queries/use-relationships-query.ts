@@ -1,10 +1,6 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  RelationshipCreatedWsMessageSchema,
-  RelationshipDeletedWsMessageSchema,
-  type Relationship,
-} from "@crow-central-agency/shared";
+import { SERVER_MESSAGE_TYPE, type Relationship } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { relationshipKeys } from "../../services/query-keys.js";
 import { useWs } from "../use-ws.js";
@@ -29,30 +25,17 @@ export function useRelationshipsQuery() {
   });
 
   useEffect(() => {
-    const unregister = onMessage((raw) => {
-      const created = RelationshipCreatedWsMessageSchema.safeParse(raw);
-      if (created.success) {
-        queryClient.setQueryData<Relationship[]>(relationshipKeys.list(), (prev) => {
-          if (!prev) {
-            return [created.data.relationship];
-          }
-
-          return [...prev, created.data.relationship];
-        });
-
+    const unregister = onMessage((message) => {
+      if (message.type !== SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED) {
         return;
       }
 
-      const deleted = RelationshipDeletedWsMessageSchema.safeParse(raw);
-      if (deleted.success) {
-        queryClient.setQueryData<Relationship[]>(relationshipKeys.list(), (prev) => {
-          if (!prev) {
-            return [];
-          }
-
-          return prev.filter((relationship) => relationship.id !== deleted.data.relationshipId);
-        });
-      }
+      const changedIds = new Set(message.deletedIds.concat(message.upserted.map((relationship) => relationship.id)));
+      queryClient.setQueryData<Relationship[]>(relationshipKeys.list(), (previous) =>
+        previous
+          ? previous.filter((relationship) => !changedIds.has(relationship.id)).concat(message.upserted)
+          : previous
+      );
     });
 
     return unregister;

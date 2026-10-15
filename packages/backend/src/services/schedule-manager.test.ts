@@ -75,7 +75,7 @@ async function createRegistryStack(persistedAgents: AgentConfig[] = []): Promise
   const store = new InMemoryObjectStore();
   const templateStore = new InMemoryObjectStore();
   const broadcaster = new WsBroadcaster();
-  const relationshipManager = new RelationshipManager(store);
+  const relationshipManager = new RelationshipManager(store, broadcaster);
   const circleManager = new AgentCircleManager(store, relationshipManager, broadcaster);
   const fragmentManager = new FragmentManager(
     new InMemoryObjectStore(),

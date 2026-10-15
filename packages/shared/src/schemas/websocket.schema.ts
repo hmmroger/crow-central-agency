@@ -62,8 +62,7 @@ export const SERVER_MESSAGE_TYPE = {
   CIRCLE_CREATED: "circle_created",
   CIRCLE_UPDATED: "circle_updated",
   CIRCLE_DELETED: "circle_deleted",
-  RELATIONSHIP_CREATED: "relationship_created",
-  RELATIONSHIP_DELETED: "relationship_deleted",
+  RELATIONSHIPS_CHANGED: "relationships_changed",
   FRAGMENT_CREATED: "fragment_created",
   FRAGMENT_UPDATED: "fragment_updated",
   FRAGMENT_DELETED: "fragment_deleted",
@@ -285,14 +284,11 @@ export const CircleDeletedWsMessageSchema = z.object({
   circleId: z.string(),
 });
 
-export const RelationshipCreatedWsMessageSchema = z.object({
-  type: z.literal(SERVER_MESSAGE_TYPE.RELATIONSHIP_CREATED),
-  relationship: RelationshipSchema,
-});
-
-export const RelationshipDeletedWsMessageSchema = z.object({
-  type: z.literal(SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED),
-  relationshipId: z.string(),
+/** One persisted edge write; a re-key upserts the moved edges under their kept ids */
+export const RelationshipsChangedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED),
+  upserted: z.array(RelationshipSchema),
+  deletedIds: z.array(z.string()),
 });
 
 export const FragmentCreatedWsMessageSchema = z.object({
@@ -374,8 +370,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   CircleCreatedWsMessageSchema,
   CircleUpdatedWsMessageSchema,
   CircleDeletedWsMessageSchema,
-  RelationshipCreatedWsMessageSchema,
-  RelationshipDeletedWsMessageSchema,
+  RelationshipsChangedWsMessageSchema,
   FragmentCreatedWsMessageSchema,
   FragmentUpdatedWsMessageSchema,
   FragmentDeletedWsMessageSchema,
@@ -411,8 +406,7 @@ export type TaskDeletedWsMessage = z.infer<typeof TaskDeletedWsMessageSchema>;
 export type CircleCreatedWsMessage = z.infer<typeof CircleCreatedWsMessageSchema>;
 export type CircleUpdatedWsMessage = z.infer<typeof CircleUpdatedWsMessageSchema>;
 export type CircleDeletedWsMessage = z.infer<typeof CircleDeletedWsMessageSchema>;
-export type RelationshipCreatedWsMessage = z.infer<typeof RelationshipCreatedWsMessageSchema>;
-export type RelationshipDeletedWsMessage = z.infer<typeof RelationshipDeletedWsMessageSchema>;
+export type RelationshipsChangedWsMessage = z.infer<typeof RelationshipsChangedWsMessageSchema>;
 export type FragmentCreatedWsMessage = z.infer<typeof FragmentCreatedWsMessageSchema>;
 export type FragmentUpdatedWsMessage = z.infer<typeof FragmentUpdatedWsMessageSchema>;
 export type FragmentDeletedWsMessage = z.infer<typeof FragmentDeletedWsMessageSchema>;
