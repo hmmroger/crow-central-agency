@@ -4,13 +4,14 @@ import {
   SERVER_MESSAGE_TYPE,
   relationshipMatchesQuery,
   type CreateRelationshipInput,
+  type Entity,
   type GraphNodePosition,
   type Relationship,
   type RelationshipQuery,
   type RelationshipType,
 } from "@crow-central-agency/shared";
 import { minBy } from "es-toolkit";
-import type { RekeyedRelationship } from "./relationship-manager.types.js";
+import type { RekeyedRelationship, RelationshipTargets, ReplacedRelationships } from "./relationship-manager.types.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 import type { WsBroadcaster } from "./ws-broadcaster.js";
 import { AppError } from "../core/error/app-error.js";
@@ -162,15 +163,7 @@ export class RelationshipManager {
     for (const input of inputs) {
       this.assertCanCreate(input, pendingKeys);
       pendingKeys.add(this.relationshipKey(input));
-      relationships.push({
-        id: generateId(),
-        sourceEntityId: input.sourceEntityId,
-        sourceEntityType: input.sourceEntityType,
-        targetEntityId: input.targetEntityId,
-        targetEntityType: input.targetEntityType,
-        relationshipType: input.relationshipType,
-        createdTimestamp,
-      });
+      relationships.push(this.buildRelationship(input, createdTimestamp));
     }
 
     if (relationships.length === 0) {
@@ -199,6 +192,97 @@ export class RelationshipManager {
     this.broadcastChange(relationships, []);
 
     return relationships;
+  }
+
+  /**
+   * Make each source's edges of one type equal its target set: an edge whose
+   * target is still listed is kept, the rest are deleted, and missing ones are
+   * created. Every input is validated and the in-memory change applied before
+   * the first await, so concurrent callers never see a partial replace. Changes
+   * are persisted with one setMany, one deleteMany and one RELATIONSHIPS_CHANGED.
+   * @throws AppError with VALIDATION for a source listed twice, or
+   *         DUPLICATE_RELATIONSHIP for a self-reference or a target listed twice.
+   */
+  public async replaceRelationships(
+    sources: readonly RelationshipTargets[],
+    relationshipType: RelationshipType
+  ): Promise<ReplacedRelationships> {
+    const createdTimestamp = Date.now();
+    const created: Relationship[] = [];
+    const deleted: Relationship[] = [];
+    const pendingKeys = new Set<string>();
+    const seenSourceKeys = new Set<string>();
+    for (const { source, targets } of sources) {
+      const sourceKey = this.entityKey(source);
+      if (seenSourceKeys.has(sourceKey)) {
+        throw new AppError(`Source listed twice: ${source.id}`, APP_ERROR_CODES.VALIDATION);
+      }
+
+      seenSourceKeys.add(sourceKey);
+
+      const unmatchedByTargetKey = new Map<string, Relationship>();
+      const existing = this.queryRelationships({
+        sourceEntityId: source.id,
+        sourceEntityType: source.entityType,
+        relationshipType,
+      });
+      for (const relationship of existing) {
+        unmatchedByTargetKey.set(
+          this.entityKey({ id: relationship.targetEntityId, entityType: relationship.targetEntityType }),
+          relationship
+        );
+      }
+
+      for (const target of targets) {
+        if (unmatchedByTargetKey.delete(this.entityKey(target))) {
+          continue;
+        }
+
+        const input: CreateRelationshipInput = {
+          sourceEntityId: source.id,
+          sourceEntityType: source.entityType,
+          targetEntityId: target.id,
+          targetEntityType: target.entityType,
+          relationshipType,
+        };
+        this.assertCanCreate(input, pendingKeys);
+        pendingKeys.add(this.relationshipKey(input));
+        created.push(this.buildRelationship(input, createdTimestamp));
+      }
+
+      for (const relationship of unmatchedByTargetKey.values()) {
+        deleted.push(relationship);
+      }
+    }
+
+    if (created.length === 0 && deleted.length === 0) {
+      return { created, deleted };
+    }
+
+    for (const relationship of deleted) {
+      this.dropRelationship(relationship);
+    }
+
+    for (const relationship of created) {
+      this.putRelationship(relationship);
+    }
+
+    const deletedIds = deleted.map((relationship) => relationship.id);
+    if (created.length > 0) {
+      await this.store.setMany(
+        RELATIONSHIP_STORE_TABLE,
+        created.map((relationship) => [relationship.id, relationship] as const)
+      );
+    }
+
+    if (deletedIds.length > 0) {
+      await this.store.deleteMany(RELATIONSHIP_STORE_TABLE, deletedIds);
+    }
+
+    log.info({ relationshipType, created: created.length, deleted: deleted.length }, "Relationships replaced");
+    this.broadcastChange(created, deletedIds);
+
+    return { created, deleted };
   }
 
   /**
@@ -375,6 +459,22 @@ export class RelationshipManager {
     if (pendingKeys.has(this.relationshipKey(input)) || this.queryRelationships(input).length > 0) {
       throw new AppError("Duplicate relationship already exists", APP_ERROR_CODES.DUPLICATE_RELATIONSHIP);
     }
+  }
+
+  private buildRelationship(input: CreateRelationshipInput, createdTimestamp: number): Relationship {
+    return {
+      id: generateId(),
+      sourceEntityId: input.sourceEntityId,
+      sourceEntityType: input.sourceEntityType,
+      targetEntityId: input.targetEntityId,
+      targetEntityType: input.targetEntityType,
+      relationshipType: input.relationshipType,
+      createdTimestamp,
+    };
+  }
+
+  private entityKey(entity: Entity): string {
+    return JSON.stringify([entity.entityType, entity.id]);
   }
 
   private relationshipKey(input: CreateRelationshipInput): string {
