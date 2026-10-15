@@ -12,6 +12,8 @@ import {
   SERVER_MESSAGE_TYPE,
   TAG_TOKEN,
   taglineExtension,
+  isWikilinkToken,
+  wikilinkExtension,
   type NoteContentType,
   type NoteEntityType,
   type NoteFileMetadata,
@@ -54,6 +56,7 @@ import type {
   ReadNoteResult,
   ResolvedNotePath,
 } from "./notes-manager.types.js";
+import type { NoteReferenceSync } from "./note-reference-sync.js";
 import { WikilinkResolver } from "./wikilink-resolver.js";
 
 const log = logger.child({ context: "notes-manager" });
@@ -101,12 +104,17 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
   private index = new Map<string, NoteMetadata>();
   private trashIndex = new Map<string, NoteMetadata>();
   private wikilinkResolver = new WikilinkResolver(this.index);
-  private readonly markdownParser = new Marked({ extensions: [taglineExtension, hashtagExtension] });
+  /** Names of the entries added to or removed from the live index since references were last re-resolved */
+  private changedLiveNames = new Set<string>();
+  private readonly markdownParser = new Marked({
+    extensions: [taglineExtension, hashtagExtension, wikilinkExtension],
+  });
 
   constructor(
     notesPath: string,
     private readonly broadcaster: WsBroadcaster,
-    private readonly tagManager: TagManager
+    private readonly tagManager: TagManager,
+    private readonly noteReferenceSync: NoteReferenceSync
   ) {
     super();
     this.notesPath = notesPath;
@@ -190,6 +198,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
       await this.applyParsedContent(new Map([[metadata.id, this.parseNoteContent(content)]]));
     }
 
+    await this.resolveChangedNames();
     this.emitNotesCreated([metadata]);
 
     return metadata;
@@ -287,6 +296,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
       await assertRealPathWithinBase(target.absolutePath, this.notesPath);
       if (await writeBinaryFile(target.absolutePath, content, { overwrite: false })) {
         const note = await this.indexCreatedNote(target, assetsFolder.id);
+        await this.resolveChangedNames();
         this.emitNotesCreated([note]);
 
         return { note, target: this.wikilinkResolver.findShortestTarget(note) };
@@ -379,6 +389,11 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     await this.refreshFolder(nextParentId);
     if (nextId !== id) {
       await this.changeNoteTagIds(movedEntries);
+      await this.awaitReferenceWork(
+        this.noteReferenceSync.changeEntityIds(movedEntries),
+        "Failed to change note ids for references"
+      );
+      await this.resolveChangedNames();
       this.emitNotesDeleted([metadata].concat(descendants));
       this.emitNotesCreated(movedEntries.values());
     } else {
@@ -422,6 +437,11 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     const trashParentId = await this.indexFolderChain(path.dirname(trashedPath));
     const trashedEntries = await this.reindexMoved(metadata, descendants, trashedPath, trashParentId);
     await this.clearNoteTags(trashedEntries);
+    await this.awaitReferenceWork(
+      this.noteReferenceSync.dropNotes(trashedEntries.keys()),
+      "Failed to drop references of trashed notes"
+    );
+    await this.resolveChangedNames();
     this.emitNotesDeleted([metadata].concat(descendants));
     this.emitNotesCreated(trashedEntries.values());
   }
@@ -452,6 +472,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     const parentId = await this.indexFolderChain(path.dirname(restoredPath));
     const restoredEntries = await this.reindexMoved(metadata, descendants, restoredPath, parentId);
     await this.applyParsedContent(await this.parseNoteFiles(restoredEntries.values()));
+    await this.resolveChangedNames();
     this.emitNotesCreated(restoredEntries.values());
 
     return this.requireLiveNote(this.toNoteId(restoredPath));
@@ -747,6 +768,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     const metadata = await this.buildFolderMetadata(target.absolutePath, path.basename(target.relativePath), parentId);
     this.putEntry(metadata);
     await this.refreshFolder(parentId);
+    await this.resolveChangedNames();
     this.emitNotesCreated([metadata]);
 
     return metadata;
@@ -781,12 +803,21 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
 
   /** Index an entry in the tree it belongs to. */
   private putEntry(metadata: NoteMetadata): void {
-    this.getIndex(metadata.isTrashed).set(metadata.id, metadata);
+    const index = this.getIndex(metadata.isTrashed);
+    if (!metadata.isTrashed && !index.has(metadata.id)) {
+      this.changedLiveNames.add(metadata.name);
+    }
+
+    index.set(metadata.id, metadata);
   }
 
   /** Drop an entry from whichever tree holds it. */
   private removeEntry(id: string): void {
-    if (!this.index.delete(id)) {
+    const liveEntry = this.index.get(id);
+    if (liveEntry) {
+      this.index.delete(id);
+      this.changedLiveNames.add(liveEntry.name);
+    } else {
       this.trashIndex.delete(id);
     }
   }
@@ -1087,18 +1118,54 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
     }));
 
     await this.setNoteTags(entityTagNames);
+
+    const targetsByNoteId = new Map<string, ReadonlyArray<string>>();
+    for (const [noteId, parsedContent] of parsedContentByNoteId) {
+      targetsByNoteId.set(noteId, parsedContent.wikilinkTargets);
+    }
+
+    await this.awaitReferenceWork(
+      this.noteReferenceSync.setNoteTargets(targetsByNoteId, this.wikilinkResolver),
+      "Failed to set note references"
+    );
   }
 
   /** The tokens of a text note the notes collection cares about, from one parse. */
   private parseNoteContent(content: string): ParsedNoteContent {
     const tags: string[] = [];
+    const wikilinkTargets = new Set<string>();
     this.markdownParser.walkTokens(this.markdownParser.lexer(content), (token) => {
       if (token.type === TAG_TOKEN.HASHTAG && typeof token.text === "string") {
         tags.push(token.text);
+      } else if (isWikilinkToken(token)) {
+        wikilinkTargets.add(token.target);
       }
     });
 
-    return { tags };
+    return { tags, wikilinkTargets: Array.from(wikilinkTargets) };
+  }
+
+  /** Re-resolve the references that name an entry added to or removed from the live index since the last call. */
+  private async resolveChangedNames(): Promise<void> {
+    if (this.changedLiveNames.size === 0) {
+      return;
+    }
+
+    const names = this.changedLiveNames;
+    this.changedLiveNames = new Set();
+    await this.awaitReferenceWork(
+      this.noteReferenceSync.resolveNamedTargets(names, this.wikilinkResolver),
+      "Failed to re-resolve note references"
+    );
+  }
+
+  /** Wait for reference work; a failure is logged and never fails the note operation. */
+  private async awaitReferenceWork(work: Promise<void>, message: string): Promise<void> {
+    try {
+      await work;
+    } catch (error) {
+      log.error({ error }, message);
+    }
   }
 
   /** Replace the tags of the given notes; a tag failure is logged and never fails the note operation. */

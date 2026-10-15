@@ -4,7 +4,7 @@ import type { EventMap } from "../../core/event-bus/event-bus.types.js";
 /**
  * Note lifecycle events for backend listeners such as search, live and trash
  * alike. Each is raised together with the matching WS message and carries the
- * same payload; a note's event comes after its tag work.
+ * same payload; a note's event comes after its tag and reference work.
  */
 export interface NotesManagerEvents extends EventMap {
   noteCreated: { noteId: string; metadata: NoteMetadata };
@@ -34,6 +34,8 @@ export interface ListNotesOptions {
 export interface ParsedNoteContent {
   /** Hashtags of the note's tag lines, without `#` */
   tags: string[];
+  /** Distinct targets of the note's wikilinks and embeds */
+  wikilinkTargets: string[];
 }
 
 /** What one walk of a note tree yields; text notes are read and parsed during the walk when `isContentParsed` */

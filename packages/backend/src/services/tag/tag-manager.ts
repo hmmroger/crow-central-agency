@@ -16,6 +16,7 @@ import { AppError } from "../../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import { generateId } from "../../utils/id-utils.js";
 import { logger } from "../../utils/logger.js";
+import { SerialQueue } from "../../utils/serial-queue.js";
 import { normalizeTags } from "./tag-name.js";
 
 const log = logger.child({ context: "tag-manager" });
@@ -34,7 +35,7 @@ export const TAG_STORE_TABLE = "tags";
 export class TagManager {
   private tagsById = new Map<string, Tag>();
   private tagsByName = new Map<string, Tag>();
-  private mutationChain: Promise<void> = Promise.resolve();
+  private readonly mutationQueue = new SerialQueue();
 
   constructor(
     private readonly store: ObjectStoreProvider,
@@ -311,12 +312,6 @@ export class TagManager {
   }
 
   private serialize<T>(operation: () => Promise<T>): Promise<T> {
-    const next = this.mutationChain.then(operation);
-    this.mutationChain = next.then(
-      () => undefined,
-      () => undefined
-    );
-
-    return next;
+    return this.mutationQueue.run(operation);
   }
 }

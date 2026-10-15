@@ -10,6 +10,7 @@ import {
 } from "@crow-central-agency/shared";
 import { NoteSearchSource } from "./note-search-source.js";
 import { NotesManager } from "../../notes/notes-manager.js";
+import { NoteReferenceSync } from "../../notes/note-reference-sync.js";
 import { TagManager } from "../../tag/tag-manager.js";
 import { RelationshipManager } from "../../relationship-manager.js";
 import { WsBroadcaster } from "../../ws-broadcaster.js";
@@ -70,8 +71,14 @@ interface Harness {
 function createHarness(notes: NoteMetadata[]): Harness {
   const store = new InMemoryObjectStore();
   const broadcaster = new WsBroadcaster();
-  const tagManager = new TagManager(store, new RelationshipManager(store, broadcaster), broadcaster);
-  const notesManager = new NotesManager(MOCK_NOTES_PATH, broadcaster, tagManager);
+  const relationshipManager = new RelationshipManager(store, broadcaster);
+  const tagManager = new TagManager(store, relationshipManager, broadcaster);
+  const notesManager = new NotesManager(
+    MOCK_NOTES_PATH,
+    broadcaster,
+    tagManager,
+    new NoteReferenceSync(relationshipManager)
+  );
   vi.mocked(notesManager.listNotes).mockReturnValue(notes);
   vi.mocked(notesManager.getNoteContent).mockResolvedValue({ metadata: TEXT_NOTE, content: TEXT_CONTENT });
   vi.mocked(tagManager.getEntityTags).mockImplementation((entity) =>

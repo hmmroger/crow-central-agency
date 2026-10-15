@@ -18,6 +18,7 @@ import { AgentCircleManager } from "../services/agent-circle-manager.js";
 import { RelationshipManager } from "../services/relationship-manager.js";
 import { FragmentManager } from "../services/fragment/fragment-manager.js";
 import { NotesManager } from "../services/notes/notes-manager.js";
+import { NoteReferenceSync } from "../services/notes/note-reference-sync.js";
 import { TagManager } from "../services/tag/tag-manager.js";
 import { WsBroadcaster } from "../services/ws-broadcaster.js";
 import { InMemoryObjectStore } from "../core/store/in-memory-object-store.mock.js";
@@ -55,7 +56,7 @@ const NOTE_FOLDER: NoteMetadata = {
   entityType: ENTITY_TYPE.NOTE_FOLDER,
 };
 
-const NOTES_BY_ID = new Map([
+const NOTES_BY_ID = new Map<string, NoteMetadata>([
   [NOTE_FILE.id, NOTE_FILE],
   [NOTE_FOLDER.id, NOTE_FOLDER],
 ]);
@@ -88,7 +89,12 @@ async function createHarness(agentIds: string[]): Promise<Harness> {
   const fragmentManager = new FragmentManager(fragmentStore, indexStore, relationshipManager, broadcaster);
   const registry = new AgentRegistry(store, templateStore, broadcaster, circleManager, fragmentManager);
   const tagManager = new TagManager(store, relationshipManager, broadcaster);
-  const notesManager = new NotesManager(MOCK_NOTES_PATH, broadcaster, tagManager);
+  const notesManager = new NotesManager(
+    MOCK_NOTES_PATH,
+    broadcaster,
+    tagManager,
+    new NoteReferenceSync(relationshipManager)
+  );
   vi.mocked(notesManager.getNote).mockImplementation((noteId) => {
     const note = NOTES_BY_ID.get(noteId);
     if (!note) {

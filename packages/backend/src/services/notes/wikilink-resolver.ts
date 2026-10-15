@@ -119,6 +119,16 @@ export class WikilinkResolver {
     }));
   }
 
+  /** The names a target's segments compare as; only an entry with one of these names can change what it resolves to. */
+  public toTargetNames(target: string): string[] {
+    return this.toTargetSegments(target).map((segment) => this.toComparableName(segment));
+  }
+
+  /** The form note names compare in; names match case-insensitively. */
+  public toComparableName(name: string): string {
+    return name.toLowerCase();
+  }
+
   /** Every live note `segments` name, in path order. */
   private findMatches(segments: string[]): WikilinkMatch[] {
     const matches: WikilinkMatch[] = [];
@@ -209,11 +219,6 @@ export class WikilinkResolver {
       )
       .slice(0, MATCH_SUGGESTION_LIMIT)
       .map((match) => match.note);
-  }
-
-  /** The form note names compare in; names match case-insensitively. */
-  private toComparableName(name: string): string {
-    return name.toLowerCase();
   }
 
   private isSameName(name: string, otherName: string): boolean {
