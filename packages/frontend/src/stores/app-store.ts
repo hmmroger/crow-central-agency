@@ -64,6 +64,8 @@ interface AppState {
   sidePanelWidth: number;
   /** Current width of the notes tree sidebar in pixels */
   notesSidebarWidth: number;
+  /** Whether the notes sidebar Backlinks section is collapsed */
+  isNotesBacklinksCollapsed: boolean;
   /** Access key for API authentication */
   accessKey: string | undefined;
   /** Cached client geolocation as "lat,lng" string */
@@ -100,6 +102,8 @@ interface AppState {
   setSidePanelWidth: (width: number) => void;
   /** Set notes tree sidebar width (for resize) */
   setNotesSidebarWidth: (width: number) => void;
+  /** Toggle collapsed state for the notes sidebar Backlinks section */
+  toggleNotesBacklinksCollapsed: () => void;
   /** Set or clear the access key */
   setAccessKey: (key: string | undefined) => void;
   /** Update or clear cached client geolocation */
@@ -130,6 +134,7 @@ interface PersistedAppState {
   sidePanelOpen: boolean;
   sidePanelWidth: number;
   notesSidebarWidth?: number;
+  isNotesBacklinksCollapsed?: boolean;
   accessKey?: string;
   clientLocation?: string;
   collapsedCircles?: Record<string, boolean>;
@@ -157,6 +162,7 @@ export const useAppStore = create<AppState>()(
       sidePanelOpen: true,
       sidePanelWidth: DEFAULT_SIDE_PANEL_WIDTH,
       notesSidebarWidth: DEFAULT_NOTES_SIDEBAR_WIDTH,
+      isNotesBacklinksCollapsed: false,
       accessKey: undefined,
       clientLocation: undefined,
       collapsedCircles: {},
@@ -212,6 +218,9 @@ export const useAppStore = create<AppState>()(
       setSidePanelWidth: (width: number) => set({ sidePanelWidth: width }),
 
       setNotesSidebarWidth: (width: number) => set({ notesSidebarWidth: width }),
+
+      toggleNotesBacklinksCollapsed: () =>
+        set((state) => ({ isNotesBacklinksCollapsed: !state.isNotesBacklinksCollapsed })),
 
       setAccessKey: (key: string | undefined) => set({ accessKey: key }),
 
@@ -272,6 +281,7 @@ export const useAppStore = create<AppState>()(
         sidePanelOpen: state.sidePanelOpen,
         sidePanelWidth: state.sidePanelWidth,
         notesSidebarWidth: state.notesSidebarWidth,
+        isNotesBacklinksCollapsed: state.isNotesBacklinksCollapsed,
         accessKey: state.accessKey,
         clientLocation: state.clientLocation,
         collapsedCircles: state.collapsedCircles,
