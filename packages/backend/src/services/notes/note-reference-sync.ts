@@ -42,12 +42,12 @@ export class NoteReferenceSync {
 
   /** Re-resolve the notes holding a target with a segment equal to any of `names` */
   public resolveNamedTargets(names: Iterable<string>, resolver: WikilinkResolver): Promise<void> {
-    const comparableNames = new Set(Array.from(names, (name) => resolver.toComparableName(name)));
+    const changedNames = new Set(names);
 
     return this.mutationQueue.run(async () => {
       const noteIds: string[] = [];
       for (const [noteId, targets] of this.targetsByNoteId) {
-        if (this.holdsAnyName(targets, comparableNames, resolver)) {
+        if (targets.some((target) => resolver.isNamedByTarget(target, changedNames))) {
           noteIds.push(noteId);
         }
       }
@@ -146,20 +146,6 @@ export class NoteReferenceSync {
     }
 
     return resolvedEntries;
-  }
-
-  private holdsAnyName(
-    targets: ReadonlyArray<string>,
-    comparableNames: ReadonlySet<string>,
-    resolver: WikilinkResolver
-  ): boolean {
-    for (const target of targets) {
-      if (resolver.toTargetNames(target).some((name) => comparableNames.has(name))) {
-        return true;
-      }
-    }
-
-    return false;
   }
 
   private getReferenceEdges(noteId: string): Relationship[] {

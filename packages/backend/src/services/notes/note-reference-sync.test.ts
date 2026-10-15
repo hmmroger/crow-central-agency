@@ -60,7 +60,7 @@ async function createHarness(entries: NoteMetadata[]): Promise<Harness> {
 
   return {
     index,
-    resolver: new WikilinkResolver(index),
+    resolver: new WikilinkResolver(() => index),
     relationshipManager,
     sync: new NoteReferenceSync(relationshipManager),
   };

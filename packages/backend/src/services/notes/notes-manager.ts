@@ -103,7 +103,7 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
   private readonly trashPath: string;
   private index = new Map<string, NoteMetadata>();
   private trashIndex = new Map<string, NoteMetadata>();
-  private wikilinkResolver = new WikilinkResolver(this.index);
+  private readonly wikilinkResolver = new WikilinkResolver(() => this.index);
   /** Names of the entries added to or removed from the live index since references were last re-resolved */
   private changedLiveNames = new Set<string>();
   private readonly markdownParser = new Marked({
@@ -1010,18 +1010,12 @@ export class NotesManager extends EventBus<NotesManagerEvents> {
   private async loadIndexes(): Promise<void> {
     const liveScan = await this.scanTree(this.notesPath, true);
     const trashScan = await this.scanTree(this.trashPath, false);
-    this.setLiveIndex(liveScan.index);
+    this.index = liveScan.index;
     this.trashIndex = trashScan.index;
 
     log.info({ notesPath: this.notesPath, notes: this.index.size, trashed: this.trashIndex.size }, "Notes index built");
 
     await this.applyParsedContent(liveScan.parsedContentByNoteId);
-  }
-
-  /** Replace the live index together with the resolver that reads it, so the two never disagree. */
-  private setLiveIndex(index: Map<string, NoteMetadata>): void {
-    this.index = index;
-    this.wikilinkResolver = new WikilinkResolver(index);
   }
 
   /**

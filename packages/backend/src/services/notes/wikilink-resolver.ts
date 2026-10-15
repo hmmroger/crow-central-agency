@@ -15,11 +15,11 @@ const RECENT_SUGGESTION_LIMIT = 5;
 const MATCH_SUGGESTION_LIMIT = 10;
 
 /**
- * Answers what wikilink targets name in the live note tree, read-only. It holds
- * the live index it was built with, so a replaced index needs a new resolver.
+ * Answers what wikilink targets name in the live note tree, read-only. It reads
+ * the live index through `getLiveIndex` on every call.
  */
 export class WikilinkResolver {
-  constructor(private readonly liveIndex: ReadonlyMap<string, NoteMetadata>) {}
+  constructor(private readonly getLiveIndex: () => ReadonlyMap<string, NoteMetadata>) {}
 
   /**
    * The last `/` segment is the note's name and any leading segments end its
@@ -76,7 +76,7 @@ export class WikilinkResolver {
     let parentId = note.parentId;
 
     while (this.findMatches(segments).length > 1) {
-      const parent = parentId === undefined ? undefined : this.liveIndex.get(parentId);
+      const parent = parentId === undefined ? undefined : this.getLiveIndex().get(parentId);
       if (!parent) {
         break;
       }
@@ -95,7 +95,7 @@ export class WikilinkResolver {
    */
   public suggest(query: SuggestWikilinksQuery): WikilinkSuggestion[] {
     const candidates: NoteFileMetadata[] = [];
-    for (const metadata of this.liveIndex.values()) {
+    for (const metadata of this.getLiveIndex().values()) {
       if (
         metadata.entityType === ENTITY_TYPE.NOTE &&
         metadata.id !== query.excludeId &&
@@ -119,13 +119,15 @@ export class WikilinkResolver {
     }));
   }
 
-  /** The names a target's segments compare as; only an entry with one of these names can change what it resolves to. */
-  public toTargetNames(target: string): string[] {
-    return this.toTargetSegments(target).map((segment) => this.toComparableName(segment));
+  /** Whether any segment of `target` is one of `names`; only an entry with such a name can change what the target resolves to. */
+  public isNamedByTarget(target: string, names: ReadonlySet<string>): boolean {
+    const comparableNames = new Set(Array.from(names, (name) => this.toComparableName(name)));
+
+    return this.toTargetSegments(target).some((segment) => comparableNames.has(this.toComparableName(segment)));
   }
 
   /** The form note names compare in; names match case-insensitively. */
-  public toComparableName(name: string): string {
+  private toComparableName(name: string): string {
     return name.toLowerCase();
   }
 
@@ -136,7 +138,7 @@ export class WikilinkResolver {
       return matches;
     }
 
-    for (const note of this.liveIndex.values()) {
+    for (const note of this.getLiveIndex().values()) {
       const match = this.matchSegments(note, segments);
       if (match) {
         matches.push(match);
@@ -155,7 +157,7 @@ export class WikilinkResolver {
 
     let parentId = note.parentId;
     for (let segmentIndex = lastIndex - 1; segmentIndex >= 0; segmentIndex--) {
-      const parent = parentId === undefined ? undefined : this.liveIndex.get(parentId);
+      const parent = parentId === undefined ? undefined : this.getLiveIndex().get(parentId);
       if (!parent || !this.isSameName(parent.name, segments[segmentIndex])) {
         return undefined;
       }
@@ -167,7 +169,7 @@ export class WikilinkResolver {
   }
 
   private findChildFolder(parentId: string | undefined, name: string): NoteMetadata | undefined {
-    for (const metadata of this.liveIndex.values()) {
+    for (const metadata of this.getLiveIndex().values()) {
       if (
         metadata.entityType === ENTITY_TYPE.NOTE_FOLDER &&
         metadata.parentId === parentId &&
@@ -186,7 +188,7 @@ export class WikilinkResolver {
     let parentId = note.parentId;
 
     while (parentId !== undefined) {
-      const parent = this.liveIndex.get(parentId);
+      const parent = this.getLiveIndex().get(parentId);
       if (!parent) {
         break;
       }
