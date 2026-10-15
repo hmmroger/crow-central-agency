@@ -8,7 +8,6 @@ import {
 } from "@crow-central-agency/shared";
 import { getListNotesToolConfig } from "./list-notes.js";
 import { NotesManager } from "../../services/notes/notes-manager.js";
-import { NoteReferenceSync } from "../../services/notes/note-reference-sync.js";
 import { TagManager } from "../../services/tag/tag-manager.js";
 import { RelationshipManager } from "../../services/relationship-manager.js";
 import { WsBroadcaster } from "../../services/ws-broadcaster.js";
@@ -59,12 +58,7 @@ function createHarness(): Harness {
   const broadcaster = new WsBroadcaster();
   const relationshipManager = new RelationshipManager(store, broadcaster);
   const tagManager = new TagManager(store, relationshipManager, broadcaster);
-  const notesManager = new NotesManager(
-    MOCK_NOTES_PATH,
-    broadcaster,
-    tagManager,
-    new NoteReferenceSync(relationshipManager)
-  );
+  const notesManager = new NotesManager(MOCK_NOTES_PATH, broadcaster, tagManager, relationshipManager);
   const sensorManager = new SensorManager(store);
   vi.mocked(sensorManager.getUserTimezone).mockResolvedValue("UTC");
 

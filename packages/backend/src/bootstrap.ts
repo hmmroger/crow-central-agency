@@ -20,7 +20,6 @@ import { PlacesManager } from "./services/places/places-manager.js";
 import { setupWebSocket } from "./server/setup-websocket.js";
 import { registerArtifactRoutes } from "./routes/artifact.routes.js";
 import { NotesManager } from "./services/notes/notes-manager.js";
-import { NoteReferenceSync } from "./services/notes/note-reference-sync.js";
 import { registerNoteRoutes } from "./routes/note.routes.js";
 import { registerSearchRoutes } from "./routes/search.routes.js";
 import { registerTagRoutes } from "./routes/tag.routes.js";
@@ -131,12 +130,7 @@ export async function bootstrap(options: BootstrapOptions) {
   await feedManager.initialize();
   const artifactManager = new ArtifactManager(storeProvider, registry, circleManager);
   await artifactManager.initialize();
-  const notesManager = new NotesManager(
-    env.CROW_NOTES_PATH,
-    broadcaster,
-    tagManager,
-    new NoteReferenceSync(relationshipManager)
-  );
+  const notesManager = new NotesManager(env.CROW_NOTES_PATH, broadcaster, tagManager, relationshipManager);
   await notesManager.initialize();
   const documentSearchService = new DocumentSearchService();
   documentSearchService.registerSource(new ArtifactSearchSource(artifactManager, registry, circleManager));
