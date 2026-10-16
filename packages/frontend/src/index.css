@@ -163,7 +163,8 @@
   }
 
   input,
-  textarea {
+  textarea,
+  .cm-content {
     font-variant-ligatures: none;
     font-feature-settings:
       "liga" 0,
