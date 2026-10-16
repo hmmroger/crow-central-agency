@@ -19,7 +19,7 @@ const codeBlockExtension: TokenizerAndRendererExtension = {
   level: "block",
   renderer(token) {
     if (token.lang === "mermaid") {
-      return `<div class="mermaid-container">${token.text}</div>`;
+      return `<div class="mermaid-container">${escapeHtml(token.text)}</div>`;
     }
 
     if (token.lang === HTMLVIEW_FENCE_LANG) {

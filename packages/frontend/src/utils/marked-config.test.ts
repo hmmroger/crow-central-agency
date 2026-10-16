@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { parseMarkdown } from "./marked-config";
+
+vi.mock("./html-sanitizer", () => ({ sanitizeHtml: (html: string) => html }));
 
 describe("parseMarkdown", () => {
   it("returns the distinct wikilink and embed targets, sorted and unescaped", () => {
@@ -25,5 +27,14 @@ describe("parseMarkdown", () => {
 
   it("still renders the wikilink placeholders", () => {
     expect(parseMarkdown("[[Plan]]").html).toContain('data-wikilink-target="Plan"');
+  });
+
+  it("carries mermaid fence source as text, not parsed HTML", () => {
+    const source = 'flowchart TD\n  A["x<br/>y &amp; z"] --> B';
+    const { html } = parseMarkdown(`\`\`\`mermaid\n${source}\n\`\`\``);
+    const container = new DOMParser().parseFromString(html, "text/html").querySelector(".mermaid-container");
+
+    expect(container?.children).toHaveLength(0);
+    expect(container?.textContent).toBe(source);
   });
 });

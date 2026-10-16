@@ -1,8 +1,6 @@
 import { useMemo, useEffect, useRef, useState, useCallback } from "react";
-import mermaid from "mermaid";
-import { ensureMermaidInit } from "../../../utils/mermaid-config";
 import { parseMarkdown } from "../../../utils/marked-config";
-import { sanitizeSvg } from "../../../utils/html-sanitizer";
+import { renderMermaidDiagram } from "../../../utils/mermaid-render";
 import { useWikilinkResolveQuery } from "../../../hooks/queries/use-wikilink-resolve-query";
 import { useAppStore } from "../../../stores/app-store";
 import { readHtmlviewSource, renderHtmlviews } from "./markdown-htmlview-renderer";
@@ -39,9 +37,6 @@ interface PanDragState {
   startPanX: number;
   startPanY: number;
 }
-
-// Initialize mermaid with shared settings (called once, idempotent)
-ensureMermaidInit();
 
 /**
  * Renders markdown content with mermaid diagram support
@@ -86,13 +81,12 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
           const isRendered = !!el.getAttribute("data-rendered");
           if (source && !isRendered) {
             try {
-              const mermaidId = `mermaid-${Date.now()}-${index}`;
               el.setAttribute("data-rendered", "true");
-              const { svg } = await mermaid.render(mermaidId, source);
+              const diagram = await renderMermaidDiagram(source);
               const currentContainers = containerRef.current?.querySelectorAll(".mermaid-container");
               if (currentContainers && currentContainers.length > index) {
                 const postEl = currentContainers[index];
-                postEl.innerHTML = sanitizeSvg(svg);
+                postEl.replaceChildren(diagram);
                 postEl.setAttribute("data-rendered", "true");
                 wrapMermaidAsViewport(postEl);
               }
@@ -355,7 +349,7 @@ function createZoomButton(action: string, label: string, symbol: string): HTMLBu
 /**
  * Wrap an already-rendered mermaid SVG (child of `container`) with a
  * zoom/pan viewport and overlay controls. Uses DOM methods only — the SVG
- * was sanitized before being inserted via the container's innerHTML.
+ * was sanitized by the shared mermaid renderer before insertion.
  */
 function wrapMermaidAsViewport(container: Element) {
   const svg = container.firstElementChild;
