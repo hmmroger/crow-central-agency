@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import type { NoteFileMetadata } from "@crow-central-agency/shared";
 import { useNoteContentQuery } from "../../hooks/queries/use-note-content-query.js";
 import { useWriteNoteContent } from "../../hooks/queries/use-note-mutations.js";
@@ -6,6 +6,7 @@ import { useNotesContext } from "../../providers/notes-provider.js";
 import { useAppStore } from "../../stores/app-store.js";
 import { getErrorMessage } from "../../utils/error-message.js";
 import { EDITOR_STATUS_TONE, type EditorStatusAlert } from "./editor-status-bar.types.js";
+import type { NoteEditorHandle } from "./note-editor.types.js";
 import type {
   EditorFormatState,
   EditorStatus,
@@ -20,6 +21,8 @@ interface NoteEditorProps {
   note: NoteFileMetadata;
   /** Reports whether the draft is still ahead of the backend, for the note header */
   onUnsavedChange: (isUnsaved: boolean) => void;
+  /** Lets the host flush the draft before it swaps the editor out */
+  ref?: Ref<NoteEditorHandle>;
 }
 
 const CONFLICT_ERROR_CODE = "conflict";
@@ -38,9 +41,10 @@ function getStatusAlert(isConflict: boolean, errorMessage?: string): EditorStatu
  * Editing surface for a live text note. Edits auto-save once typing pauses and
  * flush on blur, Cmd/Ctrl+S and unmount. Each save sends the loaded
  * `updatedTimestamp` and adopts the token the backend returns; only a conflict
- * reseeds the editor.
+ * reseeds the editor. The host can flush the draft through `ref` before it
+ * swaps the editor out.
  */
-export function NoteEditor({ note, onUnsavedChange }: NoteEditorProps) {
+export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
   const [editor, setEditor] = useState<MarkdownEditorHandle>();
   const [formatState, setFormatState] = useState<EditorFormatState>();
   const [status, setStatus] = useState<EditorStatus>();
@@ -52,10 +56,10 @@ export function NoteEditor({ note, onUnsavedChange }: NoteEditorProps) {
   const draftRef = useRef("");
   const tokenRef = useRef(note.updatedTimestamp);
   const isDirtyRef = useRef(false);
-  const isSavingRef = useRef(false);
+  const pendingSaveRef = useRef<Promise<boolean>>(undefined);
   const needsResaveRef = useRef(false);
   const saveTimerRef = useRef<number | undefined>(undefined);
-  const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const saveRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true));
   const loadedMarkdown = data?.type === "text" ? data.content : undefined;
   const loadedTimestamp = data?.type === "text" ? data.updatedTimestamp : undefined;
   const isConflict = isSaveError && saveError.code === CONFLICT_ERROR_CODE;
@@ -87,49 +91,54 @@ export function NoteEditor({ note, onUnsavedChange }: NoteEditorProps) {
     void saveRef.current();
   }, []);
 
-  const save = useCallback(async () => {
-    if (!isDirtyRef.current) {
-      return;
-    }
+  const writeDraft = useCallback(async () => {
+    do {
+      needsResaveRef.current = false;
+      const content = draftRef.current;
+      const saved = await writeContent({
+        noteId: note.id,
+        input: { content, updatedTimestamp: tokenRef.current },
+      }).catch(() => undefined);
 
+      if (saved === undefined) {
+        needsResaveRef.current = false;
+
+        return false;
+      }
+
+      tokenRef.current = saved.updatedTimestamp;
+
+      if (draftRef.current === content) {
+        isDirtyRef.current = false;
+        onUnsavedChange(false);
+      }
+    } while (needsResaveRef.current && isDirtyRef.current);
+
+    return true;
+  }, [writeContent, note.id, onUnsavedChange]);
+
+  const save = useCallback(() => {
     // A second write while one is in flight would carry the superseded token, so
     // hand the draft to the save already running. Awaiting the mutation rather
     // than using its callbacks keeps that handover working past unmount, where
     // react-query stops delivering per-call callbacks.
-    if (isSavingRef.current) {
+    if (pendingSaveRef.current) {
       needsResaveRef.current = true;
 
-      return;
+      return pendingSaveRef.current;
     }
 
-    const content = draftRef.current;
-    isSavingRef.current = true;
-
-    const saved = await writeContent({
-      noteId: note.id,
-      input: { content, updatedTimestamp: tokenRef.current },
-    }).catch(() => undefined);
-
-    isSavingRef.current = false;
-
-    if (saved === undefined) {
-      needsResaveRef.current = false;
-
-      return;
+    if (!isDirtyRef.current) {
+      return Promise.resolve(true);
     }
 
-    tokenRef.current = saved.updatedTimestamp;
+    const pendingSave = writeDraft().finally(() => {
+      pendingSaveRef.current = undefined;
+    });
+    pendingSaveRef.current = pendingSave;
 
-    if (draftRef.current === content) {
-      isDirtyRef.current = false;
-      onUnsavedChange(false);
-    }
-
-    if (needsResaveRef.current) {
-      needsResaveRef.current = false;
-      await saveRef.current();
-    }
-  }, [writeContent, note.id, onUnsavedChange]);
+    return pendingSave;
+  }, [writeDraft]);
 
   useEffect(() => {
     saveRef.current = save;
@@ -141,6 +150,24 @@ export function NoteEditor({ note, onUnsavedChange }: NoteEditorProps) {
       void saveRef.current();
     };
   }, []);
+
+  // Keystrokes can land while a save is in flight, so keep saving until the
+  // draft is clean or a write fails.
+  useImperativeHandle(
+    ref,
+    () => ({
+      flush: async () => {
+        window.clearTimeout(saveTimerRef.current);
+        let isSaved = await saveRef.current();
+        while (isSaved && isDirtyRef.current) {
+          isSaved = await saveRef.current();
+        }
+
+        return isSaved;
+      },
+    }),
+    []
+  );
 
   const handleChange = useCallback(
     (markdown: string) => {
