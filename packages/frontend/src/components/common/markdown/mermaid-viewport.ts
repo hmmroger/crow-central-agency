@@ -6,12 +6,13 @@ export const MERMAID_VIEWPORT_SELECTOR = ".mermaid-viewport";
 export const MERMAID_ZOOM_BUTTON_SELECTOR = ".mermaid-zoom-btn";
 export const MERMAID_CONTROLS_SELECTOR = ".mermaid-controls";
 export const MERMAID_EXPAND_BUTTON_SELECTOR = ".mermaid-expand-btn";
-export const MERMAID_SVG_SELECTOR = ".mermaid-stage > svg";
+export const MERMAID_STAGE_SELECTOR = ".mermaid-stage";
+export const MERMAID_SVG_SELECTOR = `${MERMAID_STAGE_SELECTOR} > svg`;
 
 function createControlButton(label: string, symbol: string): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "mermaid-zoom-btn";
+  button.className = "mermaid-control-btn";
   button.setAttribute("aria-label", label);
   button.textContent = symbol;
   return button;
@@ -19,6 +20,7 @@ function createControlButton(label: string, symbol: string): HTMLButtonElement {
 
 function createZoomButton(action: string, label: string, symbol: string): HTMLButtonElement {
   const button = createControlButton(label, symbol);
+  button.classList.add("mermaid-zoom-btn");
   button.dataset.zoomAction = action;
   return button;
 }
@@ -70,7 +72,7 @@ export function readViewportState(viewport: HTMLElement) {
 }
 
 export function applyViewportTransform(viewport: HTMLElement) {
-  const stage = viewport.querySelector<HTMLElement>(".mermaid-stage");
+  const stage = viewport.querySelector<HTMLElement>(MERMAID_STAGE_SELECTOR);
   if (!stage) {
     return;
   }

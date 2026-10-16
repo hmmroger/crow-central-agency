@@ -489,7 +489,7 @@
     opacity: 1;
   }
 
-  .mermaid-zoom-btn {
+  .mermaid-control-btn {
     width: 1.75rem;
     height: 1.75rem;
     display: inline-flex;
@@ -508,13 +508,13 @@
       border-color var(--duration-fast);
   }
 
-  .mermaid-zoom-btn:hover {
+  .mermaid-control-btn:hover {
     color: var(--color-text-base);
     background: var(--color-surface-hover);
     border-color: var(--color-border-focus);
   }
 
-  .mermaid-zoom-btn:focus-visible {
+  .mermaid-control-btn:focus-visible {
     outline: 2px solid var(--color-border-focus);
     outline-offset: 1px;
   }
