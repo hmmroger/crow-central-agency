@@ -110,7 +110,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   }, [html, isStreaming]);
 
   // Mount htmlview embeds into shadow roots. Depends on renderedHtml (not html)
-  // so it re-runs after the mermaid re-serialization at :85 rewrites the
+  // so it re-runs after the mermaid re-serialization rewrites the
   // container's innerHTML — that drops the (non-serialized) shadow root, and
   // this pass re-attaches from the escaped source preserved in light DOM.
   useEffect(() => {
