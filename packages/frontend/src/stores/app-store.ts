@@ -66,6 +66,8 @@ interface AppState {
   notesSidebarWidth: number;
   /** Whether the notes sidebar Backlinks section is collapsed */
   isNotesBacklinksCollapsed: boolean;
+  /** Whether editable notes open in the reader instead of the editor */
+  isNoteReadMode: boolean;
   /** Access key for API authentication */
   accessKey: string | undefined;
   /** Cached client geolocation as "lat,lng" string */
@@ -104,6 +106,8 @@ interface AppState {
   setNotesSidebarWidth: (width: number) => void;
   /** Toggle collapsed state for the notes sidebar Backlinks section */
   toggleNotesBacklinksCollapsed: () => void;
+  /** Switch editable notes between the reader and the editor */
+  setNoteReadMode: (isReadMode: boolean) => void;
   /** Set or clear the access key */
   setAccessKey: (key: string | undefined) => void;
   /** Update or clear cached client geolocation */
@@ -135,6 +139,7 @@ interface PersistedAppState {
   sidePanelWidth: number;
   notesSidebarWidth?: number;
   isNotesBacklinksCollapsed?: boolean;
+  isNoteReadMode?: boolean;
   accessKey?: string;
   clientLocation?: string;
   collapsedCircles?: Record<string, boolean>;
@@ -163,6 +168,7 @@ export const useAppStore = create<AppState>()(
       sidePanelWidth: DEFAULT_SIDE_PANEL_WIDTH,
       notesSidebarWidth: DEFAULT_NOTES_SIDEBAR_WIDTH,
       isNotesBacklinksCollapsed: false,
+      isNoteReadMode: false,
       accessKey: undefined,
       clientLocation: undefined,
       collapsedCircles: {},
@@ -221,6 +227,8 @@ export const useAppStore = create<AppState>()(
 
       toggleNotesBacklinksCollapsed: () =>
         set((state) => ({ isNotesBacklinksCollapsed: !state.isNotesBacklinksCollapsed })),
+
+      setNoteReadMode: (isReadMode: boolean) => set({ isNoteReadMode: isReadMode }),
 
       setAccessKey: (key: string | undefined) => set({ accessKey: key }),
 
@@ -282,6 +290,7 @@ export const useAppStore = create<AppState>()(
         sidePanelWidth: state.sidePanelWidth,
         notesSidebarWidth: state.notesSidebarWidth,
         isNotesBacklinksCollapsed: state.isNotesBacklinksCollapsed,
+        isNoteReadMode: state.isNoteReadMode,
         accessKey: state.accessKey,
         clientLocation: state.clientLocation,
         collapsedCircles: state.collapsedCircles,
