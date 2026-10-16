@@ -8,10 +8,14 @@ import { renderMarkdownWikilinks } from "./markdown-wikilink-renderer";
 import { HtmlviewEmbedDialog } from "../dialogs/htmlview-embed-dialog";
 import { useOptionalModalDialog } from "../../../providers/modal-dialog-provider";
 import { cn } from "../../../utils/cn";
-
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 4;
-const ZOOM_STEP = 1.25;
+import { MermaidDiagramDialog } from "../dialogs/mermaid-diagram-dialog";
+import {
+  createMermaidViewport,
+  MERMAID_EXPAND_BUTTON_SELECTOR,
+  MERMAID_SVG_SELECTOR,
+  MERMAID_VIEWPORT_SELECTOR,
+} from "./mermaid-viewport";
+import { useMermaidViewport } from "./use-mermaid-viewport";
 
 const HTMLVIEW_COPY_ACTION = "copy";
 const HTMLVIEW_EXPAND_ACTION = "expand";
@@ -29,21 +33,12 @@ interface MarkdownRendererProps {
   isStreaming?: boolean;
 }
 
-interface PanDragState {
-  viewport: HTMLElement;
-  pointerId: number;
-  startPointerX: number;
-  startPointerY: number;
-  startPanX: number;
-  startPanY: number;
-}
-
 /**
  * Renders markdown content with mermaid diagram support
  */
 export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const dragStateRef = useRef<PanDragState | null>(null);
+  useMermaidViewport(containerRef);
   // Optional: MarkdownRenderer is general-purpose and may render outside a
   // ModalDialogProvider. When absent, showDialog is undefined and the expand
   // affordance degrades to a no-op. Reading the method out keeps the click
@@ -86,9 +81,8 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
               const currentContainers = containerRef.current?.querySelectorAll(".mermaid-container");
               if (currentContainers && currentContainers.length > index) {
                 const postEl = currentContainers[index];
-                postEl.replaceChildren(diagram);
                 postEl.setAttribute("data-rendered", "true");
-                wrapMermaidAsViewport(postEl);
+                postEl.replaceChildren(createMermaidViewport(diagram, true));
               }
             } catch (error) {
               el.setAttribute("data-rendered", "true");
@@ -132,48 +126,23 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
     return renderMarkdownWikilinks(container, resolutions, (note) => goToNote(note.id));
   }, [renderedHtml, isStreaming, resolutions, goToNote]);
 
-  // Non-passive native wheel listener so Ctrl/Cmd+wheel can zoom without
-  // scrolling the page. React's synthetic onWheel is passive.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) {
-      return;
-    }
-
-    const handleWheel = (event: WheelEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) {
-        return;
-      }
-
-      const target = event.target as HTMLElement | null;
-      const viewport = target?.closest<HTMLElement>(".mermaid-viewport");
-      if (!viewport) {
-        return;
-      }
-
-      event.preventDefault();
-      const rect = viewport.getBoundingClientRect();
-      zoomViewport(viewport, event.deltaY < 0 ? "in" : "out", {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-      });
-    };
-
-    container.addEventListener("wheel", handleWheel, { passive: false });
-    return () => container.removeEventListener("wheel", handleWheel);
-  }, []);
-
-  // Event delegation: handles code-copy, mermaid zoom, and embed chrome buttons.
+  // Event delegation: handles code-copy, mermaid expand and embed chrome buttons.
   const handleContainerClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement;
 
-      const zoomBtn = target.closest<HTMLElement>(".mermaid-zoom-btn");
-      if (zoomBtn) {
-        const action = zoomBtn.dataset.zoomAction;
-        const viewport = zoomBtn.closest<HTMLElement>(".mermaid-viewport");
-        if (action && viewport) {
-          zoomViewport(viewport, action);
+      // The dialog gets a copy of the rendered SVG, so the inline diagram is left untouched.
+      const expandBtn = target.closest(MERMAID_EXPAND_BUTTON_SELECTOR);
+      if (expandBtn) {
+        const svg = expandBtn.closest(MERMAID_VIEWPORT_SELECTOR)?.querySelector(MERMAID_SVG_SELECTOR);
+        if (svg) {
+          showDialog?.({
+            id: `mermaid-expand-${Date.now()}`,
+            component: MermaidDiagramDialog,
+            componentProps: { svg: svg.cloneNode(true) },
+            title: "Diagram",
+            className: "w-[95vw] h-[90vh] flex flex-col",
+          });
         }
 
         return;
@@ -229,71 +198,12 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
     [showDialog]
   );
 
-  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    const viewport = target.closest<HTMLElement>(".mermaid-viewport");
-    if (!viewport) {
-      return;
-    }
-
-    if (event.button !== 0 || target.closest(".mermaid-controls")) {
-      return;
-    }
-
-    const { zoom, panX, panY } = readViewportState(viewport);
-    if (zoom <= 1) {
-      return;
-    }
-
-    viewport.setPointerCapture(event.pointerId);
-    viewport.dataset.panning = "true";
-    dragStateRef.current = {
-      viewport,
-      pointerId: event.pointerId,
-      startPointerX: event.clientX,
-      startPointerY: event.clientY,
-      startPanX: panX,
-      startPanY: panY,
-    };
-  }, []);
-
-  const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragStateRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) {
-      return;
-    }
-
-    const dx = event.clientX - drag.startPointerX;
-    const dy = event.clientY - drag.startPointerY;
-    drag.viewport.dataset.panX = String(drag.startPanX + dx);
-    drag.viewport.dataset.panY = String(drag.startPanY + dy);
-    applyViewportTransform(drag.viewport);
-  }, []);
-
-  const handlePointerEnd = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragStateRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) {
-      return;
-    }
-
-    if (drag.viewport.hasPointerCapture(event.pointerId)) {
-      drag.viewport.releasePointerCapture(event.pointerId);
-    }
-
-    delete drag.viewport.dataset.panning;
-    dragStateRef.current = null;
-  }, []);
-
   return (
     <div
       ref={containerRef}
       className={cn("markdown-content", className)}
       dangerouslySetInnerHTML={innerHtml}
       onClick={handleContainerClick}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerEnd}
-      onPointerCancel={handlePointerEnd}
     />
   );
 }
@@ -334,97 +244,4 @@ function copyHtmlviewSource(button: HTMLElement, source: string): void {
     .catch(() => {
       console.warn("Clipboard not available.");
     });
-}
-
-function createZoomButton(action: string, label: string, symbol: string): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "mermaid-zoom-btn";
-  button.dataset.zoomAction = action;
-  button.setAttribute("aria-label", label);
-  button.textContent = symbol;
-  return button;
-}
-
-/**
- * Wrap an already-rendered mermaid SVG (child of `container`) with a
- * zoom/pan viewport and overlay controls. Uses DOM methods only — the SVG
- * was sanitized by the shared mermaid renderer before insertion.
- */
-function wrapMermaidAsViewport(container: Element) {
-  const svg = container.firstElementChild;
-  if (!svg) {
-    return;
-  }
-
-  const viewport = document.createElement("div");
-  viewport.className = "mermaid-viewport";
-  viewport.dataset.zoom = "1";
-  viewport.dataset.panX = "0";
-  viewport.dataset.panY = "0";
-
-  const stage = document.createElement("div");
-  stage.className = "mermaid-stage";
-  stage.appendChild(svg);
-
-  const controls = document.createElement("div");
-  controls.className = "mermaid-controls";
-  controls.setAttribute("role", "group");
-  controls.setAttribute("aria-label", "Diagram zoom controls");
-  controls.append(
-    createZoomButton("out", "Zoom out", "−"),
-    createZoomButton("reset", "Reset zoom", "↺"),
-    createZoomButton("in", "Zoom in", "+")
-  );
-
-  viewport.append(stage, controls);
-  container.replaceChildren(viewport);
-}
-
-function readViewportState(viewport: HTMLElement) {
-  const zoom = Number(viewport.dataset.zoom) || 1;
-  const panX = Number(viewport.dataset.panX) || 0;
-  const panY = Number(viewport.dataset.panY) || 0;
-  return { zoom, panX, panY };
-}
-
-function applyViewportTransform(viewport: HTMLElement) {
-  const stage = viewport.querySelector<HTMLElement>(".mermaid-stage");
-  if (!stage) {
-    return;
-  }
-
-  const { zoom, panX, panY } = readViewportState(viewport);
-  stage.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
-  viewport.dataset.interactive = zoom > 1 ? "true" : "false";
-}
-
-function zoomViewport(viewport: HTMLElement, action: string, focal?: { x: number; y: number }) {
-  const { zoom, panX, panY } = readViewportState(viewport);
-  let nextZoom = zoom;
-  if (action === "in") {
-    nextZoom = Math.min(zoom * ZOOM_STEP, MAX_ZOOM);
-  } else if (action === "out") {
-    nextZoom = Math.max(zoom / ZOOM_STEP, MIN_ZOOM);
-  } else if (action === "reset") {
-    nextZoom = 1;
-  }
-
-  if (nextZoom <= 1) {
-    viewport.dataset.panX = "0";
-    viewport.dataset.panY = "0";
-  } else if (focal && nextZoom !== zoom) {
-    // Focal-point zoom: keep the point under `focal` visually stationary.
-    // Stage uses transform-origin: center, which (for a stage that fills
-    // the viewport) aligns with the viewport center.
-    const rect = viewport.getBoundingClientRect();
-    const offsetX = focal.x - rect.width / 2;
-    const offsetY = focal.y - rect.height / 2;
-    const ratio = nextZoom / zoom;
-    viewport.dataset.panX = String(offsetX + ratio * (panX - offsetX));
-    viewport.dataset.panY = String(offsetY + ratio * (panY - offsetY));
-  }
-
-  viewport.dataset.zoom = String(nextZoom);
-  applyViewportTransform(viewport);
 }
