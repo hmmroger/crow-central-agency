@@ -11,6 +11,8 @@ import { InlineTextEdit } from "../common/inline-text-edit.js";
 /** Reader/editor switch for a note that can be edited */
 interface NoteReadModeToggle {
   isReadMode: boolean;
+  /** True while the draft is being saved ahead of the switch */
+  isSwitching: boolean;
   onToggle: () => void;
 }
 
@@ -75,6 +77,7 @@ export function NoteHeader({ note, isUnsaved = false, readModeToggle }: NoteHead
           variant={ACTION_BUTTON_VARIANT.GHOST}
           iconOnly
           isActive={readModeToggle.isReadMode}
+          disabled={readModeToggle.isSwitching}
           onClick={readModeToggle.onToggle}
           className="shrink-0"
         />

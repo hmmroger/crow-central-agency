@@ -29,23 +29,29 @@ export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
   const isNoteReadMode = useAppStore((state) => state.isNoteReadMode);
   const setNoteReadMode = useAppStore((state) => state.setNoteReadMode);
   const [isUnsaved, setIsUnsaved] = useState(false);
+  const [isSwitchingMode, setIsSwitchingMode] = useState(false);
   const editorRef = useRef<NoteEditorHandle>(null);
   const note = noteId ? getNote(noteId) : undefined;
 
   // Saved content never reaches the content cache, so the draft is written
   // before the editor goes, and the cached entry is dropped so whichever
-  // surface mounts next fetches what was last saved.
-  const handleReadModeToggle = useCallback(async () => {
+  // surface mounts next fetches what was last saved. The toggle stays disabled
+  // until the flush settles, so a second click can't act on a stale mode.
+  const handleReadModeToggle = useCallback(() => {
     if (noteId === undefined) {
       return;
     }
 
-    if (!isNoteReadMode && editorRef.current && !(await editorRef.current.flush())) {
-      return;
-    }
+    const flushed = !isNoteReadMode && editorRef.current ? editorRef.current.flush() : Promise.resolve(true);
+    setIsSwitchingMode(true);
 
-    queryClient.removeQueries({ queryKey: noteKeys.content(noteId) });
-    setNoteReadMode(!isNoteReadMode);
+    void flushed.then((isFlushed) => {
+      setIsSwitchingMode(false);
+      if (isFlushed) {
+        queryClient.removeQueries({ queryKey: noteKeys.content(noteId) });
+        setNoteReadMode(!isNoteReadMode);
+      }
+    });
   }, [noteId, isNoteReadMode, queryClient, setNoteReadMode]);
 
   if (note?.entityType !== ENTITY_TYPE.NOTE) {
@@ -60,7 +66,9 @@ export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
         note={note}
         isUnsaved={isUnsaved}
         readModeToggle={
-          note.isReadOnly ? undefined : { isReadMode: isNoteReadMode, onToggle: () => void handleReadModeToggle() }
+          note.isReadOnly
+            ? undefined
+            : { isReadMode: isNoteReadMode, isSwitching: isSwitchingMode, onToggle: handleReadModeToggle }
         }
       />
 

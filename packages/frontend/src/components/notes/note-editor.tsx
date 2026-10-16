@@ -21,6 +21,7 @@ interface NoteEditorProps {
   note: NoteFileMetadata;
   /** Reports whether the draft is still ahead of the backend, for the note header */
   onUnsavedChange: (isUnsaved: boolean) => void;
+  /** Lets the host flush the draft before it swaps the editor out */
   ref?: Ref<NoteEditorHandle>;
 }
 
