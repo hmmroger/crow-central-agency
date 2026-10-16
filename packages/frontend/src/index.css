@@ -519,6 +519,18 @@
     outline-offset: 1px;
   }
 
+  .mermaid-expanded .mermaid-viewport,
+  .mermaid-expanded .mermaid-stage {
+    height: 100%;
+  }
+
+  /* Mermaid sets an inline max-width on the SVG; the viewBox keeps the aspect ratio. */
+  .mermaid-expanded .mermaid-stage > svg {
+    width: 100%;
+    height: 100%;
+    max-width: none !important;
+  }
+
   .note-canvas {
     width: 100%;
     max-width: var(--max-width-note);

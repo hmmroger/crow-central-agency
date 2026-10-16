@@ -8,7 +8,13 @@ import { renderMarkdownWikilinks } from "./markdown-wikilink-renderer";
 import { HtmlviewEmbedDialog } from "../dialogs/htmlview-embed-dialog";
 import { useOptionalModalDialog } from "../../../providers/modal-dialog-provider";
 import { cn } from "../../../utils/cn";
-import { createMermaidViewport } from "./mermaid-viewport";
+import { MermaidDiagramDialog } from "../dialogs/mermaid-diagram-dialog";
+import {
+  createMermaidViewport,
+  MERMAID_EXPAND_BUTTON_SELECTOR,
+  MERMAID_SVG_SELECTOR,
+  MERMAID_VIEWPORT_SELECTOR,
+} from "./mermaid-viewport";
 import { useMermaidViewport } from "./use-mermaid-viewport";
 
 const HTMLVIEW_COPY_ACTION = "copy";
@@ -76,7 +82,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
               if (currentContainers && currentContainers.length > index) {
                 const postEl = currentContainers[index];
                 postEl.setAttribute("data-rendered", "true");
-                postEl.replaceChildren(createMermaidViewport(diagram));
+                postEl.replaceChildren(createMermaidViewport(diagram, true));
               }
             } catch (error) {
               el.setAttribute("data-rendered", "true");
@@ -120,10 +126,27 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
     return renderMarkdownWikilinks(container, resolutions, (note) => goToNote(note.id));
   }, [renderedHtml, isStreaming, resolutions, goToNote]);
 
-  // Event delegation: handles code-copy and embed chrome buttons.
+  // Event delegation: handles code-copy, mermaid expand and embed chrome buttons.
   const handleContainerClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement;
+
+      // The dialog gets a copy of the rendered SVG, so the inline diagram is left untouched.
+      const expandBtn = target.closest(MERMAID_EXPAND_BUTTON_SELECTOR);
+      if (expandBtn) {
+        const svg = expandBtn.closest(MERMAID_VIEWPORT_SELECTOR)?.querySelector(MERMAID_SVG_SELECTOR);
+        if (svg) {
+          showDialog?.({
+            id: `mermaid-expand-${Date.now()}`,
+            component: MermaidDiagramDialog,
+            componentProps: { svg: svg.cloneNode(true) },
+            title: "Diagram",
+            className: "w-[95vw] h-[90vh] flex flex-col",
+          });
+        }
+
+        return;
+      }
 
       const htmlviewBtn = target.closest<HTMLElement>(".htmlview-btn");
       if (htmlviewBtn) {

@@ -5,14 +5,27 @@ const ZOOM_STEP = 1.25;
 export const MERMAID_VIEWPORT_SELECTOR = ".mermaid-viewport";
 export const MERMAID_ZOOM_BUTTON_SELECTOR = ".mermaid-zoom-btn";
 export const MERMAID_CONTROLS_SELECTOR = ".mermaid-controls";
+export const MERMAID_EXPAND_BUTTON_SELECTOR = ".mermaid-expand-btn";
+export const MERMAID_SVG_SELECTOR = ".mermaid-stage > svg";
 
-function createZoomButton(action: string, label: string, symbol: string): HTMLButtonElement {
+function createControlButton(label: string, symbol: string): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "mermaid-zoom-btn";
-  button.dataset.zoomAction = action;
   button.setAttribute("aria-label", label);
   button.textContent = symbol;
+  return button;
+}
+
+function createZoomButton(action: string, label: string, symbol: string): HTMLButtonElement {
+  const button = createControlButton(label, symbol);
+  button.dataset.zoomAction = action;
+  return button;
+}
+
+function createExpandButton(): HTMLButtonElement {
+  const button = createControlButton("Expand diagram", "⤢");
+  button.classList.add("mermaid-expand-btn");
   return button;
 }
 
@@ -21,7 +34,7 @@ function createZoomButton(action: string, label: string, symbol: string): HTMLBu
  * mermaid SVG. Uses DOM methods only — the SVG was sanitized by the shared
  * mermaid renderer before it reached here.
  */
-export function createMermaidViewport(svg: Element): HTMLDivElement {
+export function createMermaidViewport(svg: Node, isExpandable: boolean): HTMLDivElement {
   const viewport = document.createElement("div");
   viewport.className = "mermaid-viewport";
   viewport.dataset.zoom = "1";
@@ -41,6 +54,9 @@ export function createMermaidViewport(svg: Element): HTMLDivElement {
     createZoomButton("reset", "Reset zoom", "↺"),
     createZoomButton("in", "Zoom in", "+")
   );
+  if (isExpandable) {
+    controls.append(createExpandButton());
+  }
 
   viewport.append(stage, controls);
   return viewport;
