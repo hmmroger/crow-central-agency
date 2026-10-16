@@ -1,4 +1,4 @@
-import DOMPurify from "dompurify";
+import DOMPurify, { type Config } from "dompurify";
 
 const HTTPS_PROTOCOL = "https:";
 // Media elements whose src/srcset must be restricted to https inside embeds.
@@ -41,9 +41,13 @@ const purifyConfigGeneral = {
 };
 
 /**
- * DOMPurify config for mermaid SVG output
+ * DOMPurify config for mermaid SVG output. Returns DOM rather than markup:
+ * the SVG holds HTML labels inside foreignObject, which a strict XML re-parse
+ * of the serialized string would reject.
  */
-const purifyConfigMermaid = {
+const purifyConfigMermaid: Config & { RETURN_DOM_FRAGMENT: true } = {
+  RETURN_DOM_FRAGMENT: true,
+
   // 1. Ensure SVG, MathML, and HTML tags are recognized
   USE_PROFILES: { html: true, svg: true, svgFilters: true },
 
@@ -214,9 +218,8 @@ export function sanitizeHtml(html: string): string {
   return safeHtml;
 }
 
-export function sanitizeSvg(svg: string): string {
-  const safeSvg = DOMPurify.sanitize(svg, purifyConfigMermaid);
-  return safeSvg;
+export function sanitizeSvg(svg: string): DocumentFragment {
+  return DOMPurify.sanitize(svg, purifyConfigMermaid);
 }
 
 export function sanitizeEmbedHtml(html: string): string {
