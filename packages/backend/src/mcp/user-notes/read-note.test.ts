@@ -85,8 +85,9 @@ interface Harness {
 function createHarness(note: NoteFileMetadata | NoteFolderMetadata, content: string | Buffer = BYTES): Harness {
   const store = new InMemoryObjectStore();
   const broadcaster = new WsBroadcaster();
-  const tagManager = new TagManager(store, new RelationshipManager(store), broadcaster);
-  const notesManager = new NotesManager(MOCK_NOTES_PATH, broadcaster, tagManager);
+  const relationshipManager = new RelationshipManager(store, broadcaster);
+  const tagManager = new TagManager(store, relationshipManager, broadcaster);
+  const notesManager = new NotesManager(MOCK_NOTES_PATH, broadcaster, tagManager, relationshipManager);
   const sensorManager = new SensorManager(store);
   vi.mocked(sensorManager.getUserTimezone).mockResolvedValue("UTC");
   vi.mocked(notesManager.getNote).mockReturnValue(note);

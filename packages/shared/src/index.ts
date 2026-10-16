@@ -210,8 +210,7 @@ export {
   CircleCreatedWsMessageSchema,
   CircleUpdatedWsMessageSchema,
   CircleDeletedWsMessageSchema,
-  RelationshipCreatedWsMessageSchema,
-  RelationshipDeletedWsMessageSchema,
+  RelationshipsChangedWsMessageSchema,
   FragmentCreatedWsMessageSchema,
   FragmentUpdatedWsMessageSchema,
   FragmentDeletedWsMessageSchema,
@@ -224,8 +223,7 @@ export {
   type CircleCreatedWsMessage,
   type CircleUpdatedWsMessage,
   type CircleDeletedWsMessage,
-  type RelationshipCreatedWsMessage,
-  type RelationshipDeletedWsMessage,
+  type RelationshipsChangedWsMessage,
   type FragmentCreatedWsMessage,
   type FragmentUpdatedWsMessage,
   type FragmentDeletedWsMessage,
@@ -465,6 +463,7 @@ export {
   RelationshipTypeSchema,
   RelationshipSchema,
   CreateRelationshipInputSchema,
+  RelationshipQuerySchema,
   DeleteRelationshipResultSchema,
   CircleMemberSchema,
   type AgentCircle,
@@ -472,12 +471,14 @@ export {
   type UpdateAgentCircleInput,
   type Relationship,
   type CreateRelationshipInput,
+  type RelationshipQuery,
   type DeleteRelationshipResult,
   type CircleMember,
   type EntityType,
   type Entity,
   type RelationshipType,
 } from "./schemas/agent-circle.schema.js";
+export { relationshipMatchesQuery, toEntityKey } from "./utils/relationship-utils.js";
 
 export {
   CROW_SYSTEM_AGENT_ID,
@@ -533,16 +534,7 @@ export {
   type GraphData,
 } from "./schemas/graph.schema.js";
 
-export {
-  TagSchema,
-  TagEdgeSchema,
-  TagSnapshotSchema,
-  TagSnapshotQuerySchema,
-  type Tag,
-  type TagEdge,
-  type TagSnapshot,
-  type TagSnapshotQuery,
-} from "./schemas/tag.schema.js";
+export { TagSchema, type Tag } from "./schemas/tag.schema.js";
 
 export {
   DATA_SOURCE_TYPE,

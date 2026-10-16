@@ -21,8 +21,8 @@ interface Harness {
 }
 
 async function createHarness(store = new InMemoryObjectStore()): Promise<Harness> {
-  const relationshipManager = new RelationshipManager(store);
   const broadcaster = new WsBroadcaster();
+  const relationshipManager = new RelationshipManager(store, broadcaster);
   const tagManager = new TagManager(store, relationshipManager, broadcaster);
   await relationshipManager.initialize();
   await tagManager.initialize();
@@ -281,10 +281,11 @@ describe("TagManager.tagEntity / untagEntity", () => {
 });
 
 describe("TagManager TAGS_CHANGED", () => {
-  it("broadcasts one message per setEntityTags batch, with tags left unused", async () => {
+  it("announces created tags before their edges and unused tags after the edge removal", async () => {
     const harness = await createHarness();
     await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
     const alphaId = tagIdByName(harness, "alpha");
+    const [alphaEdge] = harness.relationshipManager.queryRelationships({ sourceEntityId: "note-a" });
     const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
 
     await harness.tagManager.setEntityTags([
@@ -292,18 +293,13 @@ describe("TagManager TAGS_CHANGED", () => {
       { entity: agent("agent-a"), tagNames: ["beta"] },
     ]);
 
-    const betaId = tagIdByName(harness, "beta");
-    expect(broadcastSpy).toHaveBeenCalledTimes(1);
-    expect(broadcastSpy).toHaveBeenCalledWith({
-      type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
-      tags: [harness.tagManager.getTag(betaId)],
-      removedEdges: [{ tagId: alphaId, entity: note("note-a") }],
-      addedEdges: [
-        { tagId: betaId, entity: note("note-a") },
-        { tagId: betaId, entity: agent("agent-a") },
-      ],
-      deletedTagIds: [alphaId],
-    });
+    const betaTag = harness.tagManager.getTag(tagIdByName(harness, "beta"));
+    const betaEdges = harness.relationshipManager.queryRelationships({ targetEntityId: betaTag.id });
+    expect(broadcastSpy.mock.calls.map(([message]) => message)).toEqual([
+      { type: SERVER_MESSAGE_TYPE.TAGS_CHANGED, upserted: [betaTag], deletedIds: [] },
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted: betaEdges, deletedIds: [alphaEdge.id] },
+      { type: SERVER_MESSAGE_TYPE.TAGS_CHANGED, upserted: [], deletedIds: [alphaId] },
+    ]);
   });
 
   it("broadcasts nothing when the tags already match", async () => {
@@ -316,64 +312,34 @@ describe("TagManager TAGS_CHANGED", () => {
     expect(broadcastSpy).not.toHaveBeenCalled();
   });
 
-  it("carries the record of an existing tag a new edge points at", async () => {
+  it("sends no TAGS_CHANGED for an edge to an existing tag", async () => {
     const harness = await createHarness();
     await harness.tagManager.setEntityTags([{ entity: agent("agent-a"), tagNames: ["alpha"] }]);
-    const alphaTag = harness.tagManager.getTag(tagIdByName(harness, "alpha"));
     const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
 
     await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
 
-    expect(broadcastSpy).toHaveBeenCalledWith({
-      type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
-      tags: [alphaTag],
-      removedEdges: [],
-      addedEdges: [{ tagId: alphaTag.id, entity: note("note-a") }],
-      deletedTagIds: [],
-    });
+    expect(broadcastSpy.mock.calls.map(([message]) => message.type)).toEqual([
+      SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED,
+    ]);
   });
 
-  it("broadcasts the edge of tagEntity and untagEntity", async () => {
+  it("announces only the tag deleted by untagEntity, never tagEntity", async () => {
     const harness = await createHarness();
     await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
     const alphaId = tagIdByName(harness, "alpha");
-    const alphaTag = harness.tagManager.getTag(alphaId);
     const [noteEdge] = harness.relationshipManager.queryRelationships({ sourceEntityId: "note-a" });
-    const agentEdge = { tagId: alphaId, entity: agent("agent-a") };
     const broadcastSpy = vi.spyOn(harness.broadcaster, "broadcast");
 
     const relationship = await harness.tagManager.tagEntity(agent("agent-a"), alphaId);
     await harness.tagManager.untagEntity(noteEdge.id);
     await harness.tagManager.untagEntity(relationship.id);
 
-    expect(broadcastSpy.mock.calls).toEqual([
-      [
-        {
-          type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
-          tags: [alphaTag],
-          removedEdges: [],
-          addedEdges: [agentEdge],
-          deletedTagIds: [],
-        },
-      ],
-      [
-        {
-          type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
-          tags: [],
-          removedEdges: [{ tagId: alphaId, entity: note("note-a") }],
-          addedEdges: [],
-          deletedTagIds: [],
-        },
-      ],
-      [
-        {
-          type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
-          tags: [],
-          removedEdges: [agentEdge],
-          addedEdges: [],
-          deletedTagIds: [alphaId],
-        },
-      ],
+    expect(broadcastSpy.mock.calls.map(([message]) => message)).toEqual([
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted: [relationship], deletedIds: [] },
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted: [], deletedIds: [noteEdge.id] },
+      { type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted: [], deletedIds: [relationship.id] },
+      { type: SERVER_MESSAGE_TYPE.TAGS_CHANGED, upserted: [], deletedIds: [alphaId] },
     ]);
   });
 
@@ -392,10 +358,10 @@ describe("TagManager TAGS_CHANGED", () => {
 });
 
 describe("TagManager.changeEntityIds", () => {
-  it("moves only TAGGED edges and announces each moved edge", async () => {
+  it("moves only TAGGED edges and sends no TAGS_CHANGED", async () => {
     const harness = await createHarness();
     await harness.tagManager.setEntityTags([{ entity: note("note-a"), tagNames: ["alpha"] }]);
-    const alphaId = tagIdByName(harness, "alpha");
+    const [noteEdge] = harness.relationshipManager.queryRelationships({ sourceEntityId: "note-a" });
     const association = await harness.relationshipManager.createRelationship({
       sourceEntityId: "agent-a",
       sourceEntityType: ENTITY_TYPE.AGENT,
@@ -410,14 +376,13 @@ describe("TagManager.changeEntityIds", () => {
     expect(entityTagNames(harness, note("note-a"))).toEqual([]);
     expect(entityTagNames(harness, note("note-b"))).toEqual(["alpha"]);
     expect(harness.relationshipManager.getRelationship(association.id).targetEntityId).toBe("note-a");
-    expect(broadcastSpy).toHaveBeenCalledTimes(1);
-    expect(broadcastSpy).toHaveBeenCalledWith({
-      type: SERVER_MESSAGE_TYPE.TAGS_CHANGED,
-      tags: [harness.tagManager.getTag(alphaId)],
-      removedEdges: [{ tagId: alphaId, entity: note("note-a") }],
-      addedEdges: [{ tagId: alphaId, entity: note("note-b") }],
-      deletedTagIds: [],
-    });
+    expect(broadcastSpy.mock.calls.map(([message]) => message)).toEqual([
+      {
+        type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED,
+        upserted: [{ ...noteEdge, sourceEntityId: "note-b" }],
+        deletedIds: [],
+      },
+    ]);
   });
 
   it("broadcasts nothing when no TAGGED edge moves", async () => {
@@ -427,34 +392,6 @@ describe("TagManager.changeEntityIds", () => {
     await harness.tagManager.changeEntityIds(new Map([["note-a", note("note-b")]]));
 
     expect(broadcastSpy).not.toHaveBeenCalled();
-  });
-});
-
-describe("TagManager.getSnapshot", () => {
-  it("returns every tag and edge without a filter", async () => {
-    const harness = await createHarness();
-    await harness.tagManager.setEntityTags([
-      { entity: note("note-a"), tagNames: ["alpha"] },
-      { entity: agent("agent-a"), tagNames: ["beta"] },
-    ]);
-
-    const snapshot = harness.tagManager.getSnapshot();
-
-    expect(snapshot.tags.map((tag) => tag.name).sort()).toEqual(["alpha", "beta"]);
-    expect(snapshot.edges).toHaveLength(2);
-  });
-
-  it("keeps only the entity type's edges and the tags they use", async () => {
-    const harness = await createHarness();
-    await harness.tagManager.setEntityTags([
-      { entity: note("note-a"), tagNames: ["alpha", "beta"] },
-      { entity: agent("agent-a"), tagNames: ["beta", "gamma"] },
-    ]);
-
-    const snapshot = harness.tagManager.getSnapshot(ENTITY_TYPE.AGENT);
-
-    expect(snapshot.tags.map((tag) => tag.name).sort()).toEqual(["beta", "gamma"]);
-    expect(snapshot.edges.map((edge) => edge.entity)).toEqual([agent("agent-a"), agent("agent-a")]);
   });
 });
 

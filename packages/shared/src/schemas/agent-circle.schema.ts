@@ -36,12 +36,14 @@ export type Entity = z.infer<typeof EntitySchema>;
  * ASSOCIATION anchors an agent to a fragment (agent → fragment).
  * LINK connects fragments (fragment → fragment).
  * TAGGED attaches a tag to an entity (any entity → tag).
+ * REFERENCE is a wikilink or embed in a live text note to the live entry it resolves to (note → note or folder).
  */
 export const RELATIONSHIP_TYPE = {
   MEMBERSHIP: "MEMBERSHIP",
   ASSOCIATION: "ASSOCIATION",
   LINK: "LINK",
   TAGGED: "TAGGED",
+  REFERENCE: "REFERENCE",
 } as const;
 
 export type RelationshipType = (typeof RELATIONSHIP_TYPE)[keyof typeof RELATIONSHIP_TYPE];
@@ -84,6 +86,7 @@ export const RelationshipTypeSchema = z.enum([
   RELATIONSHIP_TYPE.ASSOCIATION,
   RELATIONSHIP_TYPE.LINK,
   RELATIONSHIP_TYPE.TAGGED,
+  RELATIONSHIP_TYPE.REFERENCE,
 ]);
 
 export const RelationshipSchema = z.object({
@@ -109,8 +112,19 @@ export const CreateRelationshipInputSchema = z.object({
 
 export type CreateRelationshipInput = z.infer<typeof CreateRelationshipInputSchema>;
 
+/** Relationship filter; provided fields are AND-combined, none matches every relationship */
+export const RelationshipQuerySchema = z.object({
+  sourceEntityId: z.string().optional(),
+  sourceEntityType: EntityTypeSchema.optional(),
+  targetEntityId: z.string().optional(),
+  targetEntityType: EntityTypeSchema.optional(),
+  relationshipType: RelationshipTypeSchema.optional(),
+});
+
+export type RelationshipQuery = z.infer<typeof RelationshipQuerySchema>;
+
 export const DeleteRelationshipResultSchema = z.object({
-  /** Fragment ids removed by the delete cascade; empty for MEMBERSHIP and TAGGED deletes */
+  /** Fragment ids removed by the delete cascade; empty for MEMBERSHIP deletes */
   collectedFragmentIds: z.array(z.string()),
 });
 

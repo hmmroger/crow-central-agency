@@ -10,11 +10,12 @@ import {
   type UpdateAgentCircleInput,
   type CreateRelationshipInput,
   type EntityType,
+  type RelationshipQuery,
+  relationshipMatchesQuery,
 } from "@crow-central-agency/shared";
 import { EventBus } from "../core/event-bus/event-bus.js";
 import type { AgentCircleManagerEvents } from "./agent-circle-manager.types.js";
-import type { QueryRelationshipOptions } from "./relationship-manager.types.js";
-import { relationshipMatchesQuery, type RelationshipManager } from "./relationship-manager.js";
+import type { RelationshipManager } from "./relationship-manager.js";
 import type { WsBroadcaster } from "./ws-broadcaster.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
 import { AppError } from "../core/error/app-error.js";
@@ -158,8 +159,13 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
     return this.relationshipManager.getAllRelationships().concat(Array.from(this.virtualRelationships.values()));
   }
 
-  public queryRelationships(options: QueryRelationshipOptions): Relationship[] {
-    return this.getAllRelationships().filter((relationship) => relationshipMatchesQuery(relationship, options));
+  /** Query relationships, including virtual system-agent memberships */
+  public queryRelationships(options: RelationshipQuery): Relationship[] {
+    const virtualMatches = Array.from(this.virtualRelationships.values()).filter((relationship) =>
+      relationshipMatchesQuery(relationship, options)
+    );
+
+    return this.relationshipManager.queryRelationships(options).concat(virtualMatches);
   }
 
   /**
@@ -193,12 +199,7 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
       this.assertNoCycle(input.sourceEntityId, input.targetEntityId);
     }
 
-    const relationship = await this.relationshipManager.createRelationship(input);
-
-    this.emit("relationshipCreated", { relationship });
-    this.broadcaster.broadcast({ type: "relationship_created", relationship });
-
-    return relationship;
+    return this.relationshipManager.createRelationship(input);
   }
 
   /**
@@ -220,9 +221,6 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
     }
 
     await this.relationshipManager.deleteRelationship(relationshipId);
-
-    this.emit("relationshipDeleted", { relationshipId });
-    this.broadcaster.broadcast({ type: "relationship_deleted", relationshipId });
   }
 
   // ---------------------------------------------------------------------------
@@ -318,14 +316,9 @@ export class AgentCircleManager extends EventBus<AgentCircleManagerEvents> {
     return false;
   }
 
-  /** Remove all relationships involving an entity and emit events for each */
+  /** Remove all relationships involving an entity */
   public async removeRelationshipsForEntity(entityId: string): Promise<void> {
-    const removedIds = await this.relationshipManager.removeRelationshipsForEntity(entityId);
-
-    for (const relationshipId of removedIds) {
-      this.emit("relationshipDeleted", { relationshipId });
-      this.broadcaster.broadcast({ type: "relationship_deleted", relationshipId });
-    }
+    await this.relationshipManager.removeRelationshipsForEntity(entityId);
   }
 
   // ---------------------------------------------------------------------------

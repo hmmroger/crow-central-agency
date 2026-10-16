@@ -1,10 +1,6 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  RelationshipCreatedWsMessageSchema,
-  RelationshipDeletedWsMessageSchema,
-  type CircleMember,
-} from "@crow-central-agency/shared";
+import { SERVER_MESSAGE_TYPE, type CircleMember } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { circleKeys } from "../../services/query-keys.js";
 import { useWs } from "../use-ws.js";
@@ -31,12 +27,8 @@ export function useCircleMembersQuery(circleId: string, enabled = true) {
   });
 
   useEffect(() => {
-    const unregister = onMessage((raw) => {
-      const isRelevant =
-        RelationshipCreatedWsMessageSchema.safeParse(raw).success ||
-        RelationshipDeletedWsMessageSchema.safeParse(raw).success;
-
-      if (isRelevant) {
+    const unregister = onMessage((message) => {
+      if (message.type === SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED) {
         void queryClient.invalidateQueries({ queryKey: circleKeys.members(circleId) });
       }
     });

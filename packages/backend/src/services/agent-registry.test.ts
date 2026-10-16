@@ -48,7 +48,7 @@ function createHarness(): Harness {
   const fragmentStore = new InMemoryObjectStore();
   const indexStore = new InMemoryObjectStore();
   const broadcaster = new WsBroadcaster();
-  const relationshipManager = new RelationshipManager(store);
+  const relationshipManager = new RelationshipManager(store, broadcaster);
   const circleManager = new AgentCircleManager(store, relationshipManager, broadcaster);
   const fragmentManager = new FragmentManager(fragmentStore, indexStore, relationshipManager, broadcaster);
   const registry = new AgentRegistry(store, templateStore, broadcaster, circleManager, fragmentManager);

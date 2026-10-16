@@ -200,16 +200,13 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       );
     }
 
-    const relationship = await this.relationshipManager.createRelationship({
+    return this.relationshipManager.createRelationship({
       sourceEntityId: agentId,
       sourceEntityType: ENTITY_TYPE.AGENT,
       targetEntityId: fragmentId,
       targetEntityType: ENTITY_TYPE.FRAGMENT,
       relationshipType: RELATIONSHIP_TYPE.ASSOCIATION,
     });
-    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.RELATIONSHIP_CREATED, relationship });
-
-    return relationship;
   }
 
   /**
@@ -233,7 +230,6 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
 
     for (const association of associations) {
       await this.relationshipManager.deleteRelationship(association.id);
-      this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED, relationshipId: association.id });
     }
   }
 
@@ -261,16 +257,13 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
       );
     }
 
-    const relationship = await this.relationshipManager.createRelationship({
+    return this.relationshipManager.createRelationship({
       sourceEntityId: parentFragmentId,
       sourceEntityType: ENTITY_TYPE.FRAGMENT,
       targetEntityId: childFragmentId,
       targetEntityType: ENTITY_TYPE.FRAGMENT,
       relationshipType: RELATIONSHIP_TYPE.LINK,
     });
-    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.RELATIONSHIP_CREATED, relationship });
-
-    return relationship;
   }
 
   /**
@@ -294,7 +287,6 @@ export class FragmentManager extends EventBus<FragmentManagerEvents> {
 
     for (const link of links) {
       await this.relationshipManager.deleteRelationship(link.id);
-      this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED, relationshipId: link.id });
     }
   }
 

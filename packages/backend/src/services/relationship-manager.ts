@@ -1,14 +1,19 @@
 import {
   GraphNodePositionSchema,
   RelationshipSchema,
+  SERVER_MESSAGE_TYPE,
+  relationshipMatchesQuery,
+  toEntityKey,
   type CreateRelationshipInput,
   type GraphNodePosition,
   type Relationship,
+  type RelationshipQuery,
   type RelationshipType,
 } from "@crow-central-agency/shared";
 import { minBy } from "es-toolkit";
-import type { QueryRelationshipOptions, RekeyedRelationship } from "./relationship-manager.types.js";
+import type { RekeyedRelationship, RelationshipTargets, ReplacedRelationships } from "./relationship-manager.types.js";
 import type { ObjectStoreProvider } from "../core/store/object-store.types.js";
+import type { WsBroadcaster } from "./ws-broadcaster.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 import { generateId } from "../utils/id-utils.js";
@@ -24,22 +29,13 @@ export const GRAPH_NODE_POSITION_STORE_TABLE = "graph-node-positions";
 
 const EMPTY_ID_SET: ReadonlySet<string> = new Set();
 
-/** Check whether a relationship matches the given query options */
-export function relationshipMatchesQuery(relationship: Relationship, options: QueryRelationshipOptions): boolean {
-  return (
-    (!options.sourceEntityId || options.sourceEntityId === relationship.sourceEntityId) &&
-    (!options.sourceEntityType || options.sourceEntityType === relationship.sourceEntityType) &&
-    (!options.targetEntityId || options.targetEntityId === relationship.targetEntityId) &&
-    (!options.targetEntityType || options.targetEntityType === relationship.targetEntityType) &&
-    (!options.relationshipType || options.relationshipType === relationship.relationshipType)
-  );
-}
-
 /**
  * Generic graph-structure engine over the object store: owns both edges and
  * node layout. Edges cover topology (persistence, queries, reachability checks);
  * positions cover the user-authored layout keyed by entity id. Entity semantics
  * (circle membership rules, virtual relationships) live with the callers.
+ * Every persisted edge write that changed something is announced with one
+ * RELATIONSHIPS_CHANGED; no other component broadcasts edges.
  */
 export class RelationshipManager {
   private relationships = new Map<string, Relationship>();
@@ -48,7 +44,10 @@ export class RelationshipManager {
   private idsByTargetId = new Map<string, Set<string>>();
   private idsByType = new Map<RelationshipType, Set<string>>();
 
-  constructor(private readonly store: ObjectStoreProvider) {}
+  constructor(
+    private readonly store: ObjectStoreProvider,
+    private readonly broadcaster: WsBroadcaster
+  ) {}
 
   /** Load relationships and node positions from the object store */
   public async initialize(): Promise<void> {
@@ -89,7 +88,7 @@ export class RelationshipManager {
   }
 
   /** Persist node layout positions (write-through, single atomic store persist) */
-  public async savePositions(positions: ReadonlyArray<GraphNodePosition>): Promise<void> {
+  public async savePositions(positions: readonly GraphNodePosition[]): Promise<void> {
     if (positions.length === 0) {
       return;
     }
@@ -114,7 +113,7 @@ export class RelationshipManager {
     log.info("Cleared all node positions");
   }
 
-  public queryRelationships(options: QueryRelationshipOptions): Relationship[] {
+  public queryRelationships(options: RelationshipQuery): Relationship[] {
     const candidateIds = this.selectCandidateIds(options);
     if (!candidateIds) {
       return this.getAllRelationships().filter((relationship) => relationshipMatchesQuery(relationship, options));
@@ -157,22 +156,14 @@ export class RelationshipManager {
    * @throws AppError with DUPLICATE_RELATIONSHIP for a self-reference, an existing
    *         relationship, or a duplicate within the batch.
    */
-  public async createRelationships(inputs: ReadonlyArray<CreateRelationshipInput>): Promise<Relationship[]> {
+  public async createRelationships(inputs: readonly CreateRelationshipInput[]): Promise<Relationship[]> {
     const createdTimestamp = Date.now();
     const relationships: Relationship[] = [];
     const pendingKeys = new Set<string>();
     for (const input of inputs) {
       this.assertCanCreate(input, pendingKeys);
       pendingKeys.add(this.relationshipKey(input));
-      relationships.push({
-        id: generateId(),
-        sourceEntityId: input.sourceEntityId,
-        sourceEntityType: input.sourceEntityType,
-        targetEntityId: input.targetEntityId,
-        targetEntityType: input.targetEntityType,
-        relationshipType: input.relationshipType,
-        createdTimestamp,
-      });
+      relationships.push(this.buildRelationship(input, createdTimestamp));
     }
 
     if (relationships.length === 0) {
@@ -198,8 +189,100 @@ export class RelationshipManager {
       },
       "Relationships created"
     );
+    this.broadcastChange(relationships, []);
 
     return relationships;
+  }
+
+  /**
+   * Make each source's edges of one type equal its target set: an edge whose
+   * target is still listed is kept, the rest are deleted, and missing ones are
+   * created. Every input is validated and the in-memory change applied before
+   * the first await, so concurrent callers never see a partial replace. Changes
+   * are persisted with one setMany, one deleteMany and one RELATIONSHIPS_CHANGED.
+   * @throws AppError with VALIDATION for a source listed twice, or
+   *         DUPLICATE_RELATIONSHIP for a self-reference or a target listed twice.
+   */
+  public async replaceRelationships(
+    sources: readonly RelationshipTargets[],
+    relationshipType: RelationshipType
+  ): Promise<ReplacedRelationships> {
+    const createdTimestamp = Date.now();
+    const created: Relationship[] = [];
+    const deleted: Relationship[] = [];
+    const pendingKeys = new Set<string>();
+    const seenSourceKeys = new Set<string>();
+    for (const { source, targets } of sources) {
+      const sourceKey = toEntityKey(source);
+      if (seenSourceKeys.has(sourceKey)) {
+        throw new AppError(`Source listed twice: ${source.id}`, APP_ERROR_CODES.VALIDATION);
+      }
+
+      seenSourceKeys.add(sourceKey);
+
+      const unmatchedByTargetKey = new Map<string, Relationship>();
+      const existing = this.queryRelationships({
+        sourceEntityId: source.id,
+        sourceEntityType: source.entityType,
+        relationshipType,
+      });
+      for (const relationship of existing) {
+        unmatchedByTargetKey.set(
+          toEntityKey({ id: relationship.targetEntityId, entityType: relationship.targetEntityType }),
+          relationship
+        );
+      }
+
+      for (const target of targets) {
+        if (unmatchedByTargetKey.delete(toEntityKey(target))) {
+          continue;
+        }
+
+        const input: CreateRelationshipInput = {
+          sourceEntityId: source.id,
+          sourceEntityType: source.entityType,
+          targetEntityId: target.id,
+          targetEntityType: target.entityType,
+          relationshipType,
+        };
+        this.assertCanCreate(input, pendingKeys);
+        pendingKeys.add(this.relationshipKey(input));
+        created.push(this.buildRelationship(input, createdTimestamp));
+      }
+
+      for (const relationship of unmatchedByTargetKey.values()) {
+        deleted.push(relationship);
+      }
+    }
+
+    if (created.length === 0 && deleted.length === 0) {
+      return { created, deleted };
+    }
+
+    for (const relationship of deleted) {
+      this.dropRelationship(relationship);
+    }
+
+    for (const relationship of created) {
+      this.putRelationship(relationship);
+    }
+
+    const deletedIds = deleted.map((relationship) => relationship.id);
+    if (created.length > 0) {
+      await this.store.setMany(
+        RELATIONSHIP_STORE_TABLE,
+        created.map((relationship) => [relationship.id, relationship] as const)
+      );
+    }
+
+    if (deletedIds.length > 0) {
+      await this.store.deleteMany(RELATIONSHIP_STORE_TABLE, deletedIds);
+    }
+
+    log.info({ relationshipType, created: created.length, deleted: deleted.length }, "Relationships replaced");
+    this.broadcastChange(created, deletedIds);
+
+    return { created, deleted };
   }
 
   /**
@@ -215,7 +298,7 @@ export class RelationshipManager {
    * any is deleted, so an unknown ID leaves nothing deleted.
    * @throws AppError with RELATIONSHIP_NOT_FOUND if any ID is not found.
    */
-  public async deleteRelationships(relationshipIds: ReadonlyArray<string>): Promise<void> {
+  public async deleteRelationships(relationshipIds: readonly string[]): Promise<void> {
     const relationships = Array.from(new Set(relationshipIds), (relationshipId) =>
       this.getRelationship(relationshipId)
     );
@@ -231,6 +314,7 @@ export class RelationshipManager {
     await this.store.deleteMany(RELATIONSHIP_STORE_TABLE, deletedIds);
 
     log.info({ relationshipIds: deletedIds }, "Relationships deleted");
+    this.broadcastChange([], deletedIds);
   }
 
   /**
@@ -243,7 +327,7 @@ export class RelationshipManager {
    */
   public async rekeyEntities(
     idMap: ReadonlyMap<string, string>,
-    filter?: QueryRelationshipOptions
+    filter?: RelationshipQuery
   ): Promise<RekeyedRelationship[]> {
     const affectedIds = new Set<string>();
     for (const oldId of idMap.keys()) {
@@ -274,10 +358,12 @@ export class RelationshipManager {
     }
 
     if (rekeyed.length > 0) {
+      const upserted = rekeyed.map(({ next }) => next);
       await this.store.setMany(
         RELATIONSHIP_STORE_TABLE,
-        rekeyed.map(({ next }) => [next.id, next] as const)
+        upserted.map((relationship) => [relationship.id, relationship] as const)
       );
+      this.broadcastChange(upserted, []);
     }
 
     if (!filter) {
@@ -314,7 +400,7 @@ export class RelationshipManager {
    * edges that match edgeQuery in source → target direction. Used by callers to
    * reject an edge that would close a cycle.
    */
-  public canReach(fromEntityId: string, toEntityId: string, edgeQuery: QueryRelationshipOptions): boolean {
+  public canReach(fromEntityId: string, toEntityId: string, edgeQuery: RelationshipQuery): boolean {
     const visited = new Set<string>();
 
     const walk = (currentId: string): boolean => {
@@ -341,7 +427,7 @@ export class RelationshipManager {
   }
 
   /** Smallest index set selected by the query's id and type filters; undefined when none apply */
-  private selectCandidateIds(options: QueryRelationshipOptions): ReadonlySet<string> | undefined {
+  private selectCandidateIds(options: RelationshipQuery): ReadonlySet<string> | undefined {
     const candidateSets: ReadonlySet<string>[] = [];
     if (options.sourceEntityId) {
       candidateSets.push(this.idsBySourceId.get(options.sourceEntityId) ?? EMPTY_ID_SET);
@@ -375,14 +461,20 @@ export class RelationshipManager {
     }
   }
 
+  private buildRelationship(input: CreateRelationshipInput, createdTimestamp: number): Relationship {
+    return {
+      id: generateId(),
+      sourceEntityId: input.sourceEntityId,
+      sourceEntityType: input.sourceEntityType,
+      targetEntityId: input.targetEntityId,
+      targetEntityType: input.targetEntityType,
+      relationshipType: input.relationshipType,
+      createdTimestamp,
+    };
+  }
+
   private relationshipKey(input: CreateRelationshipInput): string {
-    return JSON.stringify([
-      input.sourceEntityType,
-      input.sourceEntityId,
-      input.targetEntityType,
-      input.targetEntityId,
-      input.relationshipType,
-    ]);
+    return `${input.sourceEntityType}:${input.sourceEntityId}:${input.targetEntityType}:${input.targetEntityId}:${input.relationshipType}`;
   }
 
   /** Add the ids of every relationship with the entity as source or target to the given set */
@@ -420,6 +512,10 @@ export class RelationshipManager {
     if (vacatedIds.length > 0) {
       await this.store.deleteMany(GRAPH_NODE_POSITION_STORE_TABLE, vacatedIds);
     }
+  }
+
+  private broadcastChange(upserted: Relationship[], deletedIds: string[]): void {
+    this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED, upserted, deletedIds });
   }
 
   private putRelationship(relationship: Relationship): void {

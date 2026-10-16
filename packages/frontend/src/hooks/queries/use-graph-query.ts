@@ -4,8 +4,7 @@ import {
   CircleCreatedWsMessageSchema,
   CircleUpdatedWsMessageSchema,
   CircleDeletedWsMessageSchema,
-  RelationshipCreatedWsMessageSchema,
-  RelationshipDeletedWsMessageSchema,
+  RelationshipsChangedWsMessageSchema,
   AgentCreatedWsMessageSchema,
   AgentUpdatedWsMessageSchema,
   AgentDeletedWsMessageSchema,
@@ -44,8 +43,7 @@ export function useGraphQuery() {
         CircleCreatedWsMessageSchema.safeParse(raw).success ||
         CircleUpdatedWsMessageSchema.safeParse(raw).success ||
         CircleDeletedWsMessageSchema.safeParse(raw).success ||
-        RelationshipCreatedWsMessageSchema.safeParse(raw).success ||
-        RelationshipDeletedWsMessageSchema.safeParse(raw).success ||
+        RelationshipsChangedWsMessageSchema.safeParse(raw).success ||
         AgentCreatedWsMessageSchema.safeParse(raw).success ||
         AgentUpdatedWsMessageSchema.safeParse(raw).success ||
         AgentDeletedWsMessageSchema.safeParse(raw).success ||

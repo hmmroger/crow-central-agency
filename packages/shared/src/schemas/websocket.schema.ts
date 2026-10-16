@@ -12,7 +12,7 @@ import {
 } from "./agent-runtime-state.schema.js";
 import { MessageSourceSchema } from "./message-source.schema.js";
 import { NoteMetadataSchema } from "./note.schema.js";
-import { TagEdgeSchema, TagSchema } from "./tag.schema.js";
+import { TagSchema } from "./tag.schema.js";
 import { AgentCommandSchema } from "./agent-command.schema.js";
 import { AgentBuilderDraftViewSchema } from "./agent-builder.schema.js";
 import {
@@ -62,8 +62,7 @@ export const SERVER_MESSAGE_TYPE = {
   CIRCLE_CREATED: "circle_created",
   CIRCLE_UPDATED: "circle_updated",
   CIRCLE_DELETED: "circle_deleted",
-  RELATIONSHIP_CREATED: "relationship_created",
-  RELATIONSHIP_DELETED: "relationship_deleted",
+  RELATIONSHIPS_CHANGED: "relationships_changed",
   FRAGMENT_CREATED: "fragment_created",
   FRAGMENT_UPDATED: "fragment_updated",
   FRAGMENT_DELETED: "fragment_deleted",
@@ -285,14 +284,11 @@ export const CircleDeletedWsMessageSchema = z.object({
   circleId: z.string(),
 });
 
-export const RelationshipCreatedWsMessageSchema = z.object({
-  type: z.literal(SERVER_MESSAGE_TYPE.RELATIONSHIP_CREATED),
-  relationship: RelationshipSchema,
-});
-
-export const RelationshipDeletedWsMessageSchema = z.object({
-  type: z.literal(SERVER_MESSAGE_TYPE.RELATIONSHIP_DELETED),
-  relationshipId: z.string(),
+/** One persisted edge write; a re-key upserts the moved edges under their kept ids */
+export const RelationshipsChangedWsMessageSchema = z.object({
+  type: z.literal(SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED),
+  upserted: z.array(RelationshipSchema),
+  deletedIds: z.array(z.string()),
 });
 
 export const FragmentCreatedWsMessageSchema = z.object({
@@ -327,13 +323,14 @@ export const NoteDeletedWsMessageSchema = z.object({
   noteId: z.string(),
 });
 
-/** One tag mutation; a client applies the lists in field order. `tags` holds every tag an added edge points at */
+/**
+ * Tag records only. Created tags are announced before the edges that use them;
+ * tags deleted as unused are announced after the edge removal that left them unused.
+ */
 export const TagsChangedWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.TAGS_CHANGED),
-  tags: z.array(TagSchema),
-  removedEdges: z.array(TagEdgeSchema),
-  addedEdges: z.array(TagEdgeSchema),
-  deletedTagIds: z.array(z.string()),
+  upserted: z.array(TagSchema),
+  deletedIds: z.array(z.string()),
 });
 
 /** The single agent-builder draft changed; carries the resolved view, or null when it was cleared. */
@@ -374,8 +371,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   CircleCreatedWsMessageSchema,
   CircleUpdatedWsMessageSchema,
   CircleDeletedWsMessageSchema,
-  RelationshipCreatedWsMessageSchema,
-  RelationshipDeletedWsMessageSchema,
+  RelationshipsChangedWsMessageSchema,
   FragmentCreatedWsMessageSchema,
   FragmentUpdatedWsMessageSchema,
   FragmentDeletedWsMessageSchema,
@@ -411,8 +407,7 @@ export type TaskDeletedWsMessage = z.infer<typeof TaskDeletedWsMessageSchema>;
 export type CircleCreatedWsMessage = z.infer<typeof CircleCreatedWsMessageSchema>;
 export type CircleUpdatedWsMessage = z.infer<typeof CircleUpdatedWsMessageSchema>;
 export type CircleDeletedWsMessage = z.infer<typeof CircleDeletedWsMessageSchema>;
-export type RelationshipCreatedWsMessage = z.infer<typeof RelationshipCreatedWsMessageSchema>;
-export type RelationshipDeletedWsMessage = z.infer<typeof RelationshipDeletedWsMessageSchema>;
+export type RelationshipsChangedWsMessage = z.infer<typeof RelationshipsChangedWsMessageSchema>;
 export type FragmentCreatedWsMessage = z.infer<typeof FragmentCreatedWsMessageSchema>;
 export type FragmentUpdatedWsMessage = z.infer<typeof FragmentUpdatedWsMessageSchema>;
 export type FragmentDeletedWsMessage = z.infer<typeof FragmentDeletedWsMessageSchema>;

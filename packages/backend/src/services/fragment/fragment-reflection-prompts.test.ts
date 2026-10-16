@@ -10,12 +10,13 @@ import { InMemoryObjectStore } from "../../core/store/in-memory-object-store.moc
 const TARGET_AGENT_ID = "11111111-1111-4111-8111-111111111111";
 
 async function createFragmentManager(): Promise<FragmentManager> {
-  const relationshipManager = new RelationshipManager(new InMemoryObjectStore());
+  const broadcaster = new WsBroadcaster();
+  const relationshipManager = new RelationshipManager(new InMemoryObjectStore(), broadcaster);
   const fragmentManager = new FragmentManager(
     new InMemoryObjectStore(),
     new InMemoryObjectStore(),
     relationshipManager,
-    new WsBroadcaster()
+    broadcaster
   );
   await relationshipManager.initialize();
   await fragmentManager.initialize();

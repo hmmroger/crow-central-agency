@@ -5,7 +5,7 @@ import { useAgentsContext } from "../../providers/agents-provider.js";
 import { useCirclesQuery } from "../../hooks/queries/use-circles-query.js";
 import { useUpdateCircle } from "../../hooks/queries/use-circle-mutations.js";
 import { useDashboardSettingsQuery, useUpdateDashboardSettings } from "../../hooks/queries/use-dashboard-settings.js";
-import { useRelationshipsQuery } from "../../hooks/queries/use-relationships-query.js";
+import { MEMBERSHIP_RELATIONSHIP_QUERY, useRelationshipsQuery } from "../../hooks/queries/use-relationships-query.js";
 import { useTasksContext } from "../../providers/tasks-provider.js";
 import { HeaderPortal } from "../layout/header-portal.js";
 import { EmptyState } from "../common/empty-state.js";
@@ -38,7 +38,7 @@ const XL_QUERY = "(min-width: 1280px)";
 export function Dashboard() {
   const { agents, isLoading: agentsLoading, error: agentsError, refetch } = useAgentsContext();
   const { data: circles = [], isLoading: circlesLoading, error: circlesError } = useCirclesQuery();
-  const { data: relationships = [] } = useRelationshipsQuery();
+  const { data: relationships = [] } = useRelationshipsQuery(MEMBERSHIP_RELATIONSHIP_QUERY);
   const { data: dashboardSettings } = useDashboardSettingsQuery();
   const { tasks } = useTasksContext();
 

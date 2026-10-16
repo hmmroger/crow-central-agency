@@ -2,32 +2,45 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ENTITY_TYPE,
   RELATIONSHIP_TYPE,
+  SERVER_MESSAGE_TYPE,
+  relationshipMatchesQuery,
   type CreateRelationshipInput,
+  type Entity,
   type EntityType,
   type Relationship,
+  type RelationshipQuery,
   type RelationshipType,
 } from "@crow-central-agency/shared";
 import {
   GRAPH_NODE_POSITION_STORE_TABLE,
   RELATIONSHIP_STORE_TABLE,
   RelationshipManager,
-  relationshipMatchesQuery,
 } from "./relationship-manager.js";
-import type { QueryRelationshipOptions } from "./relationship-manager.types.js";
+import { WsBroadcaster } from "./ws-broadcaster.js";
 import { InMemoryObjectStore } from "../core/store/in-memory-object-store.mock.js";
 import { AppError } from "../core/error/app-error.js";
 import { APP_ERROR_CODES } from "../core/error/app-error.types.js";
 
 interface Harness {
   store: InMemoryObjectStore;
+  broadcaster: WsBroadcaster;
   relationshipManager: RelationshipManager;
 }
 
 async function createHarness(store = new InMemoryObjectStore()): Promise<Harness> {
-  const relationshipManager = new RelationshipManager(store);
+  const broadcaster = new WsBroadcaster();
+  const relationshipManager = new RelationshipManager(store, broadcaster);
   await relationshipManager.initialize();
 
-  return { store, relationshipManager };
+  return { store, broadcaster, relationshipManager };
+}
+
+function fragment(id: string): Entity {
+  return { id, entityType: ENTITY_TYPE.FRAGMENT };
+}
+
+function targetIds(relationships: Relationship[]): string[] {
+  return relationships.map((relationship) => relationship.targetEntityId).sort();
 }
 
 function edge(
@@ -44,7 +57,7 @@ function sortedIds(relationships: Relationship[]): string[] {
   return relationships.map((relationship) => relationship.id).sort();
 }
 
-function scanQuery(relationshipManager: RelationshipManager, options: QueryRelationshipOptions): Relationship[] {
+function scanQuery(relationshipManager: RelationshipManager, options: RelationshipQuery): Relationship[] {
   return relationshipManager
     .getAllRelationships()
     .filter((relationship) => relationshipMatchesQuery(relationship, options));
@@ -72,7 +85,7 @@ const SEED_EDGES: CreateRelationshipInput[] = [
   edge("fragment-1", "fragment-3"),
 ];
 
-const QUERY_CASES: QueryRelationshipOptions[] = [
+const QUERY_CASES: RelationshipQuery[] = [
   {},
   { sourceEntityId: "agent-a" },
   { targetEntityId: "circle-1" },
@@ -194,6 +207,140 @@ describe("RelationshipManager.deleteRelationships", () => {
 
     expect(relationshipManager.getAllRelationships()).toHaveLength(SEED_EDGES.length);
     expect(await store.size(RELATIONSHIP_STORE_TABLE)).toBe(SEED_EDGES.length);
+  });
+});
+
+describe("RelationshipManager.replaceRelationships", () => {
+  it("keeps listed edges, deletes unlisted ones and creates missing ones", async () => {
+    const { store, relationshipManager } = await createHarness();
+    const [kept, stale, otherType] = await relationshipManager.createRelationships([
+      edge("fragment-1", "fragment-2"),
+      edge("fragment-1", "fragment-3"),
+      edge("fragment-1", "fragment-3", RELATIONSHIP_TYPE.ASSOCIATION),
+    ]);
+
+    const { created, deleted } = await relationshipManager.replaceRelationships(
+      [{ source: fragment("fragment-1"), targets: [fragment("fragment-2"), fragment("fragment-4")] }],
+      RELATIONSHIP_TYPE.LINK
+    );
+
+    expect(deleted).toEqual([stale]);
+    expect(targetIds(created)).toEqual(["fragment-4"]);
+    expect(relationshipManager.getRelationship(kept.id)).toEqual(kept);
+    expect(relationshipManager.getRelationship(otherType.id)).toEqual(otherType);
+    expect(targetIds(relationshipManager.queryRelationships({ relationshipType: RELATIONSHIP_TYPE.LINK }))).toEqual([
+      "fragment-2",
+      "fragment-4",
+    ]);
+    expect(await store.size(RELATIONSHIP_STORE_TABLE)).toBe(3);
+  });
+
+  it("replaces an edge whose target id matches but whose target type differs", async () => {
+    const { relationshipManager } = await createHarness();
+    const [mistyped] = await relationshipManager.createRelationships([
+      edge("fragment-1", "shared-id", RELATIONSHIP_TYPE.LINK, ENTITY_TYPE.FRAGMENT, ENTITY_TYPE.AGENT),
+    ]);
+
+    const { created, deleted } = await relationshipManager.replaceRelationships(
+      [{ source: fragment("fragment-1"), targets: [fragment("shared-id")] }],
+      RELATIONSHIP_TYPE.LINK
+    );
+
+    expect(deleted).toEqual([mistyped]);
+    expect(created).toEqual([
+      expect.objectContaining({ targetEntityId: "shared-id", targetEntityType: ENTITY_TYPE.FRAGMENT }),
+    ]);
+  });
+
+  it("clears a source's edges of the type for empty targets", async () => {
+    const { relationshipManager } = await createHarness();
+    await relationshipManager.createRelationships([edge("fragment-1", "fragment-2"), edge("fragment-1", "fragment-3")]);
+
+    const { created, deleted } = await relationshipManager.replaceRelationships(
+      [{ source: fragment("fragment-1"), targets: [] }],
+      RELATIONSHIP_TYPE.LINK
+    );
+
+    expect(created).toEqual([]);
+    expect(targetIds(deleted)).toEqual(["fragment-2", "fragment-3"]);
+    expect(relationshipManager.getAllRelationships()).toEqual([]);
+  });
+
+  it("replaces several sources with one store write per side and one broadcast", async () => {
+    const { store, broadcaster, relationshipManager } = await createHarness();
+    const [stale] = await relationshipManager.createRelationships([edge("fragment-1", "fragment-2")]);
+    const setManySpy = vi.spyOn(store, "setMany");
+    const deleteManySpy = vi.spyOn(store, "deleteMany");
+    const broadcastSpy = vi.spyOn(broadcaster, "broadcast");
+
+    const { created } = await relationshipManager.replaceRelationships(
+      [
+        { source: fragment("fragment-1"), targets: [fragment("fragment-3")] },
+        { source: fragment("fragment-2"), targets: [fragment("fragment-1"), fragment("fragment-3")] },
+      ],
+      RELATIONSHIP_TYPE.LINK
+    );
+
+    expect(created).toHaveLength(3);
+    expect(setManySpy).toHaveBeenCalledTimes(1);
+    expect(deleteManySpy).toHaveBeenCalledTimes(1);
+    expect(broadcastSpy).toHaveBeenCalledTimes(1);
+    expect(broadcastSpy).toHaveBeenCalledWith({
+      type: SERVER_MESSAGE_TYPE.RELATIONSHIPS_CHANGED,
+      upserted: created,
+      deletedIds: [stale.id],
+    });
+  });
+
+  it("writes and broadcasts nothing when the edges already match", async () => {
+    const { store, broadcaster, relationshipManager } = await createHarness();
+    await relationshipManager.createRelationships([edge("fragment-1", "fragment-2")]);
+    const setManySpy = vi.spyOn(store, "setMany");
+    const deleteManySpy = vi.spyOn(store, "deleteMany");
+    const broadcastSpy = vi.spyOn(broadcaster, "broadcast");
+
+    const replaced = await relationshipManager.replaceRelationships(
+      [{ source: fragment("fragment-1"), targets: [fragment("fragment-2")] }],
+      RELATIONSHIP_TYPE.LINK
+    );
+
+    expect(replaced).toEqual({ created: [], deleted: [] });
+    expect(setManySpy).not.toHaveBeenCalled();
+    expect(deleteManySpy).not.toHaveBeenCalled();
+    expect(broadcastSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a self-reference", [fragment("fragment-3"), fragment("fragment-1")], APP_ERROR_CODES.DUPLICATE_RELATIONSHIP],
+    ["a target listed twice", [fragment("fragment-3"), fragment("fragment-3")], APP_ERROR_CODES.DUPLICATE_RELATIONSHIP],
+  ])("rejects %s and changes nothing", async (_label, targets, errorCode) => {
+    const { relationshipManager } = await createHarness();
+    const [existing] = await relationshipManager.createRelationships([edge("fragment-1", "fragment-2")]);
+
+    await expectAppErrorCode(
+      relationshipManager.replaceRelationships([{ source: fragment("fragment-1"), targets }], RELATIONSHIP_TYPE.LINK),
+      errorCode
+    );
+
+    expect(relationshipManager.getAllRelationships()).toEqual([existing]);
+  });
+
+  it("rejects a source listed twice and changes nothing", async () => {
+    const { relationshipManager } = await createHarness();
+    const [existing] = await relationshipManager.createRelationships([edge("fragment-1", "fragment-2")]);
+
+    await expectAppErrorCode(
+      relationshipManager.replaceRelationships(
+        [
+          { source: fragment("fragment-1"), targets: [] },
+          { source: fragment("fragment-1"), targets: [fragment("fragment-3")] },
+        ],
+        RELATIONSHIP_TYPE.LINK
+      ),
+      APP_ERROR_CODES.VALIDATION
+    );
+
+    expect(relationshipManager.getAllRelationships()).toEqual([existing]);
   });
 });
 
