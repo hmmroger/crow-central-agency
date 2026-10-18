@@ -3,14 +3,16 @@ import { ARTIFACT_CONTENT_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactManager } from "../../services/artifact/artifact-manager.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
-import { formatVersionToken, getErrorToolResult, textToolResult } from "../tool-utils.js";
-import { formatLocalDateTime } from "../../utils/date-utils.js";
 import {
   applyLineEdit,
-  buildEditArtifactNote,
-  EDIT_ARTIFACT_MODE,
-  EDIT_ARTIFACT_MODE_VALUES,
-} from "./artifacts-mcp-server-utils.js";
+  buildLineEditNote,
+  formatVersionToken,
+  getErrorToolResult,
+  LINE_EDIT_MODE,
+  LINE_EDIT_MODE_VALUES,
+  textToolResult,
+} from "../tool-utils.js";
+import { formatLocalDateTime } from "../../utils/date-utils.js";
 
 export const EDIT_ARTIFACT_TOOL_NAME = "edit_artifact";
 
@@ -22,7 +24,7 @@ export function getEditArtifactToolConfig(
   const inputSchema = {
     filename: z.string().describe("Name of an existing TEXT artifact to edit."),
     mode: z
-      .enum(EDIT_ARTIFACT_MODE_VALUES)
+      .enum(LINE_EDIT_MODE_VALUES)
       .describe(
         "Edit mode. 'insert': insert new lines before startLine. 'replace': replace lines startLine..endLine inclusive. Both require a TEXT artifact."
       ),
@@ -57,7 +59,7 @@ export function getEditArtifactToolConfig(
   }) => {
     const filename = rawFilename.trim();
     try {
-      if (mode === EDIT_ARTIFACT_MODE.REPLACE && endLine === undefined) {
+      if (mode === LINE_EDIT_MODE.REPLACE && endLine === undefined) {
         throw new Error("endLine is required for 'replace' mode.");
       }
 
@@ -82,7 +84,7 @@ export function getEditArtifactToolConfig(
         expectedUpdatedTimestamp: version,
       });
       const userTimezone = await sensorManager.getUserTimezone();
-      const editNote = buildEditArtifactNote(mode, startLine, endLine, insertedLineCount);
+      const editNote = buildLineEditNote(mode, startLine, endLine, insertedLineCount);
 
       return textToolResult([
         `Artifact edited: ${updated.filename} (size: ${updated.size} bytes, modified: ${formatLocalDateTime(new Date(updated.updatedTimestamp), userTimezone)}) [${formatVersionToken(updated.updatedTimestamp)}] — ${editNote}`,
