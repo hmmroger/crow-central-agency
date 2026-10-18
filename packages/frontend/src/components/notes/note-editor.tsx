@@ -41,8 +41,8 @@ function getStatusAlert(isConflict: boolean, errorMessage?: string): EditorStatu
  * Editing surface for a live text note. Edits auto-save once typing pauses and
  * flush on blur, Cmd/Ctrl+S and unmount. Each save sends the loaded
  * `updatedTimestamp` and adopts the token the backend returns; only a conflict
- * reseeds the editor. The host can flush the draft through `ref` before it
- * swaps the editor out.
+ * or a newer token on the note, written elsewhere, reseeds the editor. The host
+ * can flush the draft through `ref` before it swaps the editor out.
  */
 export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
   const [editor, setEditor] = useState<MarkdownEditorHandle>();
@@ -52,9 +52,11 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
   const { mutateAsync: writeContent, isError: isSaveError, error: saveError } = useWriteNoteContent();
   const { resolveWikilink } = useNotesContext();
   const [resolveError, setResolveError] = useState<string>();
+  const [isWrittenElsewhere, setIsWrittenElsewhere] = useState(false);
   const goToNote = useAppStore((state) => state.goToNote);
   const draftRef = useRef("");
   const tokenRef = useRef(note.updatedTimestamp);
+  const noteTimestampRef = useRef(note.updatedTimestamp);
   const isDirtyRef = useRef(false);
   const pendingSaveRef = useRef<Promise<boolean>>(undefined);
   const needsResaveRef = useRef(false);
@@ -62,7 +64,7 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
   const saveRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true));
   const loadedMarkdown = data?.type === "text" ? data.content : undefined;
   const loadedTimestamp = data?.type === "text" ? data.updatedTimestamp : undefined;
-  const isConflict = isSaveError && saveError.code === CONFLICT_ERROR_CODE;
+  const isSaveConflict = isSaveError && saveError.code === CONFLICT_ERROR_CODE;
 
   useEffect(() => {
     if (loadedTimestamp !== undefined) {
@@ -76,10 +78,25 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
   // A stale token means the file moved on underneath us: pull the current
   // version back in rather than letting the editor keep a doomed draft.
   useEffect(() => {
-    if (isConflict) {
+    if (isSaveConflict) {
       void refetch();
     }
-  }, [isConflict, refetch]);
+  }, [isSaveConflict, refetch]);
+
+  // Own saves are only recognised once their token returns, so the check waits for any save in flight.
+  const reloadIfWrittenElsewhere = useCallback(() => {
+    if (pendingSaveRef.current || noteTimestampRef.current <= tokenRef.current) {
+      return;
+    }
+
+    setIsWrittenElsewhere(isDirtyRef.current);
+    void refetch();
+  }, [refetch]);
+
+  useEffect(() => {
+    noteTimestampRef.current = note.updatedTimestamp;
+    reloadIfWrittenElsewhere();
+  }, [note.updatedTimestamp, reloadIfWrittenElsewhere]);
 
   const scheduleSave = useCallback(() => {
     window.clearTimeout(saveTimerRef.current);
@@ -92,6 +109,7 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
   }, []);
 
   const writeDraft = useCallback(async () => {
+    setIsWrittenElsewhere(false);
     do {
       needsResaveRef.current = false;
       const content = draftRef.current;
@@ -134,11 +152,12 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
 
     const pendingSave = writeDraft().finally(() => {
       pendingSaveRef.current = undefined;
+      reloadIfWrittenElsewhere();
     });
     pendingSaveRef.current = pendingSave;
 
     return pendingSave;
-  }, [writeDraft]);
+  }, [writeDraft, reloadIfWrittenElsewhere]);
 
   useEffect(() => {
     saveRef.current = save;
@@ -238,7 +257,7 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
       {status && (
         <EditorStatusBar
           status={status}
-          alert={getStatusAlert(isConflict, isSaveError ? saveError.message : resolveError)}
+          alert={getStatusAlert(isSaveConflict || isWrittenElsewhere, isSaveError ? saveError.message : resolveError)}
         />
       )}
     </div>
