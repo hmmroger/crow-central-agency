@@ -57,6 +57,7 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
   const draftRef = useRef("");
   const tokenRef = useRef(note.updatedTimestamp);
   const noteTimestampRef = useRef(note.updatedTimestamp);
+  const isExternalReloadRef = useRef(false);
   const isDirtyRef = useRef(false);
   const pendingSaveRef = useRef<Promise<boolean>>(undefined);
   const needsResaveRef = useRef(false);
@@ -68,6 +69,12 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
 
   useEffect(() => {
     if (loadedTimestamp !== undefined) {
+      // Decided as the new content lands, so keystrokes typed during the refetch still count.
+      if (isExternalReloadRef.current) {
+        isExternalReloadRef.current = false;
+        setIsWrittenElsewhere(isDirtyRef.current);
+      }
+
       tokenRef.current = loadedTimestamp;
       draftRef.current = loadedMarkdown ?? "";
       isDirtyRef.current = false;
@@ -89,7 +96,7 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
       return;
     }
 
-    setIsWrittenElsewhere(isDirtyRef.current);
+    isExternalReloadRef.current = true;
     void refetch();
   }, [refetch]);
 
@@ -109,7 +116,6 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
   }, []);
 
   const writeDraft = useCallback(async () => {
-    setIsWrittenElsewhere(false);
     do {
       needsResaveRef.current = false;
       const content = draftRef.current;
@@ -195,6 +201,7 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
       onUnsavedChange(true);
       scheduleSave();
       setResolveError(undefined);
+      setIsWrittenElsewhere(false);
     },
     [scheduleSave, onUnsavedChange]
   );

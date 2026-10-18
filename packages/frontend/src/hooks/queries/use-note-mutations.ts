@@ -85,8 +85,8 @@ export function useEmptyTrash() {
 
 /**
  * Write a text note's content under the optimistic-concurrency guard. The
- * cached content is not invalidated — the editor holds the authoritative text
- * and chains the returned token into its next save.
+ * cached content is not invalidated — the editor holds the text it saved and
+ * chains the returned token into its next save.
  */
 export function useWriteNoteContent() {
   return useMutation<NoteFileMetadata, ApiError, WriteNoteContentVariables>({
