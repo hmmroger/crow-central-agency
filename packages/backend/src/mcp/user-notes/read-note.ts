@@ -4,7 +4,13 @@ import type { NotesManager } from "../../services/notes/notes-manager.js";
 import type { TagManager } from "../../services/tag/tag-manager.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import type { McpToolConfig, ToolHandler } from "../crow-mcp-manager.types.js";
-import { buildFileContentResult, DEFAULT_READ_LINE_LIMIT, getErrorToolResult, textToolResult } from "../tool-utils.js";
+import {
+  buildFileContentResult,
+  DEFAULT_READ_LINE_LIMIT,
+  formatVersionToken,
+  getErrorToolResult,
+  textToolResult,
+} from "../tool-utils.js";
 import { formatLocalDateTime } from "../../utils/date-utils.js";
 
 export const READ_NOTE_TOOL_NAME = "read_note";
@@ -48,7 +54,7 @@ export function getReadNoteToolConfig(
       ]);
       const header = [
         `--- METADATA ---`,
-        `[Id: ${metadata.id} | Name: ${metadata.name} | Content: ${metadata.contentType} | Modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)} | Size: ${metadata.size} bytes]`,
+        `[Id: ${metadata.id} | Name: ${metadata.name} | Content: ${metadata.contentType} | Modified: ${formatLocalDateTime(new Date(metadata.updatedTimestamp), userTimezone)} | Size: ${metadata.size} bytes | ${formatVersionToken(metadata.updatedTimestamp)}]`,
       ];
       const tagNames = tagManager.getEntityTags(metadata).map((tag) => tag.name);
       if (tagNames.length) {
@@ -74,7 +80,7 @@ export function getReadNoteToolConfig(
   const config: McpToolConfig<typeof inputSchema> = {
     name: READ_NOTE_TOOL_NAME,
     description:
-      "Read one of the user's notes by id. Text notes are returned in line windows, images as image content, PDFs as an embedded resource, and other files as metadata only. Use list_notes or search_workspace to find note ids; a folder id is an error.",
+      "Read one of the user's notes by id. Text notes are returned in line windows, images as image content, PDFs as an embedded resource, and other files as metadata only. Use list_notes or search_workspace to find note ids; a folder id is an error. The header's Version is what edit_note needs.",
     inputSchema,
     annotations: { readOnlyHint: true },
     handler,

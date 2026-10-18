@@ -5,10 +5,12 @@ import { defineMcpTool } from "../crow-mcp-manager-utils.js";
 import type { McpServerDefinition } from "../crow-mcp-manager.types.js";
 import { getListNotesToolConfig } from "./list-notes.js";
 import { getReadNoteToolConfig } from "./read-note.js";
+import { getWriteNoteToolConfig } from "./write-note.js";
+import { getEditNoteToolConfig } from "./edit-note.js";
 
 export const USER_NOTES_MCP_SERVER_NAME = "crow-user-notes";
 
-/** Define the crow-user-notes MCP server: read-only access to the user's live notes, opt-in per agent. */
+/** Define the crow-user-notes MCP server: read, create and line-edit the user's live notes, opt-in per agent. */
 export function getUserNotesMcpServerDefinition(
   notesManager: NotesManager,
   tagManager: TagManager,
@@ -21,6 +23,8 @@ export function getUserNotesMcpServerDefinition(
     getTools: () => [
       defineMcpTool(getListNotesToolConfig(notesManager, sensorManager)),
       defineMcpTool(getReadNoteToolConfig(notesManager, tagManager, sensorManager)),
+      defineMcpTool(getWriteNoteToolConfig(notesManager)),
+      defineMcpTool(getEditNoteToolConfig(notesManager, sensorManager)),
     ],
   };
 }
