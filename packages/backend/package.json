@@ -1,6 +1,6 @@
 {
   "name": "@crow-central-agency/backend",
-  "version": "0.27.23",
+  "version": "0.27.24",
   "private": true,
   "type": "module",
   "scripts": {
