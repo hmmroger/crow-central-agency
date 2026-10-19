@@ -15,8 +15,8 @@ export interface AllowRulePartition {
 /**
  * Partition config allow-rules for the Claude runner. A specifier rule on a tool with no
  * specialized strategy (i.e. the default whole-tool strategy skips its specifier) is delegated to
- * native `allowedTools`; everything else — whole-tool rules, command-tool specifier rules, and
- * malformed rules — stays owned by our matcher. Preserves input order in both buckets.
+ * native `allowedTools`; everything else — whole-tool rules, specifier rules of a specialized
+ * strategy (command, notes), and malformed rules — stays owned by our matcher. Preserves input order in both buckets.
  */
 export function partitionAllowRules(rules: string[]): AllowRulePartition {
   const ownedByMatcher: string[] = [];

@@ -2,6 +2,7 @@ import { CLAUDE_CODE_TOOL, formatRule, GLOB_STAR, type ParsedRule } from "@crow-
 import type { PermissionRuleStrategy } from "./permission-rule-strategy.types.js";
 import { deriveCommandRules, deriveNewCommandRules, matchesCommandRules } from "./command-decomposition.js";
 import { SHELL, type ShellDialect } from "./shell-grammar.js";
+import { USER_NOTES_PERMISSION_SCOPE_FIELDS } from "../../mcp/user-notes/user-notes-mcp-server.js";
 
 /** Input field carrying the shell command for Bash/PowerShell tools. */
 const COMMAND_INPUT_KEY = "command";
@@ -114,5 +115,45 @@ export const commandRuleStrategy: PermissionRuleStrategy = {
     }
 
     return matchesCommandRules(command, specifiersForTool(toolName, rules), resolveShell(toolName), mode);
+  },
+};
+
+/** The note id a notes tool call acts on; undefined for the notes root, which has none. */
+function extractNoteId(toolName: string, input: Record<string, unknown>): string | undefined {
+  const field = USER_NOTES_PERMISSION_SCOPE_FIELDS.get(toolName.toLowerCase());
+  const noteId = field === undefined ? undefined : input[field];
+  // The tools read an empty folderId as the root, so it must not fall under `(*)`.
+  return typeof noteId === "string" && noteId.length > 0 ? noteId : undefined;
+}
+
+function matchesNotePattern(noteId: string, pattern: string): boolean {
+  const normalizedId = noteId.toLowerCase();
+  const normalizedPattern = pattern.toLowerCase();
+  return normalizedPattern.endsWith(GLOB_STAR)
+    ? normalizedId.startsWith(normalizedPattern.slice(0, -GLOB_STAR.length))
+    : normalizedId === normalizedPattern;
+}
+
+function deriveNoteRules(toolName: string, input: Record<string, unknown>): string[] {
+  const noteId = extractNoteId(toolName, input);
+  return [noteId === undefined ? toolName : formatRule({ tool: toolName, specifier: noteId })];
+}
+
+/** Notes strategy: `crow-user-notes` tools scoped by the note or folder id they act on. */
+export const noteRuleStrategy: PermissionRuleStrategy = {
+  appliesTo: (toolName) => USER_NOTES_PERMISSION_SCOPE_FIELDS.has(toolName.toLowerCase()),
+  deriveRules: deriveNoteRules,
+  deriveNewRules: deriveNoteRules,
+  matches: (toolName, input, rules) => {
+    if (wholeToolMatches(toolName, rules)) {
+      return true;
+    }
+
+    const noteId = extractNoteId(toolName, input);
+    if (noteId === undefined) {
+      return false;
+    }
+
+    return specifiersForTool(toolName, rules).some((pattern) => matchesNotePattern(noteId, pattern));
   },
 };
