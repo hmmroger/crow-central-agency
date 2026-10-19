@@ -23,6 +23,7 @@ import {
 import { AgentRunner } from "./agent-runner.js";
 import { partitionAllowRules } from "./claude-code-allow-partition.js";
 import { PermissionRuleSet } from "./permission-rule/rule-set.js";
+import { SUBCOMMAND_MATCH_MODE } from "./permission-rule/command-decomposition.js";
 import { resolveRulesToPersist } from "../services/runtime/permission-rule-override.js";
 import { processStream } from "./stream-processor.js";
 import { parseToolActivity } from "./tool-activity-parser.js";
@@ -174,6 +175,7 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         disallowedTools: agentConfig.toolConfig.disallowedTools,
         canUseTool: this.buildCanUseTool(
           new PermissionRuleSet([...ownedByMatcher, ...internalMcpPrefixes.map((prefix) => `${prefix}*`)]),
+          new PermissionRuleSet(agentConfig.toolConfig.disallowedTools ?? []),
           sessionId ?? ""
         ),
         settingSources: agentConfig.settingSources,
@@ -208,7 +210,11 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
     this.query?.close();
   }
 
-  private buildCanUseTool(permissionRules: PermissionRuleSet, sessionId: string): CanUseTool {
+  private buildCanUseTool(
+    permissionRules: PermissionRuleSet,
+    disallowedRules: PermissionRuleSet,
+    sessionId: string
+  ): CanUseTool {
     return async (toolName, input, options) => {
       // AskUserQuestion is a clarification pause, not a permission gate: park the query on the user
       // and resume with the assembled answer. Branch before the auto-approve/permission path.
@@ -216,6 +222,12 @@ export class ClaudeCodeAgentRunner extends AgentRunner {
         const { questions } = AskUserQuestionSchema.parse(input);
         const updatedInput = await this.questionRequestHandler(this.agentId, options.toolUseID, questions);
         return { behavior: "allow" as const, updatedInput, toolUseID: options.toolUseID };
+      }
+
+      // The SDK's native deny list can't read specifiers on our strategy-owned tools (e.g. note ids).
+      if (disallowedRules.matches(toolName, input, SUBCOMMAND_MATCH_MODE.ANY)) {
+        log.info({ agentId: this.agentId, toolName, input }, "tool use auto-deny");
+        return { behavior: "deny" as const, message: DEFAULT_PERMISSION_DENY_MESSAGE, toolUseID: options.toolUseID };
       }
 
       // Our set is the sole approve authority (config approvals + internal-MCP prefixes seeded at

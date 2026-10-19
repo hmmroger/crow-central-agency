@@ -78,8 +78,8 @@ export function useNoteContentQuery(noteId: string, options?: { enabled?: boolea
   return useQuery({
     ...noteContentQueryOptions(noteId),
     enabled: options?.enabled ?? true,
-    // Freshness is governed by the editor's write guard, not by background
-    // polls: a refetch behind an unsaved draft would discard it silently.
+    // No background polls: a refetch behind an unsaved draft would discard it,
+    // so only the editor and reader decide when to reload.
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });

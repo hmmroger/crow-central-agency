@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ZodError, ZodRawShape } from "zod";
 import { getMimeTypeByFilename, MIME_TYPE } from "@crow-central-agency/shared";
+import { last } from "es-toolkit";
 
 /** How a read tool presents one file's content after its metadata header. */
 export interface FileContentPresentation {
@@ -31,8 +32,20 @@ export interface PaginationResult<T> {
   hasMore: boolean;
 }
 
+export interface LineEditResult {
+  content: string;
+  insertedLineCount: number;
+}
+
 /** Default cap on lines returned by read tools to avoid flooding the context with large text files. */
 export const DEFAULT_READ_LINE_LIMIT = 100;
+
+export const LINE_EDIT_MODE = {
+  INSERT: "insert",
+  REPLACE: "replace",
+} as const;
+export type LineEditMode = (typeof LINE_EDIT_MODE)[keyof typeof LINE_EDIT_MODE];
+export const LINE_EDIT_MODE_VALUES = Object.values(LINE_EDIT_MODE);
 
 /** Image types that Claude can process natively via base64 */
 const SUPPORTED_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
@@ -216,4 +229,78 @@ export function processTextContent(text: string, options?: ReadLineOptions): Pro
     : sliced.join("\n");
 
   return { headerParts, text: processedText };
+}
+
+/**
+ * Apply an insert/replace line edit. Lines are 1-based; endLine is inclusive (used for replace only).
+ * Throws when line numbers are out of range or endLine is missing/invalid for replace.
+ */
+export function applyLineEdit(
+  existingContent: string,
+  content: string,
+  mode: LineEditMode,
+  startLine: number,
+  endLine?: number
+): LineEditResult {
+  const existingLines = existingContent.split("\n");
+  const totalLines = existingLines.length;
+
+  if (startLine < 1) {
+    throw new Error("startLine must be a positive integer starting from 1.");
+  }
+
+  // allow adding a line after last line
+  if (startLine > totalLines + 1) {
+    throw new Error(`Starting line (${startLine}) exceeds the total number of lines (${totalLines}).`);
+  }
+
+  if (mode === LINE_EDIT_MODE.REPLACE) {
+    if (endLine === undefined) {
+      throw new Error("endLine is required for 'replace' mode.");
+    }
+
+    if (endLine > totalLines) {
+      throw new Error(`Ending line (${endLine}) exceeds the total number of lines (${totalLines}).`);
+    }
+
+    if (endLine < startLine) {
+      throw new Error(`Ending line (${endLine}) must be greater than or equal to starting line (${startLine}).`);
+    }
+  }
+
+  const preContent = existingLines.slice(0, startLine - 1);
+  const effectiveEnd = mode === LINE_EDIT_MODE.REPLACE && endLine !== undefined ? endLine : startLine - 1;
+  const postContent = existingLines.slice(effectiveEnd);
+  const newContent = content.split("\n");
+  const lastLine = last(newContent);
+  if (lastLine !== undefined && !lastLine) {
+    newContent.splice(-1, 1);
+  }
+
+  const updatedContent = preContent.concat(newContent).concat(postContent).join("\n");
+  return { content: updatedContent, insertedLineCount: newContent.length };
+}
+
+function formatLineShift(shift: number): string {
+  return shift === 0 ? "later lines unchanged" : `later lines shifted by ${shift > 0 ? "+" : ""}${shift}`;
+}
+
+/** Describe what an applied line edit did to the caller's line map, so it can keep using it without re-reading. */
+export function buildLineEditNote(
+  mode: LineEditMode,
+  startLine: number,
+  endLine: number | undefined,
+  insertedLineCount: number
+): string {
+  if (mode === LINE_EDIT_MODE.INSERT) {
+    return `inserted ${insertedLineCount} line(s) before line ${startLine}; ${formatLineShift(insertedLineCount)}`;
+  }
+
+  const replacedLineCount = (endLine ?? startLine) - startLine + 1;
+  const shift = insertedLineCount - replacedLineCount;
+  if (insertedLineCount === 0) {
+    return `lines ${startLine}-${endLine ?? startLine} removed; ${formatLineShift(shift)}`;
+  }
+
+  return `lines ${startLine}-${startLine + insertedLineCount - 1} now hold your content; ${formatLineShift(shift)}`;
 }

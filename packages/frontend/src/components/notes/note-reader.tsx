@@ -18,7 +18,14 @@ const STATUS_CLASS = "p-panel text-sm text-text-muted";
  */
 export function NoteReader({ note }: NoteReaderProps) {
   const isPreviewable = note.contentType !== NOTE_CONTENT_TYPE.UNKNOWN;
-  const { data, isLoading, isError, error } = useNoteContentQuery(note.id, { enabled: isPreviewable });
+  const { data, isLoading, isError, error, refetch } = useNoteContentQuery(note.id, { enabled: isPreviewable });
+  const loadedTimestamp = data?.type === "text" ? data.updatedTimestamp : undefined;
+
+  useEffect(() => {
+    if (loadedTimestamp !== undefined && note.updatedTimestamp > loadedTimestamp) {
+      void refetch();
+    }
+  }, [note.updatedTimestamp, loadedTimestamp, refetch]);
 
   useEffect(() => {
     return () => {
