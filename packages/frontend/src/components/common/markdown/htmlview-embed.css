@@ -9,6 +9,7 @@
   font-size: var(--text-sm);
   line-height: 1.6;
   overflow-wrap: break-word;
+  white-space: normal;
 }
 
 *,
@@ -17,15 +18,31 @@
   box-sizing: border-box;
 }
 
-article, section, aside {
+article,
+section,
+aside {
   display: block;
 }
 
-p, ul, ol, dl, blockquote, figure, table, pre, hr, details {
+p,
+ul,
+ol,
+dl,
+blockquote,
+figure,
+table,
+pre,
+hr,
+details {
   margin: 0 0 1em;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-weight: 600;
   line-height: 1.25;
   margin: 1.5em 0 0.5em;
@@ -39,7 +56,9 @@ h2 {
 h3 {
   font-size: var(--text-base);
 }
-h4, h5, h6 {
+h4,
+h5,
+h6 {
   font-size: var(--text-sm);
 }
 
@@ -62,7 +81,8 @@ figcaption {
   margin-top: 0.5em;
 }
 
-ul, ol {
+ul,
+ol {
   padding-left: 1.5em;
 }
 li {
@@ -98,7 +118,8 @@ mark {
   border-radius: var(--radius-sm);
 }
 
-code, kbd {
+code,
+kbd {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
 }
@@ -130,10 +151,16 @@ small {
   font-size: var(--text-xs);
 }
 
-img, picture, video, audio, canvas, svg {
+img,
+picture,
+video,
+audio,
+canvas,
+svg {
   max-width: 100%;
 }
-img, video {
+img,
+video {
   height: auto;
 }
 
@@ -143,7 +170,8 @@ table {
   border-collapse: collapse;
   font-size: var(--text-sm);
 }
-th, td {
+th,
+td {
   border: 1px solid var(--color-border);
   padding: 0.4em 0.6em;
   text-align: left;
