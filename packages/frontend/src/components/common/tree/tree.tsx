@@ -1,9 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
-import { getAncestorIds, getVisibleNodes } from "./tree-node-utils.js";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type FocusEvent,
+  type KeyboardEvent,
+} from "react";
+import { canDragNode, getAncestorIds, getDropTarget, getVisibleNodes, toNodeRef } from "./tree-node-utils.js";
 import { TreeNodeItem } from "./tree-node-item.js";
-import type { TreeNode, TreeProps } from "./tree.types.js";
+import type {
+  TreeDropTarget,
+  TreeNode,
+  TreeNodeDragProps,
+  TreeNodeRef,
+  TreeProps,
+  VisibleTreeNode,
+} from "./tree.types.js";
 
 const ROOT_LEVEL = 1;
+const HOVER_EXPAND_DELAY_MS = 600;
+const DRAG_DATA_TYPE = "application/x-crow-tree-node";
 
 /**
  * A domain-free tree. It owns expansion, focus and how they look; the consumer
@@ -15,11 +33,15 @@ export function Tree<T>({
   revealId,
   defaultExpandedIds,
   actions,
+  dragDrop,
   onSelect,
   ariaLabel,
 }: TreeProps<T>) {
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set(defaultExpandedIds));
   const [focusedId, setFocusedId] = useState<string>();
+  const [dragSource, setDragSource] = useState<TreeNodeRef<T>>();
+  const [dropTarget, setDropTarget] = useState<TreeDropTarget<T>>();
+  const [hoverExpandId, setHoverExpandId] = useState<string>();
   const revealedIdRef = useRef<string>(undefined);
   const itemElementsRef = useRef(new Map<string, HTMLLIElement>());
   const visibleNodes = useMemo(() => getVisibleNodes(nodes, expandedIds), [nodes, expandedIds]);
@@ -154,8 +176,100 @@ export function Tree<T>({
     }
   }, []);
 
+  useEffect(() => {
+    if (hoverExpandId === undefined) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setExpanded(hoverExpandId, true), HOVER_EXPAND_DELAY_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [hoverExpandId, setExpanded]);
+
+  const hasDragDrop = dragDrop !== undefined;
+  const visibleEntries = useMemo(
+    () =>
+      hasDragDrop
+        ? new Map(visibleNodes.map((visible): [string, VisibleTreeNode<T>] => [visible.node.id, visible]))
+        : undefined,
+    [hasDragDrop, visibleNodes]
+  );
+
+  const endDrag = useCallback(() => {
+    setDragSource(undefined);
+    setDropTarget(undefined);
+    setHoverExpandId(undefined);
+  }, []);
+
+  const handleDragStart = useCallback((node: TreeNode<T>, event: DragEvent<HTMLDivElement>) => {
+    event.dataTransfer.effectAllowed = "move";
+    // Firefox only starts a drag that carries data.
+    event.dataTransfer.setData(DRAG_DATA_TYPE, node.id);
+    setDragSource(toNodeRef(node));
+  }, []);
+
+  const handleDragOver = useCallback(
+    (node: TreeNode<T>, event: DragEvent<HTMLLIElement>) => {
+      if (!dragDrop || !visibleEntries || !dragSource) {
+        return;
+      }
+
+      event.stopPropagation();
+      const isCollapsed = node.isExpandable && !expandedIds.has(node.id);
+      setHoverExpandId(isCollapsed && node.id !== dragSource.id ? node.id : undefined);
+
+      const target = getDropTarget(visibleEntries, dragDrop, dragSource, node.id);
+      setDropTarget((current) =>
+        current?.node === target?.node && current?.isRedirected === target?.isRedirected ? current : target
+      );
+      if (target) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      }
+    },
+    [dragDrop, visibleEntries, dragSource, expandedIds]
+  );
+
+  const handleDrop = useCallback(
+    (node: TreeNode<T>, event: DragEvent<HTMLLIElement>) => {
+      if (!dragDrop || !visibleEntries || !dragSource) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const target = getDropTarget(visibleEntries, dragDrop, dragSource, node.id);
+      endDrag();
+      if (target) {
+        dragDrop.onDrop(dragSource, toNodeRef(target.node));
+      }
+    },
+    [dragDrop, visibleEntries, dragSource, endDrag]
+  );
+
+  const handleDragLeave = useCallback((event: DragEvent<HTMLUListElement>) => {
+    if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
+      setDropTarget(undefined);
+      setHoverExpandId(undefined);
+    }
+  }, []);
+
+  const drag = useMemo<TreeNodeDragProps<T> | undefined>(
+    () =>
+      dragDrop && {
+        draggedId: dragSource?.id,
+        dropTarget,
+        canDrag: (node) => canDragNode(dragDrop, node),
+        onDragStart: handleDragStart,
+        onDragOver: handleDragOver,
+        onDrop: handleDrop,
+        onDragEnd: endDrag,
+      },
+    [dragDrop, dragSource, dropTarget, handleDragStart, handleDragOver, handleDrop, endDrag]
+  );
+
   return (
-    <ul role="tree" aria-label={ariaLabel} onBlur={handleBlur}>
+    <ul role="tree" aria-label={ariaLabel} onBlur={handleBlur} onDragLeave={drag && handleDragLeave}>
       {nodes.map((node) => (
         <TreeNodeItem
           key={node.id}
@@ -166,6 +280,7 @@ export function Tree<T>({
           focusedId={focusedId}
           tabStopId={tabStopId}
           actions={actions}
+          drag={drag}
           onActivate={handleActivate}
           onFocusNode={setFocusedId}
           onKeyDown={handleKeyDown}
