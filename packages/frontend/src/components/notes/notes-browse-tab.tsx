@@ -8,7 +8,8 @@ import { useNotesContext } from "../../providers/notes-provider.js";
 import { useAppStore } from "../../stores/app-store.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { Tree } from "../common/tree/tree.js";
-import type { TreeNodeAction } from "../common/tree/tree.types.js";
+import type { TreeDragDrop, TreeNodeAction, TreeNodeRef } from "../common/tree/tree.types.js";
+import { getErrorMessage } from "../../utils/error-message.js";
 import { NOTES_ROOT_LABEL, NOTES_ROOT_NODE_ID } from "./note-tree-nodes.js";
 import { NotesTreeStatus } from "./notes-tree-status.js";
 import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
@@ -103,6 +104,33 @@ export function NotesBrowseTab() {
     [confirm, deleteNote]
   );
 
+  const handleDrop = useCallback(
+    async (source: TreeNodeRef<NoteMetadata>, target: TreeNodeRef<NoteMetadata>) => {
+      try {
+        selectNote(await updateNote(source.id, { parentId: target.data?.id ?? null }));
+      } catch (moveError) {
+        confirm({
+          title: "Move failed",
+          message: getErrorMessage(moveError),
+          confirmLabel: "OK",
+          confirmOnly: true,
+          onConfirm: () => undefined,
+        });
+      }
+    },
+    [updateNote, selectNote, confirm]
+  );
+
+  const dragDrop = useMemo<TreeDragDrop<NoteMetadata>>(
+    () => ({
+      canDrag: (node) => isNoteNode(node.id),
+      canDrop: (source, target) => isFolderTarget(target) && target.data?.id !== source.data?.parentId,
+      onDrop: handleDrop,
+      isLeafRedirected: true,
+    }),
+    [handleDrop]
+  );
+
   const nodeActions = useMemo<TreeNodeAction<NoteMetadata>[]>(
     () => [
       { id: "rename", label: "Rename", icon: Pencil, isAvailable: isNoteNode, onSelect: handleRename },
@@ -144,6 +172,7 @@ export function NotesBrowseTab() {
           revealId={selectedNoteId}
           defaultExpandedIds={DEFAULT_EXPANDED_IDS}
           actions={nodeActions}
+          dragDrop={dragDrop}
           onSelect={handleSelect}
           ariaLabel="Notes"
         />
@@ -154,4 +183,8 @@ export function NotesBrowseTab() {
 
 function isNoteNode(nodeId: string): boolean {
   return nodeId !== NOTES_ROOT_NODE_ID;
+}
+
+function isFolderTarget(target: TreeNodeRef<NoteMetadata>): boolean {
+  return target.id === NOTES_ROOT_NODE_ID || target.data?.entityType === ENTITY_TYPE.NOTE_FOLDER;
 }
