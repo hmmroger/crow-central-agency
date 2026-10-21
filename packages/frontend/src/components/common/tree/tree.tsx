@@ -10,14 +10,7 @@ import {
 } from "react";
 import { canDragNode, getAncestorIds, getDropTarget, getVisibleNodes, toNodeRef } from "./tree-node-utils.js";
 import { TreeNodeItem } from "./tree-node-item.js";
-import type {
-  TreeDropTarget,
-  TreeNode,
-  TreeNodeDragProps,
-  TreeNodeRef,
-  TreeProps,
-  VisibleTreeNode,
-} from "./tree.types.js";
+import type { TreeDropTarget, TreeNode, TreeNodeDragProps, TreeProps, VisibleTreeNode } from "./tree.types.js";
 
 const ROOT_LEVEL = 1;
 const HOVER_EXPAND_DELAY_MS = 600;
@@ -39,7 +32,7 @@ export function Tree<T>({
 }: TreeProps<T>) {
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set(defaultExpandedIds));
   const [focusedId, setFocusedId] = useState<string>();
-  const [dragSource, setDragSource] = useState<TreeNodeRef<T>>();
+  const [dragSourceId, setDragSourceId] = useState<string>();
   const [dropTarget, setDropTarget] = useState<TreeDropTarget<T>>();
   const [hoverExpandId, setHoverExpandId] = useState<string>();
   const revealedIdRef = useRef<string>(undefined);
@@ -193,9 +186,11 @@ export function Tree<T>({
         : undefined,
     [hasDragDrop, visibleNodes]
   );
+  // A source row that unmounts mid-drag never fires dragend, so the drag only lives while its row is visible.
+  const dragSource = dragSourceId === undefined ? undefined : visibleEntries?.get(dragSourceId)?.node;
 
   const endDrag = useCallback(() => {
-    setDragSource(undefined);
+    setDragSourceId(undefined);
     setDropTarget(undefined);
     setHoverExpandId(undefined);
   }, []);
@@ -204,7 +199,7 @@ export function Tree<T>({
     event.dataTransfer.effectAllowed = "move";
     // Firefox only starts a drag that carries data.
     event.dataTransfer.setData(DRAG_DATA_TYPE, node.id);
-    setDragSource(toNodeRef(node));
+    setDragSourceId(node.id);
   }, []);
 
   const handleDragOver = useCallback(
@@ -217,7 +212,7 @@ export function Tree<T>({
       const isCollapsed = node.isExpandable && !expandedIds.has(node.id);
       setHoverExpandId(isCollapsed && node.id !== dragSource.id ? node.id : undefined);
 
-      const target = getDropTarget(visibleEntries, dragDrop, dragSource, node.id);
+      const target = getDropTarget(visibleEntries, dragDrop, toNodeRef(dragSource), node.id);
       setDropTarget((current) =>
         current?.node === target?.node && current?.isRedirected === target?.isRedirected ? current : target
       );
@@ -238,10 +233,11 @@ export function Tree<T>({
       event.preventDefault();
       event.stopPropagation();
 
-      const target = getDropTarget(visibleEntries, dragDrop, dragSource, node.id);
+      const source = toNodeRef(dragSource);
+      const target = getDropTarget(visibleEntries, dragDrop, source, node.id);
       endDrag();
       if (target) {
-        dragDrop.onDrop(dragSource, toNodeRef(target.node));
+        dragDrop.onDrop(source, toNodeRef(target.node));
       }
     },
     [dragDrop, visibleEntries, dragSource, endDrag]
@@ -258,7 +254,7 @@ export function Tree<T>({
     () =>
       dragDrop && {
         draggedId: dragSource?.id,
-        dropTarget,
+        dropTarget: dragSource && dropTarget,
         canDrag: (node) => canDragNode(dragDrop, node),
         onDragStart: handleDragStart,
         onDragOver: handleDragOver,
