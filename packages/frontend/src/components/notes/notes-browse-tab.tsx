@@ -9,9 +9,11 @@ import { useAppStore } from "../../stores/app-store.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { Tree } from "../common/tree/tree.js";
 import type { TreeNodeAction } from "../common/tree/tree.types.js";
-import { NOTES_ROOT_LABEL } from "./note-tree-nodes.js";
+import { NOTES_ROOT_LABEL, NOTES_ROOT_NODE_ID } from "./note-tree-nodes.js";
 import { NotesTreeStatus } from "./notes-tree-status.js";
 import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
+
+const DEFAULT_EXPANDED_IDS = [NOTES_ROOT_NODE_ID];
 
 /**
  * The live notes tree and everything done to live notes. Name validation and
@@ -20,7 +22,7 @@ import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
  */
 export function NotesBrowseTab() {
   const { getNote, getChildIds, getListStatus, createNote, createFolder, updateNote, deleteNote } = useNotesContext();
-  const nodes = useNoteTreeNodes({ isTrashed: false });
+  const nodes = useNoteTreeNodes({ isTrashed: false, hasRoot: true });
   const prompt = usePromptDialog();
   const confirm = useConfirmDialog();
   const openMoveDialog = useOpenNoteMoveDialog();
@@ -40,6 +42,12 @@ export function NotesBrowseTab() {
   }, [getNote, selectedNoteId]);
 
   const targetName = targetFolder?.name ?? NOTES_ROOT_LABEL;
+  const selectedNodeId = selectedNoteId ?? NOTES_ROOT_NODE_ID;
+
+  const handleSelect = useCallback(
+    (nodeId: string) => selectNote(nodeId === NOTES_ROOT_NODE_ID ? undefined : nodeId),
+    [selectNote]
+  );
 
   const handleCreateNote = useCallback(() => {
     prompt({
@@ -97,9 +105,9 @@ export function NotesBrowseTab() {
 
   const nodeActions = useMemo<TreeNodeAction<NoteMetadata>[]>(
     () => [
-      { id: "rename", label: "Rename", icon: Pencil, onSelect: handleRename },
-      { id: "move", label: "Move", icon: FolderInput, onSelect: openMoveDialog },
-      { id: "delete", label: "Delete", icon: Trash2, onSelect: handleTrash },
+      { id: "rename", label: "Rename", icon: Pencil, isAvailable: isNoteNode, onSelect: handleRename },
+      { id: "move", label: "Move", icon: FolderInput, isAvailable: isNoteNode, onSelect: openMoveDialog },
+      { id: "delete", label: "Delete", icon: Trash2, isAvailable: isNoteNode, onSelect: handleTrash },
     ],
     [handleRename, openMoveDialog, handleTrash]
   );
@@ -132,13 +140,18 @@ export function NotesBrowseTab() {
       >
         <Tree
           nodes={nodes}
-          selectedId={selectedNoteId}
+          selectedId={selectedNodeId}
           revealId={selectedNoteId}
+          defaultExpandedIds={DEFAULT_EXPANDED_IDS}
           actions={nodeActions}
-          onSelect={selectNote}
+          onSelect={handleSelect}
           ariaLabel="Notes"
         />
       </NotesTreeStatus>
     </div>
   );
+}
+
+function isNoteNode(nodeId: string): boolean {
+  return nodeId !== NOTES_ROOT_NODE_ID;
 }
