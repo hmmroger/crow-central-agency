@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, type FocusEvent, type KeyboardEvent } f
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "../../../utils/cn.js";
 import { TreeNodeActionButton } from "./tree-node-action-button.js";
-import type { TreeNode, TreeNodeAction } from "./tree.types.js";
+import type { TreeNode, TreeNodeAction, TreeNodeDragProps } from "./tree.types.js";
 
 interface TreeNodeItemProps<T> {
   node: TreeNode<T>;
@@ -12,6 +12,8 @@ interface TreeNodeItemProps<T> {
   focusedId?: string;
   tabStopId?: string;
   actions?: readonly TreeNodeAction<T>[];
+  /** Absent when the tree has no drag and drop */
+  drag?: TreeNodeDragProps<T>;
   onActivate: (node: TreeNode<T>) => void;
   onFocusNode: (nodeId: string) => void;
   onKeyDown: (node: TreeNode<T>, event: KeyboardEvent<HTMLLIElement>) => void;
@@ -26,6 +28,7 @@ export function TreeNodeItem<T>({
   focusedId,
   tabStopId,
   actions,
+  drag,
   onActivate,
   onFocusNode,
   onKeyDown,
@@ -34,6 +37,9 @@ export function TreeNodeItem<T>({
   const isExpanded = node.isExpandable && expandedIds.has(node.id);
   const isSelected = node.id === selectedId;
   const isTabStop = node.id === tabStopId;
+  const isDragged = node.id === drag?.draggedId;
+  const isDropTarget = node.id === drag?.dropTarget?.node.id;
+  const isDropArea = isDropTarget && drag?.dropTarget?.isRedirected === true;
   const Icon = isExpanded && node.expandedIcon ? node.expandedIcon : node.icon;
   const Chevron = isExpanded ? ChevronDown : ChevronRight;
   const availableActions = actions?.filter((action) => action.isAvailable?.(node.id, node.data) ?? true) ?? [];
@@ -70,16 +76,23 @@ export function TreeNodeItem<T>({
       aria-selected={isSelected}
       aria-expanded={node.isExpandable ? isExpanded : undefined}
       tabIndex={isTabStop ? 0 : -1}
-      className="outline-none"
+      className={cn("outline-none", isDropArea && "rounded-sm bg-primary/10")}
       ref={registerElement}
       onFocus={handleFocus}
       onKeyDown={handleKeyDown}
+      onDragOver={drag && ((event) => drag.onDragOver(node, event))}
+      onDrop={drag && ((event) => drag.onDrop(node, event))}
     >
       <div
         ref={rowRef}
+        draggable={drag?.canDrag(node)}
+        onDragStart={drag && ((event) => drag.onDragStart(node, event))}
+        onDragEnd={drag?.onDragEnd}
         className={cn(
           "group flex items-center rounded-sm pr-1 transition-colors [li:focus-visible>&]:ring-2 [li:focus-visible>&]:ring-primary/40",
-          isSelected ? "bg-surface-accent" : "hover:bg-surface-hover"
+          isSelected ? "bg-surface-accent" : "hover:bg-surface-hover",
+          isDragged && "opacity-50",
+          isDropTarget && !isDropArea && "bg-primary/10"
         )}
       >
         <div
@@ -124,6 +137,7 @@ export function TreeNodeItem<T>({
               focusedId={focusedId}
               tabStopId={tabStopId}
               actions={actions}
+              drag={drag}
               onActivate={onActivate}
               onFocusNode={onFocusNode}
               onKeyDown={onKeyDown}

@@ -8,10 +8,21 @@ import { useNotesContext } from "../../providers/notes-provider.js";
 import { useAppStore } from "../../stores/app-store.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { Tree } from "../common/tree/tree.js";
-import type { TreeNodeAction } from "../common/tree/tree.types.js";
-import { NOTES_ROOT_LABEL } from "./note-tree-nodes.js";
+import type { TreeDragDrop, TreeNodeAction, TreeNodeRef } from "../common/tree/tree.types.js";
+import { getErrorMessage } from "../../utils/error-message.js";
+import { NOTES_ROOT_LABEL, NOTES_ROOT_NODE_ID } from "./note-tree-nodes.js";
 import { NotesTreeStatus } from "./notes-tree-status.js";
 import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
+
+const DEFAULT_EXPANDED_IDS = [NOTES_ROOT_NODE_ID];
+
+function isNoteNode(nodeId: string): boolean {
+  return nodeId !== NOTES_ROOT_NODE_ID;
+}
+
+function isFolderTarget(target: TreeNodeRef<NoteMetadata>): boolean {
+  return target.id === NOTES_ROOT_NODE_ID || target.data?.entityType === ENTITY_TYPE.NOTE_FOLDER;
+}
 
 /**
  * The live notes tree and everything done to live notes. Name validation and
@@ -20,7 +31,7 @@ import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
  */
 export function NotesBrowseTab() {
   const { getNote, getChildIds, getListStatus, createNote, createFolder, updateNote, deleteNote } = useNotesContext();
-  const nodes = useNoteTreeNodes({ isTrashed: false });
+  const nodes = useNoteTreeNodes({ isTrashed: false, hasRoot: true });
   const prompt = usePromptDialog();
   const confirm = useConfirmDialog();
   const openMoveDialog = useOpenNoteMoveDialog();
@@ -40,6 +51,12 @@ export function NotesBrowseTab() {
   }, [getNote, selectedNoteId]);
 
   const targetName = targetFolder?.name ?? NOTES_ROOT_LABEL;
+  const selectedNodeId = selectedNoteId ?? NOTES_ROOT_NODE_ID;
+
+  const handleSelect = useCallback(
+    (nodeId: string) => selectNote(nodeId === NOTES_ROOT_NODE_ID ? undefined : nodeId),
+    [selectNote]
+  );
 
   const handleCreateNote = useCallback(() => {
     prompt({
@@ -95,11 +112,38 @@ export function NotesBrowseTab() {
     [confirm, deleteNote]
   );
 
+  const handleDrop = useCallback(
+    async (source: TreeNodeRef<NoteMetadata>, target: TreeNodeRef<NoteMetadata>) => {
+      try {
+        selectNote(await updateNote(source.id, { parentId: target.data?.id ?? null }));
+      } catch (moveError) {
+        confirm({
+          title: "Move failed",
+          message: getErrorMessage(moveError),
+          confirmLabel: "OK",
+          confirmOnly: true,
+          onConfirm: () => undefined,
+        });
+      }
+    },
+    [updateNote, selectNote, confirm]
+  );
+
+  const dragDrop = useMemo<TreeDragDrop<NoteMetadata>>(
+    () => ({
+      canDrag: (node) => isNoteNode(node.id),
+      canDrop: (source, target) => isFolderTarget(target) && target.data?.id !== source.data?.parentId,
+      onDrop: handleDrop,
+      isLeafRedirected: true,
+    }),
+    [handleDrop]
+  );
+
   const nodeActions = useMemo<TreeNodeAction<NoteMetadata>[]>(
     () => [
-      { id: "rename", label: "Rename", icon: Pencil, onSelect: handleRename },
-      { id: "move", label: "Move", icon: FolderInput, onSelect: openMoveDialog },
-      { id: "delete", label: "Delete", icon: Trash2, onSelect: handleTrash },
+      { id: "rename", label: "Rename", icon: Pencil, isAvailable: isNoteNode, onSelect: handleRename },
+      { id: "move", label: "Move", icon: FolderInput, isAvailable: isNoteNode, onSelect: openMoveDialog },
+      { id: "delete", label: "Delete", icon: Trash2, isAvailable: isNoteNode, onSelect: handleTrash },
     ],
     [handleRename, openMoveDialog, handleTrash]
   );
@@ -132,10 +176,12 @@ export function NotesBrowseTab() {
       >
         <Tree
           nodes={nodes}
-          selectedId={selectedNoteId}
+          selectedId={selectedNodeId}
           revealId={selectedNoteId}
+          defaultExpandedIds={DEFAULT_EXPANDED_IDS}
           actions={nodeActions}
-          onSelect={selectNote}
+          dragDrop={dragDrop}
+          onSelect={handleSelect}
           ariaLabel="Notes"
         />
       </NotesTreeStatus>
