@@ -16,6 +16,14 @@ import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
 
 const DEFAULT_EXPANDED_IDS = [NOTES_ROOT_NODE_ID];
 
+function isNoteNode(nodeId: string): boolean {
+  return nodeId !== NOTES_ROOT_NODE_ID;
+}
+
+function isFolderTarget(target: TreeNodeRef<NoteMetadata>): boolean {
+  return target.id === NOTES_ROOT_NODE_ID || target.data?.entityType === ENTITY_TYPE.NOTE_FOLDER;
+}
+
 /**
  * The live notes tree and everything done to live notes. Name validation and
  * conflicts are decided by the backend; the dialogs render what it says. A
@@ -179,12 +187,4 @@ export function NotesBrowseTab() {
       </NotesTreeStatus>
     </div>
   );
-}
-
-function isNoteNode(nodeId: string): boolean {
-  return nodeId !== NOTES_ROOT_NODE_ID;
-}
-
-function isFolderTarget(target: TreeNodeRef<NoteMetadata>): boolean {
-  return target.id === NOTES_ROOT_NODE_ID || target.data?.entityType === ENTITY_TYPE.NOTE_FOLDER;
 }
