@@ -1,5 +1,3 @@
-"use no memo";
-
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 type UseVirtualizerOptions = Parameters<typeof useVirtualizer>[0];
@@ -10,6 +8,7 @@ type UseVirtualizerOptions = Parameters<typeof useVirtualizer>[0];
  * so we isolate the incompatibility here.
  */
 export function useVirtualList(options: UseVirtualizerOptions) {
+  "use no memo";
   // eslint-disable-next-line react-hooks/incompatible-library
   return useVirtualizer(options);
 }
