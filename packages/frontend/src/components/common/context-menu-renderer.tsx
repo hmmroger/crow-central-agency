@@ -181,6 +181,7 @@ export function ContextMenuRenderer({ config, onClose }: ContextMenuRendererProp
             disabled={item.disabled}
             role={hasSelection ? "menuitemradio" : undefined}
             aria-checked={hasSelection ? isSelected : undefined}
+            aria-label={item.badge ? `${item.label} (${item.badge.description})` : undefined}
             className={cn(
               "flex w-full items-center gap-2 px-3 py-2 rounded-md text-left text-sm transition-colors",
               isSelected
@@ -194,12 +195,7 @@ export function ContextMenuRenderer({ config, onClose }: ContextMenuRendererProp
           >
             {item.icon && <item.icon className="h-4 w-4 shrink-0" />}
             <span className="flex-1 truncate">{item.label}</span>
-            {item.badge && (
-              <>
-                <NavBadge notification={item.badge} className="shrink-0" />
-                <span className="sr-only">{item.badge.description}</span>
-              </>
-            )}
+            {item.badge && <NavBadge notification={item.badge} className="shrink-0" />}
             {hasSelection && (
               <span
                 aria-hidden="true"
