@@ -5,6 +5,7 @@ import { useHeader } from "../../hooks/use-header.js";
 import { useOpenAgentPalette } from "../../hooks/dialogs/use-open-agent-palette.js";
 import { useOpenDocumentPalette } from "../../hooks/dialogs/use-open-document-palette.js";
 import { useContextMenu } from "../../providers/context-menu-provider.js";
+import { useNotificationsContext } from "../../providers/notifications-provider.js";
 import { ContextMenuTypes, type ContextMenuItem } from "../../providers/context-menu-provider.types.js";
 import type { HeaderAction } from "../../providers/header-provider.types.js";
 import { useAppStore } from "../../stores/app-store.js";
@@ -28,6 +29,7 @@ export function AppHeader() {
   const openDocumentPalette = useOpenDocumentPalette();
   const viewMode = useAppStore((state) => state.viewMode);
   const setViewMode = useAppStore((state) => state.setViewMode);
+  const { notifications } = useNotificationsContext();
   const isDropdownOpen = dropdown ? isMenuOpen(dropdown.menuId) : false;
   const isLogoMenuOpen = isMenuOpen(LOGO_NAV_MENU_ID);
   const renderedActions = useMemo(() => {
@@ -72,11 +74,12 @@ export function AppHeader() {
         icon: item.icon,
         onClick: () => setViewMode(item.mode),
         selected: viewMode === item.mode,
+        badge: notifications[item.mode],
       });
     });
 
     return items;
-  }, [setViewMode, viewMode]);
+  }, [notifications, setViewMode, viewMode]);
 
   const handleLogoClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {

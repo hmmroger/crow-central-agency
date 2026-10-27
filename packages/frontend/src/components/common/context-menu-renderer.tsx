@@ -21,6 +21,7 @@ import {
   type ContextMenuConfig,
   type ContextMenuItem,
 } from "../../providers/context-menu-provider.types";
+import { NavBadge } from "./nav-badge";
 
 interface ContextMenuRendererProps {
   config: ContextMenuConfig;
@@ -193,6 +194,12 @@ export function ContextMenuRenderer({ config, onClose }: ContextMenuRendererProp
           >
             {item.icon && <item.icon className="h-4 w-4 shrink-0" />}
             <span className="flex-1 truncate">{item.label}</span>
+            {item.badge && (
+              <>
+                <NavBadge notification={item.badge} className="shrink-0" />
+                <span className="sr-only">{item.badge.description}</span>
+              </>
+            )}
             {hasSelection && (
               <span
                 aria-hidden="true"

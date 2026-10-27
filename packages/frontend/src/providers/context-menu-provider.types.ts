@@ -1,5 +1,6 @@
 import type { Placement } from "@floating-ui/react";
 import type { LucideIcon } from "lucide-react";
+import type { NavNotification } from "./notifications-provider.types.js";
 
 // Rect for dropdown anchors (element position/size)
 export interface ContextMenuRect {
@@ -31,6 +32,8 @@ export interface ContextMenuAction extends ContextMenuCommon {
   disabled?: boolean;
   /** When true, renders a checkmark and selected styling (menuitemradio semantics) */
   selected?: boolean;
+  /** Optional trailing nav badge; its description is included in the row's accessible name */
+  badge?: NavNotification;
 }
 
 export interface ContextMenuSeparator extends ContextMenuCommon {

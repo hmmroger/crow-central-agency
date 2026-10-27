@@ -1,5 +1,7 @@
+import { useNotificationsContext } from "../../providers/notifications-provider.js";
 import { useAppStore } from "../../stores/app-store.js";
 import { cn } from "../../utils/cn.js";
+import { NavBadge } from "../common/nav-badge.js";
 import { APP_NAV_ITEMS } from "./app-nav-items.js";
 
 /**
@@ -10,6 +12,7 @@ import { APP_NAV_ITEMS } from "./app-nav-items.js";
 export function AppSidebar() {
   const viewMode = useAppStore((state) => state.viewMode);
   const setViewMode = useAppStore((state) => state.setViewMode);
+  const { notifications } = useNotificationsContext();
 
   const firstBottomIndex = APP_NAV_ITEMS.findIndex((item) => item.pinBottom);
   const lastBottomIndex = APP_NAV_ITEMS.reduce((last, item, index) => (item.pinBottom ? index : last), -1);
@@ -18,6 +21,8 @@ export function AppSidebar() {
     <nav className="hidden md:flex flex-col items-center gap-8 w-14 pt-10 shrink-0 border-r border-border-subtle/20 bg-surface">
       {APP_NAV_ITEMS.map(({ mode, icon: Icon, label }, index) => {
         const isActive = viewMode === mode;
+        const notification = notifications[mode];
+        const accessibleLabel = notification ? `${label} (${notification.description})` : label;
 
         return (
           <button
@@ -30,9 +35,13 @@ export function AppSidebar() {
               isActive ? "text-primary bg-primary/20" : "text-text-muted hover:text-text-base hover:bg-surface-elevated"
             )}
             onClick={() => setViewMode(mode)}
-            title={label}
+            title={accessibleLabel}
+            aria-label={accessibleLabel}
           >
-            <Icon className="h-6 w-6" />
+            <span className="relative">
+              <Icon className="h-6 w-6" />
+              {notification && <NavBadge notification={notification} className="absolute -top-1.5 -right-2" />}
+            </span>
           </button>
         );
       })}
