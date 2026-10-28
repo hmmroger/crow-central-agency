@@ -14,12 +14,10 @@ import { apiClient, unwrapResponse } from "../services/api-client.js";
 import { agentKeys } from "../services/query-keys.js";
 import { useWs } from "../hooks/use-ws.js";
 import { WS_STATE } from "../services/ws-client.types.js";
+import { VIEW_MODE } from "../stores/app-store.js";
+import { useSetNotification } from "./notifications-provider.js";
 import type { ApiError } from "../services/api-client.types.js";
-import type {
-  AgentStateEntry,
-  AgentStatesContextValue,
-  AgentStatesListener,
-} from "./agent-states-provider.types.js";
+import type { AgentStateEntry, AgentStatesContextValue, AgentStatesListener } from "./agent-states-provider.types.js";
 
 interface AgentStatesProviderProps {
   children: ReactNode;
@@ -42,12 +40,32 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
   const stateMapRef = useRef<Map<string, AgentStateEntry>>(new Map());
   const usageMapRef = useRef<Map<string, SessionUsage>>(new Map());
   const listenersRef = useRef<Set<AgentStatesListener>>(new Set());
+  /** Agents listed to the user: snapshot ids plus created, minus deleted. Excludes background agents. */
+  const listedAgentIdsRef = useRef<Set<string>>(new Set());
+  const setNotification = useSetNotification();
 
   const notify = useCallback(() => {
     for (const listener of listenersRef.current) {
       listener();
     }
   }, []);
+
+  const pushActiveAgentCount = useCallback(() => {
+    let activeCount = 0;
+    for (const agentId of listedAgentIdsRef.current) {
+      const status = stateMapRef.current.get(agentId)?.status;
+      if (status !== undefined && status !== AGENT_STATUS.IDLE) {
+        activeCount++;
+      }
+    }
+
+    setNotification(
+      VIEW_MODE.AGENTS,
+      activeCount > 0
+        ? { count: activeCount, description: `${activeCount} active ${activeCount === 1 ? "agent" : "agents"}` }
+        : undefined
+    );
+  }, [setNotification]);
 
   const patchState = useCallback(
     (agentId: string, patch: (prev: AgentStateEntry | undefined) => AgentStateEntry | undefined): boolean => {
@@ -86,14 +104,17 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
 
     stateMapRef.current = new Map();
     usageMapRef.current = new Map();
+    listedAgentIdsRef.current = new Set();
     for (const state of data) {
       const { entry, usage } = splitRuntimeState(state);
       stateMapRef.current.set(state.agentId, entry);
       usageMapRef.current.set(state.agentId, usage);
+      listedAgentIdsRef.current.add(state.agentId);
     }
 
     notify();
-  }, [data, notify]);
+    pushActiveAgentCount();
+  }, [data, notify, pushActiveAgentCount]);
 
   const previousConnectionStateRef = useRef(connectionState);
   useEffect(() => {
@@ -123,6 +144,14 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
         stateMapRef.current.set(agentId, nextEntry);
         usageMapRef.current.set(agentId, usage);
         notify();
+        pushActiveAgentCount();
+
+        return;
+      }
+
+      if (message.type === SERVER_MESSAGE_TYPE.AGENT_CREATED) {
+        listedAgentIdsRef.current.add(agentId);
+        pushActiveAgentCount();
 
         return;
       }
@@ -152,6 +181,7 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
         });
         if (changed) {
           notify();
+          pushActiveAgentCount();
         }
 
         return;
@@ -243,14 +273,17 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
       if (message.type === SERVER_MESSAGE_TYPE.AGENT_DELETED) {
         const hadState = stateMapRef.current.delete(agentId);
         const hadUsage = usageMapRef.current.delete(agentId);
+        listedAgentIdsRef.current.delete(agentId);
         if (hadState || hadUsage) {
           notify();
         }
+
+        pushActiveAgentCount();
       }
     });
 
     return unregister;
-  }, [onMessage, notify, patchState]);
+  }, [onMessage, notify, patchState, pushActiveAgentCount]);
 
   const getAgentState = useCallback((agentId: string) => stateMapRef.current.get(agentId), []);
   const getAgentSessionUsage = useCallback((agentId: string) => usageMapRef.current.get(agentId), []);
