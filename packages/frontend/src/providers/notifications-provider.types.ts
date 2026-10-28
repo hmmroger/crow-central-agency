@@ -1,19 +1,14 @@
 import type { ViewMode } from "../stores/app-store.js";
 
-/** Value a data owner sets for a view mode */
+/** Notification for one view mode; `hasNotification` is false when there is nothing to show */
 export interface ViewNotification {
+  hasNotification: boolean;
   count?: number;
   /** Accessible description, e.g. "3 open tasks" */
   description?: string;
 }
 
-/** Lookup result for one view mode; `hasNotification` is false when nothing is set */
-export interface ViewNotificationLookup extends ViewNotification {
-  hasNotification: boolean;
+/** Value exposed by the NotificationsProvider context */
+export interface NotificationsContextValue {
+  getNotification: (mode: ViewMode) => ViewNotification;
 }
-
-/** Set or clear (undefined) a view mode's notification */
-export type SetViewNotification = (mode: ViewMode, notification: ViewNotification | undefined) => void;
-
-/** Read the notification for one view mode */
-export type GetViewNotification = (mode: ViewMode) => ViewNotificationLookup;

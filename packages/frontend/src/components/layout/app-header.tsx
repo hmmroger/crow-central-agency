@@ -75,8 +75,9 @@ export function AppHeader() {
         icon: item.icon,
         onClick: () => setViewMode(item.mode),
         selected: viewMode === item.mode,
-        badge: notification.hasNotification ? { count: notification.count } : undefined,
-        accessibleDescription: notification.description,
+        hasBadge: notification.hasNotification,
+        badgeCount: notification.count,
+        badgeDescription: notification.description,
       });
     });
 

@@ -5,6 +5,8 @@ import type { ApiError } from "../services/api-client.types.js";
 export interface TasksContextValue {
   /** All tasks, kept current via WS events */
   tasks: AgentTaskItem[];
+  /** Number of tasks in the OPEN state */
+  openTaskCount: number;
   /** Whether the initial fetch is in progress */
   isLoading: boolean;
   /** Error from the initial fetch, if any */

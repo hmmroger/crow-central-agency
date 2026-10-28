@@ -44,10 +44,10 @@ export function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <WsProvider>
-          <NotificationsProvider>
-            <AgentStatesProvider>
-              <AgentsProvider>
-                <TasksProvider>
+          <AgentStatesProvider>
+            <AgentsProvider>
+              <TasksProvider>
+                <NotificationsProvider>
                   <NotesProvider>
                     <TagsProvider>
                       <AgentBuilderProvider>
@@ -67,10 +67,10 @@ export function App() {
                       </AgentBuilderProvider>
                     </TagsProvider>
                   </NotesProvider>
-                </TasksProvider>
-              </AgentsProvider>
-            </AgentStatesProvider>
-          </NotificationsProvider>
+                </NotificationsProvider>
+              </TasksProvider>
+            </AgentsProvider>
+          </AgentStatesProvider>
         </WsProvider>
       </QueryClientProvider>
     </ErrorBoundary>

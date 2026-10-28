@@ -3,7 +3,7 @@ import { cn } from "../../utils/cn.js";
 /** Counts above this render as `{cap}+` */
 const BADGE_COUNT_CAP = 99;
 
-export interface BadgeProps {
+interface BadgeProps {
   /** Number to display; renders a dot when absent */
   count?: number;
   /** Positioning supplied by the host (e.g. absolute corner overlay) */
