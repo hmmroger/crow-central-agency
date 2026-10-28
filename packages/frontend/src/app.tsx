@@ -12,6 +12,7 @@ import { ContextMenuProvider } from "./providers/context-menu-provider.js";
 import { AgentsProvider } from "./providers/agents-provider.js";
 import { AgentStatesProvider } from "./providers/agent-states-provider.js";
 import { TasksProvider } from "./providers/tasks-provider.js";
+import { NotificationsProvider } from "./providers/notifications-provider.js";
 import { NotesProvider } from "./providers/notes-provider.js";
 import { TagsProvider } from "./providers/tags-provider.js";
 import { AgentBuilderProvider } from "./providers/agent-builder-provider.js";
@@ -46,25 +47,27 @@ export function App() {
           <AgentStatesProvider>
             <AgentsProvider>
               <TasksProvider>
-                <NotesProvider>
-                  <TagsProvider>
-                    <AgentBuilderProvider>
-                      <ContextMenuProvider>
-                        <ModalDialogProvider>
-                          <FullPanelProvider>
-                            <HeaderProvider>
-                              <RowHeightsProvider>
-                                <AppLayout>
-                                  <AppContent />
-                                </AppLayout>
-                              </RowHeightsProvider>
-                            </HeaderProvider>
-                          </FullPanelProvider>
-                        </ModalDialogProvider>
-                      </ContextMenuProvider>
-                    </AgentBuilderProvider>
-                  </TagsProvider>
-                </NotesProvider>
+                <NotificationsProvider>
+                  <NotesProvider>
+                    <TagsProvider>
+                      <AgentBuilderProvider>
+                        <ContextMenuProvider>
+                          <ModalDialogProvider>
+                            <FullPanelProvider>
+                              <HeaderProvider>
+                                <RowHeightsProvider>
+                                  <AppLayout>
+                                    <AppContent />
+                                  </AppLayout>
+                                </RowHeightsProvider>
+                              </HeaderProvider>
+                            </FullPanelProvider>
+                          </ModalDialogProvider>
+                        </ContextMenuProvider>
+                      </AgentBuilderProvider>
+                    </TagsProvider>
+                  </NotesProvider>
+                </NotificationsProvider>
               </TasksProvider>
             </AgentsProvider>
           </AgentStatesProvider>

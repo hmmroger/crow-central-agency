@@ -31,6 +31,12 @@ export interface ContextMenuAction extends ContextMenuCommon {
   disabled?: boolean;
   /** When true, renders a checkmark and selected styling (menuitemradio semantics) */
   selected?: boolean;
+  /** When true, renders a trailing badge */
+  hasBadge?: boolean;
+  /** Number shown in the badge; a dot when absent */
+  badgeCount?: number;
+  /** Appended to the row's accessible name, e.g. "Tasks (3 open tasks)" */
+  badgeDescription?: string;
 }
 
 export interface ContextMenuSeparator extends ContextMenuCommon {

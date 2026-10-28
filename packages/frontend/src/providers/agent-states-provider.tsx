@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AGENT_STATUS,
@@ -15,17 +15,15 @@ import { agentKeys } from "../services/query-keys.js";
 import { useWs } from "../hooks/use-ws.js";
 import { WS_STATE } from "../services/ws-client.types.js";
 import type { ApiError } from "../services/api-client.types.js";
-import type {
-  AgentStateEntry,
-  AgentStatesContextValue,
-  AgentStatesListener,
-} from "./agent-states-provider.types.js";
+import type { AgentStateEntry, AgentStatesContextValue, AgentStatesListener } from "./agent-states-provider.types.js";
 
 interface AgentStatesProviderProps {
   children: ReactNode;
 }
 
 export const AgentStatesContext = createContext<AgentStatesContextValue | undefined>(undefined);
+/** Separate from the main context so only count consumers re-render when it changes */
+const ActiveAgentCountContext = createContext<number | undefined>(undefined);
 
 function splitRuntimeState(state: AgentRuntimeState): { entry: AgentStateEntry; usage: SessionUsage } {
   const { sessionUsage, ...entry } = state;
@@ -42,11 +40,26 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
   const stateMapRef = useRef<Map<string, AgentStateEntry>>(new Map());
   const usageMapRef = useRef<Map<string, SessionUsage>>(new Map());
   const listenersRef = useRef<Set<AgentStatesListener>>(new Set());
+  /** Agents listed to the user: snapshot ids plus created, minus deleted. Excludes background agents. */
+  const listedAgentIdsRef = useRef<Set<string>>(new Set());
+  const [activeAgentCount, setActiveAgentCount] = useState(0);
 
   const notify = useCallback(() => {
     for (const listener of listenersRef.current) {
       listener();
     }
+  }, []);
+
+  const recomputeActiveAgentCount = useCallback(() => {
+    let activeCount = 0;
+    for (const agentId of listedAgentIdsRef.current) {
+      const status = stateMapRef.current.get(agentId)?.status;
+      if (status !== undefined && status !== AGENT_STATUS.IDLE) {
+        activeCount++;
+      }
+    }
+
+    setActiveAgentCount(activeCount);
   }, []);
 
   const patchState = useCallback(
@@ -86,14 +99,17 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
 
     stateMapRef.current = new Map();
     usageMapRef.current = new Map();
+    listedAgentIdsRef.current = new Set();
     for (const state of data) {
       const { entry, usage } = splitRuntimeState(state);
       stateMapRef.current.set(state.agentId, entry);
       usageMapRef.current.set(state.agentId, usage);
+      listedAgentIdsRef.current.add(state.agentId);
     }
 
     notify();
-  }, [data, notify]);
+    recomputeActiveAgentCount();
+  }, [data, notify, recomputeActiveAgentCount]);
 
   const previousConnectionStateRef = useRef(connectionState);
   useEffect(() => {
@@ -123,6 +139,14 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
         stateMapRef.current.set(agentId, nextEntry);
         usageMapRef.current.set(agentId, usage);
         notify();
+        recomputeActiveAgentCount();
+
+        return;
+      }
+
+      if (message.type === SERVER_MESSAGE_TYPE.AGENT_CREATED) {
+        listedAgentIdsRef.current.add(agentId);
+        recomputeActiveAgentCount();
 
         return;
       }
@@ -152,6 +176,7 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
         });
         if (changed) {
           notify();
+          recomputeActiveAgentCount();
         }
 
         return;
@@ -243,14 +268,17 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
       if (message.type === SERVER_MESSAGE_TYPE.AGENT_DELETED) {
         const hadState = stateMapRef.current.delete(agentId);
         const hadUsage = usageMapRef.current.delete(agentId);
+        listedAgentIdsRef.current.delete(agentId);
         if (hadState || hadUsage) {
           notify();
         }
+
+        recomputeActiveAgentCount();
       }
     });
 
     return unregister;
-  }, [onMessage, notify, patchState]);
+  }, [onMessage, notify, patchState, recomputeActiveAgentCount]);
 
   const getAgentState = useCallback((agentId: string) => stateMapRef.current.get(agentId), []);
   const getAgentSessionUsage = useCallback((agentId: string) => usageMapRef.current.get(agentId), []);
@@ -288,7 +316,11 @@ export function AgentStatesProvider({ children }: AgentStatesProviderProps) {
     [getAgentState, getAgentSessionUsage, subscribe, appendInputHistory]
   );
 
-  return <AgentStatesContext.Provider value={value}>{children}</AgentStatesContext.Provider>;
+  return (
+    <AgentStatesContext.Provider value={value}>
+      <ActiveAgentCountContext.Provider value={activeAgentCount}>{children}</ActiveAgentCountContext.Provider>
+    </AgentStatesContext.Provider>
+  );
 }
 
 export function useAgentStatesContext(): AgentStatesContextValue {
@@ -298,4 +330,14 @@ export function useAgentStatesContext(): AgentStatesContextValue {
   }
 
   return context;
+}
+
+/** Number of listed (non-background) agents whose status is not idle */
+export function useActiveAgentCount(): number {
+  const activeAgentCount = useContext(ActiveAgentCountContext);
+  if (activeAgentCount === undefined) {
+    throw new Error("useActiveAgentCount must be used within an AgentStatesProvider");
+  }
+
+  return activeAgentCount;
 }

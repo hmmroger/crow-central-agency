@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { SERVER_MESSAGE_TYPE, type AgentTaskItem } from "@crow-central-agency/shared";
+import { AGENT_TASK_STATE, SERVER_MESSAGE_TYPE, type AgentTaskItem } from "@crow-central-agency/shared";
 import { apiClient, unwrapResponse } from "../services/api-client.js";
 import { taskKeys } from "../services/query-keys.js";
 import { useWs } from "../hooks/use-ws.js";
@@ -35,6 +35,8 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     staleTime: Infinity,
     refetchOnMount: "always",
   });
+
+  const openTaskCount = useMemo(() => tasks.filter((task) => task.state === AGENT_TASK_STATE.OPEN).length, [tasks]);
 
   // Subscribe to WS events to keep cache in sync
   useEffect(() => {
@@ -77,6 +79,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
 
   const value: TasksContextValue = {
     tasks,
+    openTaskCount,
     isLoading,
     error: error ?? undefined,
     refetch: () => void refetch(),
