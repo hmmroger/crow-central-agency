@@ -20,7 +20,7 @@ export function Badge({ count, className }: BadgeProps) {
     <span
       aria-hidden="true"
       className={cn(
-        "flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-primary text-text-primary text-3xs font-semibold leading-none tabular-nums",
+        "flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-accent text-text-primary text-3xs font-semibold leading-none tabular-nums",
         className
       )}
     >
