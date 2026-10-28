@@ -1,28 +1,19 @@
 import type { ViewMode } from "../stores/app-store.js";
 
-export type NavNotificationKind = (typeof NAV_NOTIFICATION_KIND)[keyof typeof NAV_NOTIFICATION_KIND];
-export const NAV_NOTIFICATION_KIND = {
-  COUNT: "count",
-  DOT: "dot",
-} as const;
-
-export interface NavCountNotification {
-  kind: (typeof NAV_NOTIFICATION_KIND)["COUNT"];
-  count: number;
+/** Value a data owner sets for a view mode */
+export interface ViewNotification {
+  count?: number;
   /** Accessible description, e.g. "3 open tasks" */
-  description: string;
+  description?: string;
 }
 
-export interface NavDotNotification {
-  kind: (typeof NAV_NOTIFICATION_KIND)["DOT"];
-  /** Accessible description of what needs attention */
-  description: string;
+/** Lookup result for one view mode; `hasNotification` is false when nothing is set */
+export interface ViewNotificationLookup extends ViewNotification {
+  hasNotification: boolean;
 }
 
-export type NavNotification = NavCountNotification | NavDotNotification;
+/** Set or clear (undefined) a view mode's notification */
+export type SetViewNotification = (mode: ViewMode, notification: ViewNotification | undefined) => void;
 
-/** Value exposed by the NotificationsProvider context */
-export interface NotificationsContextValue {
-  /** Notification per view mode; modes without a notification (or with a zero count) are absent */
-  notifications: Partial<Record<ViewMode, NavNotification>>;
-}
+/** Read the notification for one view mode */
+export type GetViewNotification = (mode: ViewMode) => ViewNotificationLookup;

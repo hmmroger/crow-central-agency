@@ -1,52 +1,85 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { VIEW_MODE } from "../stores/app-store.js";
-import { useAgentsNotification } from "../hooks/notifications/use-agents-notification.js";
-import { useTasksNotification } from "../hooks/notifications/use-tasks-notification.js";
-import {
-  NAV_NOTIFICATION_KIND,
-  type NavNotification,
-  type NotificationsContextValue,
+import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import type { ViewMode } from "../stores/app-store.js";
+import type {
+  GetViewNotification,
+  SetViewNotification,
+  ViewNotification,
+  ViewNotificationLookup,
 } from "./notifications-provider.types.js";
 
-const NotificationsContext = createContext<NotificationsContextValue | undefined>(undefined);
+const EMPTY_LOOKUP: ViewNotificationLookup = { hasNotification: false };
 
-function isVisibleNotification(notification: NavNotification | undefined): notification is NavNotification {
-  return notification !== undefined && (notification.kind !== NAV_NOTIFICATION_KIND.COUNT || notification.count > 0);
-}
+const SetNotificationContext = createContext<SetViewNotification | undefined>(undefined);
+const GetNotificationContext = createContext<GetViewNotification | undefined>(undefined);
 
 /**
- * Answers "what is the notification for this view mode?" for nav consumers.
- * Composes one source hook per mode; values are derived live from the data providers, never copied.
+ * Generic store of nav notifications keyed by view mode. Data owners push values; nav consumers look them up.
+ * The setter and lookup live in separate contexts so setters don't re-render when notifications change.
  */
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const agentsNotification = useAgentsNotification();
-  const tasksNotification = useTasksNotification();
+  const [notifications, setNotifications] = useState<Partial<Record<ViewMode, ViewNotification>>>({});
 
-  const value = useMemo<NotificationsContextValue>(() => {
-    const notifications: NotificationsContextValue["notifications"] = {};
-    if (isVisibleNotification(agentsNotification)) {
-      notifications[VIEW_MODE.AGENTS] = agentsNotification;
-    }
+  const setNotification = useCallback<SetViewNotification>((mode, notification) => {
+    setNotifications((prev) => {
+      const current = prev[mode];
+      if (
+        (current === undefined) === (notification === undefined) &&
+        current?.count === notification?.count &&
+        current?.description === notification?.description
+      ) {
+        return prev;
+      }
 
-    if (isVisibleNotification(tasksNotification)) {
-      notifications[VIEW_MODE.TASKS] = tasksNotification;
-    }
+      const next = { ...prev };
+      if (notification) {
+        next[mode] = notification;
+      } else {
+        delete next[mode];
+      }
 
-    return { notifications };
-  }, [agentsNotification, tasksNotification]);
+      return next;
+    });
+  }, []);
 
-  return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
+  const getNotification = useCallback<GetViewNotification>(
+    (mode) => {
+      const notification = notifications[mode];
+
+      return notification ? { hasNotification: true, ...notification } : EMPTY_LOOKUP;
+    },
+    [notifications]
+  );
+
+  return (
+    <SetNotificationContext.Provider value={setNotification}>
+      <GetNotificationContext.Provider value={getNotification}>{children}</GetNotificationContext.Provider>
+    </SetNotificationContext.Provider>
+  );
 }
 
 /**
- * Access nav notifications keyed by view mode.
+ * Setter for a view mode's notification. Stable across renders.
  * Must be used within a NotificationsProvider.
  */
-export function useNotificationsContext(): NotificationsContextValue {
-  const context = useContext(NotificationsContext);
+export function useSetNotification(): SetViewNotification {
+  const context = useContext(SetNotificationContext);
 
   if (!context) {
-    throw new Error("useNotificationsContext must be used within a NotificationsProvider");
+    throw new Error("useSetNotification must be used within a NotificationsProvider");
+  }
+
+  return context;
+}
+
+/**
+ * Lookup for one view mode's notification. Changes identity when notifications change.
+ * Must be used within a NotificationsProvider.
+ */
+export function useGetNotification(): GetViewNotification {
+  const context = useContext(GetNotificationContext);
+
+  if (!context) {
+    throw new Error("useGetNotification must be used within a NotificationsProvider");
   }
 
   return context;
