@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { Send, Square } from "lucide-react";
 import { useInputHistoryNavigation } from "./use-input-history-navigation.js";
 
@@ -25,6 +25,8 @@ interface MessageInputProps {
    * - "compact": single-line input, minimal padding, no hint (dashboard card)
    */
   variant?: "full" | "compact";
+  /** Focus the input on mount with the caret at the end of the draft */
+  autoFocus?: boolean;
 }
 
 /**
@@ -41,8 +43,10 @@ export function MessageInput({
   disabled,
   history = [],
   variant = "full",
+  autoFocus = false,
 }: MessageInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   // Holds the text wiped by an Esc-clear so a follow-up Esc can restore it (one-level undo).
   // Component-local and non-persisted: an immediate in-session affordance only.
   const clearedStashRef = useRef<string>("");
@@ -71,6 +75,21 @@ export function MessageInput({
   useLayoutEffect(() => {
     autoResize();
   }, [value, autoResize]);
+
+  // Keyed only on autoFocus: re-focusing on value changes would steal focus from other controls.
+  useEffect(() => {
+    if (!autoFocus) {
+      return;
+    }
+
+    const element = textareaRef.current ?? inputRef.current;
+    if (!element) {
+      return;
+    }
+
+    element.focus({ preventScroll: true });
+    element.setSelectionRange(element.value.length, element.value.length);
+  }, [autoFocus]);
 
   const handleChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
@@ -166,6 +185,7 @@ export function MessageInput({
     return (
       <div className="flex gap-2">
         <input
+          ref={inputRef}
           type="text"
           value={value}
           onChange={handleChange}

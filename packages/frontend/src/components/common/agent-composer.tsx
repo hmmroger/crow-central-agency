@@ -9,9 +9,10 @@ import { MessageInput } from "./message-input.js";
 interface AgentComposerProps {
   agentId: string;
   variant?: "full" | "compact";
+  autoFocus?: boolean;
 }
 
-export function AgentComposer({ agentId, variant = "full" }: AgentComposerProps) {
+export function AgentComposer({ agentId, variant = "full", autoFocus }: AgentComposerProps) {
   const { draft, setDraft } = useComposeDraft(agentId);
   const { pendingBranchAnchorId, clearPendingBranchAnchorId } = usePendingBranchAnchor(agentId);
   const agentState = useAgentState(agentId);
@@ -61,6 +62,7 @@ export function AgentComposer({ agentId, variant = "full" }: AgentComposerProps)
         isStreaming={isStreaming}
         history={agentState?.inputHistory}
         variant={variant}
+        autoFocus={autoFocus}
       />
     </div>
   );
