@@ -73,7 +73,7 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
           )}
         </div>
 
-        <AgentComposer agentId={agent.id} variant="full" />
+        <AgentComposer agentId={agent.id} variant="full" autoFocus />
       </div>
     </div>
   );
