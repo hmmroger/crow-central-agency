@@ -15,9 +15,20 @@ import { NotesTreeStatus } from "./notes-tree-status.js";
 import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
 
 const DEFAULT_EXPANDED_IDS = [NOTES_ROOT_NODE_ID];
+const NEW_NOTE_NAME = "New note";
 
 function isNoteNode(nodeId: string): boolean {
   return nodeId !== NOTES_ROOT_NODE_ID;
+}
+
+/** `New note`, or the first `New note N` not in `takenNames` (lowercased). */
+function getFreeNoteName(takenNames: Set<string>): string {
+  let name = NEW_NOTE_NAME;
+  for (let suffix = 2; takenNames.has(name.toLowerCase()); suffix++) {
+    name = `${NEW_NOTE_NAME} ${suffix}`;
+  }
+
+  return name;
 }
 
 function isFolderTarget(target: TreeNodeRef<NoteMetadata>): boolean {
@@ -26,8 +37,9 @@ function isFolderTarget(target: TreeNodeRef<NoteMetadata>): boolean {
 
 /**
  * The live notes tree and everything done to live notes. Name validation and
- * conflicts are decided by the backend; the dialogs render what it says. A
- * created or renamed note is selected once saved.
+ * conflicts are decided by the backend; the dialogs render what it says. A new
+ * note takes the first free default name without a prompt. A created or renamed
+ * note is selected once saved.
  */
 export function NotesBrowseTab() {
   const { getNote, getChildIds, getListStatus, createNote, createFolder, updateNote, deleteNote } = useNotesContext();
@@ -58,15 +70,24 @@ export function NotesBrowseTab() {
     [selectNote]
   );
 
-  const handleCreateNote = useCallback(() => {
-    prompt({
-      title: "New Note",
-      label: "Note name",
-      maxLength: NOTE_NAME_MAX_LENGTH,
-      confirmLabel: "Create",
-      onConfirm: async (name) => selectNote(await createNote(name, targetFolder?.id)),
-    });
-  }, [prompt, createNote, targetFolder, selectNote]);
+  const handleCreateNote = useCallback(async () => {
+    const parentId = targetFolder?.id;
+    const takenNames = new Set(
+      getChildIds(parentId, false).flatMap((childId) => getNote(childId)?.name.toLowerCase() ?? [])
+    );
+
+    try {
+      selectNote(await createNote(getFreeNoteName(takenNames), parentId));
+    } catch (createError) {
+      confirm({
+        title: "Create failed",
+        message: getErrorMessage(createError),
+        confirmLabel: "OK",
+        confirmOnly: true,
+        onConfirm: () => undefined,
+      });
+    }
+  }, [targetFolder, getChildIds, getNote, createNote, selectNote, confirm]);
 
   const handleCreateFolder = useCallback(() => {
     prompt({
