@@ -10,25 +10,15 @@ import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js"
 import { Tree } from "../common/tree/tree.js";
 import type { TreeDragDrop, TreeNodeAction, TreeNodeRef } from "../common/tree/tree.types.js";
 import { getErrorMessage } from "../../utils/error-message.js";
-import { NOTES_ROOT_LABEL, NOTES_ROOT_NODE_ID } from "./note-tree-nodes.js";
+import { NOTES_ROOT_NODE_ID } from "./note-tree-nodes.js";
 import { NotesTreeStatus } from "./notes-tree-status.js";
+import { useNewNote } from "./use-new-note.js";
 import { useNoteTreeNodes } from "./use-note-tree-nodes.js";
 
 const DEFAULT_EXPANDED_IDS = [NOTES_ROOT_NODE_ID];
-const NEW_NOTE_NAME = "New note";
 
 function isNoteNode(nodeId: string): boolean {
   return nodeId !== NOTES_ROOT_NODE_ID;
-}
-
-/** `New note`, or the first `New note N` not in `takenNames` (lowercased). */
-function getFreeNoteName(takenNames: Set<string>): string {
-  let name = NEW_NOTE_NAME;
-  for (let suffix = 2; takenNames.has(name.toLowerCase()); suffix++) {
-    name = `${NEW_NOTE_NAME} ${suffix}`;
-  }
-
-  return name;
 }
 
 function isFolderTarget(target: TreeNodeRef<NoteMetadata>): boolean {
@@ -42,8 +32,9 @@ function isFolderTarget(target: TreeNodeRef<NoteMetadata>): boolean {
  * note is selected once saved.
  */
 export function NotesBrowseTab() {
-  const { getNote, getChildIds, getListStatus, createNote, createFolder, updateNote, deleteNote } = useNotesContext();
+  const { getChildIds, getListStatus, createFolder, updateNote, deleteNote } = useNotesContext();
   const nodes = useNoteTreeNodes({ isTrashed: false, hasRoot: true });
+  const { destinationId, destinationName, createNewNote } = useNewNote();
   const prompt = usePromptDialog();
   const confirm = useConfirmDialog();
   const openMoveDialog = useOpenNoteMoveDialog();
@@ -52,17 +43,6 @@ export function NotesBrowseTab() {
   const { isLoading, error } = getListStatus(false);
   const isEmpty = getChildIds(undefined, false).length === 0;
 
-  // New notes land in the selected folder, or beside the selected note.
-  const targetFolder = useMemo(() => {
-    const selectedNote = selectedNoteId ? getNote(selectedNoteId) : undefined;
-    if (selectedNote?.entityType === ENTITY_TYPE.NOTE_FOLDER) {
-      return selectedNote;
-    }
-
-    return selectedNote?.parentId ? getNote(selectedNote.parentId) : undefined;
-  }, [getNote, selectedNoteId]);
-
-  const targetName = targetFolder?.name ?? NOTES_ROOT_LABEL;
   const selectedNodeId = selectedNoteId ?? NOTES_ROOT_NODE_ID;
 
   const handleSelect = useCallback(
@@ -71,13 +51,8 @@ export function NotesBrowseTab() {
   );
 
   const handleCreateNote = useCallback(async () => {
-    const parentId = targetFolder?.id;
-    const takenNames = new Set(
-      getChildIds(parentId, false).flatMap((childId) => getNote(childId)?.name.toLowerCase() ?? [])
-    );
-
     try {
-      selectNote(await createNote(getFreeNoteName(takenNames), parentId));
+      selectNote(await createNewNote());
     } catch (createError) {
       confirm({
         title: "Create failed",
@@ -87,7 +62,7 @@ export function NotesBrowseTab() {
         onConfirm: () => undefined,
       });
     }
-  }, [targetFolder, getChildIds, getNote, createNote, selectNote, confirm]);
+  }, [createNewNote, selectNote, confirm]);
 
   const handleCreateFolder = useCallback(() => {
     prompt({
@@ -95,9 +70,9 @@ export function NotesBrowseTab() {
       label: "Folder name",
       maxLength: NOTE_NAME_MAX_LENGTH,
       confirmLabel: "Create",
-      onConfirm: async (name) => selectNote(await createFolder(name, targetFolder?.id)),
+      onConfirm: async (name) => selectNote(await createFolder(name, destinationId)),
     });
-  }, [prompt, createFolder, targetFolder, selectNote]);
+  }, [prompt, createFolder, destinationId, selectNote]);
 
   const handleRename = useCallback(
     (noteId: string, metadata?: NoteMetadata) => {
@@ -172,17 +147,17 @@ export function NotesBrowseTab() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1">
       <div className="flex shrink-0 items-center gap-1 px-2">
-        <span className="min-w-0 flex-1 truncate text-2xs text-secondary">{targetName}</span>
+        <span className="min-w-0 flex-1 truncate text-2xs text-secondary">{destinationName}</span>
         <ActionButton
           icon={FilePlus}
-          label={`New note in ${targetName}`}
+          label={`New note in ${destinationName}`}
           variant={ACTION_BUTTON_VARIANT.GHOST}
           iconOnly
           onClick={handleCreateNote}
         />
         <ActionButton
           icon={FolderPlus}
-          label={`New folder in ${targetName}`}
+          label={`New folder in ${destinationName}`}
           variant={ACTION_BUTTON_VARIANT.GHOST}
           iconOnly
           onClick={handleCreateFolder}
