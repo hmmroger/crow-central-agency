@@ -1,8 +1,9 @@
-import { useCallback, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useCallback, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
 import { Search } from "lucide-react";
 import { useActiveIndexNav } from "../../../hooks/use-active-index-nav.js";
 import type { CommandPaletteItem } from "./command-palette.types.js";
 import { CommandPaletteRow } from "./command-palette-row.js";
+import { CommandPaletteSectionLabel } from "./command-palette-section-label.js";
 
 interface CommandPaletteProps<TValue> {
   /** Base for the element ids the palette's ARIA wiring needs; unique per palette */
@@ -133,15 +134,21 @@ export function CommandPalette<TValue>({
           className="flex flex-col gap-0.5"
         >
           {items.map((item, index) => (
-            <CommandPaletteRow
-              key={item.key}
-              item={item}
-              index={index}
-              rowId={`${rowIdPrefix}${index}`}
-              isActive={index === activeIndex}
-              onActivate={handleCommit}
-              onHover={setActiveIndex}
-            />
+            <Fragment key={item.key}>
+              {item.section && item.section !== items[index - 1]?.section && (
+                <div className="px-1 pt-3 pb-1">
+                  <CommandPaletteSectionLabel label={item.section} />
+                </div>
+              )}
+              <CommandPaletteRow
+                item={item}
+                index={index}
+                rowId={`${rowIdPrefix}${index}`}
+                isActive={index === activeIndex}
+                onActivate={handleCommit}
+                onHover={setActiveIndex}
+              />
+            </Fragment>
           ))}
         </div>
 

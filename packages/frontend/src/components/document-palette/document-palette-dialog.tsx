@@ -34,6 +34,7 @@ interface DocumentPaletteDialogProps {
 const DOCUMENT_PALETTE_ID_PREFIX = "document-palette";
 const SEARCH_DEBOUNCE_MS = 200;
 const RECENT_LABEL = "Recent";
+const QUICK_ACTIONS_LABEL = "Quick actions";
 const RESULTS_EMPTY_MESSAGE = "No notes or artifacts match";
 const MISSING_ARTIFACT_MESSAGE = "This artifact no longer exists";
 const NEW_NOTE_KEY = "new-note";
@@ -148,7 +149,12 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
         key: NEW_NOTE_KEY,
         title: NEW_NOTE_TITLE,
         subtitle: destinationName,
-        leading: <FilePlus className={PALETTE_ICON_CLASS_NAME} />,
+        section: QUICK_ACTIONS_LABEL,
+        leading: (
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-primary ring-1 ring-primary/30">
+            <FilePlus className={PALETTE_ICON_CLASS_NAME} />
+          </span>
+        ),
         value: { action: DOCUMENT_PALETTE_ACTION.NEW_NOTE },
       });
     }
@@ -287,7 +293,7 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
         isSearching ? (
           <DocumentPaletteFilterPills filter={filter} onFilterChange={handleFilterChange} />
         ) : (
-          <CommandPaletteSectionLabel label={RECENT_LABEL} />
+          entries.length > 0 && <CommandPaletteSectionLabel label={RECENT_LABEL} />
         )
       }
       items={items}
