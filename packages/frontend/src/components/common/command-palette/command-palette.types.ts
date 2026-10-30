@@ -7,6 +7,8 @@ export interface CommandPaletteItem<TValue> {
   subtitle?: string;
   leading?: ReactNode;
   trailing?: ReactNode;
+  /** Label shown above the row where it differs from the previous row's section */
+  section?: string;
   value: TValue;
 }
 

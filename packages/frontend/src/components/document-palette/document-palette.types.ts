@@ -36,6 +36,16 @@ export interface DocumentPaletteEntry {
   target: DocumentRef;
 }
 
+/** What a palette row does when selected */
+export const DOCUMENT_PALETTE_ACTION = {
+  OPEN_DOCUMENT: "open-document",
+  NEW_NOTE: "new-note",
+} as const;
+
+export type DocumentPaletteValue =
+  | { action: typeof DOCUMENT_PALETTE_ACTION.OPEN_DOCUMENT; target: DocumentRef }
+  | { action: typeof DOCUMENT_PALETTE_ACTION.NEW_NOTE };
+
 /** Display name of the agent or circle a document belongs to; undefined when it has no such owner or the owner is gone */
 export type DocumentOwnerNameResolver = (documentRef: DocumentRef) => string | undefined;
 

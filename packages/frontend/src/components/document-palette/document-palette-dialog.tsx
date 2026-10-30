@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { FileBox, FileText } from "lucide-react";
+import { FileBox, FilePlus, FileText } from "lucide-react";
 import { DATA_SOURCE_TYPE, type ArtifactMetadata, type DocumentRef } from "@crow-central-agency/shared";
 import { useCirclesQuery } from "../../hooks/queries/use-circles-query.js";
 import { useSearchQuery } from "../../hooks/queries/use-search-query.js";
@@ -13,12 +13,15 @@ import { useOpenArtifactViewer } from "../agents/artifact/use-open-artifact-view
 import { CommandPalette } from "../common/command-palette/command-palette.js";
 import { CommandPaletteSectionLabel } from "../common/command-palette/command-palette-section-label.js";
 import type { CommandPaletteItem } from "../common/command-palette/command-palette.types.js";
+import { useNewNote } from "../notes/use-new-note.js";
 import {
+  DOCUMENT_PALETTE_ACTION,
   DOCUMENT_PALETTE_FILTER,
   DOCUMENT_PALETTE_FILTER_SOURCES,
   DOCUMENT_PALETTE_FILTERS,
   DOCUMENT_PALETTE_LABEL_ID,
   type DocumentPaletteFilter,
+  type DocumentPaletteValue,
 } from "./document-palette.types.js";
 import { resolveDocumentPaletteEntries } from "./resolve-document-palette-entries.js";
 import { DocumentPaletteFilterPills } from "./document-palette-filter-pills.js";
@@ -31,9 +34,11 @@ interface DocumentPaletteDialogProps {
 const DOCUMENT_PALETTE_ID_PREFIX = "document-palette";
 const SEARCH_DEBOUNCE_MS = 200;
 const RECENT_LABEL = "Recent";
-const RECENT_EMPTY_MESSAGE = "Type to search notes and artifacts.";
+const QUICK_ACTIONS_LABEL = "Quick actions";
 const RESULTS_EMPTY_MESSAGE = "No notes or artifacts match";
 const MISSING_ARTIFACT_MESSAGE = "This artifact no longer exists";
+const NEW_NOTE_KEY = "new-note";
+const NEW_NOTE_TITLE = "New note";
 const PALETTE_ICON_CLASS_NAME = "h-4 w-4";
 
 function cycleFilter(filter: DocumentPaletteFilter, step: number): DocumentPaletteFilter {
@@ -71,10 +76,11 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
   );
   const goToNote = useAppStore((state) => state.goToNote);
   const openArtifactViewer = useOpenArtifactViewer();
+  const { destinationName, createNewNote } = useNewNote();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<DocumentPaletteFilter>(DOCUMENT_PALETTE_FILTER.ALL);
-  const [artifactError, setArtifactError] = useState<string>();
-  const isOpeningArtifactRef = useRef(false);
+  const [actionError, setActionError] = useState<string>();
+  const isPendingRef = useRef(false);
   const isMountedRef = useRef(false);
 
   useEffect(() => {
@@ -124,31 +130,46 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
     [isSearching, notes, search.data, getOwnerName, recentDocuments, currentNoteId]
   );
 
-  const items = useMemo<CommandPaletteItem<DocumentRef>[]>(
-    () =>
-      entries.map((entry) => ({
-        key: entry.key,
-        title: entry.title,
-        subtitle: entry.subtitle,
-        leading:
-          entry.target.dataSourceType === DATA_SOURCE_TYPE.NOTE ? (
-            <FileText className={PALETTE_ICON_CLASS_NAME} />
-          ) : (
-            <FileBox className={PALETTE_ICON_CLASS_NAME} />
-          ),
-        value: entry.target,
-      })),
-    [entries]
-  );
+  const items = useMemo(() => {
+    const paletteItems: CommandPaletteItem<DocumentPaletteValue>[] = entries.map((entry) => ({
+      key: entry.key,
+      title: entry.title,
+      subtitle: entry.subtitle,
+      leading:
+        entry.target.dataSourceType === DATA_SOURCE_TYPE.NOTE ? (
+          <FileText className={PALETTE_ICON_CLASS_NAME} />
+        ) : (
+          <FileBox className={PALETTE_ICON_CLASS_NAME} />
+        ),
+      value: { action: DOCUMENT_PALETTE_ACTION.OPEN_DOCUMENT, target: entry.target },
+    }));
+
+    if (!isSearching) {
+      paletteItems.push({
+        key: NEW_NOTE_KEY,
+        title: NEW_NOTE_TITLE,
+        subtitle: destinationName,
+        section: QUICK_ACTIONS_LABEL,
+        leading: (
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-primary ring-1 ring-primary/30">
+            <FilePlus className={PALETTE_ICON_CLASS_NAME} />
+          </span>
+        ),
+        value: { action: DOCUMENT_PALETTE_ACTION.NEW_NOTE },
+      });
+    }
+
+    return paletteItems;
+  }, [entries, isSearching, destinationName]);
 
   const handleQueryChange = useCallback((nextQuery: string) => {
     setQuery(nextQuery);
-    setArtifactError(undefined);
+    setActionError(undefined);
   }, []);
 
   const handleFilterChange = useCallback((nextFilter: DocumentPaletteFilter) => {
     setFilter(nextFilter);
-    setArtifactError(undefined);
+    setActionError(undefined);
   }, []);
 
   const handleInputKeyDown = useCallback(
@@ -165,12 +186,8 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
 
   const openArtifact = useCallback(
     async (target: DocumentRef) => {
-      if (isOpeningArtifactRef.current) {
-        return;
-      }
-
-      isOpeningArtifactRef.current = true;
-      setArtifactError(undefined);
+      isPendingRef.current = true;
+      setActionError(undefined);
       try {
         const metadata = await fetchArtifactMetadata(target);
         if (!metadata) {
@@ -182,7 +199,7 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
         }
 
         if (!metadata) {
-          setArtifactError(MISSING_ARTIFACT_MESSAGE);
+          setActionError(MISSING_ARTIFACT_MESSAGE);
           return;
         }
 
@@ -190,16 +207,36 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
         openArtifactViewer(metadata);
       } catch (error) {
         if (isMountedRef.current) {
-          setArtifactError(getErrorMessage(error));
+          setActionError(getErrorMessage(error));
         }
       } finally {
-        isOpeningArtifactRef.current = false;
+        isPendingRef.current = false;
       }
     },
     [onClose, openArtifactViewer, forgetRecentDocument]
   );
 
-  const handleSelect = useCallback(
+  const createNote = useCallback(async () => {
+    isPendingRef.current = true;
+    setActionError(undefined);
+    try {
+      const noteId = await createNewNote();
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      onClose();
+      goToNote(noteId);
+    } catch (error) {
+      if (isMountedRef.current) {
+        setActionError(getErrorMessage(error));
+      }
+    } finally {
+      isPendingRef.current = false;
+    }
+  }, [createNewNote, onClose, goToNote]);
+
+  const openDocument = useCallback(
     (target: DocumentRef) => {
       switch (target.dataSourceType) {
         case DATA_SOURCE_TYPE.NOTE:
@@ -220,6 +257,25 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
     [openArtifact, goToNote, onClose]
   );
 
+  const handleSelect = useCallback(
+    (value: DocumentPaletteValue) => {
+      if (isPendingRef.current) {
+        return;
+      }
+
+      switch (value.action) {
+        case DOCUMENT_PALETTE_ACTION.OPEN_DOCUMENT:
+          openDocument(value.target);
+          return;
+
+        case DOCUMENT_PALETTE_ACTION.NEW_NOTE:
+          void createNote();
+          return;
+      }
+    },
+    [openDocument, createNote]
+  );
+
   const searchError = isSearching && search.isError ? getErrorMessage(search.error) : undefined;
 
   return (
@@ -237,13 +293,13 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
         isSearching ? (
           <DocumentPaletteFilterPills filter={filter} onFilterChange={handleFilterChange} />
         ) : (
-          <CommandPaletteSectionLabel label={RECENT_LABEL} />
+          entries.length > 0 && <CommandPaletteSectionLabel label={RECENT_LABEL} />
         )
       }
       items={items}
       isLoading={isLoading}
-      emptyMessage={isSearching ? RESULTS_EMPTY_MESSAGE : RECENT_EMPTY_MESSAGE}
-      errorMessage={artifactError ?? searchError}
+      emptyMessage={RESULTS_EMPTY_MESSAGE}
+      errorMessage={actionError ?? searchError}
       onSelect={handleSelect}
     />
   );

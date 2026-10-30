@@ -52,8 +52,8 @@ export function CommandPaletteRow<TValue>({
       onMouseEnter={handleMouseEnter}
       onClick={handleClick}
       className={cn(
-        "flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors",
-        isActive ? "bg-surface-accent ring-1 ring-border-focus" : "hover:bg-surface-elevated"
+        "flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors scroll-my-2",
+        isActive ? "bg-surface-accent ring-1 ring-inset ring-border-focus" : "hover:bg-surface-elevated"
       )}
     >
       {item.leading && (
