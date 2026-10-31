@@ -3,7 +3,8 @@ import { DiscordConfigSchema } from "./discord-config.schema.js";
 import { DayOfWeekSchema, SchedulerTimeSchema, TIME_MODE, TimeModeSchema } from "./scheduler.schema.js";
 
 export const CLAUDE_MODELS = {
-  HAIKU: "claude-haiku-4-5",
+  HAIKU: "claude-haiku-5-5",
+  HAIKU_4_5: "claude-haiku-4-5",
   SONNET: "claude-sonnet-5-5",
   SONNET_5: "claude-sonnet-5",
   SONNET_4_6: "claude-sonnet-4-6",
@@ -85,13 +86,25 @@ export const CLAUDE_CODE_MODEL_OPTIONS: readonly ModelOption[] = [
   {
     value: CLAUDE_MODELS.SONNET,
     label: "Claude Sonnet 5.5",
-    supportedEfforts: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH, REASONING_EFFORT.MAX],
+    supportedEfforts: [
+      REASONING_EFFORT.LOW,
+      REASONING_EFFORT.MEDIUM,
+      REASONING_EFFORT.HIGH,
+      REASONING_EFFORT.XHIGH,
+      REASONING_EFFORT.MAX,
+    ],
     supportsAdaptiveThinking: true,
   },
   {
     value: CLAUDE_MODELS.SONNET_5,
     label: "Claude Sonnet 5",
-    supportedEfforts: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH, REASONING_EFFORT.MAX],
+    supportedEfforts: [
+      REASONING_EFFORT.LOW,
+      REASONING_EFFORT.MEDIUM,
+      REASONING_EFFORT.HIGH,
+      REASONING_EFFORT.XHIGH,
+      REASONING_EFFORT.MAX,
+    ],
     supportsAdaptiveThinking: true,
   },
   {
@@ -148,7 +161,19 @@ export const CLAUDE_CODE_MODEL_OPTIONS: readonly ModelOption[] = [
     ],
     supportsAdaptiveThinking: true,
   },
-  { value: CLAUDE_MODELS.HAIKU, label: "Claude Haiku 4.5" },
+  {
+    value: CLAUDE_MODELS.HAIKU,
+    label: "Claude Haiku 5.5",
+    supportedEfforts: [
+      REASONING_EFFORT.LOW,
+      REASONING_EFFORT.MEDIUM,
+      REASONING_EFFORT.HIGH,
+      REASONING_EFFORT.XHIGH,
+      REASONING_EFFORT.MAX,
+    ],
+    supportsAdaptiveThinking: true,
+  },
+  { value: CLAUDE_MODELS.HAIKU_4_5, label: "Claude Haiku 4.5" },
   {
     value: CLAUDE_MODELS.FABLE,
     label: "Claude Fable 5.1",
