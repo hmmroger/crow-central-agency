@@ -223,12 +223,13 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
    * so the user's text runs in the active session rather than the side session.
    */
   public async injectMessage(agentId: string, text: string): Promise<void> {
-    if (this.sideTurns.has(agentId)) {
+    const agentRunner = this.getAgentRunner(agentId);
+    // The side-turn entry outlives the runner going idle, when the queue has already drained.
+    if (this.sideTurns.has(agentId) && agentRunner.getAgentStatus() !== AGENT_STATUS.IDLE) {
       await this.messageQueue.enqueue(agentId, text, { sourceType: MESSAGE_SOURCE_TYPE.USER });
       return;
     }
 
-    const agentRunner = this.getAgentRunner(agentId);
     agentRunner.injectMessage(text);
   }
 

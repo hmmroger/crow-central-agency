@@ -295,11 +295,11 @@ describe("findSessionHistoryEntryByLabel", () => {
 
   it("picks the most recently used of duplicate labels", () => {
     const history = [
-      { sessionId: "older", lastUpdatedTimestamp: 3000, label: "Feed" },
-      { sessionId: "newer", lastUpdatedTimestamp: 1000, label: "feed" },
+      { sessionId: "recent", lastUpdatedTimestamp: 3000, label: "Feed" },
+      { sessionId: "stale", lastUpdatedTimestamp: 1000, label: "feed" },
     ];
 
-    expect(findSessionHistoryEntryByLabel(history, "Feed")?.sessionId).toBe("older");
+    expect(findSessionHistoryEntryByLabel(history, "Feed")?.sessionId).toBe("recent");
   });
 
   it("returns nothing when no label matches or the ledger is absent", () => {
