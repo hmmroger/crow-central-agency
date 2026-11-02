@@ -46,6 +46,7 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   mcpServerIds: [],
   sensorIds: [],
   configuredFeeds: [],
+  feedNotificationSessionName: "",
   discordEnabled: false,
   discordBotToken: "",
   discordChannelIds: [],
@@ -130,6 +131,7 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     mcpServerIds: agent.mcpServerIds ?? [],
     sensorIds: agent.sensorIds ?? [],
     configuredFeeds: agent.configuredFeeds ?? [],
+    feedNotificationSessionName: agent.feedNotificationSessionName ?? "",
     discordEnabled: agent.discordConfig?.enabled ?? false,
     discordBotToken: agent.discordConfig?.botToken ?? "",
     discordChannelIds: agent.discordConfig?.channelIds ?? [],
@@ -174,6 +176,7 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     arraysEqual(formA.mcpServerIds, formB.mcpServerIds) &&
     arraysEqual(formA.sensorIds, formB.sensorIds) &&
     configuredFeedsEqual(formA.configuredFeeds, formB.configuredFeeds) &&
+    formA.feedNotificationSessionName === formB.feedNotificationSessionName &&
     formA.discordEnabled === formB.discordEnabled &&
     formA.discordBotToken === formB.discordBotToken &&
     formA.discordRespondToMentionsOnly === formB.discordRespondToMentionsOnly &&
@@ -373,6 +376,11 @@ export function useAgentEditorForm(
     []
   );
 
+  const setFeedNotificationSessionName = useCallback(
+    (value: string) => setForm((prev) => ({ ...prev, feedNotificationSessionName: value })),
+    []
+  );
+
   // Discord setters
   const setDiscordEnabled = useCallback(
     (value: boolean) => setForm((prev) => ({ ...prev, discordEnabled: value })),
@@ -480,6 +488,7 @@ export function useAgentEditorForm(
     toggleSensor,
     toggleFeed,
     toggleFeedNotify,
+    setFeedNotificationSessionName,
     setDiscordEnabled,
     setDiscordBotToken,
     addDiscordChannelId,

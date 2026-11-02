@@ -5,6 +5,7 @@ import { useOpenFeedAddDialog } from "../../hooks/dialogs/use-open-feed-add-dial
 import { useSuperCrowSettingsQuery, useUpdateSuperCrowSettings } from "../../hooks/queries/use-super-crow-settings.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { FeedConfigRow } from "./feed-config-row.js";
+import { SuperCrowFeedSessionField } from "./super-crow-feed-session-field.js";
 
 /**
  * Feed Configuration section within the Settings view.
@@ -33,6 +34,12 @@ export function FeedConfigSection() {
     [superCrowSettings, updateSuperCrow]
   );
 
+  const handleSuperCrowSessionSave = useCallback(
+    (name: string | null) => updateSuperCrow.mutate({ feedNotificationSessionName: name }),
+    [updateSuperCrow]
+  );
+
+  const savedSessionName = superCrowSettings?.feedNotificationSessionName;
   const feedCount = feeds.length;
 
   return (
@@ -47,6 +54,15 @@ export function FeedConfigSection() {
           label="Add Feed"
           onClick={openAddDialog}
           variant={ACTION_BUTTON_VARIANT.PRIMARY_SOLID}
+        />
+      </div>
+
+      <div className="mb-4">
+        <SuperCrowFeedSessionField
+          key={savedSessionName ?? ""}
+          savedName={savedSessionName}
+          onSave={handleSuperCrowSessionSave}
+          disabled={superCrowSettings === undefined}
         />
       </div>
 

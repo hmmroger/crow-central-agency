@@ -236,6 +236,7 @@ export function AgentEditorDialogContent({
           mcpServerIds: form.mcpServerIds,
           sensorIds: form.sensorIds,
           configuredFeeds: form.configuredFeeds,
+          feedNotificationSessionName: form.feedNotificationSessionName.trim() || null,
           discordConfig,
           excludeClaudeCodeSystemPrompt: form.excludeClaudeCodeSystemPrompt,
           enableGmailNotification: form.enableGmailNotification,
@@ -267,6 +268,7 @@ export function AgentEditorDialogContent({
           mcpServerIds: form.mcpServerIds,
           sensorIds: form.sensorIds,
           configuredFeeds: form.configuredFeeds,
+          feedNotificationSessionName: form.feedNotificationSessionName.trim() || undefined,
           discordConfig: discordConfig,
           excludeClaudeCodeSystemPrompt: form.excludeClaudeCodeSystemPrompt ? true : undefined,
           enableGmailNotification: form.enableGmailNotification ? true : undefined,
@@ -514,8 +516,10 @@ export function AgentEditorDialogContent({
 
             <FeedsSection
               configuredFeeds={form.configuredFeeds}
+              notificationSessionName={form.feedNotificationSessionName}
               onToggle={editorForm.toggleFeed}
               onToggleNotify={editorForm.toggleFeedNotify}
+              onNotificationSessionNameChange={editorForm.setFeedNotificationSessionName}
             />
 
             <AgentSchedulesSection agentId={agentId} onOpenSchedulesView={handleOpenSchedulesView} />
