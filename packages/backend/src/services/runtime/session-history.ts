@@ -47,7 +47,7 @@ export function updateSessionHistory(
       label: deriveSessionLabel(update.message),
       branchPoint: update.branchPoint,
     });
-    const retainedEntries = evictSessionFamilies(entries);
+    const retainedEntries = evictSessionFamilies(entries, update.activeSessionId);
     return { history: retainedEntries, sessionTree: buildSessionTree(retainedEntries) };
   }
 
@@ -76,7 +76,7 @@ function refreshLeadingFamilyNode(sessionTree: SessionHistoryNode[], sessionId: 
   return false;
 }
 
-function evictSessionFamilies(entries: SessionHistory[]): SessionHistory[] {
+function evictSessionFamilies(entries: SessionHistory[], activeSessionId: string | undefined): SessionHistory[] {
   if (entries.length <= MAX_SESSION_HISTORY) {
     return entries;
   }
@@ -92,6 +92,10 @@ function evictSessionFamilies(entries: SessionHistory[]): SessionHistory[] {
   }
 
   const retainedRoots = new Set(familyRoots.slice(entries.length - MAX_SESSION_HISTORY));
+  const activeRoot = activeSessionId === undefined ? undefined : rootBySessionId.get(activeSessionId);
+  if (activeRoot !== undefined) {
+    retainedRoots.add(activeRoot);
+  }
 
   return entries.filter((_unused, index) => retainedRoots.has(familyRoots[index]));
 }

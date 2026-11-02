@@ -510,6 +510,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
               message,
               timestamp: Date.now(),
               branchPoint,
+              activeSessionId: state.sessionId,
             });
 
             if (persistUserMessage && !userMessageAdded) {

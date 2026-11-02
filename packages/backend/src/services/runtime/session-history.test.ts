@@ -340,6 +340,38 @@ describe("updateSessionHistory family-aware eviction", () => {
     expect(ids).toContain("childB");
     assertNoDanglingBranchPoints(result);
   });
+
+  it("retains the active session's family when every member has fallen out of the window", () => {
+    const history = [makeEntry("root", 1), makeEntry("child", 2, "root"), ...singletons("s", MAX_SESSION_HISTORY, 100)];
+
+    const { history: result } = applyUpdate(history, {
+      sessionId: "side",
+      message: "side turn",
+      timestamp: 900,
+      activeSessionId: "child",
+    });
+
+    const ids = result.map((entry) => entry.sessionId);
+    expect(ids).toContain("root");
+    expect(ids).toContain("child");
+    expect(ids).toContain("side");
+    expect(ids).not.toContain("s0");
+    assertNoDanglingBranchPoints(result);
+  });
+
+  it("evicts as usual when the active session is not in the ledger", () => {
+    const history = [makeEntry("root", 1), ...singletons("s", MAX_SESSION_HISTORY, 100)];
+
+    const { history: result } = applyUpdate(history, {
+      sessionId: "fresh",
+      message: "new turn",
+      timestamp: 900,
+      activeSessionId: "unknown",
+    });
+
+    expect(result.map((entry) => entry.sessionId)).not.toContain("root");
+    expect(result).toHaveLength(MAX_SESSION_HISTORY);
+  });
 });
 
 describe("assertBranchSource", () => {

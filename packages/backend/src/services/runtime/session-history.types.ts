@@ -6,6 +6,8 @@ export interface SessionHistoryUpdate {
   timestamp: number;
   /** Set only when the session was created by branching; stored verbatim on the new entry */
   branchPoint?: BranchPoint;
+  /** The agent's active session; its family is retained regardless of the eviction window */
+  activeSessionId?: string;
 }
 
 export interface UpdatedSessionHistory {
