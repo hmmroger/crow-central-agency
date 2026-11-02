@@ -570,14 +570,9 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
               label: turnSession.label,
             });
 
+            let userMessage: AgentMessage | undefined;
             if (persistUserMessage && !userMessageAdded) {
-              const userMessage = await this.sessionManager.addUserMessage(agent.type, event.sessionId, message);
-              this.broadcaster.broadcast({
-                type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE,
-                agentId,
-                sessionId: event.sessionId,
-                message: userMessage,
-              });
+              userMessage = await this.sessionManager.addUserMessage(agent.type, event.sessionId, message);
               if (source.sourceType === MESSAGE_SOURCE_TYPE.USER) {
                 this.recordInputHistory(state, message);
               }
@@ -590,7 +585,17 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
               }
             }
 
+            // State first: clients show a session-scoped message only once they hold its session as active.
             await this.persistAgentState(agentId);
+            if (userMessage) {
+              this.broadcaster.broadcast({
+                type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE,
+                agentId,
+                sessionId: event.sessionId,
+                message: userMessage,
+              });
+            }
+
             break;
           }
 

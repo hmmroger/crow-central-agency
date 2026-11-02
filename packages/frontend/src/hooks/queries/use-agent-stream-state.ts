@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AGENT_STATUS, SERVER_MESSAGE_TYPE } from "@crow-central-agency/shared";
 import { useWsSubscription } from "../use-ws-subscription.js";
+import { useAgentStatesContext } from "../../providers/agent-states-provider.js";
 import type { QueryResult, ActiveToolUse } from "./use-agent-stream-state.types.js";
 
 /** Return type of useAgentStreamState */
@@ -25,7 +26,14 @@ export function useAgentStreamState(agentId: string): AgentStreamState {
   const [activeToolUse, setActiveToolUse] = useState<ActiveToolUse | undefined>();
   const [lastResult, setLastResult] = useState<QueryResult | undefined>();
 
+  const { getAgentState } = useAgentStatesContext();
+
   useWsSubscription(agentId, (message) => {
+    // A side turn streams into a session other than the active one, which this view does not show.
+    if ("sessionId" in message && message.sessionId !== getAgentState(agentId)?.sessionId) {
+      return;
+    }
+
     if (message.type === SERVER_MESSAGE_TYPE.AGENT_TEXT) {
       setStreamingText((prev) => prev + message.text);
 
