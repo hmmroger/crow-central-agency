@@ -505,7 +505,8 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     const useNewSession =
       sessionName === undefined && source.sourceType === MESSAGE_SOURCE_TYPE.TASK && source.newSession;
 
-    return { sessionId: useNewSession ? undefined : activeSessionId, isSideTurn: false };
+    // The name labels the replacement when the named active session's transcript is gone; a refresh keeps its label.
+    return { sessionId: useNewSession ? undefined : activeSessionId, isSideTurn: false, label: sessionName };
   }
 
   private async runAgent(
