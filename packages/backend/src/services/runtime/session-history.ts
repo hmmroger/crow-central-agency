@@ -44,7 +44,7 @@ export function updateSessionHistory(
     entries.push({
       sessionId: update.sessionId,
       lastUpdatedTimestamp: update.timestamp,
-      label: deriveSessionLabel(update.message),
+      label: update.label ?? deriveSessionLabel(update.message),
       branchPoint: update.branchPoint,
     });
     const retainedEntries = evictSessionFamilies(entries, update.activeSessionId);
@@ -111,6 +111,26 @@ export function getSessionHistoryEntry(
   }
 
   return entry;
+}
+
+/** The most recently used ledger entry whose label matches the name, ignoring case and surrounding whitespace. */
+export function findSessionHistoryEntryByLabel(
+  sessionHistory: SessionHistory[] | undefined,
+  name: string
+): SessionHistory | undefined {
+  const normalizedName = name.trim().toLowerCase();
+  let matchedEntry: SessionHistory | undefined;
+  for (const entry of sessionHistory ?? []) {
+    if (entry.label.trim().toLowerCase() !== normalizedName) {
+      continue;
+    }
+
+    if (matchedEntry === undefined || entry.lastUpdatedTimestamp > matchedEntry.lastUpdatedTimestamp) {
+      matchedEntry = entry;
+    }
+  }
+
+  return matchedEntry;
 }
 
 /** Reject a branch the agent cannot make. The caller owns the runner, so it gates on IDLE itself. */

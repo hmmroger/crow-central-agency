@@ -137,6 +137,7 @@ export type CommandMessage = z.infer<typeof CommandMessageSchema>;
 export const AgentTextWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.AGENT_TEXT),
   agentId: z.string(),
+  sessionId: z.string(),
   text: z.string(),
 });
 
@@ -149,6 +150,7 @@ export const AgentActivityWsMessageSchema = z.object({
 export const AgentResultWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.AGENT_RESULT),
   agentId: z.string(),
+  sessionId: z.string(),
   subtype: z.string(),
   totalCostUsd: z.number().optional(),
   durationMs: z.number().optional(),
@@ -233,12 +235,14 @@ export const ErrorWsMessageSchema = z.object({
 export const AgentMessageWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.AGENT_MESSAGE),
   agentId: z.string(),
+  sessionId: z.string(),
   message: AgentMessageSchema,
 });
 
 export const AgentToolProgressWsMessageSchema = z.object({
   type: z.literal(SERVER_MESSAGE_TYPE.AGENT_TOOL_PROGRESS),
   agentId: z.string(),
+  sessionId: z.string(),
   toolName: z.string(),
   elapsedTimeSeconds: z.number(),
 });

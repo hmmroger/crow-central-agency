@@ -555,6 +555,7 @@ export { toArtifactDocumentRef, toDocumentUid } from "./utils/document-ref-utils
 export {
   SessionHistoryNodeSchema,
   RenameSessionRequestSchema,
+  SessionLabelSchema,
   SESSION_LABEL_MAX_LENGTH,
   type SessionHistoryNode,
   type RenameSessionRequest,

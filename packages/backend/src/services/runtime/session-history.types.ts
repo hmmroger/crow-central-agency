@@ -8,6 +8,8 @@ export interface SessionHistoryUpdate {
   branchPoint?: BranchPoint;
   /** The agent's active session; its family is retained regardless of the eviction window */
   activeSessionId?: string;
+  /** Label for a newly appended entry; derived from the message when unset */
+  label?: string;
 }
 
 export interface UpdatedSessionHistory {

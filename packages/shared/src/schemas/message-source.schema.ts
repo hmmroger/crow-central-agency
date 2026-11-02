@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AgentCommandSchema } from "./agent-command.schema.js";
+import { SessionLabelSchema } from "./session-history.schema.js";
 
 /** Source type identifiers for messages */
 export const MESSAGE_SOURCE_TYPE = {
@@ -25,6 +26,8 @@ export const MessageSourceSchema = z.discriminatedUnion("sourceType", [
     sourceType: z.literal(MESSAGE_SOURCE_TYPE.TASK),
     taskId: z.string(),
     newSession: z.boolean().optional(),
+    /** Run the turn in the session whose ledger label matches; takes precedence over `newSession` */
+    sessionName: SessionLabelSchema.optional(),
   }),
   z.object({ sourceType: z.literal(MESSAGE_SOURCE_TYPE.TASK_RESULT), taskId: z.string() }),
   z.object({ sourceType: z.literal(MESSAGE_SOURCE_TYPE.RECOVERY) }),
