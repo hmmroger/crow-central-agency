@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DiscordConfigSchema } from "./discord-config.schema.js";
+import { SessionLabelSchema } from "./session-history.schema.js";
 import { DayOfWeekSchema, SchedulerTimeSchema, TIME_MODE, TimeModeSchema } from "./scheduler.schema.js";
 
 export const CLAUDE_MODELS = {
@@ -479,6 +480,8 @@ export const AgentConfigSchema = z.object({
   /** IDs of user-configured MCP servers enabled for this agent */
   mcpServerIds: z.array(z.string()).optional(),
   configuredFeeds: z.array(ConfiguredFeedSchema).optional(),
+  /** Session, named by ledger label, that feed notifications run in; unset uses the active session */
+  feedNotificationSessionName: SessionLabelSchema.optional(),
   sensorIds: z.array(z.string()).optional(),
   /** @deprecated Legacy agent loop. Read only by ScheduleManager.migrateAgentLoops; no write path remains. */
   loop: LoopConfigSchema.optional(),
@@ -517,6 +520,7 @@ export const CreateAgentInputSchema = z.object({
   agentVoiceConfig: AgentVoiceConfigSchema.optional(),
   mcpServerIds: z.array(z.string()).optional(),
   configuredFeeds: z.array(ConfiguredFeedSchema).optional(),
+  feedNotificationSessionName: SessionLabelSchema.optional(),
   sensorIds: z.array(z.string()).optional(),
   discordConfig: DiscordConfigSchema.optional(),
   excludeClaudeCodeSystemPrompt: z.boolean().optional(),
@@ -545,6 +549,8 @@ export const UpdateAgentInputSchema = z.object({
   agentVoiceConfig: AgentVoiceConfigSchema.optional(),
   mcpServerIds: z.array(z.string()).optional(),
   configuredFeeds: z.array(ConfiguredFeedSchema).optional(),
+  /** null clears the setting */
+  feedNotificationSessionName: SessionLabelSchema.nullish(),
   sensorIds: z.array(z.string()).optional(),
   discordConfig: DiscordConfigSchema.optional(),
   isPinned: z.boolean().optional(),

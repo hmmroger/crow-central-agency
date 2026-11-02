@@ -215,7 +215,14 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
     }
 
     const validated = UpdateAgentInputSchema.parse(input);
-    const { agentMd, effort, thinkingConfig, contextAutoCompactionConfig, ...configFields } = validated;
+    const {
+      agentMd,
+      effort,
+      thinkingConfig,
+      contextAutoCompactionConfig,
+      feedNotificationSessionName,
+      ...configFields
+    } = validated;
     const now = new Date().toISOString();
 
     const updated: AgentConfig = {
@@ -236,6 +243,10 @@ export class AgentRegistry extends EventBus<AgentRegistryEvents> {
 
     if (contextAutoCompactionConfig !== undefined) {
       updated.contextAutoCompactionConfig = contextAutoCompactionConfig ?? undefined;
+    }
+
+    if (feedNotificationSessionName !== undefined) {
+      updated.feedNotificationSessionName = feedNotificationSessionName ?? undefined;
     }
 
     // Normalize empty string to undefined for optional path fields

@@ -40,7 +40,15 @@ export function useUpdateSuperCrowSettings() {
       await queryClient.cancelQueries({ queryKey: systemSettingsKeys.superCrow() });
       const previous = queryClient.getQueryData<SuperCrowSettings>(systemSettingsKeys.superCrow());
       const base: SuperCrowSettings = previous ?? { configuredFeeds: [] };
-      queryClient.setQueryData<SuperCrowSettings>(systemSettingsKeys.superCrow(), { ...base, ...input });
+      const { feedNotificationSessionName, ...fields } = input;
+      queryClient.setQueryData<SuperCrowSettings>(systemSettingsKeys.superCrow(), {
+        ...base,
+        ...fields,
+        feedNotificationSessionName:
+          feedNotificationSessionName === undefined
+            ? base.feedNotificationSessionName
+            : (feedNotificationSessionName ?? undefined),
+      });
       return { previous };
     },
     onError: (_error, _input, context) => {

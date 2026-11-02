@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SessionLabelSchema } from "./session-history.schema.js";
 
 export const AGENT_TASK_STATE = {
   OPEN: "OPEN",
@@ -41,6 +42,8 @@ const ReminderSourceSchema = z.object({
 
 const SystemSourceSchema = z.object({
   sourceType: z.literal(AGENT_TASK_SOURCE_TYPE.SYSTEM),
+  /** Carries the session the task should run in, named by ledger label, from creation to dispatch */
+  sessionName: SessionLabelSchema.optional(),
 });
 
 export const AgentTaskSourceSchema = z.discriminatedUnion("sourceType", [

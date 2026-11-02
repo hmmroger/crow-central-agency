@@ -375,13 +375,19 @@ class InterAgentTaskRoutine {
           })
         );
 
+    const originateSource = nextTask.originateSource;
     const newSession =
-      nextTask.originateSource.sourceType === AGENT_TASK_SOURCE_TYPE.LOOP
-        ? nextTask.originateSource.newSession
-        : undefined;
+      originateSource.sourceType === AGENT_TASK_SOURCE_TYPE.LOOP ? originateSource.newSession : undefined;
+    const sessionName =
+      originateSource.sourceType === AGENT_TASK_SOURCE_TYPE.SYSTEM ? originateSource.sessionName : undefined;
 
     this.runtimeManager
-      .sendMessage(agentId, taskPrompt, { sourceType: MESSAGE_SOURCE_TYPE.TASK, taskId: nextTask.id, newSession })
+      .sendMessage(agentId, taskPrompt, {
+        sourceType: MESSAGE_SOURCE_TYPE.TASK,
+        taskId: nextTask.id,
+        newSession,
+        sessionName,
+      })
       .catch((error) => {
         log.error({ agentId, taskId: nextTask.id, error }, "Task send message failed");
       });

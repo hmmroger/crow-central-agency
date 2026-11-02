@@ -1,9 +1,12 @@
 import { z } from "zod";
 import { ConfiguredFeedSchema } from "./agent.schema.js";
+import { SessionLabelSchema } from "./session-history.schema.js";
 
 /** Settings scoped to the Super Crow system agent. */
 export const SuperCrowSettingsSchema = z.object({
   configuredFeeds: z.array(ConfiguredFeedSchema).default([]),
+  /** Session, named by ledger label, that Crow's feed notifications run in; unset uses the active session */
+  feedNotificationSessionName: SessionLabelSchema.optional(),
 });
 
 export type SuperCrowSettings = z.infer<typeof SuperCrowSettingsSchema>;
@@ -11,6 +14,8 @@ export type SuperCrowSettings = z.infer<typeof SuperCrowSettingsSchema>;
 /** Partial update payload for super-crow settings. */
 export const UpdateSuperCrowSettingsInputSchema = z.object({
   configuredFeeds: z.array(ConfiguredFeedSchema).optional(),
+  /** null clears the setting */
+  feedNotificationSessionName: SessionLabelSchema.nullish(),
 });
 
 export type UpdateSuperCrowSettingsInput = z.infer<typeof UpdateSuperCrowSettingsInputSchema>;
