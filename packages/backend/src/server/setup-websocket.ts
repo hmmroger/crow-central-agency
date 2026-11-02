@@ -63,15 +63,17 @@ export async function setupWebSocket(
 
         switch (message.type) {
           case CLIENT_MESSAGE_TYPE.SEND_MESSAGE:
-            runtimeManager.sendMessage(message.agentId, message.message, undefined, message.branchPoint).catch((error) => {
-              log.error({ agentId: message.agentId, error }, "Failed to send message");
-              broadcaster.sendTo(socket, {
-                type: "error",
-                agentId: message.agentId,
-                code: error instanceof AppError ? error.errorCode : "sdk_error",
-                message: error instanceof Error ? error.message : "Failed to send message",
+            runtimeManager
+              .sendMessage(message.agentId, message.message, undefined, message.branchPoint)
+              .catch((error) => {
+                log.error({ agentId: message.agentId, error }, "Failed to send message");
+                broadcaster.sendTo(socket, {
+                  type: "error",
+                  agentId: message.agentId,
+                  code: error instanceof AppError ? error.errorCode : "sdk_error",
+                  message: error instanceof Error ? error.message : "Failed to send message",
+                });
               });
-            });
             break;
 
           case CLIENT_MESSAGE_TYPE.COMMAND:
@@ -92,9 +94,7 @@ export async function setupWebSocket(
             break;
 
           case CLIENT_MESSAGE_TYPE.INJECT_MESSAGE:
-            try {
-              runtimeManager.injectMessage(message.agentId, message.message);
-            } catch (injectError) {
+            runtimeManager.injectMessage(message.agentId, message.message).catch((injectError) => {
               log.error({ agentId: message.agentId, error: injectError }, "Failed to inject message");
               broadcaster.sendTo(socket, {
                 type: "error",
@@ -102,8 +102,7 @@ export async function setupWebSocket(
                 code: injectError instanceof AppError ? injectError.errorCode : "sdk_error",
                 message: injectError instanceof Error ? injectError.message : "Agent is not streaming",
               });
-            }
-
+            });
             break;
 
           case "permission_response": {

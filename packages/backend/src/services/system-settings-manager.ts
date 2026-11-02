@@ -30,7 +30,15 @@ export class SystemSettingsManager {
 
   public async updateSuperCrowSettings(input: UpdateSuperCrowSettingsInput): Promise<SuperCrowSettings> {
     const current = await this.getSuperCrowSettings();
-    const next = SuperCrowSettingsSchema.parse({ ...current, ...input });
+    const { feedNotificationSessionName, ...fields } = input;
+    const next = SuperCrowSettingsSchema.parse({
+      ...current,
+      ...fields,
+      feedNotificationSessionName:
+        feedNotificationSessionName === undefined
+          ? current.feedNotificationSessionName
+          : (feedNotificationSessionName ?? undefined),
+    });
     await this.store.set<SuperCrowSettings>(SYSTEM_SETTINGS_TABLE, CROW_SYSTEM_AGENT_ID, next);
     return next;
   }

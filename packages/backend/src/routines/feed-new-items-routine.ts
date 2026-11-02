@@ -6,6 +6,12 @@ import type { SystemSettingsManager } from "../services/system-settings-manager.
 import type { Feed, FeedItem } from "../feed/simply-feed.types.js";
 import { logger } from "../utils/logger.js";
 
+interface FeedNotificationRecipient {
+  agentId: string;
+  /** Captured when the task is created, like a schedule's newSession */
+  sessionName?: string;
+}
+
 const ROUTINE_ID = "feed-new-items";
 /** Cap on how many item titles are inlined in the notification prompt. */
 const MAX_ITEMS_IN_PROMPT = 20;
@@ -41,35 +47,40 @@ class FeedNewItemsRoutine {
       return;
     }
 
-    const agentIds = this.findAgentsToNotify(feed.id);
-    if (await this.shouldNotifySuperCrow(feed.id)) {
-      agentIds.push(CROW_SYSTEM_AGENT_ID);
+    const recipients = this.findAgentsToNotify(feed.id);
+    const superCrowRecipient = await this.findSuperCrowRecipient(feed.id);
+    if (superCrowRecipient) {
+      recipients.push(superCrowRecipient);
     }
 
-    if (agentIds.length === 0) {
+    if (recipients.length === 0) {
       return;
     }
 
     const prompt = this.buildPrompt(feed, items);
-    for (const agentId of agentIds) {
-      await this.notifyAgent(agentId, prompt);
+    for (const recipient of recipients) {
+      await this.notifyAgent(recipient, prompt);
     }
   }
 
-  private findAgentsToNotify(feedId: string): string[] {
+  private findAgentsToNotify(feedId: string): FeedNotificationRecipient[] {
     return this.registry
       .getAllAgents(true)
       .filter((agent) => agent.configuredFeeds?.some((entry) => entry.feedId === feedId && entry.isNotify === true))
-      .map((agent) => agent.id);
+      .map((agent) => ({ agentId: agent.id, sessionName: agent.feedNotificationSessionName }));
   }
 
-  private async shouldNotifySuperCrow(feedId: string): Promise<boolean> {
+  private async findSuperCrowRecipient(feedId: string): Promise<FeedNotificationRecipient | undefined> {
     try {
       const settings = await this.systemSettingsManager.getSuperCrowSettings();
-      return settings.configuredFeeds.some((entry) => entry.feedId === feedId && entry.isNotify === true);
+      if (!settings.configuredFeeds.some((entry) => entry.feedId === feedId && entry.isNotify === true)) {
+        return undefined;
+      }
+
+      return { agentId: CROW_SYSTEM_AGENT_ID, sessionName: settings.feedNotificationSessionName };
     } catch (error) {
       log.error({ feedId, error }, "Failed to read super crow settings for notification");
-      return false;
+      return undefined;
     }
   }
 
@@ -91,8 +102,8 @@ class FeedNewItemsRoutine {
     return lines.join("\n");
   }
 
-  private async notifyAgent(agentId: string, prompt: string): Promise<void> {
-    const systemSource = { sourceType: AGENT_TASK_SOURCE_TYPE.SYSTEM };
+  private async notifyAgent({ agentId, sessionName }: FeedNotificationRecipient, prompt: string): Promise<void> {
+    const systemSource = { sourceType: AGENT_TASK_SOURCE_TYPE.SYSTEM, sessionName };
     const agentOwner = { sourceType: AGENT_TASK_SOURCE_TYPE.AGENT, agentId };
     try {
       const task = await this.taskManager.addTask(prompt, systemSource, agentOwner);

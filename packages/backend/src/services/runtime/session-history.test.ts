@@ -12,6 +12,7 @@ import {
   assertBranchSource,
   buildSessionTree,
   deriveSessionLabel,
+  findSessionHistoryEntryByLabel,
   getSessionHistoryEntry,
   updateSessionHistory,
 } from "./session-history.js";
@@ -261,6 +262,50 @@ describe("updateSessionHistory ledger", () => {
       label: "second session",
     });
   });
+
+  it("labels a new entry with the given label instead of the message", () => {
+    const { history: result } = applyUpdate(undefined, {
+      sessionId: "s1",
+      message: "a feed notification",
+      timestamp: 1000,
+      label: "Feed",
+    });
+
+    expect(result[0].label).toBe("Feed");
+  });
+
+  it("keeps the stored label when a labeled update revisits an entry", () => {
+    const { history: result } = applyUpdate([makeEntry("s1", 1000)], {
+      sessionId: "s1",
+      message: "revisited",
+      timestamp: 2000,
+      label: "Feed",
+    });
+
+    expect(result[0].label).toBe("label s1");
+  });
+});
+
+describe("findSessionHistoryEntryByLabel", () => {
+  it("matches ignoring case and surrounding whitespace", () => {
+    const history = [{ sessionId: "s1", lastUpdatedTimestamp: 1000, label: "  Feed " }];
+
+    expect(findSessionHistoryEntryByLabel(history, "feed")?.sessionId).toBe("s1");
+  });
+
+  it("picks the most recently used of duplicate labels", () => {
+    const history = [
+      { sessionId: "recent", lastUpdatedTimestamp: 3000, label: "Feed" },
+      { sessionId: "stale", lastUpdatedTimestamp: 1000, label: "feed" },
+    ];
+
+    expect(findSessionHistoryEntryByLabel(history, "Feed")?.sessionId).toBe("recent");
+  });
+
+  it("returns nothing when no label matches or the ledger is absent", () => {
+    expect(findSessionHistoryEntryByLabel([makeEntry("s1", 1000)], "Feed")).toBeUndefined();
+    expect(findSessionHistoryEntryByLabel(undefined, "Feed")).toBeUndefined();
+  });
 });
 
 describe("updateSessionHistory family-aware eviction", () => {
@@ -339,6 +384,39 @@ describe("updateSessionHistory family-aware eviction", () => {
     expect(ids).toContain("childA");
     expect(ids).toContain("childB");
     assertNoDanglingBranchPoints(result);
+  });
+
+  it("retains the active session's family when every member has fallen out of the window", () => {
+    const history = [makeEntry("root", 1), makeEntry("child", 2, "root"), ...singletons("s", MAX_SESSION_HISTORY, 100)];
+
+    const { history: result } = applyUpdate(history, {
+      sessionId: "side",
+      message: "side turn",
+      timestamp: 900,
+      activeSessionId: "child",
+    });
+
+    const ids = result.map((entry) => entry.sessionId);
+    expect(ids).toContain("root");
+    expect(ids).toContain("child");
+    expect(ids).toContain("side");
+    expect(ids).not.toContain("s0");
+    expect(result).toHaveLength(MAX_SESSION_HISTORY + 2);
+    assertNoDanglingBranchPoints(result);
+  });
+
+  it("evicts as usual when the active session is not in the ledger", () => {
+    const history = [makeEntry("root", 1), ...singletons("s", MAX_SESSION_HISTORY, 100)];
+
+    const { history: result } = applyUpdate(history, {
+      sessionId: "fresh",
+      message: "new turn",
+      timestamp: 900,
+      activeSessionId: "unknown",
+    });
+
+    expect(result.map((entry) => entry.sessionId)).not.toContain("root");
+    expect(result).toHaveLength(MAX_SESSION_HISTORY);
   });
 });
 

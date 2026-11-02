@@ -36,6 +36,7 @@ export interface AgentEditorFormState {
   mcpServerIds: string[];
   sensorIds: string[];
   configuredFeeds: ConfiguredFeed[];
+  feedNotificationSessionName: string;
   discordEnabled: boolean;
   discordBotToken: string;
   discordChannelIds: string[];

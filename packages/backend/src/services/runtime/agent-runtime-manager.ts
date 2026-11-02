@@ -27,6 +27,7 @@ import { QuestionHandler } from "./question-handler.js";
 import {
   assertBranchSource,
   buildSessionTree,
+  findSessionHistoryEntryByLabel,
   getSessionHistoryEntry,
   updateSessionHistory,
 } from "./session-history.js";
@@ -53,7 +54,7 @@ import type { CrowMcpManager } from "../../mcp/crow-mcp-manager.js";
 import type { AgentTaskManager } from "../agent-task-manager.js";
 import { head, isString, uniqBy } from "es-toolkit";
 import { EventBus } from "../../core/event-bus/event-bus.js";
-import type { AgentRuntimeManagerEvents, ArtifactRecord } from "./agent-runtime-manager.types.js";
+import type { AgentRuntimeManagerEvents, ArtifactRecord, TurnSession } from "./agent-runtime-manager.types.js";
 import { startQuerySpan, type AgentQuerySpan } from "../../telemetry/agent-telemetry.js";
 import type { SensorManager } from "../../sensors/sensor-manager.js";
 import { ARTIFACTS_MCP_SERVER_NAME } from "../../mcp/artifacts/artifacts-mcp-server.js";
@@ -84,6 +85,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   private runtimeStates = new Map<string, AgentRuntimeState>();
   private sessionTrees = new Map<string, SessionHistoryNode[]>();
   private activeQuerySpans = new Map<string, AgentQuerySpan>();
+  private sideTurns = new Map<string, TurnSession>();
   private readonly permissionHandler: PermissionHandler;
   private readonly questionHandler: QuestionHandler;
 
@@ -217,10 +219,17 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   }
 
   /**
-   * Inject a message into an active agent stream.
+   * Inject a message into an active agent stream. During a side turn the message is queued instead,
+   * so the user's text runs in the active session rather than the side session.
    */
-  public injectMessage(agentId: string, text: string): void {
+  public async injectMessage(agentId: string, text: string): Promise<void> {
     const agentRunner = this.getAgentRunner(agentId);
+    // The side-turn entry outlives the runner going idle, when the queue has already drained.
+    if (this.sideTurns.has(agentId) && agentRunner.getAgentStatus() !== AGENT_STATUS.IDLE) {
+      await this.messageQueue.enqueue(agentId, text, { sourceType: MESSAGE_SOURCE_TYPE.USER });
+      return;
+    }
+
     agentRunner.injectMessage(text);
   }
 
@@ -344,8 +353,15 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     return undefined;
   }
 
-  /** Replace the agent's active-domain set with the given DOMAIN fragment ids. Signal only — never used as an implicit parent. */
+  /**
+   * Replace the agent's active-domain set with the given DOMAIN fragment ids. Signal only — never used as an implicit parent.
+   * Ignored during a side turn: the set belongs to the active session.
+   */
   public async setActiveDomains(agentId: string, domainFragmentIds: string[]): Promise<void> {
+    if (this.sideTurns.has(agentId)) {
+      return;
+    }
+
     const state = this.ensureState(agentId);
     const currentIds = new Set(state.activeDomainFragmentIds);
     const nextIds = new Set(domainFragmentIds);
@@ -459,6 +475,40 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
   }
 
+  /**
+   * Pick the session a turn runs in. A session name on a TASK source targets the most recently used
+   * ledger entry with that label: the active session runs a normal turn, any other session with a live
+   * transcript runs a side turn, and otherwise a side turn starts a new session labeled with the name.
+   */
+  private async resolveTurnSession(
+    agent: AgentConfig,
+    state: AgentRuntimeState,
+    source: MessageSource
+  ): Promise<TurnSession> {
+    const sessionName = source.sourceType === MESSAGE_SOURCE_TYPE.TASK ? source.sessionName : undefined;
+    if (sessionName !== undefined) {
+      const namedEntry = findSessionHistoryEntryByLabel(state.sessionHistory, sessionName);
+      if (namedEntry === undefined) {
+        return { isSideTurn: true, label: sessionName };
+      }
+
+      if (namedEntry.sessionId !== state.sessionId) {
+        return (await this.sessionManager.isSessionValid(agent.type, namedEntry.sessionId))
+          ? { sessionId: namedEntry.sessionId, isSideTurn: true }
+          : { isSideTurn: true, label: sessionName };
+      }
+    }
+
+    // Drop a persisted sessionId whose transcript is gone so the turn starts a fresh session
+    // instead of silently forking off a dead one.
+    const activeSessionId = await this.ensureValidSession(agent.id);
+    const useNewSession =
+      sessionName === undefined && source.sourceType === MESSAGE_SOURCE_TYPE.TASK && source.newSession;
+
+    // The name labels the replacement when the named active session's transcript is gone; a refresh keeps its label.
+    return { sessionId: useNewSession ? undefined : activeSessionId, isSideTurn: false, label: sessionName };
+  }
+
   private async runAgent(
     agentId: string,
     message: string,
@@ -484,18 +534,22 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     let lastAssistantMessage: string | undefined;
     const artifactsWritten: ArtifactRecord[] = [];
     let isAbortedOrError = false;
+    let sideTurn: TurnSession | undefined;
+    this.sideTurns.delete(agentId);
     try {
-      // Drop a persisted sessionId whose transcript is gone so the turn starts a fresh session
-      // instead of silently forking off a dead one.
-      await this.ensureValidSession(agentId);
+      const turnSession = await this.resolveTurnSession(agent, state, source);
+      const isSideTurn = turnSession.isSideTurn;
+      if (isSideTurn) {
+        sideTurn = turnSession;
+        this.sideTurns.set(agentId, turnSession);
+      }
 
-      const instructionReminder = state.pendingInstructionReminder;
-      const useNewSession = source.sourceType === MESSAGE_SOURCE_TYPE.TASK && source.newSession;
+      const instructionReminder = isSideTurn ? undefined : state.pendingInstructionReminder;
       const eventStream = agentRunner.sendMessage(
         message,
         source,
-        state.activeDomainFragmentIds,
-        useNewSession ? undefined : state.sessionId,
+        isSideTurn ? [] : state.activeDomainFragmentIds,
+        turnSession.sessionId,
         instructionReminder
       );
       for await (const event of eventStream) {
@@ -504,17 +558,22 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             this.addQueryStartActivity(agentId);
             querySpan.setSessionId(event.sessionId);
             state.lastError = undefined;
-            state.sessionId = event.sessionId;
+            if (!isSideTurn) {
+              state.sessionId = event.sessionId;
+            }
+
             this.updateAgentSessionHistory(state, {
               sessionId: event.sessionId,
               message,
               timestamp: Date.now(),
               branchPoint,
+              activeSessionId: state.sessionId,
+              label: turnSession.label,
             });
 
+            let userMessage: AgentMessage | undefined;
             if (persistUserMessage && !userMessageAdded) {
-              const userMessage = await this.sessionManager.addUserMessage(agent.type, event.sessionId, message);
-              this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: userMessage });
+              userMessage = await this.sessionManager.addUserMessage(agent.type, event.sessionId, message);
               if (source.sourceType === MESSAGE_SOURCE_TYPE.USER) {
                 this.recordInputHistory(state, message);
               }
@@ -527,7 +586,17 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
               }
             }
 
+            // State first: clients show a session-scoped message only once they hold its session as active.
             await this.persistAgentState(agentId);
+            if (userMessage) {
+              this.broadcaster.broadcast({
+                type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE,
+                agentId,
+                sessionId: event.sessionId,
+                message: userMessage,
+              });
+            }
+
             break;
           }
 
@@ -549,7 +618,12 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
           case AGENT_STREAM_EVENT_TYPE.MESSAGE_DONE: {
             const agentMessages = await this.sessionManager.addMessage(agent.type, event.sessionId, event.message);
             for (const msg of agentMessages) {
-              this.broadcaster.broadcast({ type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE, agentId, message: msg });
+              this.broadcaster.broadcast({
+                type: SERVER_MESSAGE_TYPE.AGENT_MESSAGE,
+                agentId,
+                sessionId: event.sessionId,
+                message: msg,
+              });
               if (msg.role === AGENT_MESSAGE_ROLE.AGENT && msg.type === AGENT_MESSAGE_TYPE.TEXT) {
                 lastAssistantMessage = msg.content;
               } else if (msg.role === AGENT_MESSAGE_ROLE.SYSTEM && msg.type === AGENT_MESSAGE_TYPE.TOOL_USE) {
@@ -586,6 +660,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
           case AGENT_STREAM_EVENT_TYPE.USAGE: {
             const { totalInputTokens, inputTokens, outputTokens } = event;
             querySpan.recordTokenUsage(inputTokens, outputTokens, totalInputTokens);
+            if (isSideTurn) {
+              break;
+            }
+
             state.sessionUsage.inputTokens = totalInputTokens;
             state.sessionUsage.outputTokens += outputTokens;
 
@@ -605,6 +683,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             this.broadcaster.broadcast({
               type: SERVER_MESSAGE_TYPE.AGENT_TEXT,
               agentId,
+              sessionId: event.sessionId,
               text: event.content,
             });
 
@@ -627,6 +706,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
             this.broadcaster.broadcast({
               type: SERVER_MESSAGE_TYPE.AGENT_TOOL_PROGRESS,
               agentId,
+              sessionId: event.sessionId,
               toolName: event.toolName,
               elapsedTimeSeconds: event.elapsedTimeSeconds,
             });
@@ -645,15 +725,19 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
 
           case AGENT_STREAM_EVENT_TYPE.DONE: {
             querySpan.endSuccess(event.durationMs, event.doneType);
-            state.sessionUsage.totalCostUsd += event.usage?.totalCostUsd ?? 0;
-            state.sessionUsage.contextUsed = 0;
-            state.sessionUsage.contextTotal = event.usage?.contextTotal ?? 0;
-            const totalCostUsd = state.sessionUsage.totalCostUsd;
+            const turnCostUsd = event.usage?.totalCostUsd ?? 0;
+            if (!isSideTurn) {
+              state.sessionUsage.totalCostUsd += turnCostUsd;
+              state.sessionUsage.contextUsed = 0;
+              state.sessionUsage.contextTotal = event.usage?.contextTotal ?? 0;
+            }
+
             this.broadcaster.broadcast({
               type: SERVER_MESSAGE_TYPE.AGENT_RESULT,
               agentId,
+              sessionId: event.sessionId,
               subtype: event.doneType,
-              totalCostUsd,
+              totalCostUsd: isSideTurn ? turnCostUsd : state.sessionUsage.totalCostUsd,
               durationMs: event.durationMs,
             });
             break;
@@ -684,6 +768,11 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       log.error({ agentId, error }, "Run agent execution failed");
     } finally {
       this.activeQuerySpans.delete(agentId);
+      // Identity check: a turn started from the queue drain may already have replaced this entry.
+      if (sideTurn !== undefined && this.sideTurns.get(agentId) === sideTurn) {
+        this.sideTurns.delete(agentId);
+      }
+
       await this.persistAgentState(agentId);
       await this.persistAgentActivities(agentId);
       this.emit("messageDone", {

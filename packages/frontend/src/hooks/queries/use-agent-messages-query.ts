@@ -3,6 +3,7 @@ import { SERVER_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/sha
 import { apiClient, unwrapResponse } from "../../services/api-client.js";
 import { agentKeys } from "../../services/query-keys.js";
 import { useWsSubscription } from "../use-ws-subscription.js";
+import { useAgentStatesContext } from "../../providers/agent-states-provider.js";
 import type { ApiError } from "../../services/api-client.types.js";
 
 /**
@@ -14,6 +15,7 @@ import type { ApiError } from "../../services/api-client.types.js";
  */
 export function useAgentMessagesQuery(agentId: string) {
   const queryClient = useQueryClient();
+  const { getAgentState } = useAgentStatesContext();
 
   const query = useQuery<AgentMessage[], ApiError>({
     queryKey: agentKeys.messages(agentId),
@@ -26,7 +28,7 @@ export function useAgentMessagesQuery(agentId: string) {
   });
 
   useWsSubscription(agentId, (message) => {
-    if (message.type !== SERVER_MESSAGE_TYPE.AGENT_MESSAGE) {
+    if (message.type !== SERVER_MESSAGE_TYPE.AGENT_MESSAGE || message.sessionId !== getAgentState(agentId)?.sessionId) {
       return;
     }
 

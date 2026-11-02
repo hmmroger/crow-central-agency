@@ -3,9 +3,12 @@ import { z } from "zod";
 /** Upper bound on a session label, shared by the rename request schema and the panel's input. */
 export const SESSION_LABEL_MAX_LENGTH = 120;
 
+/** A session label as a user or a setting names it: trimmed and bounded. */
+export const SessionLabelSchema = z.string().trim().min(1).max(SESSION_LABEL_MAX_LENGTH);
+
 /** Body of PATCH /api/agents/:id/sessions/:sessionId — the entry's new label. */
 export const RenameSessionRequestSchema = z.object({
-  label: z.string().trim().min(1).max(SESSION_LABEL_MAX_LENGTH),
+  label: SessionLabelSchema,
 });
 
 /** One row of the pre-ordered session projection returned by GET /api/agents/:id/sessions. */
