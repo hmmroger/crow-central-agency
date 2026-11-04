@@ -28,6 +28,7 @@ import { SYNTAX_NODE } from "./markdown-syntax.types.js";
 import type { BlockDecorations } from "./markdown-preview.types.js";
 import { activeTableCellField, getActiveTableCell } from "./table/table-cell-state.js";
 import { tableCursorSync } from "./table/table-cursor-sync.js";
+import { tableHeightsField } from "./table/table-height-state.js";
 import { getWikilinkResolutions } from "./wikilink-resolution-state.js";
 
 /** Inline and line decorations for the visible ranges, which show raw syntax wherever the selection touches. */
@@ -211,6 +212,7 @@ export function markdownPreview(): Extension {
     ViewPlugin.fromClass(PreviewPlugin, { decorations: (plugin) => plugin.decorations }),
     Prec.high(blockDecorationField),
     activeTableCellField,
+    tableHeightsField,
     tableCursorSync(),
   ];
 }

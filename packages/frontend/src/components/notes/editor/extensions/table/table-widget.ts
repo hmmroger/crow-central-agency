@@ -16,6 +16,7 @@ import { releaseImageElements } from "../../../../common/note-image/image-elemen
 import { openLinkUnderPointer, PRIMARY_BUTTON } from "../click-handler.js";
 import { setTableCellDraft } from "./table-cell-state.js";
 import type { ActiveTableCell } from "./table-cell-state.types.js";
+import { getTableHeight, setTableHeight } from "./table-height-state.js";
 import {
   ensureTrailingBreak,
   hasTrailingBreak,
@@ -41,6 +42,10 @@ const CARRIAGE_RETURN_PATTERN = /\r\n?/g;
 const RICH_TEXT_SHORTCUT_KEYS = new Set(["b", "i", "u"]);
 const CARET_AT_END: CaretPlacement = { edge: CARET_EDGE.END };
 const CARET_AT_START: CaretPlacement = { edge: CARET_EDGE.START };
+/** What `WidgetType.estimatedHeight` reports for a height it does not know */
+const UNKNOWN_HEIGHT = -1;
+
+const tableHeightObservers = new WeakMap<HTMLElement, ResizeObserver>();
 
 function isSameRow(first: TableRow, second: TableRow): boolean {
   return (
@@ -336,6 +341,26 @@ function handleFocusout(event: FocusEvent, view: EditorView): void {
   }
 }
 
+/** Keeps the table's height in state until the widget is destroyed; a table that is not laid out has none to keep. */
+function observeTableHeight(view: EditorView, wrapper: HTMLElement): void {
+  const observer = new ResizeObserver(() => {
+    const height = wrapper.offsetHeight;
+
+    if (height === 0) {
+      return;
+    }
+
+    const tableFrom = getTableFrom(view, wrapper);
+
+    if (height !== getTableHeight(view.state, tableFrom)) {
+      view.dispatch({ effects: setTableHeight.of({ tableFrom, height }) });
+    }
+  });
+
+  observer.observe(wrapper);
+  tableHeightObservers.set(wrapper, observer);
+}
+
 function createCellElement(
   tagName: "th" | "td",
   cell: TableCell,
@@ -368,11 +393,17 @@ export class TableWidget extends WidgetType {
   constructor(
     private readonly table: ParsedTable,
     private readonly activeCell: ActiveTableCell | undefined,
-    private readonly resolutions: WikilinkResolutionMap
+    private readonly resolutions: WikilinkResolutionMap,
+    private readonly lastHeight: number | undefined
   ) {
     super();
   }
 
+  public get estimatedHeight(): number {
+    return this.lastHeight ?? UNKNOWN_HEIGHT;
+  }
+
+  /** The height is left out: it is only an estimate for the next redraw, and must not cause one. */
   public eq(other: TableWidget): boolean {
     return (
       isSameTable(this.table, other.table) &&
@@ -420,11 +451,13 @@ export class TableWidget extends WidgetType {
     wrapper.addEventListener("input", (event) => handleInput(event, view));
     wrapper.addEventListener("paste", (event) => handlePaste(event, view));
     wrapper.addEventListener("focusout", (event) => handleFocusout(event, view));
+    observeTableHeight(view, wrapper);
 
     return wrapper;
   }
 
   public destroy(dom: HTMLElement): void {
+    tableHeightObservers.get(dom)?.disconnect();
     releaseImageElements(dom);
   }
 }
