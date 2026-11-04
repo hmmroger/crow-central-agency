@@ -18,6 +18,7 @@ import {
 import { SYNTAX_NODE } from "./markdown-syntax.types.js";
 import { MERMAID_FENCE_LANG, MermaidWidget } from "./mermaid-widget.js";
 import { getActiveTableCell } from "./table/table-cell-state.js";
+import { getTableHeight } from "./table/table-height-state.js";
 import { parseTable } from "./table/table-syntax.js";
 import { TableWidget } from "./table/table-widget.js";
 import { TaskCheckboxWidget } from "./task-checkbox-widget.js";
@@ -216,7 +217,8 @@ export function decorateTable(syntaxNode: SyntaxNode, state: EditorState, decora
   const widget = new TableWidget(
     table,
     activeCell?.tableFrom === table.from ? activeCell : undefined,
-    getWikilinkResolutions(state)
+    getWikilinkResolutions(state),
+    getTableHeight(state, table.from)
   );
 
   decorations.push(Decoration.replace({ widget, block: true }).range(table.from, table.to));

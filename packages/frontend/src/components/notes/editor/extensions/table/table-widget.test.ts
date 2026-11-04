@@ -1,17 +1,42 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { moveTableCell } from "../../table-commands.js";
 import { createBaseSetup } from "../base-setup.js";
 import { markdownPreview } from "../markdown-preview.js";
-import { getActiveTableCell } from "./table-cell-state.js";
-import { ACTIVE_TABLE_CELL_CLASS, focusActiveTableCell } from "./table-widget.js";
+import { getActiveTableCell, setTableCellDraft } from "./table-cell-state.js";
+import { ACTIVE_TABLE_CELL_CLASS, focusActiveTableCell, TABLE_WIDGET_CLASS } from "./table-widget.js";
 
 const TABLE_DOC = "| a1 | b1 |\n| - | - |\n| a2 | b2 |\n| a3 | b3 |";
 const MULTI_LINE_TABLE_DOC = "| a1 | b1 |\n| - | - |\n| x<br>y | b2 |\n| a3 | b3 |";
+const DRAWN_TABLE_HEIGHT = 2400;
 
 const views: EditorView[] = [];
+const resizeCallbacks: (() => void)[] = [];
+const disconnectedTargets: Element[] = [];
+
+/** jsdom has no ResizeObserver; the tests report a resize by running the callbacks themselves. */
+class ResizeObserverStub {
+  private readonly targets: Element[] = [];
+
+  constructor(callback: () => void) {
+    resizeCallbacks.push(callback);
+  }
+
+  public observe(target: Element): void {
+    this.targets.push(target);
+  }
+
+  public disconnect(): void {
+    this.targets.forEach((target) => disconnectedTargets.push(target));
+  }
+}
+
+function reportTableHeight(height: number): void {
+  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(height);
+  resizeCallbacks.splice(0).forEach((callback) => callback());
+}
 
 function mountTable(doc: string, row: number, column: number): EditorView {
   const view = new EditorView({
@@ -24,6 +49,16 @@ function mountTable(doc: string, row: number, column: number): EditorView {
   focusActiveTableCell(view);
 
   return view;
+}
+
+function getTableWrapper(view: EditorView): HTMLElement {
+  const wrapper = view.contentDOM.querySelector<HTMLElement>(`.${TABLE_WIDGET_CLASS}`);
+
+  if (!wrapper) {
+    throw new Error("no table drawn");
+  }
+
+  return wrapper;
 }
 
 function getActiveCellElement(view: EditorView): HTMLElement {
@@ -74,8 +109,78 @@ function getActivePosition(view: EditorView): [number, number] | undefined {
   return cell && [cell.row, cell.column];
 }
 
+beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+});
+
 afterEach(() => {
   views.splice(0).forEach((view) => view.destroy());
+  resizeCallbacks.length = 0;
+  disconnectedTargets.length = 0;
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe("table height", () => {
+  it("keeps a redrawn table's height when the active cell moves", () => {
+    const view = mountTable(TABLE_DOC, 1, 0);
+    reportTableHeight(DRAWN_TABLE_HEIGHT);
+
+    moveTableCell(view, { tableFrom: 0, row: 2, column: 1 });
+
+    expect(view.lineBlockAt(0).height).toBe(DRAWN_TABLE_HEIGHT);
+  });
+
+  it("keeps the height when leaving a cell writes its edit", () => {
+    const view = mountTable(TABLE_DOC, 1, 0);
+    reportTableHeight(DRAWN_TABLE_HEIGHT);
+    view.dispatch({ effects: setTableCellDraft.of("edited") });
+
+    moveTableCell(view, { tableFrom: 0, row: 2, column: 1 });
+
+    expect(view.state.doc.toString()).toContain("edited");
+    expect(view.lineBlockAt(0).height).toBe(DRAWN_TABLE_HEIGHT);
+  });
+
+  it("follows the table when text is added above it", () => {
+    const view = mountTable(TABLE_DOC, 1, 0);
+    const intro = "intro\n\n";
+    reportTableHeight(DRAWN_TABLE_HEIGHT);
+
+    view.dispatch({ changes: { from: 0, insert: intro } });
+    moveTableCell(view, { tableFrom: intro.length, row: 2, column: 1 });
+
+    expect(view.lineBlockAt(intro.length).height).toBe(DRAWN_TABLE_HEIGHT);
+  });
+
+  it("stops observing a table that is redrawn", () => {
+    const view = mountTable(TABLE_DOC, 1, 0);
+    const wrapper = getTableWrapper(view);
+
+    moveTableCell(view, { tableFrom: 0, row: 2, column: 1 });
+
+    expect(disconnectedTargets).toContain(wrapper);
+    expect(disconnectedTargets).not.toContain(getTableWrapper(view));
+  });
+
+  it("stops observing when the editor is destroyed", () => {
+    const wrapper = getTableWrapper(mountTable(TABLE_DOC, 1, 0));
+
+    views.splice(0).forEach((view) => view.destroy());
+
+    expect(disconnectedTargets).toContain(wrapper);
+  });
+
+  it("ignores the zero height of a table that is not laid out", () => {
+    const view = mountTable(TABLE_DOC, 1, 0);
+    reportTableHeight(DRAWN_TABLE_HEIGHT);
+
+    moveTableCell(view, { tableFrom: 0, row: 2, column: 0 });
+    reportTableHeight(0);
+    moveTableCell(view, { tableFrom: 0, row: 2, column: 1 });
+
+    expect(view.lineBlockAt(0).height).toBe(DRAWN_TABLE_HEIGHT);
+  });
 });
 
 describe("table cell arrow keys", () => {
