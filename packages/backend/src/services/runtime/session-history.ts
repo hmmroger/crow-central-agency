@@ -251,15 +251,11 @@ export function buildSessionTree(sessionHistory: SessionHistory[] | undefined): 
   return nodes;
 }
 
-/**
- * Resolve the forks of a session against its loaded messages. Forks sharing an anchor group under the
- * first message carrying it; one whose anchor is not in the messages has no message left to show.
- */
-export function buildSessionForkPoints(
+/** The ledger entries forked from a session, keyed by the anchor they forked at, in branched order. */
+export function groupForksByAnchor(
   sessionHistory: SessionHistory[] | undefined,
-  sessionId: string,
-  messages: AgentMessage[]
-): SessionForkPoints {
+  sessionId: string
+): Map<string, SessionFork[]> {
   const forksByAnchorId = new Map<string, SessionFork[]>();
   for (const entry of sessionHistory ?? []) {
     if (entry.branchPoint?.sessionId !== sessionId) {
@@ -279,6 +275,17 @@ export function buildSessionForkPoints(
     }
   }
 
+  return forksByAnchorId;
+}
+
+/**
+ * Resolve a session's forks against its loaded messages. Forks sharing an anchor group under the first
+ * message carrying it; one whose anchor is not in the messages has no message left to show.
+ */
+export function buildSessionForkPoints(
+  forksByAnchorId: Map<string, SessionFork[]>,
+  messages: AgentMessage[]
+): SessionForkPoints {
   const forkPoints: SessionForkPoint[] = [];
   for (const message of messages) {
     const anchorId = message.branchAnchorId;
