@@ -47,11 +47,6 @@ const RECENT_AGENT_IDS_MAX = 12;
 /** Maximum number of recently opened notes and artifacts kept */
 const RECENT_DOCUMENTS_MAX = 30;
 
-/** A request for an agent's console to scroll to a message. A new object per request, so repeats register. */
-export interface MessageJump {
-  messageId: string;
-}
-
 interface AppState {
   /** Current view mode - controlled by sidebar */
   viewMode: ViewMode;
@@ -73,8 +68,8 @@ interface AppState {
   isNotesBacklinksCollapsed: boolean;
   /** Whether the Sessions tab Forks section is collapsed */
   isSessionForksCollapsed: boolean;
-  /** Transient console jump requests, keyed by agent ID */
-  messageJumps: Record<string, MessageJump>;
+  /** Message each agent's console should jump to, keyed by agent ID. Transient; the console consumes it */
+  messageJumps: Record<string, string>;
   /** Whether editable notes open in the reader instead of the editor */
   isNoteReadMode: boolean;
   /** Access key for API authentication */
@@ -119,7 +114,7 @@ interface AppState {
   toggleSessionForksCollapsed: () => void;
   /** Ask an agent's console to scroll to a message */
   requestMessageJump: (agentId: string, messageId: string) => void;
-  /** Drop an agent's jump request (landed, target absent, or console gone) */
+  /** Drop an agent's jump request once its console has taken it */
   clearMessageJump: (agentId: string) => void;
   /** Switch editable notes between the reader and the editor */
   setNoteReadMode: (isReadMode: boolean) => void;
@@ -249,7 +244,7 @@ export const useAppStore = create<AppState>()(
       toggleSessionForksCollapsed: () => set((state) => ({ isSessionForksCollapsed: !state.isSessionForksCollapsed })),
 
       requestMessageJump: (agentId: string, messageId: string) =>
-        set((state) => ({ messageJumps: { ...state.messageJumps, [agentId]: { messageId } } })),
+        set((state) => ({ messageJumps: { ...state.messageJumps, [agentId]: messageId } })),
 
       clearMessageJump: (agentId: string) =>
         set((state) => {

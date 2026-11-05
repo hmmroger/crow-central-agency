@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Terminal } from "lucide-react";
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
@@ -8,7 +8,7 @@ import { useVirtualList } from "../../../hooks/use-virtual-list.js";
 import { useRowHeights } from "../../../providers/row-heights-provider.js";
 import type { RowHeights } from "../../../providers/row-heights-provider.types.js";
 import { agentKeys } from "../../../services/query-keys.js";
-import { useAppStore, type MessageJump } from "../../../stores/app-store.js";
+import { useAppStore } from "../../../stores/app-store.js";
 import { cn } from "../../../utils/cn.js";
 import { AgentMessageView } from "./agent-message.js";
 import { MarkdownRenderer } from "../../common/markdown/markdown-renderer.js";
@@ -40,6 +40,9 @@ const USER_TEXT_CHARS_PER_LINE = 75;
 /** Approx characters per wrapped line in an AGENT bubble (full max-w-3xl, minus px-3) */
 const AGENT_TEXT_CHARS_PER_LINE = 105;
 
+/** How long a jumped-to row stays highlighted — must match `--duration-highlight` */
+const HIGHLIGHT_DURATION_MS = 1500;
+
 function estimateMessageHeight(message: AgentMessage, rowHeights: RowHeights): number {
   switch (message.type) {
     case AGENT_MESSAGE_TYPE.TOOL_USE:
@@ -67,10 +70,10 @@ export function MessageList({
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const handledJumpRef = useRef<MessageJump | undefined>(undefined);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string>();
   const rowHeights = useRowHeights();
   const queryClient = useQueryClient();
-  const messageJump = useAppStore((state) => state.messageJumps[agentId]);
+  const jumpTargetId = useAppStore((state) => state.messageJumps[agentId]);
   const clearMessageJump = useAppStore((state) => state.clearMessageJump);
 
   const virtualizer = useVirtualList({
@@ -89,14 +92,13 @@ export function MessageList({
   }, [messages.length, streamingText, activeToolUse?.toolName, scheduleScrollIfPinned]);
 
   useEffect(() => {
-    if (messageJump === undefined || messageJump === handledJumpRef.current) {
+    if (jumpTargetId === undefined) {
       return;
     }
 
-    handledJumpRef.current = messageJump;
-    const targetIndex = messages.findIndex((message) => message.id === messageJump.messageId);
+    clearMessageJump(agentId);
+    const targetIndex = messages.findIndex((message) => message.id === jumpTargetId);
     if (targetIndex === -1) {
-      clearMessageJump(agentId);
       void queryClient.invalidateQueries({ queryKey: agentKeys.forkPoints(agentId, sessionId) });
 
       return;
@@ -104,18 +106,18 @@ export function MessageList({
 
     releasePin();
     virtualizer.scrollToIndex(targetIndex, { align: "start" });
-  }, [messageJump, messages, agentId, sessionId, clearMessageJump, queryClient, releasePin, virtualizer]);
+    setHighlightedMessageId(jumpTargetId);
+  }, [jumpTargetId, messages, agentId, sessionId, clearMessageJump, queryClient, releasePin, virtualizer]);
 
-  useEffect(() => () => clearMessageJump(agentId), [agentId, clearMessageJump]);
+  useEffect(() => {
+    if (highlightedMessageId === undefined) {
+      return;
+    }
 
-  const handleHighlightEnd = useCallback(
-    (event: React.AnimationEvent<HTMLDivElement>) => {
-      if (event.target === event.currentTarget) {
-        clearMessageJump(agentId);
-      }
-    },
-    [agentId, clearMessageJump]
-  );
+    const highlightTimer = setTimeout(() => setHighlightedMessageId(undefined), HIGHLIGHT_DURATION_MS);
+
+    return () => clearTimeout(highlightTimer);
+  }, [highlightedMessageId]);
 
   const virtualRows = virtualizer.getVirtualItems();
   const isEmpty = messages.length === 0 && !isStreaming;
@@ -152,8 +154,7 @@ export function MessageList({
                     key={virtualRow.key}
                     ref={virtualizer.measureElement}
                     data-index={virtualRow.index}
-                    onAnimationEnd={handleHighlightEnd}
-                    className={cn("rounded-lg", message.id === messageJump?.messageId && "animate-message-highlight")}
+                    className={cn("rounded-lg", message.id === highlightedMessageId && "animate-message-highlight")}
                     style={{
                       position: "absolute",
                       top: 0,
