@@ -554,10 +554,16 @@ export { toArtifactDocumentRef, toDocumentUid } from "./utils/document-ref-utils
 
 export {
   SessionHistoryNodeSchema,
+  SessionForkSchema,
+  SessionForkPointSchema,
+  SessionForkPointsSchema,
   RenameSessionRequestSchema,
   SessionLabelSchema,
   SESSION_LABEL_MAX_LENGTH,
   type SessionHistoryNode,
+  type SessionFork,
+  type SessionForkPoint,
+  type SessionForkPoints,
   type RenameSessionRequest,
 } from "./schemas/session-history.schema.js";
 
