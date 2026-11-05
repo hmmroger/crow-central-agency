@@ -7,8 +7,8 @@ import type { ApiError } from "../../services/api-client.types.js";
 
 /**
  * Fetch a session's fork points, resolved by the backend.
- * The event only arrives while mounted, hence the refetch on mount: a fork made with the panel closed
- * changes the result with nobody listening.
+ * Always stale: the event only invalidates the session on screen, so a cached session must refetch when
+ * it is returned to, and a fork made with the panel closed changes the result with nobody listening.
  *
  * @param agentId - The agent owning the session
  * @param sessionId - The session whose fork points to fetch; nothing is fetched without one
@@ -23,8 +23,7 @@ export function useSessionForkPointsQuery(agentId: string, sessionId: string | u
       const response = await apiClient.get<SessionForkPoints>(`/agents/${agentId}/sessions/${sessionId}/fork-points`);
       return unwrapResponse(response);
     },
-    staleTime: Infinity,
-    refetchOnMount: "always",
+    staleTime: 0,
     enabled: sessionId !== undefined,
   });
 
