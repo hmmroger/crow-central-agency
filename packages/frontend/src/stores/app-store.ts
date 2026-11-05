@@ -47,6 +47,11 @@ const RECENT_AGENT_IDS_MAX = 12;
 /** Maximum number of recently opened notes and artifacts kept */
 const RECENT_DOCUMENTS_MAX = 30;
 
+/** A request for an agent's console to scroll to a message. A new object per request, so repeats register. */
+export interface MessageJump {
+  messageId: string;
+}
+
 interface AppState {
   /** Current view mode - controlled by sidebar */
   viewMode: ViewMode;
@@ -68,6 +73,8 @@ interface AppState {
   isNotesBacklinksCollapsed: boolean;
   /** Whether the Sessions tab Forks section is collapsed */
   isSessionForksCollapsed: boolean;
+  /** Transient console jump requests, keyed by agent ID */
+  messageJumps: Record<string, MessageJump>;
   /** Whether editable notes open in the reader instead of the editor */
   isNoteReadMode: boolean;
   /** Access key for API authentication */
@@ -110,6 +117,10 @@ interface AppState {
   toggleNotesBacklinksCollapsed: () => void;
   /** Toggle collapsed state for the Sessions tab Forks section */
   toggleSessionForksCollapsed: () => void;
+  /** Ask an agent's console to scroll to a message */
+  requestMessageJump: (agentId: string, messageId: string) => void;
+  /** Drop an agent's jump request (landed, target absent, or console gone) */
+  clearMessageJump: (agentId: string) => void;
   /** Switch editable notes between the reader and the editor */
   setNoteReadMode: (isReadMode: boolean) => void;
   /** Set or clear the access key */
@@ -174,6 +185,7 @@ export const useAppStore = create<AppState>()(
       notesSidebarWidth: DEFAULT_NOTES_SIDEBAR_WIDTH,
       isNotesBacklinksCollapsed: false,
       isSessionForksCollapsed: false,
+      messageJumps: {},
       isNoteReadMode: false,
       accessKey: undefined,
       clientLocation: undefined,
@@ -235,6 +247,20 @@ export const useAppStore = create<AppState>()(
         set((state) => ({ isNotesBacklinksCollapsed: !state.isNotesBacklinksCollapsed })),
 
       toggleSessionForksCollapsed: () => set((state) => ({ isSessionForksCollapsed: !state.isSessionForksCollapsed })),
+
+      requestMessageJump: (agentId: string, messageId: string) =>
+        set((state) => ({ messageJumps: { ...state.messageJumps, [agentId]: { messageId } } })),
+
+      clearMessageJump: (agentId: string) =>
+        set((state) => {
+          if (state.messageJumps[agentId] === undefined) {
+            return state;
+          }
+
+          const nextMessageJumps = { ...state.messageJumps };
+          delete nextMessageJumps[agentId];
+          return { messageJumps: nextMessageJumps };
+        }),
 
       setNoteReadMode: (isReadMode: boolean) => set({ isNoteReadMode: isReadMode }),
 

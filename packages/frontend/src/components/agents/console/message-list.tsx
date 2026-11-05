@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Terminal } from "lucide-react";
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
 import type { ActiveToolUse } from "../../../hooks/queries/use-agent-stream-state.types.js";
@@ -6,12 +7,16 @@ import { useStickToBottom } from "../../../hooks/use-stick-to-bottom.js";
 import { useVirtualList } from "../../../hooks/use-virtual-list.js";
 import { useRowHeights } from "../../../providers/row-heights-provider.js";
 import type { RowHeights } from "../../../providers/row-heights-provider.types.js";
+import { agentKeys } from "../../../services/query-keys.js";
+import { useAppStore, type MessageJump } from "../../../stores/app-store.js";
+import { cn } from "../../../utils/cn.js";
 import { AgentMessageView } from "./agent-message.js";
 import { MarkdownRenderer } from "../../common/markdown/markdown-renderer.js";
 import { StreamingIndicator } from "./streaming-indicator.js";
 
 interface MessageListProps {
   agentId: string;
+  sessionId?: string;
   messages: AgentMessage[];
   streamingText: string;
   isStreaming: boolean;
@@ -52,10 +57,21 @@ function estimateMessageHeight(message: AgentMessage, rowHeights: RowHeights): n
   }
 }
 
-export function MessageList({ agentId, messages, streamingText, isStreaming, activeToolUse }: MessageListProps) {
+export function MessageList({
+  agentId,
+  sessionId,
+  messages,
+  streamingText,
+  isStreaming,
+  activeToolUse,
+}: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const handledJumpRef = useRef<MessageJump | undefined>(undefined);
   const rowHeights = useRowHeights();
+  const queryClient = useQueryClient();
+  const messageJump = useAppStore((state) => state.messageJumps[agentId]);
+  const clearMessageJump = useAppStore((state) => state.clearMessageJump);
 
   const virtualizer = useVirtualList({
     count: messages.length,
@@ -66,11 +82,40 @@ export function MessageList({ agentId, messages, streamingText, isStreaming, act
     getItemKey: (index) => messages[index].id,
   });
 
-  const { scheduleScrollIfPinned, isSettled } = useStickToBottom({ scrollRef, contentRef });
+  const { scheduleScrollIfPinned, releasePin, isSettled } = useStickToBottom({ scrollRef, contentRef });
 
   useEffect(() => {
     scheduleScrollIfPinned();
   }, [messages.length, streamingText, activeToolUse?.toolName, scheduleScrollIfPinned]);
+
+  useEffect(() => {
+    if (messageJump === undefined || messageJump === handledJumpRef.current) {
+      return;
+    }
+
+    handledJumpRef.current = messageJump;
+    const targetIndex = messages.findIndex((message) => message.id === messageJump.messageId);
+    if (targetIndex === -1) {
+      clearMessageJump(agentId);
+      void queryClient.invalidateQueries({ queryKey: agentKeys.forkPoints(agentId, sessionId) });
+
+      return;
+    }
+
+    releasePin();
+    virtualizer.scrollToIndex(targetIndex, { align: "start" });
+  }, [messageJump, messages, agentId, sessionId, clearMessageJump, queryClient, releasePin, virtualizer]);
+
+  useEffect(() => () => clearMessageJump(agentId), [agentId, clearMessageJump]);
+
+  const handleHighlightEnd = useCallback(
+    (event: React.AnimationEvent<HTMLDivElement>) => {
+      if (event.target === event.currentTarget) {
+        clearMessageJump(agentId);
+      }
+    },
+    [agentId, clearMessageJump]
+  );
 
   const virtualRows = virtualizer.getVirtualItems();
   const isEmpty = messages.length === 0 && !isStreaming;
@@ -107,6 +152,8 @@ export function MessageList({ agentId, messages, streamingText, isStreaming, act
                     key={virtualRow.key}
                     ref={virtualizer.measureElement}
                     data-index={virtualRow.index}
+                    onAnimationEnd={handleHighlightEnd}
+                    className={cn("rounded-lg", message.id === messageJump?.messageId && "animate-message-highlight")}
                     style={{
                       position: "absolute",
                       top: 0,

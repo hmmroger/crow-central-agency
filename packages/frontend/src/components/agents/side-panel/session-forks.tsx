@@ -1,5 +1,7 @@
+import { useCallback } from "react";
 import { ChevronRight } from "lucide-react";
 import { useSessionForkPointsQuery } from "../../../hooks/queries/use-session-fork-points-query.js";
+import { useFullPanel } from "../../../hooks/use-full-panel.js";
 import { useAppStore } from "../../../stores/app-store.js";
 import { cn } from "../../../utils/cn.js";
 import { SessionForkGroup } from "./session-fork-group.js";
@@ -18,6 +20,16 @@ export function SessionForks({ agentId, sessionId, disabled, onSelectFork }: Ses
   const { data, isLoading, isError } = useSessionForkPointsQuery(agentId, sessionId);
   const isCollapsed = useAppStore((state) => state.isSessionForksCollapsed);
   const toggleCollapsed = useAppStore((state) => state.toggleSessionForksCollapsed);
+  const requestMessageJump = useAppStore((state) => state.requestMessageJump);
+  const { hide: hideFullPanel } = useFullPanel();
+
+  const handleJump = useCallback(
+    (messageId: string) => {
+      requestMessageJump(agentId, messageId);
+      hideFullPanel();
+    },
+    [agentId, requestMessageJump, hideFullPanel]
+  );
 
   const forkPoints = data?.forkPoints ?? [];
   const unavailableForks = data?.unavailableForks ?? [];
@@ -66,6 +78,7 @@ export function SessionForks({ agentId, sessionId, disabled, onSelectFork }: Ses
               forks={forkPoint.forks}
               disabled={disabled}
               onSelect={onSelectFork}
+              onJump={() => handleJump(forkPoint.messageId)}
             />
           ))}
         </div>

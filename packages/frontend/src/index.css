@@ -91,11 +91,22 @@
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --duration-slow: 400ms;
+  --duration-highlight: 1500ms;
 
+  --animate-message-highlight: message-highlight var(--duration-highlight) var(--ease-out);
   --animate-fade-in: fade-in var(--duration-normal) var(--ease-out) both;
   --animate-fade-slide-up: fade-slide-up var(--duration-normal) var(--ease-out) both;
   --animate-fade-slide-down: fade-slide-down var(--duration-normal) var(--ease-out) both;
   --animate-scale-in: scale-in var(--duration-normal) var(--ease-out) both;
+
+  @keyframes message-highlight {
+    from {
+      background-color: color-mix(in oklab, var(--color-primary) 15%, transparent);
+    }
+    to {
+      background-color: transparent;
+    }
+  }
 
   @keyframes fade-in {
     from {

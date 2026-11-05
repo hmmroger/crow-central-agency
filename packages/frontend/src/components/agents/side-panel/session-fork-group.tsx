@@ -8,14 +8,27 @@ interface SessionForkGroupProps {
   forks: SessionFork[];
   disabled: boolean;
   onSelect: (sessionId: string) => void;
+  /** Makes the title a jump to the message the forks came from */
+  onJump?: () => void;
 }
 
-export function SessionForkGroup({ title, forks, disabled, onSelect }: SessionForkGroupProps) {
+export function SessionForkGroup({ title, forks, disabled, onSelect, onJump }: SessionForkGroupProps) {
   return (
     <div className="py-1">
-      <div title={title} className="px-3 py-0.5 text-2xs text-text-muted truncate">
-        {title}
-      </div>
+      {onJump ? (
+        <button
+          type="button"
+          onClick={onJump}
+          title={title}
+          className="w-full px-3 py-0.5 text-left text-2xs text-text-muted truncate hover:text-text-neutral transition-colors"
+        >
+          {title}
+        </button>
+      ) : (
+        <div title={title} className="px-3 py-0.5 text-2xs text-text-muted truncate">
+          {title}
+        </div>
+      )}
       {forks.map((fork) => (
         <button
           key={fork.sessionId}

@@ -8,6 +8,8 @@ interface UseStickToBottomOptions {
 
 interface UseStickToBottomResult {
   scheduleScrollIfPinned: () => void;
+  /** Stop following the bottom until the user scrolls back to it */
+  releasePin: () => void;
   isSettled: boolean;
 }
 
@@ -61,6 +63,10 @@ export function useStickToBottom({ scrollRef, contentRef }: UseStickToBottomOpti
       scrollElement.scrollTop = scrollElement.scrollHeight;
     });
   }, [scrollRef]);
+
+  const releasePin = useCallback(() => {
+    pinnedRef.current = false;
+  }, []);
 
   useEffect(() => {
     const scrollElement = scrollRef.current;
@@ -191,5 +197,5 @@ export function useStickToBottom({ scrollRef, contentRef }: UseStickToBottomOpti
     };
   }, [scrollRef, contentRef, scheduleScrollIfPinned]);
 
-  return { scheduleScrollIfPinned, isSettled };
+  return { scheduleScrollIfPinned, releasePin, isSettled };
 }
