@@ -66,6 +66,8 @@ interface AppState {
   notesSidebarWidth: number;
   /** Whether the notes sidebar Backlinks section is collapsed */
   isNotesBacklinksCollapsed: boolean;
+  /** Whether the Sessions tab Forks section is collapsed */
+  isSessionForksCollapsed: boolean;
   /** Whether editable notes open in the reader instead of the editor */
   isNoteReadMode: boolean;
   /** Access key for API authentication */
@@ -106,6 +108,8 @@ interface AppState {
   setNotesSidebarWidth: (width: number) => void;
   /** Toggle collapsed state for the notes sidebar Backlinks section */
   toggleNotesBacklinksCollapsed: () => void;
+  /** Toggle collapsed state for the Sessions tab Forks section */
+  toggleSessionForksCollapsed: () => void;
   /** Switch editable notes between the reader and the editor */
   setNoteReadMode: (isReadMode: boolean) => void;
   /** Set or clear the access key */
@@ -139,6 +143,7 @@ interface PersistedAppState {
   sidePanelWidth: number;
   notesSidebarWidth?: number;
   isNotesBacklinksCollapsed?: boolean;
+  isSessionForksCollapsed?: boolean;
   isNoteReadMode?: boolean;
   accessKey?: string;
   clientLocation?: string;
@@ -168,6 +173,7 @@ export const useAppStore = create<AppState>()(
       sidePanelWidth: DEFAULT_SIDE_PANEL_WIDTH,
       notesSidebarWidth: DEFAULT_NOTES_SIDEBAR_WIDTH,
       isNotesBacklinksCollapsed: false,
+      isSessionForksCollapsed: false,
       isNoteReadMode: false,
       accessKey: undefined,
       clientLocation: undefined,
@@ -227,6 +233,8 @@ export const useAppStore = create<AppState>()(
 
       toggleNotesBacklinksCollapsed: () =>
         set((state) => ({ isNotesBacklinksCollapsed: !state.isNotesBacklinksCollapsed })),
+
+      toggleSessionForksCollapsed: () => set((state) => ({ isSessionForksCollapsed: !state.isSessionForksCollapsed })),
 
       setNoteReadMode: (isReadMode: boolean) => set({ isNoteReadMode: isReadMode }),
 
@@ -290,6 +298,7 @@ export const useAppStore = create<AppState>()(
         sidePanelWidth: state.sidePanelWidth,
         notesSidebarWidth: state.notesSidebarWidth,
         isNotesBacklinksCollapsed: state.isNotesBacklinksCollapsed,
+        isSessionForksCollapsed: state.isSessionForksCollapsed,
         isNoteReadMode: state.isNoteReadMode,
         accessKey: state.accessKey,
         clientLocation: state.clientLocation,

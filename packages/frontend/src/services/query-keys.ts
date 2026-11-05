@@ -19,6 +19,9 @@ export const agentKeys = {
   states: () => [...agentKeys.all, "states"] as const,
   /** An agent's session ledger, projected as an ordered branch hierarchy */
   sessions: (agentId: string) => [...agentKeys.all, "detail", agentId, "sessions"] as const,
+  /** Fork points of one of an agent's sessions */
+  forkPoints: (agentId: string, sessionId: string | undefined) =>
+    [...agentKeys.all, "detail", agentId, "fork-points", sessionId] as const,
   /** Persisted real-time activities for an agent */
   activities: (agentId: string) => [...agentKeys.all, "detail", agentId, "activities"] as const,
   /** Artifacts for an agent */

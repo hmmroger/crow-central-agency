@@ -4,6 +4,7 @@ import { useAgentSessionsQuery } from "../../../hooks/queries/use-agent-sessions
 import { useAgentState } from "../../../hooks/use-agent-state.js";
 import { useRenameSession } from "../../../hooks/queries/use-rename-session.js";
 import { useSwitchSession } from "../../../hooks/queries/use-switch-session.js";
+import { SessionForks } from "./session-forks.js";
 import { SessionHistoryItem } from "./session-history-item.js";
 
 interface SessionHistoryTabProps {
@@ -55,6 +56,13 @@ export function SessionHistoryTab({ agentId }: SessionHistoryTabProps) {
           );
         })}
       </div>
+
+      <SessionForks
+        agentId={agentId}
+        sessionId={agentState?.sessionId}
+        disabled={!isIdle || isPending}
+        onSelectFork={switchSession}
+      />
     </div>
   );
 }
