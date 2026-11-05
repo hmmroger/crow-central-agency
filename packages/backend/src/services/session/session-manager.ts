@@ -44,6 +44,7 @@ const AUDIO_FILE_EXTENSION = ".bin";
  */
 export class SessionManager {
   private messageCache = new Map<string, AgentMessage[]>();
+  private pendingLoads = new Map<string, Promise<AgentMessage[]>>();
 
   constructor(
     private readonly store: ObjectStoreProvider,
@@ -54,6 +55,7 @@ export class SessionManager {
    * Load messages for a session - cache-first, falls back to SDK.
    * Returns AgentMessage[] - the public API never exposes SessionMessage.
    * Stored annotations for the session are merged into the returned messages.
+   * Concurrent loads of a session share one read, so all of them append to the array that gets cached.
    */
   public async loadMessages(type: AgentType, sessionId: string): Promise<AgentMessage[]> {
     const sessionKey = this.getSessionKey(type, sessionId);
@@ -62,24 +64,25 @@ export class SessionManager {
       return cached;
     }
 
-    let agentMessages: AgentMessage[];
-    switch (type) {
-      case AGENT_TYPE.CLAUDE_CODE:
-        agentMessages = await loadClaudeCodeSessionMessages(sessionId);
-        break;
-
-      case AGENT_TYPE.GITHUB_COPILOT: {
-        // Copilot has no cwd-scoped read API; the shared client locates the session by id alone.
-        const copilotClient = this.copilotClientManager.getClient();
-        agentMessages = await loadGithubCopilotSessionMessages(copilotClient, sessionId);
-        break;
-      }
+    const pendingLoad = this.pendingLoads.get(sessionKey);
+    if (pendingLoad) {
+      return pendingLoad;
     }
 
-    await this.applyStoredAnnotations(sessionId, agentMessages);
-    this.messageCache.set(sessionKey, agentMessages);
+    const load = this.readMessages(type, sessionId);
+    this.pendingLoads.set(sessionKey, load);
+    try {
+      const agentMessages = await load;
+      if (this.pendingLoads.get(sessionKey) === load) {
+        this.messageCache.set(sessionKey, agentMessages);
+      }
 
-    return agentMessages;
+      return agentMessages;
+    } finally {
+      if (this.pendingLoads.get(sessionKey) === load) {
+        this.pendingLoads.delete(sessionKey);
+      }
+    }
   }
 
   /**
@@ -241,7 +244,28 @@ export class SessionManager {
   public invalidateCache(type: AgentType, sessionId: string): void {
     const sessionKey = this.getSessionKey(type, sessionId);
     this.messageCache.delete(sessionKey);
+    this.pendingLoads.delete(sessionKey);
     log.debug({ sessionId }, "Cache invalidated");
+  }
+
+  private async readMessages(type: AgentType, sessionId: string): Promise<AgentMessage[]> {
+    let agentMessages: AgentMessage[];
+    switch (type) {
+      case AGENT_TYPE.CLAUDE_CODE:
+        agentMessages = await loadClaudeCodeSessionMessages(sessionId);
+        break;
+
+      case AGENT_TYPE.GITHUB_COPILOT: {
+        // Copilot has no cwd-scoped read API; the shared client locates the session by id alone.
+        const copilotClient = this.copilotClientManager.getClient();
+        agentMessages = await loadGithubCopilotSessionMessages(copilotClient, sessionId);
+        break;
+      }
+    }
+
+    await this.applyStoredAnnotations(sessionId, agentMessages);
+
+    return agentMessages;
   }
 
   /** Merge stored annotations onto freshly transformed messages (mutates in place) */
