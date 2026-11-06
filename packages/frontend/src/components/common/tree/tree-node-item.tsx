@@ -113,10 +113,11 @@ export function TreeNodeItem<T>({
         >
           {node.isExpandable && node.isToggledByChevron && (
             <span
-              className="-my-1 -ml-2 -mr-1.5 flex shrink-0 items-center self-stretch pl-2 pr-1.5"
+              aria-hidden
+              className="relative -my-1 -ml-2 -mr-5 flex shrink-0 items-center self-stretch pl-2 pr-5 text-text-muted hover:text-text-neutral"
               onClick={handleChevronClick}
             >
-              <Chevron className="h-3.5 w-3.5 text-text-muted" />
+              <Chevron className="h-3.5 w-3.5" />
             </span>
           )}
           {node.isExpandable && !node.isToggledByChevron && (
