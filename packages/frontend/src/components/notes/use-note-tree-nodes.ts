@@ -42,6 +42,7 @@ function toRootNode(children: TreeNode<NoteMetadata>[]): TreeNode<NoteMetadata> 
     icon: FolderTree,
     iconClassName: "text-accent",
     isExpandable: true,
+    isToggledByChevron: true,
     children,
   };
 }

@@ -28,6 +28,7 @@ export function toTreeNode(
       expandedIcon: FolderOpen,
       iconClassName: "text-accent",
       isExpandable: true,
+      isToggledByChevron: true,
       children,
       data: metadata,
     };
