@@ -106,15 +106,22 @@ export function Tree<T>({
     }
   }, []);
 
+  const handleToggle = useCallback(
+    (node: TreeNode<T>) => setExpanded(node.id, !expandedIds.has(node.id)),
+    [expandedIds, setExpanded]
+  );
+
   const handleActivate = useCallback(
     (node: TreeNode<T>) => {
-      if (node.isExpandable) {
-        setExpanded(node.id, !expandedIds.has(node.id));
+      if (node.isExpandable && !node.isToggledByChevron) {
+        handleToggle(node);
       }
 
-      onSelect(node.id, node.data);
+      if (!node.isDisabled) {
+        onSelect(node.id, node.data);
+      }
     },
-    [expandedIds, onSelect, setExpanded]
+    [handleToggle, onSelect]
   );
 
   const handleKeyDown = useCallback(
@@ -152,7 +159,10 @@ export function Tree<T>({
           focusNode(visibleNodes[visibleNodes.length - 1]?.node.id);
           break;
         case "Enter":
-          onSelect(node.id, node.data);
+          if (!node.isDisabled) {
+            onSelect(node.id, node.data);
+          }
+
           break;
         default:
           return;
@@ -278,6 +288,7 @@ export function Tree<T>({
           actions={actions}
           drag={drag}
           onActivate={handleActivate}
+          onToggle={handleToggle}
           onFocusNode={setFocusedId}
           onKeyDown={handleKeyDown}
           onRegister={handleRegister}

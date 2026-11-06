@@ -5,6 +5,10 @@ export type TreeIcon = ComponentType<{ className?: string }>;
 export interface TreeNode<T = undefined> {
   id: string;
   label: string;
+  /** Short muted text at the end of the row */
+  detail?: string;
+  /** Dims the row and stops it selecting; an expandable node still expands */
+  isDisabled?: boolean;
   icon?: TreeIcon;
   /** Shown instead of `icon` while an expandable node is expanded */
   expandedIcon?: TreeIcon;
@@ -12,6 +16,8 @@ export interface TreeNode<T = undefined> {
   iconClassName?: string;
   /** Whether the node can be expanded, however many children it has now */
   isExpandable: boolean;
+  /** Only the chevron expands the node; a row click never does */
+  isToggledByChevron?: boolean;
   children: TreeNode<T>[];
   data?: T;
 }

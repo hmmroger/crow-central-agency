@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type FocusEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, type FocusEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "../../../utils/cn.js";
 import { TreeNodeActionButton } from "./tree-node-action-button.js";
@@ -15,6 +15,7 @@ interface TreeNodeItemProps<T> {
   /** Absent when the tree has no drag and drop */
   drag?: TreeNodeDragProps<T>;
   onActivate: (node: TreeNode<T>) => void;
+  onToggle: (node: TreeNode<T>) => void;
   onFocusNode: (nodeId: string) => void;
   onKeyDown: (node: TreeNode<T>, event: KeyboardEvent<HTMLLIElement>) => void;
   onRegister: (nodeId: string, element: HTMLLIElement | null) => void;
@@ -30,6 +31,7 @@ export function TreeNodeItem<T>({
   actions,
   drag,
   onActivate,
+  onToggle,
   onFocusNode,
   onKeyDown,
   onRegister,
@@ -69,12 +71,18 @@ export function TreeNodeItem<T>({
     }
   };
 
+  const handleChevronClick = (event: MouseEvent<HTMLSpanElement>) => {
+    event.stopPropagation();
+    onToggle(node);
+  };
+
   return (
     <li
       role="treeitem"
       aria-level={level}
       aria-selected={isSelected}
       aria-expanded={node.isExpandable ? isExpanded : undefined}
+      aria-disabled={node.isDisabled}
       tabIndex={isTabStop ? 0 : -1}
       className={cn("outline-none", isDropArea && "rounded-sm bg-primary/10")}
       ref={registerElement}
@@ -97,18 +105,30 @@ export function TreeNodeItem<T>({
       >
         <div
           className={cn(
-            "flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1 text-sm cursor-pointer",
-            isSelected ? "text-text-base" : "text-text-neutral"
+            "flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1 text-sm",
+            isSelected ? "text-text-base" : "text-text-neutral",
+            node.isDisabled ? "cursor-default opacity-50" : "cursor-pointer"
           )}
           onClick={() => onActivate(node)}
         >
-          {node.isExpandable ? (
-            <Chevron className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-          ) : (
-            <span className="w-3.5 shrink-0" />
+          {node.isExpandable && node.isToggledByChevron && (
+            <span
+              aria-hidden
+              className="relative -my-1 -ml-2 -mr-5 flex shrink-0 items-center self-stretch pl-2 pr-5 text-text-muted hover:text-text-neutral"
+              onClick={handleChevronClick}
+            >
+              <Chevron className="h-3.5 w-3.5" />
+            </span>
           )}
+          {node.isExpandable && !node.isToggledByChevron && (
+            <Chevron className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+          )}
+          {!node.isExpandable && <span className="w-3.5 shrink-0" />}
           {Icon && <Icon className={cn("h-3.5 w-3.5 shrink-0 text-text-muted", node.iconClassName)} />}
-          <span className="truncate">{node.label}</span>
+          <span title={node.label} className="flex-1 min-w-0 truncate">
+            {node.label}
+          </span>
+          {node.detail && <span className="shrink-0 text-2xs text-text-muted">{node.detail}</span>}
         </div>
 
         {availableActions.length > 0 && (
@@ -139,6 +159,7 @@ export function TreeNodeItem<T>({
               actions={actions}
               drag={drag}
               onActivate={onActivate}
+              onToggle={onToggle}
               onFocusNode={onFocusNode}
               onKeyDown={onKeyDown}
               onRegister={onRegister}
