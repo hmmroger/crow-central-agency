@@ -54,7 +54,7 @@ export interface TreeProps<T = undefined> {
   selectedId?: string;
   /** Node to bring into view: its ancestors are expanded once per id */
   revealId?: string;
-  /** Nodes expanded on mount; an id added later expands once */
+  /** Nodes expanded on mount */
   defaultExpandedIds?: readonly string[];
   actions?: readonly TreeNodeAction<T>[];
   dragDrop?: TreeDragDrop<T>;

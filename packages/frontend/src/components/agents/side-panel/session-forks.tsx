@@ -38,7 +38,6 @@ export function SessionForks({ agentId, sessionId, disabled, onSelectFork }: Ses
   );
 
   const nodes = useMemo(() => (data ? toSessionForkTreeNodes(data, disabled) : []), [data, disabled]);
-  const expandedNodeIds = useMemo(() => nodes.map((node) => node.id), [nodes]);
   const forkCount = nodes.reduce((count, node) => count + node.children.length, 0);
 
   return (
@@ -68,15 +67,7 @@ export function SessionForks({ agentId, sessionId, disabled, onSelectFork }: Ses
             <div className="p-3 text-xs text-text-muted italic">No forks from this session</div>
           )}
 
-          {forkCount > 0 && (
-            <Tree
-              key={sessionId}
-              nodes={nodes}
-              defaultExpandedIds={expandedNodeIds}
-              onSelect={handleSelect}
-              ariaLabel="Forks"
-            />
-          )}
+          {forkCount > 0 && <Tree key={sessionId} nodes={nodes} onSelect={handleSelect} ariaLabel="Forks" />}
         </div>
       )}
     </section>

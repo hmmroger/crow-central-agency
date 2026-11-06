@@ -36,7 +36,6 @@ export function Tree<T>({
   const [dropTarget, setDropTarget] = useState<TreeDropTarget<T>>();
   const [hoverExpandId, setHoverExpandId] = useState<string>();
   const revealedIdRef = useRef<string>(undefined);
-  const appliedDefaultIdsRef = useRef(new Set(defaultExpandedIds));
   const itemElementsRef = useRef(new Map<string, HTMLLIElement>());
   const visibleNodes = useMemo(() => getVisibleNodes(nodes, expandedIds), [nodes, expandedIds]);
   const tabStopId =
@@ -92,16 +91,6 @@ export function Tree<T>({
       return next;
     });
   }, []);
-
-  // Each default applies once, so a node the user collapses stays collapsed through later refreshes.
-  useEffect(() => {
-    for (const nodeId of defaultExpandedIds ?? []) {
-      if (!appliedDefaultIdsRef.current.has(nodeId)) {
-        appliedDefaultIdsRef.current.add(nodeId);
-        setExpanded(nodeId, true);
-      }
-    }
-  }, [defaultExpandedIds, setExpanded]);
 
   const focusNode = useCallback((nodeId: string | undefined) => {
     if (nodeId !== undefined) {
