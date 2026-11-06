@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type FocusEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, type FocusEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "../../../utils/cn.js";
 import { TreeNodeActionButton } from "./tree-node-action-button.js";
@@ -15,6 +15,7 @@ interface TreeNodeItemProps<T> {
   /** Absent when the tree has no drag and drop */
   drag?: TreeNodeDragProps<T>;
   onActivate: (node: TreeNode<T>) => void;
+  onToggle: (node: TreeNode<T>) => void;
   onFocusNode: (nodeId: string) => void;
   onKeyDown: (node: TreeNode<T>, event: KeyboardEvent<HTMLLIElement>) => void;
   onRegister: (nodeId: string, element: HTMLLIElement | null) => void;
@@ -30,6 +31,7 @@ export function TreeNodeItem<T>({
   actions,
   drag,
   onActivate,
+  onToggle,
   onFocusNode,
   onKeyDown,
   onRegister,
@@ -69,6 +71,11 @@ export function TreeNodeItem<T>({
     }
   };
 
+  const handleChevronClick = (event: MouseEvent<HTMLSpanElement>) => {
+    event.stopPropagation();
+    onToggle(node);
+  };
+
   return (
     <li
       role="treeitem"
@@ -104,11 +111,18 @@ export function TreeNodeItem<T>({
           )}
           onClick={() => onActivate(node)}
         >
-          {node.isExpandable ? (
-            <Chevron className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-          ) : (
-            <span className="w-3.5 shrink-0" />
+          {node.isExpandable && node.isToggledByChevron && (
+            <span
+              className="-my-1 -ml-2 -mr-1.5 flex shrink-0 items-center self-stretch pl-2 pr-1.5"
+              onClick={handleChevronClick}
+            >
+              <Chevron className="h-3.5 w-3.5 text-text-muted" />
+            </span>
           )}
+          {node.isExpandable && !node.isToggledByChevron && (
+            <Chevron className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+          )}
+          {!node.isExpandable && <span className="w-3.5 shrink-0" />}
           {Icon && <Icon className={cn("h-3.5 w-3.5 shrink-0 text-text-muted", node.iconClassName)} />}
           <span title={node.label} className="flex-1 min-w-0 truncate">
             {node.label}
@@ -144,6 +158,7 @@ export function TreeNodeItem<T>({
               actions={actions}
               drag={drag}
               onActivate={onActivate}
+              onToggle={onToggle}
               onFocusNode={onFocusNode}
               onKeyDown={onKeyDown}
               onRegister={onRegister}

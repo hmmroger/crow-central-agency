@@ -36,6 +36,7 @@ export function Tree<T>({
   const [dropTarget, setDropTarget] = useState<TreeDropTarget<T>>();
   const [hoverExpandId, setHoverExpandId] = useState<string>();
   const revealedIdRef = useRef<string>(undefined);
+  const appliedDefaultIdsRef = useRef(new Set(defaultExpandedIds));
   const itemElementsRef = useRef(new Map<string, HTMLLIElement>());
   const visibleNodes = useMemo(() => getVisibleNodes(nodes, expandedIds), [nodes, expandedIds]);
   const tabStopId =
@@ -92,6 +93,16 @@ export function Tree<T>({
     });
   }, []);
 
+  // Each default applies once, so a node the user collapses stays collapsed through later refreshes.
+  useEffect(() => {
+    for (const nodeId of defaultExpandedIds ?? []) {
+      if (!appliedDefaultIdsRef.current.has(nodeId)) {
+        appliedDefaultIdsRef.current.add(nodeId);
+        setExpanded(nodeId, true);
+      }
+    }
+  }, [defaultExpandedIds, setExpanded]);
+
   const focusNode = useCallback((nodeId: string | undefined) => {
     if (nodeId !== undefined) {
       itemElementsRef.current.get(nodeId)?.focus();
@@ -106,17 +117,22 @@ export function Tree<T>({
     }
   }, []);
 
+  const handleToggle = useCallback(
+    (node: TreeNode<T>) => setExpanded(node.id, !expandedIds.has(node.id)),
+    [expandedIds, setExpanded]
+  );
+
   const handleActivate = useCallback(
     (node: TreeNode<T>) => {
-      if (node.isExpandable) {
-        setExpanded(node.id, !expandedIds.has(node.id));
+      if (node.isExpandable && !node.isToggledByChevron) {
+        handleToggle(node);
       }
 
       if (!node.isDisabled) {
         onSelect(node.id, node.data);
       }
     },
-    [expandedIds, onSelect, setExpanded]
+    [handleToggle, onSelect]
   );
 
   const handleKeyDown = useCallback(
@@ -283,6 +299,7 @@ export function Tree<T>({
           actions={actions}
           drag={drag}
           onActivate={handleActivate}
+          onToggle={handleToggle}
           onFocusNode={setFocusedId}
           onKeyDown={handleKeyDown}
           onRegister={handleRegister}

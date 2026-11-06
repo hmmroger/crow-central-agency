@@ -16,6 +16,8 @@ export interface TreeNode<T = undefined> {
   iconClassName?: string;
   /** Whether the node can be expanded, however many children it has now */
   isExpandable: boolean;
+  /** Only the chevron expands the node, so a row click just selects it */
+  isToggledByChevron?: boolean;
   children: TreeNode<T>[];
   data?: T;
 }
@@ -52,7 +54,7 @@ export interface TreeProps<T = undefined> {
   selectedId?: string;
   /** Node to bring into view: its ancestors are expanded once per id */
   revealId?: string;
-  /** Nodes expanded on mount */
+  /** Nodes expanded on mount; an id added later expands once */
   defaultExpandedIds?: readonly string[];
   actions?: readonly TreeNodeAction<T>[];
   dragDrop?: TreeDragDrop<T>;

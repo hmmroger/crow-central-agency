@@ -29,6 +29,7 @@ export function toSessionForkTreeNodes(
     label: forkPoint.excerpt,
     icon: MessageSquare,
     isExpandable: true,
+    isToggledByChevron: true,
     children: forkPoint.forks.map((fork) => toForkNode(fork, disabled)),
     data: { type: SESSION_FORK_NODE_TYPE.FORK_POINT, messageId: forkPoint.messageId },
   }));
