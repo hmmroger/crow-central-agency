@@ -21,5 +21,30 @@ export const SessionHistoryNodeSchema = z.object({
   isBranch: z.boolean(),
 });
 
+/** A session forked from the one being viewed. */
+export const SessionForkSchema = z.object({
+  sessionId: z.string(),
+  label: z.string(),
+  lastUpdatedTimestamp: z.number(),
+});
+
+/** A message that has forks, in branched order. */
+export const SessionForkPointSchema = z.object({
+  messageId: z.string(),
+  excerpt: z.string(),
+  forks: z.array(SessionForkSchema),
+});
+
+/** Response of GET /api/agents/:id/sessions/:sessionId/fork-points. */
+export const SessionForkPointsSchema = z.object({
+  /** In transcript order */
+  forkPoints: z.array(SessionForkPointSchema),
+  /** Forks whose anchor is not in the session's loaded messages */
+  unavailableForks: z.array(SessionForkSchema),
+});
+
 export type RenameSessionRequest = z.infer<typeof RenameSessionRequestSchema>;
 export type SessionHistoryNode = z.infer<typeof SessionHistoryNodeSchema>;
+export type SessionFork = z.infer<typeof SessionForkSchema>;
+export type SessionForkPoint = z.infer<typeof SessionForkPointSchema>;
+export type SessionForkPoints = z.infer<typeof SessionForkPointsSchema>;

@@ -46,6 +46,7 @@ export function AgentConsole({ agentId }: AgentConsoleProps) {
         <MessageList
           key={agentState?.sessionId}
           agentId={agent.id}
+          sessionId={agentState?.sessionId}
           messages={messages}
           streamingText={streamingText}
           isStreaming={isStreaming}

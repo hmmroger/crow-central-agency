@@ -1,7 +1,11 @@
 import {
   MAX_SESSION_HISTORY,
   type AgentConfig,
+  type AgentMessage,
   type BranchPoint,
+  type SessionFork,
+  type SessionForkPoint,
+  type SessionForkPoints,
   type SessionHistory,
   type SessionHistoryNode,
 } from "@crow-central-agency/shared";
@@ -245,4 +249,54 @@ export function buildSessionTree(sessionHistory: SessionHistory[] | undefined): 
   }
 
   return nodes;
+}
+
+/** The ledger entries forked from a session, keyed by the anchor they forked at, in branched order. */
+export function groupForksByAnchor(
+  sessionHistory: SessionHistory[] | undefined,
+  sessionId: string
+): Map<string, SessionFork[]> {
+  const forksByAnchorId = new Map<string, SessionFork[]>();
+  for (const entry of sessionHistory ?? []) {
+    if (entry.branchPoint?.sessionId !== sessionId) {
+      continue;
+    }
+
+    const fork: SessionFork = {
+      sessionId: entry.sessionId,
+      label: entry.label,
+      lastUpdatedTimestamp: entry.lastUpdatedTimestamp,
+    };
+    const siblings = forksByAnchorId.get(entry.branchPoint.fromMessageId);
+    if (siblings) {
+      siblings.push(fork);
+    } else {
+      forksByAnchorId.set(entry.branchPoint.fromMessageId, [fork]);
+    }
+  }
+
+  return forksByAnchorId;
+}
+
+/**
+ * Resolve a session's forks against its loaded messages. Forks sharing an anchor group under the first
+ * message carrying it; one whose anchor is not in the messages has no message left to show.
+ */
+export function buildSessionForkPoints(
+  forksByAnchorId: Map<string, SessionFork[]>,
+  messages: AgentMessage[]
+): SessionForkPoints {
+  const forkPoints: SessionForkPoint[] = [];
+  for (const message of messages) {
+    const anchorId = message.branchAnchorId;
+    const forks = anchorId === undefined ? undefined : forksByAnchorId.get(anchorId);
+    if (anchorId === undefined || forks === undefined) {
+      continue;
+    }
+
+    forkPoints.push({ messageId: message.id, excerpt: deriveSessionLabel(message.content), forks });
+    forksByAnchorId.delete(anchorId);
+  }
+
+  return { forkPoints, unavailableForks: Array.from(forksByAnchorId.values()).flat() };
 }

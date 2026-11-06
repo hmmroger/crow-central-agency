@@ -16,6 +16,7 @@ import {
   type BranchPoint,
   type PermissionDecision,
   type QuestionSubmission,
+  type SessionForkPoints,
   type SessionHistoryNode,
   type AgentMessage,
   AGENT_TASK_SOURCE_TYPE,
@@ -26,9 +27,11 @@ import { PermissionHandler } from "./permission-handler.js";
 import { QuestionHandler } from "./question-handler.js";
 import {
   assertBranchSource,
+  buildSessionForkPoints,
   buildSessionTree,
   findSessionHistoryEntryByLabel,
   getSessionHistoryEntry,
+  groupForksByAnchor,
   updateSessionHistory,
 } from "./session-history.js";
 import type { SessionHistoryUpdate } from "./session-history.types.js";
@@ -160,6 +163,22 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     this.sessionTrees.set(agentId, builtTree);
 
     return builtTree;
+  }
+
+  /** Resolve which of a ledger session's messages have forks. */
+  public async getSessionForkPoints(agentId: string, sessionId: string): Promise<SessionForkPoints> {
+    const sessionHistory = this.getState(agentId)?.sessionHistory;
+    getSessionHistoryEntry(sessionHistory, sessionId);
+
+    const forksByAnchorId = groupForksByAnchor(sessionHistory, sessionId);
+    if (forksByAnchorId.size === 0) {
+      return { forkPoints: [], unavailableForks: [] };
+    }
+
+    const agent = this.registry.getAgent(agentId);
+    const messages = await this.sessionManager.loadMessages(agent.type, sessionId);
+
+    return buildSessionForkPoints(forksByAnchorId, messages);
   }
 
   /** Get all runtime states */

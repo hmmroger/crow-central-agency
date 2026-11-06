@@ -253,6 +253,17 @@ export async function registerAgentRoutes(
     return { success: true, data: runtimeManager.getSessionTree(agentId) };
   });
 
+  /** Get the messages of one of an agent's ledger sessions that have forks, and the forks they lead to */
+  server.get<{ Params: { id: string; sessionId: string } }>(
+    "/api/agents/:id/sessions/:sessionId/fork-points",
+    async (request) => {
+      const agentId = validateAgentIdParam(request.params.id);
+      const forkPoints = await runtimeManager.getSessionForkPoints(agentId, request.params.sessionId);
+
+      return { success: true, data: forkPoints };
+    }
+  );
+
   /** Rename one of an agent's ledger entries. Touches the label only, so there is no idle requirement. */
   server.patch<{ Params: { id: string; sessionId: string }; Body: { label?: unknown } }>(
     "/api/agents/:id/sessions/:sessionId",

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Terminal } from "lucide-react";
 import { AGENT_MESSAGE_ROLE, AGENT_MESSAGE_TYPE, type AgentMessage } from "@crow-central-agency/shared";
 import type { ActiveToolUse } from "../../../hooks/queries/use-agent-stream-state.types.js";
@@ -6,12 +7,16 @@ import { useStickToBottom } from "../../../hooks/use-stick-to-bottom.js";
 import { useVirtualList } from "../../../hooks/use-virtual-list.js";
 import { useRowHeights } from "../../../providers/row-heights-provider.js";
 import type { RowHeights } from "../../../providers/row-heights-provider.types.js";
+import { agentKeys } from "../../../services/query-keys.js";
+import { useAppStore } from "../../../stores/app-store.js";
+import { cn } from "../../../utils/cn.js";
 import { AgentMessageView } from "./agent-message.js";
 import { MarkdownRenderer } from "../../common/markdown/markdown-renderer.js";
 import { StreamingIndicator } from "./streaming-indicator.js";
 
 interface MessageListProps {
   agentId: string;
+  sessionId?: string;
   messages: AgentMessage[];
   streamingText: string;
   isStreaming: boolean;
@@ -35,6 +40,9 @@ const USER_TEXT_CHARS_PER_LINE = 75;
 /** Approx characters per wrapped line in an AGENT bubble (full max-w-3xl, minus px-3) */
 const AGENT_TEXT_CHARS_PER_LINE = 105;
 
+/** How long a jumped-to row stays highlighted — must match `--duration-highlight` */
+const HIGHLIGHT_DURATION_MS = 1500;
+
 function estimateMessageHeight(message: AgentMessage, rowHeights: RowHeights): number {
   switch (message.type) {
     case AGENT_MESSAGE_TYPE.TOOL_USE:
@@ -52,10 +60,21 @@ function estimateMessageHeight(message: AgentMessage, rowHeights: RowHeights): n
   }
 }
 
-export function MessageList({ agentId, messages, streamingText, isStreaming, activeToolUse }: MessageListProps) {
+export function MessageList({
+  agentId,
+  sessionId,
+  messages,
+  streamingText,
+  isStreaming,
+  activeToolUse,
+}: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string>();
   const rowHeights = useRowHeights();
+  const queryClient = useQueryClient();
+  const jumpTargetId = useAppStore((state) => state.messageJumps[agentId]);
+  const clearMessageJump = useAppStore((state) => state.clearMessageJump);
 
   const virtualizer = useVirtualList({
     count: messages.length,
@@ -66,11 +85,39 @@ export function MessageList({ agentId, messages, streamingText, isStreaming, act
     getItemKey: (index) => messages[index].id,
   });
 
-  const { scheduleScrollIfPinned, isSettled } = useStickToBottom({ scrollRef, contentRef });
+  const { scheduleScrollIfPinned, releasePin, isSettled } = useStickToBottom({ scrollRef, contentRef });
 
   useEffect(() => {
     scheduleScrollIfPinned();
   }, [messages.length, streamingText, activeToolUse?.toolName, scheduleScrollIfPinned]);
+
+  useEffect(() => {
+    if (jumpTargetId === undefined) {
+      return;
+    }
+
+    clearMessageJump(agentId);
+    const targetIndex = messages.findIndex((message) => message.id === jumpTargetId);
+    if (targetIndex === -1) {
+      void queryClient.invalidateQueries({ queryKey: agentKeys.forkPoints(agentId, sessionId) });
+
+      return;
+    }
+
+    releasePin();
+    virtualizer.scrollToIndex(targetIndex, { align: "start" });
+    setHighlightedMessageId(jumpTargetId);
+  }, [jumpTargetId, messages, agentId, sessionId, clearMessageJump, queryClient, releasePin, virtualizer]);
+
+  useEffect(() => {
+    if (highlightedMessageId === undefined) {
+      return;
+    }
+
+    const highlightTimer = setTimeout(() => setHighlightedMessageId(undefined), HIGHLIGHT_DURATION_MS);
+
+    return () => clearTimeout(highlightTimer);
+  }, [highlightedMessageId]);
 
   const virtualRows = virtualizer.getVirtualItems();
   const isEmpty = messages.length === 0 && !isStreaming;
@@ -107,6 +154,7 @@ export function MessageList({ agentId, messages, streamingText, isStreaming, act
                     key={virtualRow.key}
                     ref={virtualizer.measureElement}
                     data-index={virtualRow.index}
+                    className={cn("rounded-lg", message.id === highlightedMessageId && "animate-message-highlight")}
                     style={{
                       position: "absolute",
                       top: 0,

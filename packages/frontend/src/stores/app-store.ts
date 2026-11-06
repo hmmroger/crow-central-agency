@@ -66,6 +66,10 @@ interface AppState {
   notesSidebarWidth: number;
   /** Whether the notes sidebar Backlinks section is collapsed */
   isNotesBacklinksCollapsed: boolean;
+  /** Whether the Sessions tab Forks section is collapsed */
+  isSessionForksCollapsed: boolean;
+  /** Message each agent's console should jump to, keyed by agent ID. Transient; the console consumes it */
+  messageJumps: Record<string, string>;
   /** Whether editable notes open in the reader instead of the editor */
   isNoteReadMode: boolean;
   /** Access key for API authentication */
@@ -106,6 +110,12 @@ interface AppState {
   setNotesSidebarWidth: (width: number) => void;
   /** Toggle collapsed state for the notes sidebar Backlinks section */
   toggleNotesBacklinksCollapsed: () => void;
+  /** Toggle collapsed state for the Sessions tab Forks section */
+  toggleSessionForksCollapsed: () => void;
+  /** Ask an agent's console to scroll to a message */
+  requestMessageJump: (agentId: string, messageId: string) => void;
+  /** Drop an agent's jump request once its console has taken it */
+  clearMessageJump: (agentId: string) => void;
   /** Switch editable notes between the reader and the editor */
   setNoteReadMode: (isReadMode: boolean) => void;
   /** Set or clear the access key */
@@ -139,6 +149,7 @@ interface PersistedAppState {
   sidePanelWidth: number;
   notesSidebarWidth?: number;
   isNotesBacklinksCollapsed?: boolean;
+  isSessionForksCollapsed?: boolean;
   isNoteReadMode?: boolean;
   accessKey?: string;
   clientLocation?: string;
@@ -168,6 +179,8 @@ export const useAppStore = create<AppState>()(
       sidePanelWidth: DEFAULT_SIDE_PANEL_WIDTH,
       notesSidebarWidth: DEFAULT_NOTES_SIDEBAR_WIDTH,
       isNotesBacklinksCollapsed: false,
+      isSessionForksCollapsed: false,
+      messageJumps: {},
       isNoteReadMode: false,
       accessKey: undefined,
       clientLocation: undefined,
@@ -227,6 +240,22 @@ export const useAppStore = create<AppState>()(
 
       toggleNotesBacklinksCollapsed: () =>
         set((state) => ({ isNotesBacklinksCollapsed: !state.isNotesBacklinksCollapsed })),
+
+      toggleSessionForksCollapsed: () => set((state) => ({ isSessionForksCollapsed: !state.isSessionForksCollapsed })),
+
+      requestMessageJump: (agentId: string, messageId: string) =>
+        set((state) => ({ messageJumps: { ...state.messageJumps, [agentId]: messageId } })),
+
+      clearMessageJump: (agentId: string) =>
+        set((state) => {
+          if (state.messageJumps[agentId] === undefined) {
+            return state;
+          }
+
+          const nextMessageJumps = { ...state.messageJumps };
+          delete nextMessageJumps[agentId];
+          return { messageJumps: nextMessageJumps };
+        }),
 
       setNoteReadMode: (isReadMode: boolean) => set({ isNoteReadMode: isReadMode }),
 
@@ -290,6 +319,7 @@ export const useAppStore = create<AppState>()(
         sidePanelWidth: state.sidePanelWidth,
         notesSidebarWidth: state.notesSidebarWidth,
         isNotesBacklinksCollapsed: state.isNotesBacklinksCollapsed,
+        isSessionForksCollapsed: state.isSessionForksCollapsed,
         isNoteReadMode: state.isNoteReadMode,
         accessKey: state.accessKey,
         clientLocation: state.clientLocation,
