@@ -112,7 +112,9 @@ export function Tree<T>({
         setExpanded(node.id, !expandedIds.has(node.id));
       }
 
-      onSelect(node.id, node.data);
+      if (!node.isDisabled) {
+        onSelect(node.id, node.data);
+      }
     },
     [expandedIds, onSelect, setExpanded]
   );
@@ -152,7 +154,10 @@ export function Tree<T>({
           focusNode(visibleNodes[visibleNodes.length - 1]?.node.id);
           break;
         case "Enter":
-          onSelect(node.id, node.data);
+          if (!node.isDisabled) {
+            onSelect(node.id, node.data);
+          }
+
           break;
         default:
           return;

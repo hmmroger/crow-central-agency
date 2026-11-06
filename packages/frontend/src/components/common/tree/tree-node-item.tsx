@@ -75,6 +75,7 @@ export function TreeNodeItem<T>({
       aria-level={level}
       aria-selected={isSelected}
       aria-expanded={node.isExpandable ? isExpanded : undefined}
+      aria-disabled={node.isDisabled}
       tabIndex={isTabStop ? 0 : -1}
       className={cn("outline-none", isDropArea && "rounded-sm bg-primary/10")}
       ref={registerElement}
@@ -97,8 +98,9 @@ export function TreeNodeItem<T>({
       >
         <div
           className={cn(
-            "flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1 text-sm cursor-pointer",
-            isSelected ? "text-text-base" : "text-text-neutral"
+            "flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1 text-sm",
+            isSelected ? "text-text-base" : "text-text-neutral",
+            node.isDisabled ? "cursor-default opacity-50" : "cursor-pointer"
           )}
           onClick={() => onActivate(node)}
         >
@@ -108,7 +110,10 @@ export function TreeNodeItem<T>({
             <span className="w-3.5 shrink-0" />
           )}
           {Icon && <Icon className={cn("h-3.5 w-3.5 shrink-0 text-text-muted", node.iconClassName)} />}
-          <span className="truncate">{node.label}</span>
+          <span title={node.label} className="flex-1 min-w-0 truncate">
+            {node.label}
+          </span>
+          {node.detail && <span className="shrink-0 text-2xs text-text-muted">{node.detail}</span>}
         </div>
 
         {availableActions.length > 0 && (

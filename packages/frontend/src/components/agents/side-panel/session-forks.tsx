@@ -1,10 +1,12 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { ChevronRight } from "lucide-react";
 import { useSessionForkPointsQuery } from "../../../hooks/queries/use-session-fork-points-query.js";
 import { useFullPanel } from "../../../hooks/use-full-panel.js";
 import { useAppStore } from "../../../stores/app-store.js";
 import { cn } from "../../../utils/cn.js";
-import { SessionForkGroup } from "./session-fork-group.js";
+import { Tree } from "../../common/tree/tree.js";
+import { toSessionForkTreeNodes } from "./session-fork-tree-nodes.js";
+import { SESSION_FORK_NODE_TYPE, type SessionForkNodeData } from "./session-forks.types.js";
 
 interface SessionForksProps {
   agentId: string;
@@ -15,7 +17,7 @@ interface SessionForksProps {
   onSelectFork: (sessionId: string) => void;
 }
 
-/** Collapsible list of the current session's forks, grouped by the message they forked from. */
+/** Collapsible tree of the current session's forks under the messages they forked from. */
 export function SessionForks({ agentId, sessionId, disabled, onSelectFork }: SessionForksProps) {
   const { data, isLoading, isError } = useSessionForkPointsQuery(agentId, sessionId);
   const isCollapsed = useAppStore((state) => state.isSessionForksCollapsed);
@@ -23,17 +25,21 @@ export function SessionForks({ agentId, sessionId, disabled, onSelectFork }: Ses
   const requestMessageJump = useAppStore((state) => state.requestMessageJump);
   const { hide: hideFullPanel } = useFullPanel();
 
-  const handleJump = useCallback(
-    (messageId: string) => {
-      requestMessageJump(agentId, messageId);
-      hideFullPanel();
+  const handleSelect = useCallback(
+    (_id: string, nodeData?: SessionForkNodeData) => {
+      if (nodeData?.type === SESSION_FORK_NODE_TYPE.FORK) {
+        onSelectFork(nodeData.sessionId);
+      } else if (nodeData?.type === SESSION_FORK_NODE_TYPE.FORK_POINT) {
+        requestMessageJump(agentId, nodeData.messageId);
+        hideFullPanel();
+      }
     },
-    [agentId, requestMessageJump, hideFullPanel]
+    [agentId, onSelectFork, requestMessageJump, hideFullPanel]
   );
 
-  const forkPoints = data?.forkPoints ?? [];
-  const unavailableForks = data?.unavailableForks ?? [];
-  const forkCount = forkPoints.reduce((count, forkPoint) => count + forkPoint.forks.length, unavailableForks.length);
+  const nodes = useMemo(() => (data ? toSessionForkTreeNodes(data, disabled) : []), [data, disabled]);
+  const expandedNodeIds = useMemo(() => nodes.map((node) => node.id), [nodes]);
+  const forkCount = nodes.reduce((count, node) => count + node.children.length, 0);
 
   return (
     <section className={cn("flex shrink-0 flex-col gap-1 border-t border-border-subtle pt-1", !isCollapsed && "h-1/3")}>
@@ -62,25 +68,15 @@ export function SessionForks({ agentId, sessionId, disabled, onSelectFork }: Ses
             <div className="p-3 text-xs text-text-muted italic">No forks from this session</div>
           )}
 
-          {unavailableForks.length > 0 && (
-            <SessionForkGroup
-              title="Message no longer available"
-              forks={unavailableForks}
-              disabled={disabled}
-              onSelect={onSelectFork}
+          {forkCount > 0 && (
+            <Tree
+              key={sessionId}
+              nodes={nodes}
+              defaultExpandedIds={expandedNodeIds}
+              onSelect={handleSelect}
+              ariaLabel="Forks"
             />
           )}
-
-          {forkPoints.map((forkPoint) => (
-            <SessionForkGroup
-              key={forkPoint.messageId}
-              title={forkPoint.excerpt}
-              forks={forkPoint.forks}
-              disabled={disabled}
-              onSelect={onSelectFork}
-              onJump={() => handleJump(forkPoint.messageId)}
-            />
-          ))}
         </div>
       )}
     </section>
