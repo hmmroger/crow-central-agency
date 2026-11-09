@@ -139,7 +139,7 @@ export {
   AGENT_ACTIVITY_TYPE,
   AGENT_STATUS,
   MAX_INPUT_HISTORY,
-  MAX_SESSION_HISTORY,
+  MAX_SESSION_FAMILIES,
   type AgentStatus,
   type SessionUsage,
   type BranchPoint,
