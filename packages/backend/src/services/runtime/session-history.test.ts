@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AGENT_TYPE,
   AgentConfigSchema,
-  MAX_SESSION_HISTORY,
+  MAX_SESSION_FAMILIES,
   type AgentConfig,
   type SessionHistory,
   type SessionHistoryNode,
@@ -82,6 +82,12 @@ function expectAppErrorCode(operation: () => unknown, errorCode: string): void {
 
 function orderOf(history: SessionHistory[]): string[] {
   return buildSessionTree(history).map((node) => node.sessionId);
+}
+
+function familyRootIdsOf(history: SessionHistory[]): string[] {
+  return buildSessionTree(history)
+    .filter((node) => node.depth === 0)
+    .map((node) => node.sessionId);
 }
 
 function depthOf(history: SessionHistory[]): Record<string, number> {
@@ -309,114 +315,147 @@ describe("findSessionHistoryEntryByLabel", () => {
 });
 
 describe("updateSessionHistory family-aware eviction", () => {
-  it("retains a family while a transitive descendant sits in the window", () => {
+  it("keeps a heavily forked family alongside a new root while families stay within the cap", () => {
+    const forks = Array.from({ length: 20 }, (_unused, index) => makeEntry(`fork${index}`, 2 + index, "root"));
+    const history = [makeEntry("root", 1), ...forks, ...singletons("s", MAX_SESSION_FAMILIES - 2, 100)];
+    const originalIds = history.map((entry) => entry.sessionId);
+
+    const { history: result } = applyUpdate(history, makeUpdate("fresh", 900));
+
+    expect(familyRootIdsOf(result)).toHaveLength(MAX_SESSION_FAMILIES);
+    expect(result.map((entry) => entry.sessionId)).toEqual(originalIds.concat("fresh"));
+  });
+
+  it("evicts the least recently used family whole, even when it was created last", () => {
+    const history = [
+      makeEntry("root", 100),
+      makeEntry("child", 101, "root"),
+      ...singletons("s", MAX_SESSION_FAMILIES - 2, 200),
+      makeEntry("idle-root", 50),
+      makeEntry("idle-child", 60, "idle-root"),
+    ];
+
+    const { history: result } = applyUpdate(history, makeUpdate("fresh", 900));
+
+    const ids = result.map((entry) => entry.sessionId);
+    expect(ids).not.toContain("idle-root");
+    expect(ids).not.toContain("idle-child");
+    expect(ids).toContain("root");
+    expect(ids).toContain("child");
+    expect(familyRootIdsOf(result)).toHaveLength(MAX_SESSION_FAMILIES);
+  });
+
+  it("keeps an early-created root with a recent turn over later-created idle families", () => {
+    const history = [makeEntry("early", 800), ...singletons("s", MAX_SESSION_FAMILIES, 100)];
+
+    const { history: result } = applyUpdate(history, makeUpdate("fresh", 900));
+
+    const ids = result.map((entry) => entry.sessionId);
+    expect(ids).toContain("early");
+    expect(ids).not.toContain("s0");
+    expect(result).toHaveLength(MAX_SESSION_FAMILIES);
+  });
+
+  it("ranks a family by recent activity on a deep fork", () => {
+    const history = [
+      makeEntry("root", 1),
+      makeEntry("fork", 2, "root"),
+      makeEntry("deep-fork", 850, "fork"),
+      ...singletons("s", MAX_SESSION_FAMILIES - 1, 100),
+    ];
+
+    const { history: result } = applyUpdate(history, makeUpdate("fresh", 900));
+
+    const ids = result.map((entry) => entry.sessionId);
+    expect(ids).toContain("root");
+    expect(ids).toContain("fork");
+    expect(ids).toContain("deep-fork");
+    expect(ids).not.toContain("s0");
+    assertNoDanglingBranchPoints(result);
+  });
+
+  it("retains the active family on top of the cap when it ranks below it", () => {
     const history = [
       makeEntry("root", 1),
       makeEntry("child", 2, "root"),
-      ...singletons("s", MAX_SESSION_HISTORY - 2, 100),
-      makeEntry("grandchild", 500, "child"),
+      ...singletons("s", MAX_SESSION_FAMILIES, 100),
     ];
 
-    const { history: result } = applyUpdate(history, {
-      sessionId: "fresh",
-      message: "new turn",
-      timestamp: 900,
-    });
-
-    const ids = result.map((entry) => entry.sessionId);
-    expect(ids).toContain("root");
-    expect(ids).toContain("child");
-    expect(ids).toContain("grandchild");
-    assertNoDanglingBranchPoints(result);
-  });
-
-  it("evicts a family whole once every member has fallen out of the window", () => {
-    const history = [makeEntry("root", 1), makeEntry("child", 2, "root"), ...singletons("s", MAX_SESSION_HISTORY, 100)];
-
-    const { history: result } = applyUpdate(history, {
-      sessionId: "fresh",
-      message: "new turn",
-      timestamp: 900,
-    });
-
-    const ids = result.map((entry) => entry.sessionId);
-    expect(ids).not.toContain("root");
-    expect(ids).not.toContain("child");
-    expect(result).toHaveLength(MAX_SESSION_HISTORY);
-    assertNoDanglingBranchPoints(result);
-  });
-
-  it("treats an entry whose branch parent is absent as a family of its own", () => {
-    const history = [
-      makeEntry("orphanA", 1, "ghost"),
-      makeEntry("orphanB", 2, "ghost"),
-      ...singletons("s", MAX_SESSION_HISTORY - 1, 100),
-    ];
-
-    const { history: result } = applyUpdate(history, {
-      sessionId: "fresh",
-      message: "new turn",
-      timestamp: 900,
-    });
-
-    const ids = result.map((entry) => entry.sessionId);
-    expect(ids).not.toContain("orphanA");
-    expect(ids).not.toContain("orphanB");
-    expect(result).toHaveLength(MAX_SESSION_HISTORY);
-  });
-
-  it("retains sibling branches together via their shared root", () => {
-    const history = [
-      makeEntry("root", 1),
-      makeEntry("childA", 2, "root"),
-      ...singletons("s", MAX_SESSION_HISTORY - 2, 100),
-      makeEntry("childB", 500, "root"),
-    ];
-
-    const { history: result } = applyUpdate(history, {
-      sessionId: "fresh",
-      message: "new turn",
-      timestamp: 900,
-    });
-
-    const ids = result.map((entry) => entry.sessionId);
-    expect(ids).toContain("root");
-    expect(ids).toContain("childA");
-    expect(ids).toContain("childB");
-    assertNoDanglingBranchPoints(result);
-  });
-
-  it("retains the active session's family when every member has fallen out of the window", () => {
-    const history = [makeEntry("root", 1), makeEntry("child", 2, "root"), ...singletons("s", MAX_SESSION_HISTORY, 100)];
-
-    const { history: result } = applyUpdate(history, {
-      sessionId: "side",
-      message: "side turn",
-      timestamp: 900,
-      activeSessionId: "child",
-    });
+    const { history: result } = applyUpdate(history, { ...makeUpdate("side", 900), activeSessionId: "child" });
 
     const ids = result.map((entry) => entry.sessionId);
     expect(ids).toContain("root");
     expect(ids).toContain("child");
     expect(ids).toContain("side");
     expect(ids).not.toContain("s0");
-    expect(result).toHaveLength(MAX_SESSION_HISTORY + 2);
+    expect(familyRootIdsOf(result)).toHaveLength(MAX_SESSION_FAMILIES + 1);
     assertNoDanglingBranchPoints(result);
   });
 
   it("evicts as usual when the active session is not in the ledger", () => {
-    const history = [makeEntry("root", 1), ...singletons("s", MAX_SESSION_HISTORY, 100)];
+    const history = [makeEntry("root", 1), ...singletons("s", MAX_SESSION_FAMILIES, 100)];
 
-    const { history: result } = applyUpdate(history, {
-      sessionId: "fresh",
-      message: "new turn",
-      timestamp: 900,
-      activeSessionId: "unknown",
-    });
+    const { history: result } = applyUpdate(history, { ...makeUpdate("fresh", 900), activeSessionId: "unknown" });
 
     expect(result.map((entry) => entry.sessionId)).not.toContain("root");
-    expect(result).toHaveLength(MAX_SESSION_HISTORY);
+    expect(result).toHaveLength(MAX_SESSION_FAMILIES);
+  });
+
+  it("counts each entry whose branch parent is absent as a family of its own", () => {
+    const history = [
+      makeEntry("orphanA", 1, "ghost"),
+      makeEntry("orphanB", 2, "ghost"),
+      ...singletons("s", MAX_SESSION_FAMILIES - 2, 100),
+    ];
+
+    const { history: result } = applyUpdate(history, makeUpdate("fresh", 900));
+
+    const ids = result.map((entry) => entry.sessionId);
+    expect(ids).not.toContain("orphanA");
+    expect(ids).toContain("orphanB");
+    expect(familyRootIdsOf(result)).toHaveLength(MAX_SESSION_FAMILIES);
+  });
+
+  it("leaves no dangling branch point after evicting a branched family", () => {
+    const history = [
+      makeEntry("root", 1),
+      makeEntry("childA", 2, "root"),
+      makeEntry("grandchild", 3, "childA"),
+      makeEntry("childB", 4, "root"),
+      makeEntry("kept-root", 200),
+      makeEntry("kept-fork", 201, "kept-root"),
+      ...singletons("s", MAX_SESSION_FAMILIES - 1, 100),
+    ];
+
+    const { history: result } = applyUpdate(history, makeUpdate("fresh", 900));
+
+    const ids = result.map((entry) => entry.sessionId);
+    expect(ids).not.toContain("root");
+    expect(ids).not.toContain("grandchild");
+    expect(ids).not.toContain("s0");
+    expect(ids).toContain("kept-fork");
+    assertNoDanglingBranchPoints(result);
+  });
+
+  it("evicts exactly the trailing families of the panel, excluding the active one", () => {
+    // Tied families straddle the cap, so the panel's tie-break decides which of them go.
+    const tiedFamilies = Array.from({ length: MAX_SESSION_FAMILIES + 5 }, (_unused, index) =>
+      makeEntry(`tied${index}`, 500)
+    );
+    const history = [makeEntry("active-root", 1), makeEntry("active-fork", 2, "active-root"), ...tiedFamilies];
+    const update = { ...makeUpdate("fresh", 900), activeSessionId: "active-fork" };
+    const preEvictionRootIds = familyRootIdsOf(history.concat(makeEntry("fresh", 900)));
+    const expectedEvictedRootIds = preEvictionRootIds
+      .slice(MAX_SESSION_FAMILIES)
+      .filter((rootId) => rootId !== "active-root");
+
+    const { history: result } = applyUpdate(history, update);
+
+    const retainedRootIds = new Set(familyRootIdsOf(result));
+    const evictedRootIds = preEvictionRootIds.filter((rootId) => !retainedRootIds.has(rootId));
+    expect(evictedRootIds).toEqual(expectedEvictedRootIds);
+    expect(evictedRootIds.length).toBeGreaterThan(0);
+    assertNoDanglingBranchPoints(result);
   });
 });
 
@@ -617,7 +656,7 @@ describe("updateSessionHistory tree upkeep", () => {
   });
 
   it("rebuilds around an eviction", () => {
-    const history = Array.from({ length: MAX_SESSION_HISTORY }, (_unused, index) =>
+    const history = Array.from({ length: MAX_SESSION_FAMILIES }, (_unused, index) =>
       makeEntry(`s${index}`, 1000 + index)
     );
 

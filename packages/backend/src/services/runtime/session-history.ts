@@ -1,5 +1,5 @@
 import {
-  MAX_SESSION_HISTORY,
+  MAX_SESSION_FAMILIES,
   type AgentConfig,
   type AgentMessage,
   type BranchPoint,
@@ -14,9 +14,10 @@ import { APP_ERROR_CODES } from "../../core/error/app-error.types.js";
 import type { SessionHistoryUpdate, UpdatedSessionHistory } from "./session-history.types.js";
 
 interface SessionFamilies {
-  roots: SessionHistory[];
+  /** Family roots, most recently used family first. */
+  rankedRoots: SessionHistory[];
   childrenByParentId: Map<string, SessionHistory[]>;
-  familyMaxByRootId: Map<string, number>;
+  rootIdBySessionId: Map<string, string>;
 }
 
 export const SESSION_LABEL_MAX_WORDS = 15;
@@ -80,28 +81,28 @@ function refreshLeadingFamilyNode(sessionTree: SessionHistoryNode[], sessionId: 
   return false;
 }
 
+/** Keep the most recently used families whole, ranked exactly as the session panel lists them. */
 function evictSessionFamilies(entries: SessionHistory[], activeSessionId: string | undefined): SessionHistory[] {
-  if (entries.length <= MAX_SESSION_HISTORY) {
+  // Families never outnumber entries, so a short ledger cannot be over the cap.
+  if (entries.length <= MAX_SESSION_FAMILIES) {
     return entries;
   }
 
-  const familyRoots: string[] = [];
-  const rootBySessionId = new Map<string, string>();
-  for (const entry of entries) {
-    const parentSessionId = entry.branchPoint?.sessionId;
-    const parentRoot = parentSessionId === undefined ? undefined : rootBySessionId.get(parentSessionId);
-    const familyRoot = parentRoot ?? entry.sessionId;
-    familyRoots.push(familyRoot);
-    rootBySessionId.set(entry.sessionId, familyRoot);
+  const { rankedRoots, rootIdBySessionId } = rankSessionFamilies(entries);
+  if (rankedRoots.length <= MAX_SESSION_FAMILIES) {
+    return entries;
   }
 
-  const retainedRoots = new Set(familyRoots.slice(entries.length - MAX_SESSION_HISTORY));
-  const activeRoot = activeSessionId === undefined ? undefined : rootBySessionId.get(activeSessionId);
-  if (activeRoot !== undefined) {
-    retainedRoots.add(activeRoot);
+  const retainedRootIds = new Set(rankedRoots.slice(0, MAX_SESSION_FAMILIES).map((root) => root.sessionId));
+  const activeRootId = activeSessionId === undefined ? undefined : rootIdBySessionId.get(activeSessionId);
+  if (activeRootId !== undefined) {
+    retainedRootIds.add(activeRootId);
   }
 
-  return entries.filter((_unused, index) => retainedRoots.has(familyRoots[index]));
+  return entries.filter((entry) => {
+    const rootId = rootIdBySessionId.get(entry.sessionId);
+    return rootId !== undefined && retainedRootIds.has(rootId);
+  });
 }
 
 /** Resolve the ledger entry a session id names. Absent from the ledger means no longer addressable. */
@@ -178,15 +179,21 @@ function resolveRootSessionId(sessionId: string, parentBySessionId: Map<string, 
   return rootSessionId;
 }
 
-function groupFamilies(entries: SessionHistory[], parentBySessionId: Map<string, string>): SessionFamilies {
-  const roots: SessionHistory[] = [];
+/**
+ * Group the ledger into families, ranked by the most recent timestamp anywhere in the family. Ties keep
+ * ledger order, which is creation order. Eviction and the session panel both rank through here.
+ */
+function rankSessionFamilies(entries: SessionHistory[]): SessionFamilies {
+  const parentBySessionId = resolveParentLinks(entries);
+  const rankedRoots: SessionHistory[] = [];
   const childrenByParentId = new Map<string, SessionHistory[]>();
+  const rootIdBySessionId = new Map<string, string>();
   const familyMaxByRootId = new Map<string, number>();
 
   for (const entry of entries) {
     const parentSessionId = parentBySessionId.get(entry.sessionId);
     if (parentSessionId === undefined) {
-      roots.push(entry);
+      rankedRoots.push(entry);
     } else {
       const siblings = childrenByParentId.get(parentSessionId);
       if (siblings) {
@@ -197,13 +204,21 @@ function groupFamilies(entries: SessionHistory[], parentBySessionId: Map<string,
     }
 
     const rootSessionId = resolveRootSessionId(entry.sessionId, parentBySessionId);
+    rootIdBySessionId.set(entry.sessionId, rootSessionId);
     const familyMax = familyMaxByRootId.get(rootSessionId);
     if (familyMax === undefined || entry.lastUpdatedTimestamp > familyMax) {
       familyMaxByRootId.set(rootSessionId, entry.lastUpdatedTimestamp);
     }
   }
 
-  return { roots, childrenByParentId, familyMaxByRootId };
+  // Array.prototype.sort is stable, so equal recency falls back to ledger order.
+  rankedRoots.sort(
+    (left, right) =>
+      (familyMaxByRootId.get(right.sessionId) ?? right.lastUpdatedTimestamp) -
+      (familyMaxByRootId.get(left.sessionId) ?? left.lastUpdatedTimestamp)
+  );
+
+  return { rankedRoots, childrenByParentId, rootIdBySessionId };
 }
 
 function appendSubtree(
@@ -233,18 +248,10 @@ function appendSubtree(
  * order they were branched, so a session keeps its place and the fork structure stays readable.
  */
 export function buildSessionTree(sessionHistory: SessionHistory[] | undefined): SessionHistoryNode[] {
-  const entries = sessionHistory ?? [];
-  const parentBySessionId = resolveParentLinks(entries);
-  const { roots, childrenByParentId, familyMaxByRootId } = groupFamilies(entries, parentBySessionId);
-
-  roots.sort(
-    (left, right) =>
-      (familyMaxByRootId.get(right.sessionId) ?? right.lastUpdatedTimestamp) -
-      (familyMaxByRootId.get(left.sessionId) ?? left.lastUpdatedTimestamp)
-  );
+  const { rankedRoots, childrenByParentId } = rankSessionFamilies(sessionHistory ?? []);
 
   const nodes: SessionHistoryNode[] = [];
-  for (const root of roots) {
+  for (const root of rankedRoots) {
     appendSubtree(root, 0, childrenByParentId, nodes);
   }
 
