@@ -1140,6 +1140,9 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
         for (const task of workingTasks.slice(1)) {
           await this.taskManager.updateTaskState(task.id, AGENT_TASK_STATE.OPEN);
         }
+      } else if (this.isResultForWaitingParent(state.messageSource, waitingParentTasks)) {
+        // Replay the interrupted result turn so it stays in its session and in the task chain
+        messageSource = state.messageSource;
       }
 
       log.info({ agentId, sourceType: messageSource.sourceType }, "Resume agent.");
@@ -1382,6 +1385,20 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
 
     return { waitingParentTasks, workingTasks };
+  }
+
+  /** Whether a source is a sub-task result reporting to one of the given waiting parent tasks */
+  private isResultForWaitingParent(
+    source: MessageSource | undefined,
+    waitingParentTasks: AgentTaskItem[]
+  ): source is Extract<MessageSource, { sourceType: typeof MESSAGE_SOURCE_TYPE.TASK_RESULT }> {
+    if (source?.sourceType !== MESSAGE_SOURCE_TYPE.TASK_RESULT) {
+      return false;
+    }
+
+    const parentTaskId = this.taskManager.getTask(source.taskId)?.parentTaskId;
+
+    return parentTaskId !== undefined && waitingParentTasks.some((task) => task.id === parentTaskId);
   }
 
   private getAgentRunner(agentId: string): AgentRunner {
