@@ -10,4 +10,6 @@ export interface ScheduleEditorFormState {
   timeMode: TimeModeType;
   times: SchedulerTime[];
   newSession: boolean;
+  /** Blank means no named session */
+  sessionName: string;
 }

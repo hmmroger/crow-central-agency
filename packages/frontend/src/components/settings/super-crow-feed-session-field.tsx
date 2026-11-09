@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { FeedNotificationSessionInput } from "../common/feed-notification-session-input.js";
+import { FEED_NOTIFICATION_SESSION_TEXT, SessionNameInput } from "../common/session-name-input.js";
 
 interface SuperCrowFeedSessionFieldProps {
   /** Saved value; remount the field (via key) when it changes to reset the draft */
@@ -21,5 +21,14 @@ export function SuperCrowFeedSessionField({ savedName, onSave, disabled }: Super
     onSave(trimmed || null);
   }, [draft, savedName, onSave]);
 
-  return <FeedNotificationSessionInput value={draft} onChange={setDraft} onBlur={handleBlur} disabled={disabled} />;
+  return (
+    <SessionNameInput
+      label={FEED_NOTIFICATION_SESSION_TEXT.label}
+      helpText={FEED_NOTIFICATION_SESSION_TEXT.helpText}
+      value={draft}
+      onChange={setDraft}
+      onBlur={handleBlur}
+      disabled={disabled}
+    />
+  );
 }

@@ -7,6 +7,7 @@ import { useCreateSchedule, useUpdateSchedule } from "../../hooks/queries/use-sc
 import type { ModalDialogHandle } from "../../providers/modal-dialog-provider.types.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../common/action-button.js";
 import { Toggle } from "../common/toggle.js";
+import { SessionNameInput } from "../common/session-name-input.js";
 import { FieldGroup } from "../agent-editor/field-group.js";
 import { formatScheduleTiming } from "../../utils/format-schedule-timing.js";
 import { ScheduleTimingPanel } from "./schedule-timing-panel.js";
@@ -51,6 +52,9 @@ export function ScheduleEditorDialogContent({ scheduleId, onClose, ref }: Schedu
     form.agentIds.length > 0 &&
     (isEditing ? isDirty : true);
 
+  const sessionName = form.sessionName.trim();
+  const hasSessionName = sessionName !== "";
+
   const handleSave = useCallback(async () => {
     const input: CreateScheduleInput = {
       name: form.name.trim(),
@@ -60,21 +64,22 @@ export function ScheduleEditorDialogContent({ scheduleId, onClose, ref }: Schedu
       daysOfWeek: form.daysOfWeek,
       timeMode: form.timeMode,
       times: form.times,
-      newSession: form.newSession,
+      // A named session never replaces the active one, so it rules out a new session
+      newSession: hasSessionName ? false : form.newSession,
     };
 
     try {
       if (scheduleId !== undefined) {
-        await updateSchedule.mutateAsync({ scheduleId, input });
+        await updateSchedule.mutateAsync({ scheduleId, input: { ...input, sessionName: sessionName || null } });
       } else {
-        await createSchedule.mutateAsync(input);
+        await createSchedule.mutateAsync({ ...input, sessionName: sessionName || undefined });
       }
 
       onClose();
     } catch {
       // Error surfaced via mutation.error
     }
-  }, [form, scheduleId, updateSchedule, createSchedule, onClose]);
+  }, [form, sessionName, hasSessionName, scheduleId, updateSchedule, createSchedule, onClose]);
 
   const handleCancel = useCallback(async () => {
     const allowed = await confirmDiscard();
@@ -132,9 +137,21 @@ export function ScheduleEditorDialogContent({ scheduleId, onClose, ref }: Schedu
           <ScheduleAgentSelect selectedAgentIds={form.agentIds} onToggle={editorForm.toggleAgent} />
         </FieldGroup>
 
+        <SessionNameInput
+          label="Session"
+          helpText="Each target agent runs this schedule in its own session with this name, created if missing, without changing the active session. Leave blank to use the active session."
+          value={form.sessionName}
+          onChange={editorForm.setSessionName}
+        />
+
         <div className="flex flex-col gap-2">
           <Toggle checked={form.enabled} onChange={editorForm.setEnabled} label="Enabled" />
-          <Toggle checked={form.newSession} onChange={editorForm.setNewSession} label="Run in a new session" />
+          <Toggle
+            checked={!hasSessionName && form.newSession}
+            onChange={editorForm.setNewSession}
+            disabled={hasSessionName}
+            label="Run in a new session"
+          />
         </div>
       </div>
 

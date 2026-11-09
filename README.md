@@ -9,7 +9,7 @@ Use it to build research crews, monitoring watchdogs, content pipelines, support
 - **Multi-agent dashboard** - run many agents in parallel, each with its own workspace, model, persona, and tool set. Agents can be backed by Claude Code or GitHub Copilot.
 - **GitHub Copilot agents** - alongside Claude Code, agents can run on the GitHub Copilot SDK using your Copilot subscription. Enabled by default; toggle off with `DISABLE_GITHUB_COPILOT`.
 - **Agent coordination** - compose agents into layered relationships that produce and share artifacts, adaptable to a wide range of workflows and scenarios.
-- **Flexible triggers** - ad-hoc chat, assigned tasks, reminders, or scheduled prompts on configurable day-of-week / time-of-day windows.
+- **Flexible triggers** - ad-hoc chat, assigned tasks, reminders, or scheduled prompts on configurable day-of-week / time-of-day windows. A schedule can run in a named session, so recurring work stays out of your active conversation. Results of work delegated from a named session (schedule or feed) come back to that session.
 - **Rich configuration** - per-agent MCP servers, permission modes, Discord bots, RSS feeds (with optional LLM summarization and new-item notifications routed to a named session, so they don't interrupt your active conversation), and AI-assisted persona / `AGENT.md` generation.
 - **Connectors** - per-agent identities for external services that the framework consumes to power built-in tool families. Each agent connects independently, so two agents can call the same provider (e.g. Gmail) under different accounts.
 - **OpenTelemetry export** - optional traces and metrics for every agent query (see below).

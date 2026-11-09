@@ -79,6 +79,13 @@ const log = logger.child({ context: "agent-runtime-manager" });
 /** Object store table name for agent runtime manager states */
 export const AGENT_RUNTIME_MANAGER_STORE_TABLE = "orchestrator-state";
 
+/** The named session a turn's message source asks it to run in */
+function getMessageSessionName(source?: MessageSource): string | undefined {
+  return source?.sourceType === MESSAGE_SOURCE_TYPE.TASK || source?.sourceType === MESSAGE_SOURCE_TYPE.TASK_RESULT
+    ? source.sessionName
+    : undefined;
+}
+
 /**
  * Agent runtime manager - central state machine that owns agent runtimes.
  */
@@ -495,7 +502,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   }
 
   /**
-   * Pick the session a turn runs in. A session name on a TASK source targets the most recently used
+   * Pick the session a turn runs in. A session name on a TASK or TASK_RESULT source targets the most recently used
    * ledger entry with that label: the active session runs a normal turn, any other session with a live
    * transcript runs a side turn, and otherwise a side turn starts a new session labeled with the name.
    */
@@ -504,7 +511,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     state: AgentRuntimeState,
     source: MessageSource
   ): Promise<TurnSession> {
-    const sessionName = source.sourceType === MESSAGE_SOURCE_TYPE.TASK ? source.sessionName : undefined;
+    const sessionName = getMessageSessionName(source);
     if (sessionName !== undefined) {
       const namedEntry = findSessionHistoryEntryByLabel(state.sessionHistory, sessionName);
       if (namedEntry === undefined) {
@@ -1124,10 +1131,18 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
       // Resume the first working task, reset others to OPEN
       const firstWorkingTask = head(workingTasks);
       if (firstWorkingTask) {
-        messageSource = { sourceType: MESSAGE_SOURCE_TYPE.TASK, taskId: firstWorkingTask.id };
+        // Never carry newSession: the session it asked for is already the active one holding the interrupted work
+        messageSource = {
+          sourceType: MESSAGE_SOURCE_TYPE.TASK,
+          taskId: firstWorkingTask.id,
+          sessionName: getMessageSessionName(state.messageSource),
+        };
         for (const task of workingTasks.slice(1)) {
           await this.taskManager.updateTaskState(task.id, AGENT_TASK_STATE.OPEN);
         }
+      } else if (this.isResultForWaitingParent(state.messageSource, waitingParentTasks)) {
+        // Replay the interrupted result turn so it stays in its session and in the task chain
+        messageSource = state.messageSource;
       }
 
       log.info({ agentId, sourceType: messageSource.sourceType }, "Resume agent.");
@@ -1370,6 +1385,20 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     }
 
     return { waitingParentTasks, workingTasks };
+  }
+
+  /** Whether a source is a sub-task result reporting to one of the given waiting parent tasks */
+  private isResultForWaitingParent(
+    source: MessageSource | undefined,
+    waitingParentTasks: AgentTaskItem[]
+  ): source is Extract<MessageSource, { sourceType: typeof MESSAGE_SOURCE_TYPE.TASK_RESULT }> {
+    if (source?.sourceType !== MESSAGE_SOURCE_TYPE.TASK_RESULT) {
+      return false;
+    }
+
+    const parentTaskId = this.taskManager.getTask(source.taskId)?.parentTaskId;
+
+    return parentTaskId !== undefined && waitingParentTasks.some((task) => task.id === parentTaskId);
   }
 
   private getAgentRunner(agentId: string): AgentRunner {

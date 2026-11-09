@@ -1,4 +1,10 @@
-import type { AgentTaskSourceType, AgentStatus, AgentTaskItem, AgentTaskState } from "@crow-central-agency/shared";
+import type {
+  AgentTaskSource,
+  AgentTaskSourceType,
+  AgentStatus,
+  AgentTaskItem,
+  AgentTaskState,
+} from "@crow-central-agency/shared";
 import { AGENT_STATUS, AGENT_TASK_SOURCE_TYPE, AGENT_TASK_STATE } from "@crow-central-agency/shared";
 import type { Routine } from "./routine-manager.types.js";
 import type { AgentRuntimeManager } from "../services/runtime/agent-runtime-manager.js";
@@ -180,6 +186,13 @@ const TASK_INCOMPLETE_PROMPT: MessageTemplate = {
 };
 
 const log = logger.child({ context: "inter-agent-task-routine" });
+
+/** The named session a task source asks its turns to run in */
+function getTaskSessionName(source: AgentTaskSource): string | undefined {
+  return source.sourceType === AGENT_TASK_SOURCE_TYPE.LOOP || source.sourceType === AGENT_TASK_SOURCE_TYPE.SYSTEM
+    ? source.sessionName
+    : undefined;
+}
 
 class InterAgentTaskRoutine {
   constructor(
@@ -378,15 +391,13 @@ class InterAgentTaskRoutine {
     const originateSource = nextTask.originateSource;
     const newSession =
       originateSource.sourceType === AGENT_TASK_SOURCE_TYPE.LOOP ? originateSource.newSession : undefined;
-    const sessionName =
-      originateSource.sourceType === AGENT_TASK_SOURCE_TYPE.SYSTEM ? originateSource.sessionName : undefined;
 
     this.runtimeManager
       .sendMessage(agentId, taskPrompt, {
         sourceType: MESSAGE_SOURCE_TYPE.TASK,
         taskId: nextTask.id,
         newSession,
-        sessionName,
+        sessionName: getTaskSessionName(originateSource),
       })
       .catch((error) => {
         log.error({ agentId, taskId: nextTask.id, error }, "Task send message failed");
@@ -441,6 +452,7 @@ class InterAgentTaskRoutine {
         .sendMessage(originateAgentId, notificationPrompt, {
           sourceType: MESSAGE_SOURCE_TYPE.TASK_RESULT,
           taskId: task.id,
+          sessionName: this.getParentTaskSessionName(task),
         })
         .catch((error) => {
           log.error(
@@ -463,6 +475,13 @@ class InterAgentTaskRoutine {
         log.error({ agentId: owningAgentId, error }, "Failed to notify target agent.");
       }
     }
+  }
+
+  /** The result of a sub-task follows the named session of the parent task it reports to */
+  private getParentTaskSessionName(subTask: AgentTaskItem): string | undefined {
+    const parentTask = subTask.parentTaskId ? this.taskManager.getTask(subTask.parentTaskId) : undefined;
+
+    return parentTask ? getTaskSessionName(parentTask.originateSource) : undefined;
   }
 
   private async getSubTasksStatus(
