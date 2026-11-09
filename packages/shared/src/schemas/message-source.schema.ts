@@ -29,7 +29,12 @@ export const MessageSourceSchema = z.discriminatedUnion("sourceType", [
     /** Run the turn in the session whose ledger label matches; takes precedence over `newSession` */
     sessionName: SessionLabelSchema.optional(),
   }),
-  z.object({ sourceType: z.literal(MESSAGE_SOURCE_TYPE.TASK_RESULT), taskId: z.string() }),
+  z.object({
+    sourceType: z.literal(MESSAGE_SOURCE_TYPE.TASK_RESULT),
+    taskId: z.string(),
+    /** Run the turn in the session whose ledger label matches, as on TASK */
+    sessionName: SessionLabelSchema.optional(),
+  }),
   z.object({ sourceType: z.literal(MESSAGE_SOURCE_TYPE.RECOVERY) }),
   z.object({ sourceType: z.literal(MESSAGE_SOURCE_TYPE.NOTIFICATION) }),
   z.object({

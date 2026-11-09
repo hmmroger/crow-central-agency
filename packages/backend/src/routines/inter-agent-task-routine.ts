@@ -452,6 +452,7 @@ class InterAgentTaskRoutine {
         .sendMessage(originateAgentId, notificationPrompt, {
           sourceType: MESSAGE_SOURCE_TYPE.TASK_RESULT,
           taskId: task.id,
+          sessionName: this.getParentTaskSessionName(task),
         })
         .catch((error) => {
           log.error(
@@ -474,6 +475,13 @@ class InterAgentTaskRoutine {
         log.error({ agentId: owningAgentId, error }, "Failed to notify target agent.");
       }
     }
+  }
+
+  /** The result of a sub-task follows the named session of the parent task it reports to */
+  private getParentTaskSessionName(subTask: AgentTaskItem): string | undefined {
+    const parentTask = subTask.parentTaskId ? this.taskManager.getTask(subTask.parentTaskId) : undefined;
+
+    return parentTask ? getTaskSessionName(parentTask.originateSource) : undefined;
   }
 
   private async getSubTasksStatus(

@@ -495,7 +495,7 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
   }
 
   /**
-   * Pick the session a turn runs in. A session name on a TASK source targets the most recently used
+   * Pick the session a turn runs in. A session name on a TASK or TASK_RESULT source targets the most recently used
    * ledger entry with that label: the active session runs a normal turn, any other session with a live
    * transcript runs a side turn, and otherwise a side turn starts a new session labeled with the name.
    */
@@ -504,7 +504,10 @@ export class AgentRuntimeManager extends EventBus<AgentRuntimeManagerEvents> {
     state: AgentRuntimeState,
     source: MessageSource
   ): Promise<TurnSession> {
-    const sessionName = source.sourceType === MESSAGE_SOURCE_TYPE.TASK ? source.sessionName : undefined;
+    const sessionName =
+      source.sourceType === MESSAGE_SOURCE_TYPE.TASK || source.sourceType === MESSAGE_SOURCE_TYPE.TASK_RESULT
+        ? source.sessionName
+        : undefined;
     if (sessionName !== undefined) {
       const namedEntry = findSessionHistoryEntryByLabel(state.sessionHistory, sessionName);
       if (namedEntry === undefined) {
