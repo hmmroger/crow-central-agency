@@ -42,8 +42,17 @@ export function useUpdateSchedule() {
     onMutate: async ({ scheduleId, input }) => {
       await queryClient.cancelQueries({ queryKey: scheduleKeys.list() });
       const previous = queryClient.getQueryData<Schedule[]>(scheduleKeys.list());
+      const { sessionName, ...fields } = input;
       queryClient.setQueryData<Schedule[]>(scheduleKeys.list(), (old) =>
-        old?.map((schedule) => (schedule.id === scheduleId ? { ...schedule, ...input } : schedule))
+        old?.map((schedule) =>
+          schedule.id === scheduleId
+            ? {
+                ...schedule,
+                ...fields,
+                sessionName: sessionName === undefined ? schedule.sessionName : (sessionName ?? undefined),
+              }
+            : schedule
+        )
       );
 
       return { previous };

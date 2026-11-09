@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DayOfWeekSchema, SchedulerTimeSchema, TIME_MODE, TimeModeSchema } from "./scheduler.schema.js";
+import { SessionLabelSchema } from "./session-history.schema.js";
 
 /** Maximum length of a schedule name, enforced on the create/update input path. */
 export const SCHEDULE_NAME_MAX_LENGTH = 64;
@@ -22,6 +23,8 @@ export const ScheduleSchema = z.object({
   timeMode: TimeModeSchema.default(TIME_MODE.EVERY),
   times: z.array(SchedulerTimeSchema).min(1).max(MAX_SCHEDULE_TIMES).default([{}]),
   newSession: z.boolean().default(false),
+  /** Session each target agent runs the fire in, named by ledger label; takes precedence over `newSession` */
+  sessionName: SessionLabelSchema.optional(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
   /** Epoch ms of the last fire; undefined until first fire. */
@@ -56,6 +59,8 @@ export const UpdateScheduleInputSchema = z.object({
   timeMode: TimeModeSchema.optional(),
   times: z.array(SchedulerTimeSchema).min(1).max(MAX_SCHEDULE_TIMES).optional(),
   newSession: z.boolean().optional(),
+  /** Absent leaves the session name unchanged; null clears it */
+  sessionName: SessionLabelSchema.nullish(),
 });
 
 export type UpdateScheduleInput = z.infer<typeof UpdateScheduleInputSchema>;

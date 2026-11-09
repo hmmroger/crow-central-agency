@@ -27,6 +27,7 @@ class AgentScheduleRoutine {
       sourceType: AGENT_TASK_SOURCE_TYPE.LOOP,
       scheduleId: schedule.id,
       newSession: schedule.newSession,
+      sessionName: schedule.sessionName,
     };
 
     // A failing agent is logged and skipped so it cannot abort the rest of the fan-out.

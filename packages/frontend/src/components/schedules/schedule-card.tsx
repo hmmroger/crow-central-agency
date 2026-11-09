@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { Pencil, Play, Trash2 } from "lucide-react";
+import { MessagesSquare, Pencil, Play, Trash2 } from "lucide-react";
 import type { Schedule } from "@crow-central-agency/shared";
 import { useAgentsContext } from "../../providers/agents-provider.js";
 import { useConfirmDialog } from "../../hooks/dialogs/use-confirm-dialog.js";
@@ -121,6 +121,15 @@ export function ScheduleCard({ schedule, onEdit }: ScheduleCardProps) {
         <div className="px-1.5 py-0.5 rounded text-3xs text-text-muted bg-surface-elevated border border-border-subtle font-mono">
           {formatScheduleTiming(schedule)}
         </div>
+        {schedule.sessionName !== undefined && (
+          <div
+            className="flex items-center gap-1 min-w-0 px-1.5 py-0.5 rounded text-3xs text-text-muted bg-surface-elevated border border-border-subtle"
+            title={`Runs in session "${schedule.sessionName}"`}
+          >
+            <MessagesSquare className="h-3 w-3 shrink-0" />
+            <span className="truncate">{schedule.sessionName}</span>
+          </div>
+        )}
       </div>
 
       <p className="text-xs text-text-muted mt-1.5 truncate">{schedule.message}</p>

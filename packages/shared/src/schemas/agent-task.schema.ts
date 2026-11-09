@@ -34,6 +34,8 @@ const LoopSourceSchema = z.object({
   scheduleId: z.string().optional(),
   /** Carries the schedule's new-session choice from fire time to dispatch */
   newSession: z.boolean().optional(),
+  /** Carries the schedule's session name from fire time to dispatch */
+  sessionName: SessionLabelSchema.optional(),
 });
 
 const ReminderSourceSchema = z.object({

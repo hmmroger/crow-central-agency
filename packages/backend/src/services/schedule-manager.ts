@@ -111,8 +111,13 @@ export class ScheduleManager extends EventBus<ScheduleManagerEvents> {
    */
   public async updateSchedule(scheduleId: string, input: UpdateScheduleInput): Promise<Schedule> {
     const existing = this.getSchedule(scheduleId);
-    const validated = UpdateScheduleInputSchema.parse(input);
-    const updated = ScheduleSchema.parse({ ...existing, ...validated, updatedAt: new Date().toISOString() });
+    const { sessionName, ...fields } = UpdateScheduleInputSchema.parse(input);
+    const updated = ScheduleSchema.parse({
+      ...existing,
+      ...fields,
+      sessionName: sessionName === undefined ? existing.sessionName : (sessionName ?? undefined),
+      updatedAt: new Date().toISOString(),
+    });
 
     await this.store.set(SCHEDULES_STORE_TABLE, scheduleId, updated);
     this.schedules.set(scheduleId, updated);

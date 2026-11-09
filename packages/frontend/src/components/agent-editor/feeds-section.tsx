@@ -1,6 +1,6 @@
 import type { ConfiguredFeed } from "@crow-central-agency/shared";
 import { FeedMultiSelect } from "../common/feed-multi-select.js";
-import { FeedNotificationSessionInput } from "../common/feed-notification-session-input.js";
+import { FEED_NOTIFICATION_SESSION_TEXT, SessionNameInput } from "../common/session-name-input.js";
 import { FieldGroup } from "./field-group.js";
 
 interface FeedsSectionProps {
@@ -25,7 +25,12 @@ export function FeedsSection({
   return (
     <FieldGroup label="Feeds">
       <div className="space-y-3">
-        <FeedNotificationSessionInput value={notificationSessionName} onChange={onNotificationSessionNameChange} />
+        <SessionNameInput
+          label={FEED_NOTIFICATION_SESSION_TEXT.label}
+          helpText={FEED_NOTIFICATION_SESSION_TEXT.helpText}
+          value={notificationSessionName}
+          onChange={onNotificationSessionNameChange}
+        />
         <FeedMultiSelect
           configuredFeeds={configuredFeeds}
           onToggle={onToggle}
