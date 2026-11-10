@@ -13,6 +13,7 @@ import { TABLE_EXIT } from "../../table-commands.types.js";
 import type { CommandTarget } from "../../markdown-commands.types.js";
 import type { WikilinkResolutionMap } from "../../../../../hooks/queries/use-wikilink-resolve-query.types.js";
 import { releaseImageElements } from "../../../../common/note-image/image-element.js";
+import { hasCommandModifier } from "../../../../../utils/platform-utils.js";
 import { openLinkUnderPointer, PRIMARY_BUTTON } from "../click-handler.js";
 import { setTableCellDraft } from "./table-cell-state.js";
 import type { ActiveTableCell } from "./table-cell-state.types.js";
@@ -40,6 +41,7 @@ const LINE_BREAK = "\n";
 const CARRIAGE_RETURN_PATTERN = /\r\n?/g;
 /** Browser rich-text shortcuts that would put markup into a cell that only holds markdown text */
 const RICH_TEXT_SHORTCUT_KEYS = new Set(["b", "i", "u"]);
+const SELECT_ALL_KEY = "a";
 const CARET_AT_END: CaretPlacement = { edge: CARET_EDGE.END };
 const CARET_AT_START: CaretPlacement = { edge: CARET_EDGE.START };
 /** What `WidgetType.estimatedHeight` reports for a height it does not know */
@@ -176,6 +178,25 @@ function placeCaret(cell: HTMLElement, placement: CaretPlacement): void {
   selection.collapse(cell, hasTrailingBreak(cell) ? cell.childNodes.length - 1 : cell.childNodes.length);
 }
 
+/** The browser's select-all reaches past the cell to the whole editor, so it is limited to the cell's text here. */
+function selectCellContents(cell: HTMLElement): void {
+  const selection = window.getSelection();
+
+  if (!selection) {
+    return;
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(cell);
+
+  if (hasTrailingBreak(cell) && cell.lastChild) {
+    range.setEndBefore(cell.lastChild);
+  }
+
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
 /** Focuses the active cell's element in `view` with the caret at `placement`; false when none is drawn. */
 export function focusActiveTableCell(view: EditorView, placement: CaretPlacement = CARET_AT_END): boolean {
   const cell = view.contentDOM.querySelector<HTMLElement>(`.${ACTIVE_TABLE_CELL_CLASS}`);
@@ -260,8 +281,17 @@ function handleKeydown(event: KeyboardEvent, view: EditorView): void {
     return;
   }
 
-  if ((event.ctrlKey || event.metaKey) && RICH_TEXT_SHORTCUT_KEYS.has(event.key.toLowerCase())) {
+  const hasPrimaryModifier = hasCommandModifier(event);
+
+  if (hasPrimaryModifier && RICH_TEXT_SHORTCUT_KEYS.has(event.key.toLowerCase())) {
     event.preventDefault();
+
+    return;
+  }
+
+  if (hasPrimaryModifier && !event.altKey && !event.shiftKey && event.key.toLowerCase() === SELECT_ALL_KEY) {
+    event.preventDefault();
+    selectCellContents(cell);
 
     return;
   }
