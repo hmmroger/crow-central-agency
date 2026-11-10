@@ -10,6 +10,7 @@ import { ACTIVE_TABLE_CELL_CLASS, focusActiveTableCell, TABLE_WIDGET_CLASS } fro
 
 const TABLE_DOC = "| a1 | b1 |\n| - | - |\n| a2 | b2 |\n| a3 | b3 |";
 const MULTI_LINE_TABLE_DOC = "| a1 | b1 |\n| - | - |\n| x<br>y | b2 |\n| a3 | b3 |";
+const TRAILING_BREAK_TABLE_DOC = "| a1 | b1 |\n| - | - |\n| a2 | b2<br> |";
 const DRAWN_TABLE_HEIGHT = 2400;
 
 const views: EditorView[] = [];
@@ -96,8 +97,8 @@ function getCaretOffset(view: EditorView): number {
   return range.toString().length;
 }
 
-function pressKey(view: EditorView, key: string): KeyboardEvent {
-  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+function pressKey(view: EditorView, key: string, modifiers: KeyboardEventInit = {}): KeyboardEvent {
+  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...modifiers });
   getActiveCellElement(view).dispatchEvent(event);
 
   return event;
@@ -283,5 +284,31 @@ describe("table cell arrow keys", () => {
 
     expect(pressKey(view, "ArrowDown").defaultPrevented).toBe(false);
     expect(getActivePosition(view)).toEqual([1, 0]);
+  });
+});
+
+describe("table cell select all", () => {
+  it("selects only the active cell's text", () => {
+    const view = mountTable(TABLE_DOC, 1, 1);
+    placeCaretAt(view, 0);
+
+    expect(pressKey(view, "a", { ctrlKey: true }).defaultPrevented).toBe(true);
+    expect(window.getSelection()?.toString()).toBe("b2");
+    expect(getActivePosition(view)).toEqual([1, 1]);
+  });
+
+  it("leaves out the display-only trailing line break", () => {
+    const view = mountTable(TRAILING_BREAK_TABLE_DOC, 1, 1);
+
+    pressKey(view, "a", { metaKey: true });
+
+    expect(window.getSelection()?.toString()).toBe("b2\n");
+  });
+
+  it("leaves Ctrl+Shift+A to the browser", () => {
+    const view = mountTable(TABLE_DOC, 1, 1);
+    placeCaretAt(view, 0);
+
+    expect(pressKey(view, "A", { ctrlKey: true, shiftKey: true }).defaultPrevented).toBe(false);
   });
 });
