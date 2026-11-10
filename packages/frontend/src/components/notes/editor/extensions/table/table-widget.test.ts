@@ -11,6 +11,7 @@ import { ACTIVE_TABLE_CELL_CLASS, focusActiveTableCell, TABLE_WIDGET_CLASS } fro
 const TABLE_DOC = "| a1 | b1 |\n| - | - |\n| a2 | b2 |\n| a3 | b3 |";
 const MULTI_LINE_TABLE_DOC = "| a1 | b1 |\n| - | - |\n| x<br>y | b2 |\n| a3 | b3 |";
 const TRAILING_BREAK_TABLE_DOC = "| a1 | b1 |\n| - | - |\n| a2 | b2<br> |";
+const MAC_PLATFORM = "MacIntel";
 const DRAWN_TABLE_HEIGHT = 2400;
 
 const views: EditorView[] = [];
@@ -300,7 +301,7 @@ describe("table cell select all", () => {
   it("leaves out the display-only trailing line break", () => {
     const view = mountTable(TRAILING_BREAK_TABLE_DOC, 1, 1);
 
-    pressKey(view, "a", { metaKey: true });
+    pressKey(view, "a", { ctrlKey: true });
 
     expect(window.getSelection()?.toString()).toBe("b2\n");
   });
@@ -310,5 +311,29 @@ describe("table cell select all", () => {
     placeCaretAt(view, 0);
 
     expect(pressKey(view, "A", { ctrlKey: true, shiftKey: true }).defaultPrevented).toBe(false);
+  });
+
+  it("leaves Cmd+A to the browser outside Apple platforms", () => {
+    const view = mountTable(TABLE_DOC, 1, 1);
+    placeCaretAt(view, 0);
+
+    expect(pressKey(view, "a", { metaKey: true }).defaultPrevented).toBe(false);
+  });
+
+  it("selects the cell's text with Cmd+A on Apple platforms", () => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(MAC_PLATFORM);
+    const view = mountTable(TABLE_DOC, 1, 1);
+    placeCaretAt(view, 0);
+
+    expect(pressKey(view, "a", { metaKey: true }).defaultPrevented).toBe(true);
+    expect(window.getSelection()?.toString()).toBe("b2");
+  });
+
+  it("leaves Ctrl+A line-start navigation to the browser on Apple platforms", () => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(MAC_PLATFORM);
+    const view = mountTable(TABLE_DOC, 1, 1);
+    placeCaretAt(view, 0);
+
+    expect(pressKey(view, "a", { ctrlKey: true }).defaultPrevented).toBe(false);
   });
 });

@@ -13,6 +13,7 @@ import { TABLE_EXIT } from "../../table-commands.types.js";
 import type { CommandTarget } from "../../markdown-commands.types.js";
 import type { WikilinkResolutionMap } from "../../../../../hooks/queries/use-wikilink-resolve-query.types.js";
 import { releaseImageElements } from "../../../../common/note-image/image-element.js";
+import { hasCommandModifier } from "../../../../../utils/platform-utils.js";
 import { openLinkUnderPointer, PRIMARY_BUTTON } from "../click-handler.js";
 import { setTableCellDraft } from "./table-cell-state.js";
 import type { ActiveTableCell } from "./table-cell-state.types.js";
@@ -280,7 +281,7 @@ function handleKeydown(event: KeyboardEvent, view: EditorView): void {
     return;
   }
 
-  const hasPrimaryModifier = event.ctrlKey || event.metaKey;
+  const hasPrimaryModifier = hasCommandModifier(event);
 
   if (hasPrimaryModifier && RICH_TEXT_SHORTCUT_KEYS.has(event.key.toLowerCase())) {
     event.preventDefault();
