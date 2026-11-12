@@ -16,7 +16,7 @@ export interface TreeNode<T = undefined> {
   iconClassName?: string;
   /** Whether the node can be expanded, however many children it has now */
   isExpandable: boolean;
-  /** Only the chevron expands the node; a row click never does */
+  /** Only the chevron or a row double-click expands the node; a single row click never does */
   isToggledByChevron?: boolean;
   children: TreeNode<T>[];
   data?: T;
