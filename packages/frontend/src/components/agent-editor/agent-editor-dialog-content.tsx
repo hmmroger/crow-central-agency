@@ -495,7 +495,7 @@ export function AgentEditorDialogContent({
                 <Sparkles className="h-3.5 w-3.5" />
               </button>
             </div>
-            <div className="flex-1 max-h-agentmd-editor">
+            <div className="shrink-0 h-agentmd-editor">
               <AgentMdEditor value={form.agentMd} onChange={editorForm.setAgentMd} />
             </div>
 
