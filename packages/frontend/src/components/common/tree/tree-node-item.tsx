@@ -76,6 +76,20 @@ export function TreeNodeItem<T>({
     onToggle(node);
   };
 
+  // A double-click on the chevron already toggled twice through its two clicks.
+  const handleChevronDoubleClick = (event: MouseEvent<HTMLSpanElement>) => {
+    event.stopPropagation();
+  };
+
+  // Keeps a double-click from selecting the label text.
+  const handleRowMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.detail > 1) {
+      event.preventDefault();
+    }
+  };
+
+  const isToggledByChevron = node.isExpandable && node.isToggledByChevron;
+
   return (
     <li
       role="treeitem"
@@ -110,12 +124,15 @@ export function TreeNodeItem<T>({
             node.isDisabled ? "cursor-default opacity-50" : "cursor-pointer"
           )}
           onClick={() => onActivate(node)}
+          onDoubleClick={isToggledByChevron ? () => onToggle(node) : undefined}
+          onMouseDown={isToggledByChevron ? handleRowMouseDown : undefined}
         >
-          {node.isExpandable && node.isToggledByChevron && (
+          {isToggledByChevron && (
             <span
               aria-hidden
               className="relative -my-1 -ml-2 -mr-5 flex shrink-0 items-center self-stretch pl-2 pr-5 text-text-muted hover:text-text-neutral"
               onClick={handleChevronClick}
+              onDoubleClick={handleChevronDoubleClick}
             >
               <Chevron className="h-3.5 w-3.5" />
             </span>
