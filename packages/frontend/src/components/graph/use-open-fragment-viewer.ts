@@ -13,13 +13,16 @@ export function fragmentViewerDialogId(fragmentId: string): string {
 /**
  * Hook to open a fragment in a read-only modal viewer. Cue and kind come from
  * the already-known graph node so the header paints before the body loads.
+ * A viewer already open lower in the stack is brought to the top.
  */
 export function useOpenFragmentViewer() {
-  const { showDialog } = useModalDialog();
+  const { showDialog, hideDialog } = useModalDialog();
   return useCallback(
     (fragmentId: string, cue: string, kind?: FragmentKind) => {
+      const dialogId = fragmentViewerDialogId(fragmentId);
+      hideDialog(dialogId);
       showDialog({
-        id: fragmentViewerDialogId(fragmentId),
+        id: dialogId,
         component: FragmentViewerDialog,
         componentProps: {
           fragmentId,
@@ -29,6 +32,6 @@ export function useOpenFragmentViewer() {
         className: "w-(--width-editor-dialog) max-w-2xl max-h-(--max-height-editor-dialog) flex flex-col",
       });
     },
-    [showDialog]
+    [showDialog, hideDialog]
   );
 }
