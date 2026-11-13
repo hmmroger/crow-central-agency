@@ -17,11 +17,11 @@
   --color-surface-secondary: oklch(18% 0.03 295);
 
   --color-primary: oklch(75.35% 0.138 232.6);
-  --color-message-highlight: color-mix(in oklab, var(--color-primary) 15%, transparent);
   --color-secondary: oklch(68% 0.12 295);
   --color-secondary-muted: oklch(38% 0.12 295);
 
   --color-accent: oklch(75% 0.076 70.697);
+  --color-accent-muted: oklch(45% 0.036 70.697);
   --color-accent-hover: oklch(85% 0.086 70.697);
 
   --color-border: oklch(28% 0.02 285);
@@ -42,6 +42,8 @@
   --color-glow: oklch(0.45 0.08 175);
   --color-glow-primary: oklch(0.5 0.1 192);
   --color-glow-accent: oklch(0.45 0.12 340);
+
+  --color-message-highlight: color-mix(in oklab, var(--color-primary) 15%, transparent);
 
   --text-3xs: 0.65rem;
   --text-2xs: 0.75rem;

@@ -184,8 +184,8 @@ export function AppHeader() {
       <button
         type="button"
         onClick={openDocumentPalette}
-        title="Find note or artifact (Ctrl/⌘+P)"
-        aria-label="Find note or artifact (Ctrl/⌘+P)"
+        title="Find note, artifact or fragment (Ctrl/⌘+P)"
+        aria-label="Find note, artifact or fragment (Ctrl/⌘+P)"
         className="mr-1 p-1.5 rounded-md text-text-muted hover:text-text-base hover:bg-surface-hover transition-colors"
       >
         <FileSearch className="h-4 w-4" />
