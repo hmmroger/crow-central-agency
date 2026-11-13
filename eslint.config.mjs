@@ -3,7 +3,7 @@ import eslint from "@eslint/js";
 import stylistic from "@stylistic/eslint-plugin";
 import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
-import importPlugin from "eslint-plugin-import-x";
+import importPlugin from "eslint-plugin-import-lite";
 
 export default defineConfig(
   {
