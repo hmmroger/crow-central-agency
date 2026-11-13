@@ -2,11 +2,14 @@ import { AGENT_STATUS } from "@crow-central-agency/shared";
 import { useAgentState } from "../../../hooks/use-agent-state.js";
 import { STATUS_DOT_COLOR, STATUS_LABEL } from "../../../utils/agent-status-display.js";
 import { cn } from "../../../utils/cn.js";
+import { CommandPaletteBadge } from "../../common/command-palette/command-palette-badge.js";
 
 interface AgentPaletteRowStatusProps {
   agentId: string;
   isCurrent: boolean;
 }
+
+const CURRENT_BADGE_LABEL = "Current";
 
 /** Trailing visuals of an agent palette row: live status dot and the Current badge */
 export function AgentPaletteRowStatus({ agentId, isCurrent }: AgentPaletteRowStatusProps) {
@@ -24,11 +27,7 @@ export function AgentPaletteRowStatus({ agentId, isCurrent }: AgentPaletteRowSta
         />
       )}
 
-      {isCurrent && (
-        <span className="shrink-0 px-1.5 py-0.5 rounded-xs bg-surface-inset text-3xs uppercase tracking-wider text-text-muted">
-          Current
-        </span>
-      )}
+      {isCurrent && <CommandPaletteBadge label={CURRENT_BADGE_LABEL} />}
     </>
   );
 }

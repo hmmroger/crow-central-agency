@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { FileBox, FilePlus, FileText } from "lucide-react";
+import { Brain, FileBox, FilePlus, FileText, type LucideIcon } from "lucide-react";
 import { DATA_SOURCE_TYPE, type ArtifactMetadata, type DocumentRef } from "@crow-central-agency/shared";
 import { useCirclesQuery } from "../../hooks/queries/use-circles-query.js";
 import { useSearchQuery } from "../../hooks/queries/use-search-query.js";
@@ -11,18 +11,27 @@ import { NOTES_SIDEBAR_TAB, useAppStore, VIEW_MODE } from "../../stores/app-stor
 import { getErrorMessage } from "../../utils/error-message.js";
 import { useOpenArtifactViewer } from "../agents/artifact/use-open-artifact-viewer.js";
 import { CommandPalette } from "../common/command-palette/command-palette.js";
+import { CommandPaletteBadge } from "../common/command-palette/command-palette-badge.js";
 import { CommandPaletteSectionLabel } from "../common/command-palette/command-palette-section-label.js";
 import type { CommandPaletteItem } from "../common/command-palette/command-palette.types.js";
+import { KIND_LABEL } from "../graph/fragment-kind-label.js";
+import { useOpenFragmentViewer } from "../graph/use-open-fragment-viewer.js";
 import { useNewNote } from "../notes/use-new-note.js";
 import {
   DOCUMENT_PALETTE_ACTION,
+  DOCUMENT_PALETTE_ENTRY_TYPE,
+  DOCUMENT_PALETTE_ENTRY_TYPE_LABEL,
   DOCUMENT_PALETTE_FILTER,
   DOCUMENT_PALETTE_FILTER_SOURCES,
   DOCUMENT_PALETTE_FILTERS,
   DOCUMENT_PALETTE_LABEL_ID,
+  type DocumentPaletteEntry,
+  type DocumentPaletteEntryType,
   type DocumentPaletteFilter,
+  type DocumentPaletteSource,
   type DocumentPaletteValue,
 } from "./document-palette.types.js";
+import { getFragmentHitKind } from "./get-fragment-hit-kind.js";
 import { resolveDocumentPaletteEntries } from "./resolve-document-palette-entries.js";
 import { DocumentPaletteFilterPills } from "./document-palette-filter-pills.js";
 
@@ -35,11 +44,17 @@ const DOCUMENT_PALETTE_ID_PREFIX = "document-palette";
 const SEARCH_DEBOUNCE_MS = 200;
 const RECENT_LABEL = "Recent";
 const QUICK_ACTIONS_LABEL = "Quick actions";
-const RESULTS_EMPTY_MESSAGE = "No notes or artifacts match";
+const RESULTS_EMPTY_MESSAGE = "No notes, artifacts or fragments match";
 const MISSING_ARTIFACT_MESSAGE = "This artifact no longer exists";
 const NEW_NOTE_KEY = "new-note";
 const NEW_NOTE_TITLE = "New note";
 const PALETTE_ICON_CLASS_NAME = "h-4 w-4";
+
+const ENTRY_TYPE_ICON: Record<DocumentPaletteEntryType, LucideIcon> = {
+  [DOCUMENT_PALETTE_ENTRY_TYPE.NOTE]: FileText,
+  [DOCUMENT_PALETTE_ENTRY_TYPE.ARTIFACT]: FileBox,
+  [DOCUMENT_PALETTE_ENTRY_TYPE.FRAGMENT]: Brain,
+};
 
 function cycleFilter(filter: DocumentPaletteFilter, step: number): DocumentPaletteFilter {
   const count = DOCUMENT_PALETTE_FILTERS.length;
@@ -76,6 +91,7 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
   );
   const goToNote = useAppStore((state) => state.goToNote);
   const openArtifactViewer = useOpenArtifactViewer();
+  const openFragmentViewer = useOpenFragmentViewer();
   const { destinationName, createNewNote } = useNewNote();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<DocumentPaletteFilter>(DOCUMENT_PALETTE_FILTER.ALL);
@@ -99,18 +115,22 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
 
   const circleNames = useMemo(() => new Map(circles?.map((circle) => [circle.id, circle.name])), [circles]);
 
-  const getOwnerName = useCallback(
-    (documentRef: DocumentRef) => {
-      switch (documentRef.dataSourceType) {
+  const getSubtitle = useCallback(
+    (document: DocumentPaletteSource) => {
+      switch (document.dataSourceType) {
         case DATA_SOURCE_TYPE.ARTIFACT:
-          return getAgent(documentRef.provenanceId)?.name;
+          return getAgent(document.provenanceId)?.name;
 
         case DATA_SOURCE_TYPE.CIRCLE_ARTIFACT:
-          return circleNames.get(documentRef.provenanceId);
+          return circleNames.get(document.provenanceId);
+
+        case DATA_SOURCE_TYPE.FRAGMENT: {
+          const kind = getFragmentHitKind(document);
+          return kind && KIND_LABEL[kind];
+        }
 
         case DATA_SOURCE_TYPE.NOTE:
         case DATA_SOURCE_TYPE.TASK:
-        case DATA_SOURCE_TYPE.FRAGMENT:
           return undefined;
       }
     },
@@ -120,29 +140,28 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
   const entries = useMemo(
     () =>
       isSearching
-        ? resolveDocumentPaletteEntries({ notes, documents: search.data ?? [], getOwnerName })
+        ? resolveDocumentPaletteEntries({ notes, documents: search.data ?? [], getSubtitle })
         : resolveDocumentPaletteEntries({
             notes,
             documents: recentDocuments,
-            getOwnerName,
+            getSubtitle,
             excludedNoteId: currentNoteId,
           }),
-    [isSearching, notes, search.data, getOwnerName, recentDocuments, currentNoteId]
+    [isSearching, notes, search.data, getSubtitle, recentDocuments, currentNoteId]
   );
 
   const items = useMemo(() => {
-    const paletteItems: CommandPaletteItem<DocumentPaletteValue>[] = entries.map((entry) => ({
-      key: entry.key,
-      title: entry.title,
-      subtitle: entry.subtitle,
-      leading:
-        entry.target.dataSourceType === DATA_SOURCE_TYPE.NOTE ? (
-          <FileText className={PALETTE_ICON_CLASS_NAME} />
-        ) : (
-          <FileBox className={PALETTE_ICON_CLASS_NAME} />
-        ),
-      value: { action: DOCUMENT_PALETTE_ACTION.OPEN_DOCUMENT, target: entry.target },
-    }));
+    const paletteItems: CommandPaletteItem<DocumentPaletteValue>[] = entries.map((entry) => {
+      const EntryIcon = ENTRY_TYPE_ICON[entry.type];
+      return {
+        key: entry.key,
+        title: entry.title,
+        subtitle: entry.subtitle,
+        leading: <EntryIcon className={PALETTE_ICON_CLASS_NAME} />,
+        trailing: <CommandPaletteBadge label={DOCUMENT_PALETTE_ENTRY_TYPE_LABEL[entry.type]} />,
+        value: { action: DOCUMENT_PALETTE_ACTION.OPEN_DOCUMENT, entry },
+      };
+    });
 
     if (!isSearching) {
       paletteItems.push({
@@ -237,7 +256,7 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
   }, [createNewNote, onClose, goToNote]);
 
   const openDocument = useCallback(
-    (target: DocumentRef) => {
+    ({ target, title }: DocumentPaletteEntry) => {
       switch (target.dataSourceType) {
         case DATA_SOURCE_TYPE.NOTE:
           goToNote(target.documentId);
@@ -249,12 +268,16 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
           void openArtifact(target);
           return;
 
-        case DATA_SOURCE_TYPE.TASK:
         case DATA_SOURCE_TYPE.FRAGMENT:
+          onClose();
+          openFragmentViewer(target.documentId, title, getFragmentHitKind(target));
+          return;
+
+        case DATA_SOURCE_TYPE.TASK:
           return;
       }
     },
-    [openArtifact, goToNote, onClose]
+    [openArtifact, openFragmentViewer, goToNote, onClose]
   );
 
   const handleSelect = useCallback(
@@ -265,7 +288,7 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
 
       switch (value.action) {
         case DOCUMENT_PALETTE_ACTION.OPEN_DOCUMENT:
-          openDocument(value.target);
+          openDocument(value.entry);
           return;
 
         case DOCUMENT_PALETTE_ACTION.NEW_NOTE:
@@ -282,9 +305,9 @@ export function DocumentPaletteDialog({ onClose }: DocumentPaletteDialogProps) {
     <CommandPalette
       idPrefix={DOCUMENT_PALETTE_ID_PREFIX}
       labelId={DOCUMENT_PALETTE_LABEL_ID}
-      title="Find note or artifact"
-      inputLabel="Search notes and artifacts"
-      placeholder="Search notes and artifacts…"
+      title="Find note, artifact or fragment"
+      inputLabel="Search notes, artifacts and fragments"
+      placeholder="Search notes, artifacts and fragments…"
       query={query}
       onQueryChange={handleQueryChange}
       onInputKeyDown={handleInputKeyDown}
