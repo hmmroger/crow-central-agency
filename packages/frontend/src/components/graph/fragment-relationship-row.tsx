@@ -4,6 +4,7 @@ import { ENTITY_TYPE, RELATIONSHIP_DIRECTION, type RelationshipDirection } from 
 import { ActionButton, ACTION_BUTTON_VARIANT } from "../common/action-button.js";
 import { KIND_LABEL } from "./fragment-kind-label.js";
 import type { FragmentRelationshipRow } from "./fragment-relationships-dialog.types.js";
+import { useOpenFragmentViewer } from "./use-open-fragment-viewer.js";
 
 interface FragmentRelationshipRowItemProps {
   row: FragmentRelationshipRow;
@@ -23,18 +24,40 @@ export function FragmentRelationshipRowItem({ row, onRemove, disabled = false }:
   const isFragment = node.entityType === ENTITY_TYPE.FRAGMENT;
   const label = node.name;
 
+  const openFragmentViewer = useOpenFragmentViewer();
+
   const handleRemove = useCallback(() => onRemove(row), [onRemove, row]);
+
+  const handleOpen = useCallback(
+    () => openFragmentViewer(node.id, node.name, node.kind),
+    [openFragmentViewer, node.id, node.name, node.kind]
+  );
+
+  const content = (
+    <>
+      {isFragment && node.kind && (
+        <span className="shrink-0 rounded-full border border-border-subtle px-2 py-0.5 text-3xs uppercase tracking-wider text-text-muted">
+          {KIND_LABEL[node.kind]}
+        </span>
+      )}
+      <span className="truncate text-xs text-text-base">{label}</span>
+    </>
+  );
 
   return (
     <div className="flex items-center justify-between gap-2 rounded-md border border-border-subtle bg-surface-inset px-2 py-1.5">
-      <div className="flex min-w-0 items-center gap-2">
-        {isFragment && node.kind && (
-          <span className="shrink-0 rounded-full border border-border-subtle px-2 py-0.5 text-3xs uppercase tracking-wider text-text-muted">
-            {KIND_LABEL[node.kind]}
-          </span>
-        )}
-        <span className="truncate text-xs text-text-base">{label}</span>
-      </div>
+      {isFragment ? (
+        <button
+          type="button"
+          onClick={handleOpen}
+          title={`Open ${label}`}
+          className="flex min-w-0 items-center gap-2 rounded-xs text-left hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+        >
+          {content}
+        </button>
+      ) : (
+        <div className="flex min-w-0 items-center gap-2">{content}</div>
+      )}
       <div className="flex shrink-0 items-center gap-2">
         <span className="text-3xs uppercase tracking-wider text-text-muted">{DIRECTION_LABEL[row.direction]}</span>
         <ActionButton
