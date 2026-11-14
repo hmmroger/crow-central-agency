@@ -151,6 +151,7 @@ function handleSystemMessage(
     case "worker_shutting_down":
     case "control_request_progress":
     case "background_tasks_changed":
+    case "session_writes_lost":
       break;
   }
 
