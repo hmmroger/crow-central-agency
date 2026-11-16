@@ -10,7 +10,7 @@ interface ArtifactTagEditorProps {
 }
 
 /**
- * Editable tag control for an owned artifact. Toggling a tag adds it when absent or removes
+ * Editable tag control for an artifact. Toggling a tag adds it when absent or removes
  * it when present, applying the delta via the tag-update mutation and refreshing on success.
  */
 export function ArtifactTagEditor({ artifact, availableTags, onUpdated }: ArtifactTagEditorProps) {

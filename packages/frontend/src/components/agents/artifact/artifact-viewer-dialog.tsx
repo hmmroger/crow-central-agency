@@ -5,7 +5,7 @@ import { ARTIFACT_CONTENT_TYPE, toArtifactDocumentRef } from "@crow-central-agen
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { ArtifactContentRenderer } from "./artifact-content-renderer.js";
 import { ArtifactTagList } from "./artifact-tag-list.js";
-import { canUserModifyArtifact } from "./artifact-permissions.js";
+import { canUserEditArtifactContent } from "./artifact-permissions.js";
 import { useArtifactContentQuery } from "../../../hooks/queries/use-artifact-content-query.js";
 import { useUpdateArtifactContent } from "../../../hooks/queries/use-artifact-mutations.js";
 import type { ModalDialogHandle } from "../../../providers/modal-dialog-provider.types.js";
@@ -30,7 +30,7 @@ interface ArtifactViewerDialogProps {
 
 /**
  * Modal content for viewing an artifact in a larger window, with inline raw-text editing for
- * user-owned text artifacts. Exposes a ModalDialogHandle so the renderer blocks dismiss while edits
+ * USER/SYSTEM-authored text artifacts. Exposes a ModalDialogHandle so the renderer blocks dismiss while edits
  * are unsaved. Designed to be used with `showDialog()` from the modal dialog provider.
  */
 export function ArtifactViewerDialog({ artifact, onClose, ref }: ArtifactViewerDialogProps) {
@@ -49,7 +49,9 @@ export function ArtifactViewerDialog({ artifact, onClose, ref }: ArtifactViewerD
   // Gate on the declared contentType, not the fetched type: adapter-backed binaries (e.g. .docx) are
   // converted to text for display but are not raw-text editable.
   const canEdit =
-    canUserModifyArtifact(artifact) && artifact.contentType === ARTIFACT_CONTENT_TYPE.TEXT && textContent !== undefined;
+    canUserEditArtifactContent(artifact) &&
+    artifact.contentType === ARTIFACT_CONTENT_TYPE.TEXT &&
+    textContent !== undefined;
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState("");

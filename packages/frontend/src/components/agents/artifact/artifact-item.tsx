@@ -2,7 +2,6 @@ import { CircleDot, FileText, Maximize2, Tag, Trash2 } from "lucide-react";
 import { ENTITY_TYPE } from "@crow-central-agency/shared";
 import type { ArtifactMetadata } from "@crow-central-agency/shared";
 import { formatRelativeTime, formatSize } from "../../../utils/format-utils.js";
-import { canUserModifyArtifact } from "./artifact-permissions.js";
 
 interface ArtifactItemProps {
   artifact: ArtifactMetadata;
@@ -14,12 +13,9 @@ interface ArtifactItemProps {
 /**
  * Single artifact list item with icon, filename, size, and timestamp.
  * Shows an expand button to open the viewer in a larger dialog, and a
- * delete button for artifacts the user owns or that have no agent author
- * (created by the user directly or attributed to SYSTEM).
+ * delete button when `onDelete` is provided (any artifact, regardless of author).
  */
 export function ArtifactItem({ artifact, onClick, onExpand, onDelete }: ArtifactItemProps) {
-  const canDelete = canUserModifyArtifact(artifact);
-
   const tags = artifact.tags ?? [];
   const tagCount = tags.length;
 
@@ -63,8 +59,8 @@ export function ArtifactItem({ artifact, onClick, onExpand, onDelete }: Artifact
           </button>
         )}
 
-        {/* Delete action for user-owned or system-attributed artifacts */}
-        {canDelete && onDelete && (
+        {/* Delete action — available for every artifact */}
+        {onDelete && (
           <button
             type="button"
             className="p-1 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-error transition-all"
