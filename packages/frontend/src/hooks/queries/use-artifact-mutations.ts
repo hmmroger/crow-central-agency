@@ -29,7 +29,7 @@ function isArtifactListQuery(queryKey: QueryKey): boolean {
 }
 
 /**
- * Apply an add/remove tag delta to an owned artifact, dispatching to the agent or circle
+ * Apply an add/remove tag delta to an artifact, dispatching to the agent or circle
  * endpoint by the artifact's entity type. Consumers refresh via their existing refetch
  * callback on success — this hook does not invalidate query keys itself.
  */
@@ -48,7 +48,7 @@ export function useUpdateArtifactTags() {
 }
 
 /**
- * Replace the raw text content of an owned artifact, dispatching to the agent or circle endpoint by
+ * Replace the raw text content of a USER/SYSTEM-authored artifact, dispatching to the agent or circle endpoint by
  * entity type and guarding the write with the artifact's current updatedTimestamp. On success the
  * cached content is written directly from the authoritative PATCH response (fresh metadata + the
  * bytes we just sent) so the viewer reflects the edit without a refetch, and the artifact lists are
