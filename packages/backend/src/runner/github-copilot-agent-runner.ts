@@ -2,6 +2,7 @@ import path from "node:path";
 import {
   AGENT_COMMAND,
   AGENT_STATUS,
+  CONFIG_SELECTION_MODE,
   MESSAGE_SOURCE_TYPE,
   PERMISSION_MODE,
   REASONING_EFFORT,
@@ -202,7 +203,10 @@ export class GithubCopilotAgentRunner extends AgentRunner {
           ? [userSkillDirectory()]
           : undefined,
       enableFileHooks: !agentConfig.settingSourceConfig?.disableFileHooks,
-      disabledSkills: agentConfig.settingSourceConfig?.disabledSkills,
+      // Enable-only mode needs the live skill list, so its blocked set is applied after discovery.
+      disabledSkills: this.isSkillAllowListMode(agentConfig)
+        ? undefined
+        : agentConfig.settingSourceConfig?.disabledSkills,
       mcpServers: this.buildMcpServers(serverConfigs),
       hooks: {
         onPreToolUse: async (input, invocation) => {
@@ -265,6 +269,11 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         sessionId: session.sessionId,
         discoveredSkills,
       };
+      await this.applySkillAllowList(
+        session,
+        agentConfig,
+        discoveredSkills.map((skill) => skill.name)
+      );
 
       const instSources = (await session.rpc.instructions.getSources()).sources.map((source) => source.id);
       yield {
@@ -421,6 +430,25 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     }
 
     await session.rpc.options.update({ disabledInstructionSources });
+  }
+
+  private isSkillAllowListMode(agentConfig: AgentConfig): boolean {
+    return agentConfig.settingSourceConfig?.skillSelectionMode === CONFIG_SELECTION_MODE.ENABLE_SELECTED;
+  }
+
+  /** Enable-only mode: block every live skill not on the allow list, so newly added skills start off. */
+  private async applySkillAllowList(
+    session: CopilotSession,
+    agentConfig: AgentConfig,
+    liveSkillNames: string[]
+  ): Promise<void> {
+    if (!this.isSkillAllowListMode(agentConfig)) {
+      return;
+    }
+
+    const enabledSkills = new Set(agentConfig.settingSourceConfig?.enabledSkills ?? []);
+    const disabledSkills = liveSkillNames.filter((skillName) => !enabledSkills.has(skillName));
+    await session.rpc.options.update({ disabledSkills });
   }
 
   /** Internal MCP servers become flat in-process tools; auto-approved ones skip the permission prompt. */

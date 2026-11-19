@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AGENT_TYPE,
   CLAUDE_DEFAULT_MODEL,
+  CONFIG_SELECTION_MODE,
   COPILOT_DEFAULT_MODEL,
   DEFAULT_SETTING_SOURCES,
   PERMISSION_MODE,
@@ -16,7 +17,7 @@ import {
   type SettingSource,
   type ToolMode,
 } from "@crow-central-agency/shared";
-import type { AgentDetailData, AgentEditorFormState } from "./agent-editor.types.js";
+import type { AgentDetailData, AgentEditorFormState, ConfigSelection } from "./agent-editor.types.js";
 import { BUILTIN_TOOL_SET_BY_TYPE } from "./tool-config/tool-constants.js";
 import { arraysEqual } from "../../utils/array-utils.js";
 
@@ -37,7 +38,7 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   disabledInstructionSources: [],
   instructionSources: [],
   discoveredSkills: [],
-  disabledSkills: [],
+  skillSelection: { mode: CONFIG_SELECTION_MODE.DISABLE_SELECTED, disabled: [], enabled: [] },
   toolMode: TOOL_MODE.UNRESTRICTED,
   selectedTools: [],
   autoApprovedTools: [],
@@ -122,7 +123,11 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     disabledInstructionSources: agent.settingSourceConfig?.disabledInstructionSources ?? [],
     instructionSources: agent.settingSourceConfig?.instructionSources ?? [],
     discoveredSkills: agent.settingSourceConfig?.discoveredSkills ?? [],
-    disabledSkills: agent.settingSourceConfig?.disabledSkills ?? [],
+    skillSelection: {
+      mode: agent.settingSourceConfig?.skillSelectionMode ?? CONFIG_SELECTION_MODE.DISABLE_SELECTED,
+      disabled: agent.settingSourceConfig?.disabledSkills ?? [],
+      enabled: agent.settingSourceConfig?.enabledSkills ?? [],
+    },
     toolMode: agent.toolConfig.mode,
     selectedTools: agent.toolConfig.tools ?? [],
     autoApprovedTools: agent.toolConfig.autoApprovedTools ?? [],
@@ -168,7 +173,7 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     formA.disableFileHooks === formB.disableFileHooks &&
     arraysEqual(formA.disabledInstructionSources, formB.disabledInstructionSources) &&
     // discoveredSkills is runtime-managed (not user-editable), so it is intentionally excluded here.
-    arraysEqual(formA.disabledSkills, formB.disabledSkills) &&
+    configSelectionEqual(formA.skillSelection, formB.skillSelection) &&
     arraysEqual(formA.selectedTools, formB.selectedTools) &&
     arraysEqual(formA.autoApprovedTools, formB.autoApprovedTools) &&
     arraysEqual(formA.disallowedTools, formB.disallowedTools) &&
@@ -188,6 +193,14 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     formA.voiceConfigEnabled === formB.voiceConfigEnabled &&
     formA.voiceName === formB.voiceName &&
     formA.voiceStylePrompt === formB.voiceStylePrompt
+  );
+}
+
+function configSelectionEqual(selectionA: ConfigSelection, selectionB: ConfigSelection): boolean {
+  return (
+    selectionA.mode === selectionB.mode &&
+    arraysEqual(selectionA.disabled, selectionB.disabled) &&
+    arraysEqual(selectionA.enabled, selectionB.enabled)
   );
 }
 
@@ -286,8 +299,8 @@ export function useAgentEditorForm(
     []
   );
 
-  const setDisabledSkills = useCallback(
-    (disabledSkills: string[]) => setForm((prev) => ({ ...prev, disabledSkills })),
+  const setSkillSelection = useCallback(
+    (skillSelection: ConfigSelection) => setForm((prev) => ({ ...prev, skillSelection })),
     []
   );
 
@@ -480,7 +493,7 @@ export function useAgentEditorForm(
     setSettingSources,
     setDisableFileHooks,
     setDisabledInstructionSources,
-    setDisabledSkills,
+    setSkillSelection,
     setToolMode,
     toggleTool,
     setPermissions,

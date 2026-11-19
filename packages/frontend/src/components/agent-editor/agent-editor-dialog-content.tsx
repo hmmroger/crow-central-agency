@@ -186,7 +186,9 @@ export function AgentEditorDialogContent({
         ? {
             disableFileHooks: form.disableFileHooks,
             disabledInstructionSources: form.disabledInstructionSources,
-            disabledSkills: form.disabledSkills,
+            skillSelectionMode: form.skillSelection.mode,
+            disabledSkills: form.skillSelection.disabled,
+            enabledSkills: form.skillSelection.enabled,
           }
         : undefined;
 
@@ -458,11 +460,11 @@ export function AgentEditorDialogContent({
                 instructionSources={form.instructionSources}
                 disabledInstructionSources={form.disabledInstructionSources}
                 discoveredSkills={form.discoveredSkills}
-                disabledSkills={form.disabledSkills}
+                skillSelection={form.skillSelection}
                 excludeSystemPrompt={form.excludeClaudeCodeSystemPrompt}
                 onDisableFileHooksChange={editorForm.setDisableFileHooks}
                 onDisabledInstructionSourcesChange={editorForm.setDisabledInstructionSources}
-                onDisabledSkillsChange={editorForm.setDisabledSkills}
+                onSkillSelectionChange={editorForm.setSkillSelection}
               />
             )}
 
