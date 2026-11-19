@@ -423,9 +423,12 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     agentConfig: AgentConfig,
     instSources: string[]
   ): Promise<void> {
-    const disabledSelection = agentConfig.settingSourceConfig?.disabledInstructionSources ?? [];
-    const disabledInstructionSources = disabledSelection.filter((id) => instSources.includes(id));
-    if (disabledInstructionSources.length === 0) {
+    const config = agentConfig.settingSourceConfig;
+    const isAllowListMode = config?.instructionSourceSelectionMode === CONFIG_SELECTION_MODE.ENABLE_SELECTED;
+    const disabledInstructionSources = isAllowListMode
+      ? this.excludeAllowed(instSources, config?.enabledInstructionSources)
+      : (config?.disabledInstructionSources ?? []).filter((id) => instSources.includes(id));
+    if (!isAllowListMode && disabledInstructionSources.length === 0) {
       return;
     }
 
@@ -446,9 +449,14 @@ export class GithubCopilotAgentRunner extends AgentRunner {
       return;
     }
 
-    const enabledSkills = new Set(agentConfig.settingSourceConfig?.enabledSkills ?? []);
-    const disabledSkills = liveSkillNames.filter((skillName) => !enabledSkills.has(skillName));
+    const disabledSkills = this.excludeAllowed(liveSkillNames, agentConfig.settingSourceConfig?.enabledSkills);
     await session.rpc.options.update({ disabledSkills });
+  }
+
+  /** Allow-list mode's blocked set: every live id not on the allow list. */
+  private excludeAllowed(liveIds: string[], allowedIds: string[] | undefined): string[] {
+    const allowed = new Set(allowedIds ?? []);
+    return liveIds.filter((liveId) => !allowed.has(liveId));
   }
 
   /** Internal MCP servers become flat in-process tools; auto-approved ones skip the permission prompt. */

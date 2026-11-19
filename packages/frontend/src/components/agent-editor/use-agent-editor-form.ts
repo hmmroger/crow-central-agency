@@ -35,7 +35,7 @@ const DEFAULT_FORM_STATE: AgentEditorFormState = {
   permissionMode: PERMISSION_MODE.DEFAULT,
   settingSources: [...DEFAULT_SETTING_SOURCES],
   disableFileHooks: false,
-  disabledInstructionSources: [],
+  instructionSourceSelection: { mode: CONFIG_SELECTION_MODE.DISABLE_SELECTED, disabled: [], enabled: [] },
   instructionSources: [],
   discoveredSkills: [],
   skillSelection: { mode: CONFIG_SELECTION_MODE.DISABLE_SELECTED, disabled: [], enabled: [] },
@@ -120,7 +120,11 @@ function formStateFromAgent(agent: AgentDetailData): AgentEditorFormState {
     permissionMode: agent.permissionMode,
     settingSources: agent.settingSources,
     disableFileHooks: agent.settingSourceConfig?.disableFileHooks ?? false,
-    disabledInstructionSources: agent.settingSourceConfig?.disabledInstructionSources ?? [],
+    instructionSourceSelection: {
+      mode: agent.settingSourceConfig?.instructionSourceSelectionMode ?? CONFIG_SELECTION_MODE.DISABLE_SELECTED,
+      disabled: agent.settingSourceConfig?.disabledInstructionSources ?? [],
+      enabled: agent.settingSourceConfig?.enabledInstructionSources ?? [],
+    },
     instructionSources: agent.settingSourceConfig?.instructionSources ?? [],
     discoveredSkills: agent.settingSourceConfig?.discoveredSkills ?? [],
     skillSelection: {
@@ -171,7 +175,7 @@ function isFormEqual(formA: AgentEditorFormState, formB: AgentEditorFormState): 
     arraysEqual(formA.settingSources, formB.settingSources) &&
     // instructionSources is runtime-managed (not user-editable), so it is intentionally excluded here.
     formA.disableFileHooks === formB.disableFileHooks &&
-    arraysEqual(formA.disabledInstructionSources, formB.disabledInstructionSources) &&
+    configSelectionEqual(formA.instructionSourceSelection, formB.instructionSourceSelection) &&
     // discoveredSkills is runtime-managed (not user-editable), so it is intentionally excluded here.
     configSelectionEqual(formA.skillSelection, formB.skillSelection) &&
     arraysEqual(formA.selectedTools, formB.selectedTools) &&
@@ -294,8 +298,8 @@ export function useAgentEditorForm(
     []
   );
 
-  const setDisabledInstructionSources = useCallback(
-    (disabledInstructionSources: string[]) => setForm((prev) => ({ ...prev, disabledInstructionSources })),
+  const setInstructionSourceSelection = useCallback(
+    (instructionSourceSelection: ConfigSelection) => setForm((prev) => ({ ...prev, instructionSourceSelection })),
     []
   );
 
@@ -492,7 +496,7 @@ export function useAgentEditorForm(
     setPermissionMode,
     setSettingSources,
     setDisableFileHooks,
-    setDisabledInstructionSources,
+    setInstructionSourceSelection,
     setSkillSelection,
     setToolMode,
     toggleTool,

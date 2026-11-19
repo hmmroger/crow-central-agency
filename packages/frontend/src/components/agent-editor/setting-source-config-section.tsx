@@ -11,13 +11,13 @@ import type { ConfigSelection } from "./agent-editor.types.js";
 interface SettingSourceConfigSectionProps {
   disableFileHooks: boolean;
   instructionSources: string[];
-  disabledInstructionSources: string[];
+  instructionSourceSelection: ConfigSelection;
   discoveredSkills: DiscoveredSkill[];
   skillSelection: ConfigSelection;
   /** When the preset prompt is excluded, the SDK's instructions section is dropped — only the instructions picker is inert. Skills load independently. */
   excludeSystemPrompt: boolean;
   onDisableFileHooksChange: (value: boolean) => void;
-  onDisabledInstructionSourcesChange: (disabledInstructionSources: string[]) => void;
+  onInstructionSourceSelectionChange: (instructionSourceSelection: ConfigSelection) => void;
   onSkillSelectionChange: (skillSelection: ConfigSelection) => void;
 }
 
@@ -30,12 +30,12 @@ interface SettingSourceConfigSectionProps {
 export function SettingSourceConfigSection({
   disableFileHooks,
   instructionSources,
-  disabledInstructionSources,
+  instructionSourceSelection,
   discoveredSkills,
   skillSelection,
   excludeSystemPrompt,
   onDisableFileHooksChange,
-  onDisabledInstructionSourcesChange,
+  onInstructionSourceSelectionChange,
   onSkillSelectionChange,
 }: SettingSourceConfigSectionProps) {
   const openInstructionSourcesDialog = useOpenInstructionSourcesDialog();
@@ -44,14 +44,14 @@ export function SettingSourceConfigSection({
   const handleOpenInstructionSourcesDialog = useCallback(() => {
     openInstructionSourcesDialog({
       instructionSources,
-      disabledInstructionSources,
-      onSave: onDisabledInstructionSourcesChange,
+      instructionSourceSelection,
+      onSave: onInstructionSourceSelectionChange,
     });
   }, [
     openInstructionSourcesDialog,
     instructionSources,
-    disabledInstructionSources,
-    onDisabledInstructionSourcesChange,
+    instructionSourceSelection,
+    onInstructionSourceSelectionChange,
   ]);
 
   const handleOpenSkillsDialog = useCallback(() => {
@@ -79,7 +79,7 @@ export function SettingSourceConfigSection({
         {hasInstructionSources && (
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs text-text-muted">
-              Instructions: {disabledInstructionSources.length} of {instructionSources.length} disabled
+              Instructions: <ConfigSelectionCount itemIds={instructionSources} selection={instructionSourceSelection} />
             </span>
             <ActionButton
               className="px-1.5 py-1"

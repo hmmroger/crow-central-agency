@@ -436,6 +436,8 @@ export const SettingSourceConfigSchema = z.object({
   disableFileHooks: z.boolean().optional(),
   instructionSources: z.array(z.string()).optional(),
   disabledInstructionSources: z.array(z.string()).optional(),
+  instructionSourceSelectionMode: ConfigSelectionModeSchema.optional(),
+  enabledInstructionSources: z.array(z.string()).optional(),
   discoveredSkills: z.array(DiscoveredSkillSchema).optional(),
   disabledSkills: z.array(z.string()).optional(),
   skillSelectionMode: ConfigSelectionModeSchema.optional(),

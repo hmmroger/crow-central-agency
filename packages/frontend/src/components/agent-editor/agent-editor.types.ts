@@ -40,7 +40,7 @@ export interface AgentEditorFormState {
   permissionMode: PermissionMode;
   settingSources: SettingSource[];
   disableFileHooks: boolean;
-  disabledInstructionSources: string[];
+  instructionSourceSelection: ConfigSelection;
   instructionSources: string[];
   discoveredSkills: DiscoveredSkill[];
   skillSelection: ConfigSelection;
