@@ -1,40 +1,42 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { DiscoveredSkill } from "@crow-central-agency/shared";
 import { Toggle } from "../common/toggle.js";
 import { ActionButton } from "../common/action-button.js";
 import { useOpenInstructionSourcesDialog } from "../../hooks/dialogs/use-open-instruction-sources-dialog.js";
 import { useOpenSkillsDialog } from "../../hooks/dialogs/use-open-skills-dialog.js";
 import { FieldGroup } from "./field-group.js";
+import { ConfigSelectionCount } from "./config-selection-count.js";
+import type { ConfigSelection } from "./agent-editor.types.js";
 
 interface SettingSourceConfigSectionProps {
   disableFileHooks: boolean;
   instructionSources: string[];
-  disabledInstructionSources: string[];
+  instructionSourceSelection: ConfigSelection;
   discoveredSkills: DiscoveredSkill[];
-  disabledSkills: string[];
+  skillSelection: ConfigSelection;
   /** When the preset prompt is excluded, the SDK's instructions section is dropped — only the instructions picker is inert. Skills load independently. */
   excludeSystemPrompt: boolean;
   onDisableFileHooksChange: (value: boolean) => void;
-  onDisabledInstructionSourcesChange: (disabledInstructionSources: string[]) => void;
-  onDisabledSkillsChange: (disabledSkills: string[]) => void;
+  onInstructionSourceSelectionChange: (instructionSourceSelection: ConfigSelection) => void;
+  onSkillSelectionChange: (skillSelection: ConfigSelection) => void;
 }
 
 /**
  * Copilot-only controls for ambient instruction/hook sources and skills: a toggle to skip
- * `.github/hooks` file hooks, plus buttons that open multi-select dialogs for disabling
- * individual instruction sources and skills the SDK discovered on the agent's last run.
+ * `.github/hooks` file hooks, plus buttons that open multi-select dialogs for choosing which
+ * instruction sources and skills the SDK discovered on the agent's last run are used.
  * Each picker only appears once a run has populated its list.
  */
 export function SettingSourceConfigSection({
   disableFileHooks,
   instructionSources,
-  disabledInstructionSources,
+  instructionSourceSelection,
   discoveredSkills,
-  disabledSkills,
+  skillSelection,
   excludeSystemPrompt,
   onDisableFileHooksChange,
-  onDisabledInstructionSourcesChange,
-  onDisabledSkillsChange,
+  onInstructionSourceSelectionChange,
+  onSkillSelectionChange,
 }: SettingSourceConfigSectionProps) {
   const openInstructionSourcesDialog = useOpenInstructionSourcesDialog();
   const openSkillsDialog = useOpenSkillsDialog();
@@ -42,24 +44,25 @@ export function SettingSourceConfigSection({
   const handleOpenInstructionSourcesDialog = useCallback(() => {
     openInstructionSourcesDialog({
       instructionSources,
-      disabledInstructionSources,
-      onSave: onDisabledInstructionSourcesChange,
+      instructionSourceSelection,
+      onSave: onInstructionSourceSelectionChange,
     });
   }, [
     openInstructionSourcesDialog,
     instructionSources,
-    disabledInstructionSources,
-    onDisabledInstructionSourcesChange,
+    instructionSourceSelection,
+    onInstructionSourceSelectionChange,
   ]);
 
   const handleOpenSkillsDialog = useCallback(() => {
     openSkillsDialog({
       discoveredSkills,
-      disabledSkills,
-      onSave: onDisabledSkillsChange,
+      skillSelection,
+      onSave: onSkillSelectionChange,
     });
-  }, [openSkillsDialog, discoveredSkills, disabledSkills, onDisabledSkillsChange]);
+  }, [openSkillsDialog, discoveredSkills, skillSelection, onSkillSelectionChange]);
 
+  const skillIds = useMemo(() => discoveredSkills.map((skill) => skill.name), [discoveredSkills]);
   const hasInstructionSources = instructionSources.length > 0;
   const hasDiscoveredSkills = discoveredSkills.length > 0;
 
@@ -76,7 +79,7 @@ export function SettingSourceConfigSection({
         {hasInstructionSources && (
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs text-text-muted">
-              Instructions: {disabledInstructionSources.length} of {instructionSources.length} disabled
+              Instructions: <ConfigSelectionCount itemIds={instructionSources} selection={instructionSourceSelection} />
             </span>
             <ActionButton
               className="px-1.5 py-1"
@@ -90,7 +93,7 @@ export function SettingSourceConfigSection({
         {hasDiscoveredSkills && (
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs text-text-muted">
-              Skills: {disabledSkills.length} of {discoveredSkills.length} disabled
+              Skills: <ConfigSelectionCount itemIds={skillIds} selection={skillSelection} />
             </span>
             <ActionButton className="px-1.5 py-1" label="Manage..." onClick={handleOpenSkillsDialog} />
           </div>

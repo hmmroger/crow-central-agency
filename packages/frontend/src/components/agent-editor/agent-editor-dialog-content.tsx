@@ -185,8 +185,12 @@ export function AgentEditorDialogContent({
       effectiveAgentType === AGENT_TYPE.GITHUB_COPILOT
         ? {
             disableFileHooks: form.disableFileHooks,
-            disabledInstructionSources: form.disabledInstructionSources,
-            disabledSkills: form.disabledSkills,
+            instructionSourceSelectionMode: form.instructionSourceSelection.mode,
+            disabledInstructionSources: form.instructionSourceSelection.disabled,
+            enabledInstructionSources: form.instructionSourceSelection.enabled,
+            skillSelectionMode: form.skillSelection.mode,
+            disabledSkills: form.skillSelection.disabled,
+            enabledSkills: form.skillSelection.enabled,
           }
         : undefined;
 
@@ -456,13 +460,13 @@ export function AgentEditorDialogContent({
               <SettingSourceConfigSection
                 disableFileHooks={form.disableFileHooks}
                 instructionSources={form.instructionSources}
-                disabledInstructionSources={form.disabledInstructionSources}
+                instructionSourceSelection={form.instructionSourceSelection}
                 discoveredSkills={form.discoveredSkills}
-                disabledSkills={form.disabledSkills}
+                skillSelection={form.skillSelection}
                 excludeSystemPrompt={form.excludeClaudeCodeSystemPrompt}
                 onDisableFileHooksChange={editorForm.setDisableFileHooks}
-                onDisabledInstructionSourcesChange={editorForm.setDisabledInstructionSources}
-                onDisabledSkillsChange={editorForm.setDisabledSkills}
+                onInstructionSourceSelectionChange={editorForm.setInstructionSourceSelection}
+                onSkillSelectionChange={editorForm.setSkillSelection}
               />
             )}
 

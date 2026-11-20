@@ -2,6 +2,7 @@ import path from "node:path";
 import {
   AGENT_COMMAND,
   AGENT_STATUS,
+  CONFIG_SELECTION_MODE,
   MESSAGE_SOURCE_TYPE,
   PERMISSION_MODE,
   REASONING_EFFORT,
@@ -202,7 +203,10 @@ export class GithubCopilotAgentRunner extends AgentRunner {
           ? [userSkillDirectory()]
           : undefined,
       enableFileHooks: !agentConfig.settingSourceConfig?.disableFileHooks,
-      disabledSkills: agentConfig.settingSourceConfig?.disabledSkills,
+      // Enable-only mode needs the live skill list, so its blocked set is applied after discovery.
+      disabledSkills: this.isSkillAllowListMode(agentConfig)
+        ? undefined
+        : agentConfig.settingSourceConfig?.disabledSkills,
       mcpServers: this.buildMcpServers(serverConfigs),
       hooks: {
         onPreToolUse: async (input, invocation) => {
@@ -265,6 +269,11 @@ export class GithubCopilotAgentRunner extends AgentRunner {
         sessionId: session.sessionId,
         discoveredSkills,
       };
+      await this.applySkillAllowList(
+        session,
+        agentConfig,
+        discoveredSkills.map((skill) => skill.name)
+      );
 
       const instSources = (await session.rpc.instructions.getSources()).sources.map((source) => source.id);
       yield {
@@ -414,13 +423,40 @@ export class GithubCopilotAgentRunner extends AgentRunner {
     agentConfig: AgentConfig,
     instSources: string[]
   ): Promise<void> {
-    const disabledSelection = agentConfig.settingSourceConfig?.disabledInstructionSources ?? [];
-    const disabledInstructionSources = disabledSelection.filter((id) => instSources.includes(id));
-    if (disabledInstructionSources.length === 0) {
+    const config = agentConfig.settingSourceConfig;
+    const isAllowListMode = config?.instructionSourceSelectionMode === CONFIG_SELECTION_MODE.ENABLE_SELECTED;
+    const disabledInstructionSources = isAllowListMode
+      ? this.excludeAllowed(instSources, config?.enabledInstructionSources)
+      : (config?.disabledInstructionSources ?? []).filter((id) => instSources.includes(id));
+    if (!isAllowListMode && disabledInstructionSources.length === 0) {
       return;
     }
 
     await session.rpc.options.update({ disabledInstructionSources });
+  }
+
+  private isSkillAllowListMode(agentConfig: AgentConfig): boolean {
+    return agentConfig.settingSourceConfig?.skillSelectionMode === CONFIG_SELECTION_MODE.ENABLE_SELECTED;
+  }
+
+  /** Enable-only mode: block every live skill not on the allow list, so newly added skills start off. */
+  private async applySkillAllowList(
+    session: CopilotSession,
+    agentConfig: AgentConfig,
+    liveSkillNames: string[]
+  ): Promise<void> {
+    if (!this.isSkillAllowListMode(agentConfig)) {
+      return;
+    }
+
+    const disabledSkills = this.excludeAllowed(liveSkillNames, agentConfig.settingSourceConfig?.enabledSkills);
+    await session.rpc.options.update({ disabledSkills });
+  }
+
+  /** Allow-list mode's blocked set: every live id not on the allow list. */
+  private excludeAllowed(liveIds: string[], allowedIds: string[] | undefined): string[] {
+    const allowed = new Set(allowedIds ?? []);
+    return liveIds.filter((liveId) => !allowed.has(liveId));
   }
 
   /** Internal MCP servers become flat in-process tools; auto-approved ones skip the permission prompt. */

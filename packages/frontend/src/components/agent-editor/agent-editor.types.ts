@@ -1,5 +1,6 @@
 import type {
   AgentThinkingConfig,
+  ConfigSelectionMode,
   ConfiguredFeed,
   DiscoveredSkill,
   ReasoningEffort,
@@ -9,6 +10,21 @@ import type {
 } from "@crow-central-agency/shared";
 
 export type { AgentDetailData } from "../../hooks/queries/use-agent-query.js";
+
+/** A customize-config list's mode plus each mode's own selection, so switching modes loses nothing. */
+export interface ConfigSelection {
+  mode: ConfigSelectionMode;
+  disabled: string[];
+  enabled: string[];
+}
+
+/** One selectable row in a customize-config dialog; `id` is the value stored in the selection lists. */
+export interface ConfigSelectionItem {
+  key: string;
+  id: string;
+  label: string;
+  detail?: string;
+}
 
 /** Form state for the agent editor - all editable fields */
 export interface AgentEditorFormState {
@@ -24,10 +40,10 @@ export interface AgentEditorFormState {
   permissionMode: PermissionMode;
   settingSources: SettingSource[];
   disableFileHooks: boolean;
-  disabledInstructionSources: string[];
+  instructionSourceSelection: ConfigSelection;
   instructionSources: string[];
   discoveredSkills: DiscoveredSkill[];
-  disabledSkills: string[];
+  skillSelection: ConfigSelection;
   toolMode: ToolMode;
   selectedTools: string[];
   autoApprovedTools: string[];

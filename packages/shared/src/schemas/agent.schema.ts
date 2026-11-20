@@ -416,12 +416,32 @@ export const DiscoveredSkillSchema = z.object({
 
 export type DiscoveredSkill = z.infer<typeof DiscoveredSkillSchema>;
 
+/**
+ * How a customize-config list is interpreted: block the selected items (newly discovered items are on),
+ * or enable only the selected items (newly discovered items are off). Absent = disable selected.
+ */
+export const CONFIG_SELECTION_MODE = {
+  DISABLE_SELECTED: "disable_selected",
+  ENABLE_SELECTED: "enable_selected",
+} as const;
+
+export type ConfigSelectionMode = (typeof CONFIG_SELECTION_MODE)[keyof typeof CONFIG_SELECTION_MODE];
+
+export const ConfigSelectionModeSchema = z.enum([
+  CONFIG_SELECTION_MODE.DISABLE_SELECTED,
+  CONFIG_SELECTION_MODE.ENABLE_SELECTED,
+]);
+
 export const SettingSourceConfigSchema = z.object({
   disableFileHooks: z.boolean().optional(),
   instructionSources: z.array(z.string()).optional(),
   disabledInstructionSources: z.array(z.string()).optional(),
+  instructionSourceSelectionMode: ConfigSelectionModeSchema.optional(),
+  enabledInstructionSources: z.array(z.string()).optional(),
   discoveredSkills: z.array(DiscoveredSkillSchema).optional(),
   disabledSkills: z.array(z.string()).optional(),
+  skillSelectionMode: ConfigSelectionModeSchema.optional(),
+  enabledSkills: z.array(z.string()).optional(),
 });
 
 export const SettingSourceConfigInputSchema = SettingSourceConfigSchema.omit({
