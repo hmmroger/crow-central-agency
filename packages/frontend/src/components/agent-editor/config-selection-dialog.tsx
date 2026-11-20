@@ -21,8 +21,8 @@ const MODE_OPTIONS: { mode: ConfigSelectionMode; label: string }[] = [
 
 /**
  * Multi-select dialog for a customize-config list with a disable-selected / enable-only-selected
- * mode toggle. Each mode keeps its own selection. Allow-list entries no longer discovered are
- * preserved on save so they apply again if the item returns.
+ * mode toggle. Each mode keeps its own selection. Entries in either list that are no longer
+ * discovered are preserved on save so they apply again if the item returns.
  */
 export function ConfigSelectionDialog({ items, selection, itemNoun, onSave, onClose }: ConfigSelectionDialogProps) {
   const [draft, setDraft] = useState<ConfigSelection>(selection);
@@ -57,16 +57,20 @@ export function ConfigSelectionDialog({ items, selection, itemNoun, onSave, onCl
 
   const handleSave = useCallback(() => {
     const discoveredIds = new Set(itemIds);
-    const enabledIds = new Set(draft.enabled);
-    const disabledIds = new Set(draft.disabled);
-    const undiscoveredEnabled = selection.enabled.filter((itemId) => !discoveredIds.has(itemId));
+    const mergeSelection = (draftIds: string[], savedIds: string[]) => {
+      const selectedIds = new Set(draftIds);
+      return itemIds
+        .filter((itemId) => selectedIds.has(itemId))
+        .concat(savedIds.filter((itemId) => !discoveredIds.has(itemId)));
+    };
+
     onSave({
       mode: draft.mode,
-      disabled: itemIds.filter((itemId) => disabledIds.has(itemId)),
-      enabled: itemIds.filter((itemId) => enabledIds.has(itemId)).concat(undiscoveredEnabled),
+      disabled: mergeSelection(draft.disabled, selection.disabled),
+      enabled: mergeSelection(draft.enabled, selection.enabled),
     });
     onClose();
-  }, [itemIds, draft, selection.enabled, onSave, onClose]);
+  }, [itemIds, draft, selection, onSave, onClose]);
 
   const hasActiveSelection = itemIds.some((itemId) => activeIds.has(itemId));
 
