@@ -1,5 +1,7 @@
 import { useMemo, useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
-import { lexMarkdown, renderMarkdown } from "../../../utils/marked-config";
+import { FIND_CURRENT_CLASS, lexMarkdown, renderMarkdown } from "../../../utils/marked-config";
+import { toTokenMarks } from "../find/markdown-find";
+import type { MarkdownFindInput } from "../find/markdown-find.types";
 import { renderMermaidDiagram } from "../../../utils/mermaid-render";
 import { useWikilinkResolveQuery } from "../../../hooks/queries/use-wikilink-resolve-query";
 import { useAppStore } from "../../../stores/app-store";
@@ -32,12 +34,14 @@ interface MarkdownRendererProps {
   content: string;
   className?: string;
   isStreaming?: boolean;
+  /** The content's find document and matches; its lexed tokens are rendered in place of `content` */
+  find?: MarkdownFindInput;
 }
 
 /**
  * Renders markdown content with mermaid diagram support
  */
-export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, className, isStreaming, find }: MarkdownRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   useMermaidViewport(containerRef);
   // Optional: MarkdownRenderer is general-purpose and may render outside a
@@ -48,8 +52,17 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   const showDialog = useOptionalModalDialog()?.showDialog;
 
   // Memoize parsed HTML with copy buttons and embed chrome injected
-  const lexed = useMemo(() => lexMarkdown(content), [content]);
-  const html = useMemo(() => injectHtmlviewChrome(injectCopyButtons(renderMarkdown(lexed))), [lexed]);
+  const findDocument = find?.document;
+  const findMatches = find?.matches;
+  const currentMatchIndex = find?.currentIndex;
+  const lexed = useMemo(() => findDocument?.lexed ?? lexMarkdown(content), [findDocument, content]);
+  const marks = useMemo(
+    () =>
+      findDocument && findMatches ? toTokenMarks(findDocument.findText, findMatches, currentMatchIndex) : undefined,
+    [findDocument, findMatches, currentMatchIndex]
+  );
+  const html = useMemo(() => injectHtmlviewChrome(injectCopyButtons(renderMarkdown(lexed, marks))), [lexed, marks]);
+  const hasCurrentMatch = currentMatchIndex !== undefined;
   const [drawnBlocks] = useState(() => new MarkdownDrawnBlocks());
   const { data: resolutions } = useWikilinkResolveQuery(lexed.wikilinkTargets);
   const goToNote = useAppStore((state) => state.goToNote);
@@ -72,6 +85,12 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   }, [html, isStreaming, drawnBlocks]);
 
   useEffect(() => () => drawnBlocks.release(), [drawnBlocks]);
+
+  useEffect(() => {
+    if (hasCurrentMatch) {
+      containerRef.current?.querySelector(`.${FIND_CURRENT_CLASS}`)?.scrollIntoView({ block: "center" });
+    }
+  }, [html, hasCurrentMatch]);
 
   useEffect(() => {
     const container = containerRef.current;

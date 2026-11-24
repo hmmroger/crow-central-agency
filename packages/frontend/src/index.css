@@ -44,6 +44,8 @@
   --color-glow-accent: oklch(0.45 0.12 340);
 
   --color-message-highlight: color-mix(in oklab, var(--color-primary) 15%, transparent);
+  --color-find-match: color-mix(in oklab, var(--color-accent) 30%, transparent);
+  --color-find-current: color-mix(in oklab, var(--color-accent) 85%, transparent);
 
   --text-3xs: 0.65rem;
   --text-2xs: 0.75rem;
@@ -216,6 +218,18 @@
     @apply text-sm leading-relaxed;
     color: var(--color-text-base);
     overflow-wrap: break-word;
+
+    & mark.find-match {
+      background: var(--color-find-match);
+      color: inherit;
+      border-radius: var(--radius-sm);
+    }
+
+    & mark.find-current {
+      background: var(--color-find-current);
+      color: var(--color-text-primary);
+      border-radius: var(--radius-sm);
+    }
 
     & h1,
     & h2,
