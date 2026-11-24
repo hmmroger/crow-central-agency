@@ -23,4 +23,6 @@ export interface MarkdownFindInput {
   document: MarkdownDocument;
   matches: FindRange[];
   currentIndex?: number;
+  /** Changes each time the host moves to a match, so the renderer scrolls even when it lands on the same one */
+  revealStep: number;
 }

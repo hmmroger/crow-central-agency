@@ -62,7 +62,7 @@ export function MarkdownRenderer({ content, className, isStreaming, find }: Mark
     [findDocument, findMatches, currentMatchIndex]
   );
   const html = useMemo(() => injectHtmlviewChrome(injectCopyButtons(renderMarkdown(lexed, marks))), [lexed, marks]);
-  const hasCurrentMatch = currentMatchIndex !== undefined;
+  const revealStep = find?.revealStep;
   const [drawnBlocks] = useState(() => new MarkdownDrawnBlocks());
   const { data: resolutions } = useWikilinkResolveQuery(lexed.wikilinkTargets);
   const goToNote = useAppStore((state) => state.goToNote);
@@ -87,10 +87,10 @@ export function MarkdownRenderer({ content, className, isStreaming, find }: Mark
   useEffect(() => () => drawnBlocks.release(), [drawnBlocks]);
 
   useEffect(() => {
-    if (hasCurrentMatch) {
+    if (revealStep !== undefined) {
       containerRef.current?.querySelector(`.${FIND_CURRENT_CLASS}`)?.scrollIntoView({ block: "center" });
     }
-  }, [html, hasCurrentMatch]);
+  }, [revealStep]);
 
   useEffect(() => {
     const container = containerRef.current;
