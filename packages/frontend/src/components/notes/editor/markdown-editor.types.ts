@@ -24,7 +24,7 @@ export interface MarkdownEditorHandle {
   setFindQuery: (query: FindQuery | undefined) => void;
   findNext: () => void;
   findPrevious: () => void;
-  /** The non-empty single-line selection, to start a query from */
+  /** The non-empty selection's source, multi-line included, to start a query from */
   getFindSelection: () => string | undefined;
 }
 

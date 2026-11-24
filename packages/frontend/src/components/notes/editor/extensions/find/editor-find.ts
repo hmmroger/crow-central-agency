@@ -2,15 +2,14 @@ import { EditorSelection, type Extension, type Range } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { FIND_CURRENT_CLASS, FIND_MARK_TAG, FIND_MATCH_CLASS } from "../../../../../utils/marked-config.js";
 import type { FindQuery } from "../../../../common/find/find.types.js";
-import { getSelectedText } from "../../markdown-commands.js";
 import { findTableAround } from "../../table-commands.js";
+import { toCellMarkdown } from "../table/table-cell-content.js";
 import { isTableCellActive } from "../table/table-cell-state.js";
 import { ACTIVE_TABLE_CELL_CLASS } from "../table/table-widget.js";
 import { findStateField, getFindState, setFindCurrent, setFindQuery } from "./find-state.js";
 
 const MATCH_MARK = Decoration.mark({ class: FIND_MATCH_CLASS, tagName: FIND_MARK_TAG });
 const CURRENT_MARK = Decoration.mark({ class: FIND_CURRENT_CLASS, tagName: FIND_MARK_TAG });
-const LINE_BREAK = "\n";
 
 /** Marks every match in the visible ranges; a table draws its own cells' marks */
 class FindHighlightPlugin {
@@ -83,12 +82,16 @@ export function stepFind(view: EditorView, offset: number): void {
   }
 }
 
-/** The non-empty single-line selection to start a query from; in an active table cell, its own selection */
+/**
+ * The non-empty selection's source to start a query from, multi-line included; in an active table cell,
+ * its own selection turned back into the cell's source, so the query finds what was selected.
+ */
 export function getFindSelectionText(view: EditorView): string | undefined {
   if (!isTableCellActive(view.state)) {
-    const selectedText = getSelectedText(view.state);
+    const { from, to } = view.state.selection.main;
+    const selectedText = view.state.sliceDoc(from, to);
 
-    return selectedText?.trim() ? selectedText : undefined;
+    return selectedText.trim() ? selectedText : undefined;
   }
 
   const cell = view.contentDOM.querySelector(`.${ACTIVE_TABLE_CELL_CLASS}`);
@@ -100,7 +103,7 @@ export function getFindSelectionText(view: EditorView): string | undefined {
 
   const text = selection.toString();
 
-  return text.trim() && !text.includes(LINE_BREAK) ? text : undefined;
+  return text.trim() ? toCellMarkdown(text) : undefined;
 }
 
 export function editorFind(): Extension {

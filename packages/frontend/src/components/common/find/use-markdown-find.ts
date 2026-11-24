@@ -21,8 +21,6 @@ interface MarkdownFindState {
   revealStep: number;
 }
 
-const LINE_BREAK = "\n";
-
 /**
  * A find surface over one markdown item: its document is lexed once, matched against the query, and
  * recounted whenever the content changes. Returns the renderer's find input.
@@ -72,7 +70,7 @@ export function useMarkdownFind({
         }
 
         const text = selection.toString();
-        return text.trim() && !text.includes(LINE_BREAK) ? text : undefined;
+        return text.trim() ? text : undefined;
       },
       focus: () => containerRef.current?.focus(),
     }),

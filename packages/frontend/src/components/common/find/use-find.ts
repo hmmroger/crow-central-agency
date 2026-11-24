@@ -14,7 +14,7 @@ const FIND_KEY = "f";
 export function useFind(isEnabled: boolean, surfaceKey: string) {
   const { openDialogIds } = useModalDialog();
   const surfaceRef = useRef<FindSurfaceHandle>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [isCaseSensitive, setIsCaseSensitive] = useState(false);

@@ -5,7 +5,7 @@ import { ACTION_BUTTON_VARIANT, ActionButton } from "../action-button.js";
 import type { FindResult } from "./find.types.js";
 
 interface FindBarProps {
-  inputRef: RefObject<HTMLInputElement | null>;
+  inputRef: RefObject<HTMLTextAreaElement | null>;
   query: string;
   isCaseSensitive: boolean;
   /** Undefined until the surface reports for the current query */
@@ -19,8 +19,9 @@ interface FindBarProps {
 
 const QUERY_LABEL = "Find";
 const NO_RESULTS_LABEL = "No results";
+const LINE_BREAK = "\n";
 
-/** Display-only find bar: the query, its match count, stepping, match case and close */
+/** Display-only find bar: the query, its match count, stepping, match case and close; the query may span lines */
 export function FindBar({
   inputRef,
   query,
@@ -44,32 +45,38 @@ export function FindBar({
         return;
       }
 
-      if (event.key === "Enter" && event.target === inputRef.current && !hasCommandModifier(event.nativeEvent)) {
-        event.preventDefault();
-        if (event.shiftKey) {
-          onPrevious();
-        } else {
-          onNext();
-        }
+      const input = inputRef.current;
+      if (event.key !== "Enter" || !input || event.target !== input) {
+        return;
+      }
+
+      event.preventDefault();
+      if (hasCommandModifier(event.nativeEvent)) {
+        input.setRangeText(LINE_BREAK, input.selectionStart, input.selectionEnd, "end");
+        onQueryChange(input.value);
+      } else if (event.shiftKey) {
+        onPrevious();
+      } else {
+        onNext();
       }
     },
-    [inputRef, onClose, onNext, onPrevious]
+    [inputRef, onClose, onNext, onPrevious, onQueryChange]
   );
 
   return (
     <div
       role="search"
-      className="flex items-center gap-1.5 border-b border-border-subtle px-3 py-1.5"
+      className="flex items-start gap-1.5 border-b border-border-subtle px-3 py-1.5"
       onKeyDown={handleKeyDown}
     >
-      <input
+      <textarea
         ref={inputRef}
-        type="text"
+        rows={query.split(LINE_BREAK).length}
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
         aria-label={QUERY_LABEL}
         placeholder={QUERY_LABEL}
-        className="min-w-0 flex-1 rounded-md border border-border bg-surface-inset px-2 py-1 text-xs text-text-base outline-none focus:border-border-focus"
+        className="min-w-0 flex-1 max-h-40 resize-none overflow-y-auto rounded-md border border-border bg-surface-inset px-2 py-1 text-xs text-text-base outline-none focus:border-border-focus"
       />
       <span role="status" className="shrink-0 text-2xs text-text-muted">
         {status}
