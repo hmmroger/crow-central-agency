@@ -17,6 +17,17 @@ import type { MarkdownEditorProps } from "./markdown-editor.types.js";
 // The EditContext input path misbehaves in the app; CodeMirror's typings do not declare the switch.
 Reflect.set(EditorView, "EDIT_CONTEXT", false);
 
+/** A text field outside the editor, such as the find input, keeps focus when the editor is rebuilt */
+function isTextFieldFocused(): boolean {
+  const { activeElement } = document;
+
+  return (
+    activeElement instanceof HTMLInputElement ||
+    activeElement instanceof HTMLTextAreaElement ||
+    (activeElement instanceof HTMLElement && activeElement.isContentEditable)
+  );
+}
+
 export function MarkdownEditor({
   noteId,
   markdown,
@@ -101,7 +112,11 @@ export function MarkdownEditor({
     });
 
     viewRef.current = view;
-    view.focus();
+
+    if (!isTextFieldFocused()) {
+      view.focus();
+    }
+
     reporter.report(view.state);
     onEditorReadyRef.current(new MarkdownEditorController(view));
 

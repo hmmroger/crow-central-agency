@@ -86,7 +86,9 @@ export function stepFind(view: EditorView, offset: number): void {
 /** The non-empty single-line selection to start a query from; in an active table cell, its own selection */
 export function getFindSelectionText(view: EditorView): string | undefined {
   if (!isTableCellActive(view.state)) {
-    return getSelectedText(view.state);
+    const selectedText = getSelectedText(view.state);
+
+    return selectedText?.trim() ? selectedText : undefined;
   }
 
   const cell = view.contentDOM.querySelector(`.${ACTIVE_TABLE_CELL_CLASS}`);
