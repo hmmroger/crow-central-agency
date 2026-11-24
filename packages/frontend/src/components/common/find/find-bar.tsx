@@ -8,7 +8,8 @@ interface FindBarProps {
   inputRef: RefObject<HTMLInputElement | null>;
   query: string;
   isCaseSensitive: boolean;
-  result: FindResult;
+  /** Undefined until the surface reports for the current query */
+  result?: FindResult;
   onQueryChange: (query: string) => void;
   onCaseSensitiveToggle: () => void;
   onNext: () => void;
@@ -31,8 +32,9 @@ export function FindBar({
   onPrevious,
   onClose,
 }: FindBarProps) {
-  const hasMatches = result.total > 0;
+  const hasMatches = result !== undefined && result.total > 0;
   const count = hasMatches ? `${(result.currentIndex ?? 0) + 1} of ${result.total}` : NO_RESULTS_LABEL;
+  const status = query && result ? count : "";
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
@@ -69,7 +71,9 @@ export function FindBar({
         placeholder={QUERY_LABEL}
         className="min-w-0 flex-1 rounded-md border border-border bg-surface-inset px-2 py-1 text-xs text-text-base outline-none focus:border-border-focus"
       />
-      {query && <span className="shrink-0 text-2xs text-text-muted">{count}</span>}
+      <span role="status" className="shrink-0 text-2xs text-text-muted">
+        {status}
+      </span>
       <ActionButton
         icon={CaseSensitive}
         label="Match case"

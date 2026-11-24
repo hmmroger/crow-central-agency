@@ -4,7 +4,6 @@ import { hasCommandModifier } from "../../../utils/platform-utils.js";
 import type { FindResult, FindSurfaceHandle } from "./find.types.js";
 
 const FIND_KEY = "f";
-const EMPTY_RESULT: FindResult = { total: 0 };
 
 /**
  * The host side of find: the bar's open state, query, match case and last result, and Ctrl/⌘+F.
@@ -18,7 +17,7 @@ export function useFind(isEnabled: boolean) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [isCaseSensitive, setIsCaseSensitive] = useState(false);
-  const [result, setResult] = useState<FindResult>(EMPTY_RESULT);
+  const [result, setResult] = useState<FindResult>();
   const [focusRequest, setFocusRequest] = useState(0);
   const isActive = isOpen && isEnabled;
 
@@ -56,6 +55,7 @@ export function useFind(isEnabled: boolean) {
           setQuery(selectionQuery);
         }
 
+        setResult(undefined);
         setIsOpen(true);
       }
 

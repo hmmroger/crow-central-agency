@@ -41,7 +41,7 @@ export function useMarkdownFind({
 
   useEffect(() => {
     onResult({ currentIndex, total: matches.length });
-  }, [onResult, currentIndex, matches.length]);
+  }, [onResult, query, currentIndex, matches.length]);
 
   const step = useCallback(
     (offset: number) => {
