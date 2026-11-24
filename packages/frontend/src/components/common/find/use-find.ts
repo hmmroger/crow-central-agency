@@ -26,6 +26,7 @@ export function useFind(isEnabled: boolean) {
       surfaceRef.current?.setQuery({ text: query, isCaseSensitive });
     } else {
       surfaceRef.current?.clear();
+      setResult(undefined);
     }
   }, [isActive, query, isCaseSensitive]);
 
