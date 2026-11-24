@@ -1,10 +1,11 @@
-import { useMemo, useEffect, useRef, useState, useCallback } from "react";
+import { useMemo, useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { lexMarkdown, renderMarkdown } from "../../../utils/marked-config";
 import { renderMermaidDiagram } from "../../../utils/mermaid-render";
 import { useWikilinkResolveQuery } from "../../../hooks/queries/use-wikilink-resolve-query";
 import { useAppStore } from "../../../stores/app-store";
 import { readHtmlviewSource, renderHtmlviews } from "./markdown-htmlview-renderer";
 import { renderMarkdownWikilinks } from "./markdown-wikilink-renderer";
+import { MarkdownDrawnBlocks } from "./markdown-drawn-blocks";
 import { HtmlviewEmbedDialog } from "../dialogs/htmlview-embed-dialog";
 import { useOptionalModalDialog } from "../../../providers/modal-dialog-provider";
 import { cn } from "../../../utils/cn";
@@ -49,82 +50,37 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   // Memoize parsed HTML with copy buttons and embed chrome injected
   const lexed = useMemo(() => lexMarkdown(content), [content]);
   const html = useMemo(() => injectHtmlviewChrome(injectCopyButtons(renderMarkdown(lexed))), [lexed]);
-  const [renderedHtml, setRenderedHtml] = useState(html);
+  const [drawnBlocks] = useState(() => new MarkdownDrawnBlocks());
   const { data: resolutions } = useWikilinkResolveQuery(lexed.wikilinkTargets);
   const goToNote = useAppStore((state) => state.goToNote);
-  const innerHtml = useMemo(() => ({ __html: renderedHtml }), [renderedHtml]);
+  const innerHtml = useMemo(() => ({ __html: html }), [html]);
 
-  // Render mermaid diagrams after mount (skip during streaming)
-  useEffect(() => {
-    const container = containerRef.current;
-    if (isStreaming || !container) {
-      setRenderedHtml(html);
-      return;
-    }
-
-    const hasPendingMermaid = container.querySelectorAll(".mermaid-container:not([data-rendered])").length;
-    if (!hasPendingMermaid) {
-      setRenderedHtml(html);
-      return;
-    }
-
-    const mermaidContainers = container.querySelectorAll(".mermaid-container");
-    const renderDiagrams = async () => {
-      await Promise.all(
-        Array.from(mermaidContainers).map(async (el, index) => {
-          const source = el.textContent || "";
-          const isRendered = !!el.getAttribute("data-rendered");
-          if (source && !isRendered) {
-            try {
-              el.setAttribute("data-rendered", "true");
-              const diagram = await renderMermaidDiagram(source);
-              const currentContainers = containerRef.current?.querySelectorAll(".mermaid-container");
-              if (currentContainers && currentContainers.length > index) {
-                const postEl = currentContainers[index];
-                postEl.setAttribute("data-rendered", "true");
-                postEl.replaceChildren(createMermaidViewport(diagram, true));
-              }
-            } catch (error) {
-              el.setAttribute("data-rendered", "true");
-              const errorPre = document.createElement("pre");
-              errorPre.className = "text-xs text-error";
-              errorPre.textContent = `Mermaid Error: ${error}`;
-              el.replaceChildren(errorPre);
-            }
-          }
-        })
-      );
-
-      if (containerRef.current) {
-        setRenderedHtml(containerRef.current?.innerHTML);
-      }
-    };
-
-    renderDiagrams();
-  }, [html, isStreaming]);
-
-  // Mount htmlview embeds into shadow roots. Depends on renderedHtml (not html)
-  // so it re-runs after the mermaid re-serialization rewrites the
-  // container's innerHTML — that drops the (non-serialized) shadow root, and
-  // this pass re-attaches from the escaped source preserved in light DOM.
-  useEffect(() => {
+  // Before paint, so a recommitted page never shows its blocks undrawn.
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (isStreaming || !container) {
       return;
     }
 
+    drawnBlocks.restore(container);
     renderHtmlviews(container);
-  }, [renderedHtml, isStreaming]);
+    for (const mermaidContainer of Array.from(
+      container.querySelectorAll<HTMLElement>(".mermaid-container:not([data-rendered])")
+    )) {
+      void drawMermaid(mermaidContainer);
+    }
+  }, [html, isStreaming, drawnBlocks]);
 
-  // Same trigger as the embeds: re-run after the mermaid pass replaces the DOM.
+  useEffect(() => () => drawnBlocks.release(), [drawnBlocks]);
+
   useEffect(() => {
     const container = containerRef.current;
     if (isStreaming || !container || !resolutions) {
       return;
     }
 
-    return renderMarkdownWikilinks(container, resolutions, (note) => goToNote(note.id));
-  }, [renderedHtml, isStreaming, resolutions, goToNote]);
+    return renderMarkdownWikilinks(container, resolutions, drawnBlocks.embedResolutions, (note) => goToNote(note.id));
+  }, [html, isStreaming, resolutions, goToNote, drawnBlocks]);
 
   // Event delegation: handles code-copy, mermaid expand and embed chrome buttons.
   const handleContainerClick = useCallback(
@@ -230,6 +186,23 @@ function injectHtmlviewChrome(html: string): string {
     /(<div class="htmlview-embed"><template class="htmlview-source">[\s\S]*?<\/template><\/div>)/g,
     `${HTMLVIEW_CHROME}$1`
   );
+}
+
+async function drawMermaid(mermaidContainer: HTMLElement): Promise<void> {
+  const source = mermaidContainer.textContent ?? "";
+  if (!source) {
+    return;
+  }
+
+  mermaidContainer.setAttribute("data-rendered", "true");
+  try {
+    mermaidContainer.replaceChildren(createMermaidViewport(await renderMermaidDiagram(source), true));
+  } catch (error) {
+    const errorPre = document.createElement("pre");
+    errorPre.className = "text-xs text-error";
+    errorPre.textContent = `Mermaid Error: ${error}`;
+    mermaidContainer.replaceChildren(errorPre);
+  }
 }
 
 function copyHtmlviewSource(button: HTMLElement, source: string): void {

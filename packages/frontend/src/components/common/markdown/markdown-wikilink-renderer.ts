@@ -31,17 +31,14 @@ function markLink(resolutions: WikilinkResolutionMap, link: HTMLElement): void {
   }
 }
 
-/** Replaces whatever the embed held, including a serialized copy of an earlier render, without releasing it. */
-function drawEmbed(resolutions: WikilinkResolutionMap, embed: HTMLElement): HTMLElement | undefined {
+function drawEmbed(resolutions: WikilinkResolutionMap, embed: HTMLElement): void {
   const target = embed.getAttribute(MARKDOWN_WIKILINK_TARGET_ATTRIBUTE);
   if (target === null) {
-    return undefined;
+    return;
   }
 
-  const image = createImageElement(resolutions.get(target), target);
-  embed.replaceChildren(image);
-
-  return image;
+  releaseImageElements(embed);
+  embed.replaceChildren(createImageElement(resolutions.get(target), target));
 }
 
 function findLinkEvent(event: Event, container: HTMLElement): Element | undefined {
@@ -52,23 +49,23 @@ function findLinkEvent(event: Event, container: HTMLElement): Element | undefine
 
 /**
  * Brings rendered wikilink placeholders to life from the resolve answers: a link to a note opens it on
- * click or Enter, an unresolved link is styled and inert, and an embed draws its image. Returns the
- * cleanup, which lets go of the images.
+ * click or Enter, an unresolved link is styled and inert, and an embed not yet drawn from these answers
+ * draws its image. Returns the cleanup, which removes the listeners; the drawn images stay with their embeds.
  */
 export function renderMarkdownWikilinks(
   container: HTMLElement,
   resolutions: WikilinkResolutionMap,
+  embedResolutions: WeakMap<Element, WikilinkResolutionMap>,
   onOpenNote: (note: NoteMetadata) => void
 ): () => void {
   for (const link of Array.from(container.querySelectorAll<HTMLElement>(`.${MARKDOWN_WIKILINK_CLASS}`))) {
     markLink(resolutions, link);
   }
 
-  const images: HTMLElement[] = [];
   for (const embed of Array.from(container.querySelectorAll<HTMLElement>(`.${MARKDOWN_WIKI_EMBED_CLASS}`))) {
-    const image = drawEmbed(resolutions, embed);
-    if (image) {
-      images.push(image);
+    if (embedResolutions.get(embed) !== resolutions) {
+      drawEmbed(resolutions, embed);
+      embedResolutions.set(embed, resolutions);
     }
   }
 
@@ -90,9 +87,5 @@ export function renderMarkdownWikilinks(
   return () => {
     container.removeEventListener("click", handleActivate);
     container.removeEventListener("keydown", handleActivate);
-
-    for (const image of images) {
-      releaseImageElements(image);
-    }
   };
 }
