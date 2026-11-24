@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ENTITY_TYPE } from "@crow-central-agency/shared";
+import { ENTITY_TYPE, NOTE_CONTENT_TYPE } from "@crow-central-agency/shared";
+import { FindBar } from "../common/find/find-bar.js";
+import { useFind } from "../common/find/use-find.js";
 import { useNotesContext } from "../../providers/notes-provider.js";
 import { noteKeys } from "../../services/query-keys.js";
 import { useAppStore } from "../../stores/app-store.js";
@@ -32,6 +34,8 @@ export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
   const editorRef = useRef<NoteEditorHandle>(null);
   const note = noteId ? getNote(noteId) : undefined;
+  const isTextNote = note?.entityType === ENTITY_TYPE.NOTE && note.contentType === NOTE_CONTENT_TYPE.TEXT;
+  const find = useFind(isTextNote && (note.isReadOnly || isNoteReadMode));
 
   // Saved content never reaches the content cache, so the draft is written
   // before the editor goes, and the cached entry is dropped so whichever
@@ -72,11 +76,25 @@ export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
         }
       />
 
+      {find.isOpen && (
+        <FindBar
+          inputRef={find.inputRef}
+          query={find.query}
+          isCaseSensitive={find.isCaseSensitive}
+          result={find.result}
+          onQueryChange={find.setQuery}
+          onCaseSensitiveToggle={find.toggleCaseSensitive}
+          onNext={find.next}
+          onPrevious={find.previous}
+          onClose={find.close}
+        />
+      )}
+
       <div className="flex-1 min-h-0">
         {isEditing ? (
           <NoteEditor ref={editorRef} note={note} onUnsavedChange={setIsUnsaved} />
         ) : (
-          <NoteReader note={note} />
+          <NoteReader note={note} findRef={find.surfaceRef} onFindResult={find.onResult} />
         )}
       </div>
     </div>
