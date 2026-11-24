@@ -26,6 +26,8 @@ interface NoteEditorProps {
   ref?: Ref<NoteEditorHandle>;
   findRef: Ref<FindSurfaceHandle>;
   onFindResult: (result?: FindResult) => void;
+  /** Asked whenever the editor is built, a reload included; false leaves focus where it is */
+  shouldFocusOnMount: () => boolean;
 }
 
 const CONFLICT_ERROR_CODE = "conflict";
@@ -47,7 +49,7 @@ function getStatusAlert(isConflict: boolean, errorMessage?: string): EditorStatu
  * or a newer token on the note, written elsewhere, reseeds the editor. The host
  * can flush the draft through `ref` before it swaps the editor out.
  */
-export function NoteEditor({ note, onUnsavedChange, ref, findRef, onFindResult }: NoteEditorProps) {
+export function NoteEditor({ note, onUnsavedChange, ref, findRef, onFindResult, shouldFocusOnMount }: NoteEditorProps) {
   const [editor, setEditor] = useState<MarkdownEditorHandle>();
   const [formatState, setFormatState] = useState<EditorFormatState>();
   const [status, setStatus] = useState<EditorStatus>();
@@ -287,6 +289,7 @@ export function NoteEditor({ note, onUnsavedChange, ref, findRef, onFindResult }
         onStatusChange={setStatus}
         onWikilinkOpen={handleWikilinkOpen}
         onFindResultChange={onFindResult}
+        shouldFocusOnMount={shouldFocusOnMount}
         className="flex-1 min-h-0"
       />
       {status && (

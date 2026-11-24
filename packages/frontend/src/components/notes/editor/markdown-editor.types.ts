@@ -85,5 +85,7 @@ export interface MarkdownEditorProps {
   onWikilinkOpen: (request: WikilinkOpenRequest) => void;
   /** Called on mount and whenever the find result changes; `undefined` while there is no query */
   onFindResultChange: (result: FindResult | undefined) => void;
+  /** Asked each time the view is built, a reseed included; the editor takes focus when it returns true */
+  shouldFocusOnMount: () => boolean;
   className?: string;
 }

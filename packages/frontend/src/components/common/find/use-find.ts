@@ -75,6 +75,10 @@ export function useFind(isEnabled: boolean, surfaceKey: string) {
   const next = useCallback(() => surfaceRef.current?.next(), []);
   const previous = useCallback(() => surfaceRef.current?.previous(), []);
   const toggleCaseSensitive = useCallback(() => setIsCaseSensitive((value) => !value), []);
+  const isQueryFocused = useCallback(
+    () => inputRef.current !== null && inputRef.current === inputRef.current.ownerDocument.activeElement,
+    []
+  );
 
   const close = useCallback(() => {
     setIsOpen(false);
@@ -93,6 +97,7 @@ export function useFind(isEnabled: boolean, surfaceKey: string) {
     next,
     previous,
     close,
+    isQueryFocused,
     onResult: setResult,
   };
 }

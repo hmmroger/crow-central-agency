@@ -39,6 +39,9 @@ export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
   const isTextNote = note?.entityType === ENTITY_TYPE.NOTE && note.contentType === NOTE_CONTENT_TYPE.TEXT;
   const isEditing = note?.entityType === ENTITY_TYPE.NOTE && !note.isReadOnly && !isNoteReadMode;
   const find = useFind(isTextNote, isEditing ? EDITOR_SURFACE_KEY : READER_SURFACE_KEY);
+  const { isQueryFocused } = find;
+  // A reload while the user types a query must not move their keystrokes into the note.
+  const shouldEditorFocusOnMount = useCallback(() => !isQueryFocused(), [isQueryFocused]);
 
   // Saved content never reaches the content cache, so the draft is written
   // before the editor goes, and the cached entry is dropped so whichever
@@ -99,6 +102,7 @@ export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
             onUnsavedChange={setIsUnsaved}
             findRef={find.surfaceRef}
             onFindResult={find.onResult}
+            shouldFocusOnMount={shouldEditorFocusOnMount}
           />
         ) : (
           <NoteReader note={note} findRef={find.surfaceRef} onFindResult={find.onResult} />

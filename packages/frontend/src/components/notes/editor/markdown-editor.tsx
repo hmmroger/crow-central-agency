@@ -17,17 +17,6 @@ import type { MarkdownEditorProps } from "./markdown-editor.types.js";
 // The EditContext input path misbehaves in the app; CodeMirror's typings do not declare the switch.
 Reflect.set(EditorView, "EDIT_CONTEXT", false);
 
-/** A text field outside the editor, such as the find input, keeps focus when the editor is rebuilt */
-function isTextFieldFocused(): boolean {
-  const { activeElement } = document;
-
-  return (
-    activeElement instanceof HTMLInputElement ||
-    activeElement instanceof HTMLTextAreaElement ||
-    (activeElement instanceof HTMLElement && activeElement.isContentEditable)
-  );
-}
-
 export function MarkdownEditor({
   noteId,
   markdown,
@@ -39,6 +28,7 @@ export function MarkdownEditor({
   onStatusChange,
   onWikilinkOpen,
   onFindResultChange,
+  shouldFocusOnMount,
   className,
 }: MarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,6 +43,7 @@ export function MarkdownEditor({
   const onStatusChangeRef = useRef(onStatusChange);
   const onWikilinkOpenRef = useRef(onWikilinkOpen);
   const onFindResultChangeRef = useRef(onFindResultChange);
+  const shouldFocusOnMountRef = useRef(shouldFocusOnMount);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -62,7 +53,17 @@ export function MarkdownEditor({
     onStatusChangeRef.current = onStatusChange;
     onWikilinkOpenRef.current = onWikilinkOpen;
     onFindResultChangeRef.current = onFindResultChange;
-  }, [onChange, onBlur, onEditorReady, onFormatStateChange, onStatusChange, onWikilinkOpen, onFindResultChange]);
+    shouldFocusOnMountRef.current = shouldFocusOnMount;
+  }, [
+    onChange,
+    onBlur,
+    onEditorReady,
+    onFormatStateChange,
+    onStatusChange,
+    onWikilinkOpen,
+    onFindResultChange,
+    shouldFocusOnMount,
+  ]);
 
   // Build the view before paint, so the canvas and the host's toolbar appear in the first frame.
   useLayoutEffect(() => {
@@ -113,7 +114,7 @@ export function MarkdownEditor({
 
     viewRef.current = view;
 
-    if (!isTextFieldFocused()) {
+    if (shouldFocusOnMountRef.current()) {
       view.focus();
     }
 
