@@ -7,6 +7,7 @@ import { useAppStore } from "../../stores/app-store.js";
 import { getErrorMessage } from "../../utils/error-message.js";
 import { EDITOR_STATUS_TONE, type EditorStatusAlert } from "./editor-status-bar.types.js";
 import type { NoteEditorHandle } from "./note-editor.types.js";
+import type { FindQuery, FindResult, FindSurfaceHandle } from "../common/find/find.types.js";
 import type {
   EditorFormatState,
   EditorStatus,
@@ -23,6 +24,8 @@ interface NoteEditorProps {
   onUnsavedChange: (isUnsaved: boolean) => void;
   /** Lets the host flush the draft before it swaps the editor out */
   ref?: Ref<NoteEditorHandle>;
+  findRef: Ref<FindSurfaceHandle>;
+  onFindResult: (result?: FindResult) => void;
 }
 
 const CONFLICT_ERROR_CODE = "conflict";
@@ -44,7 +47,7 @@ function getStatusAlert(isConflict: boolean, errorMessage?: string): EditorStatu
  * or a newer token on the note, written elsewhere, reseeds the editor. The host
  * can flush the draft through `ref` before it swaps the editor out.
  */
-export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
+export function NoteEditor({ note, onUnsavedChange, ref, findRef, onFindResult }: NoteEditorProps) {
   const [editor, setEditor] = useState<MarkdownEditorHandle>();
   const [formatState, setFormatState] = useState<EditorFormatState>();
   const [status, setStatus] = useState<EditorStatus>();
@@ -63,6 +66,7 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
   const needsResaveRef = useRef(false);
   const saveTimerRef = useRef<number | undefined>(undefined);
   const saveRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true));
+  const findQueryRef = useRef<FindQuery>(undefined);
   const loadedMarkdown = data?.type === "text" ? data.content : undefined;
   const loadedTimestamp = data?.type === "text" ? data.updatedTimestamp : undefined;
   const isSaveConflict = isSaveError && saveError.code === CONFLICT_ERROR_CODE;
@@ -194,6 +198,29 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
     []
   );
 
+  useEffect(() => {
+    editor?.setFindQuery(findQueryRef.current);
+  }, [editor]);
+
+  useImperativeHandle(
+    findRef,
+    () => ({
+      setQuery: (query) => {
+        findQueryRef.current = query;
+        editor?.setFindQuery(query);
+      },
+      next: () => editor?.findNext(),
+      previous: () => editor?.findPrevious(),
+      clear: () => {
+        findQueryRef.current = undefined;
+        editor?.setFindQuery(undefined);
+      },
+      getSelectionQuery: () => editor?.getFindSelection(),
+      focus: () => editor?.focus(),
+    }),
+    [editor]
+  );
+
   const handleChange = useCallback(
     (markdown: string) => {
       draftRef.current = markdown;
@@ -259,6 +286,7 @@ export function NoteEditor({ note, onUnsavedChange, ref }: NoteEditorProps) {
         onFormatStateChange={setFormatState}
         onStatusChange={setStatus}
         onWikilinkOpen={handleWikilinkOpen}
+        onFindResultChange={onFindResult}
         className="flex-1 min-h-0"
       />
       {status && (

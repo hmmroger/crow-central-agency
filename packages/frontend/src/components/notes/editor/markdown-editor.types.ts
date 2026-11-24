@@ -1,3 +1,4 @@
+import type { FindQuery, FindResult } from "../../common/find/find.types.js";
 import type { InlineFormat, ListKind } from "./markdown-commands.types.js";
 
 /** What the host gets to drive a mounted editor; every edit returns focus to the editor */
@@ -19,6 +20,12 @@ export interface MarkdownEditorHandle {
   deleteTableRow: () => void;
   deleteTableColumn: () => void;
   deleteTable: () => void;
+  /** Searches the source for `query` from the cursor, or clears the search when `undefined`; focus stays put */
+  setFindQuery: (query: FindQuery | undefined) => void;
+  findNext: () => void;
+  findPrevious: () => void;
+  /** The non-empty single-line selection, to start a query from */
+  getFindSelection: () => string | undefined;
 }
 
 /** A `[text](url)` link or `<url>` autolink at the cursor */
@@ -76,5 +83,7 @@ export interface MarkdownEditorProps {
   onStatusChange: (status: EditorStatus) => void;
   /** Ctrl/Cmd + click on a wikilink that does not name a folder */
   onWikilinkOpen: (request: WikilinkOpenRequest) => void;
+  /** Called on mount and whenever the find result changes; `undefined` while there is no query */
+  onFindResultChange: (result: FindResult | undefined) => void;
   className?: string;
 }

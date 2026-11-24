@@ -8,9 +8,10 @@ const FIND_KEY = "f";
 /**
  * The host side of find: the bar's open state, query, match case and last result, and Ctrl/⌘+F.
  * The shortcut is taken only while `isEnabled` and no dialog is open, so the browser's find runs otherwise.
- * The bar shows only while enabled; its query and open state outlast a surface switch.
+ * The bar shows only while enabled; its query and open state outlast a surface switch. A new `surfaceKey` means
+ * another surface is mounted: its result is unknown until it reports, and the query is sent to it.
  */
-export function useFind(isEnabled: boolean) {
+export function useFind(isEnabled: boolean, surfaceKey: string) {
   const { openDialogIds } = useModalDialog();
   const surfaceRef = useRef<FindSurfaceHandle>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -22,13 +23,17 @@ export function useFind(isEnabled: boolean) {
   const isActive = isOpen && isEnabled;
 
   useEffect(() => {
+    setResult(undefined);
+  }, [surfaceKey]);
+
+  useEffect(() => {
     if (isActive) {
       surfaceRef.current?.setQuery({ text: query, isCaseSensitive });
     } else {
       surfaceRef.current?.clear();
       setResult(undefined);
     }
-  }, [isActive, query, isCaseSensitive]);
+  }, [isActive, query, isCaseSensitive, surfaceKey]);
 
   useEffect(() => {
     if (focusRequest > 0) {

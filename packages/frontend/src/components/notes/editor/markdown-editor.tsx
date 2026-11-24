@@ -6,6 +6,7 @@ import { createBaseSetup } from "./extensions/base-setup.js";
 import { clickHandler } from "./extensions/click-handler.js";
 import { currentNote } from "./extensions/current-note-state.js";
 import { editorError } from "./extensions/editor-error-state.js";
+import { editorFind } from "./extensions/find/editor-find.js";
 import { markdownPreview } from "./extensions/markdown-preview.js";
 import { pasteHandler } from "./extensions/paste-handler/paste-handler.js";
 import { wikilinkAutocomplete } from "./extensions/wikilink-autocomplete.js";
@@ -26,6 +27,7 @@ export function MarkdownEditor({
   onFormatStateChange,
   onStatusChange,
   onWikilinkOpen,
+  onFindResultChange,
   className,
 }: MarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -39,6 +41,7 @@ export function MarkdownEditor({
   const onFormatStateChangeRef = useRef(onFormatStateChange);
   const onStatusChangeRef = useRef(onStatusChange);
   const onWikilinkOpenRef = useRef(onWikilinkOpen);
+  const onFindResultChangeRef = useRef(onFindResultChange);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -47,7 +50,8 @@ export function MarkdownEditor({
     onFormatStateChangeRef.current = onFormatStateChange;
     onStatusChangeRef.current = onStatusChange;
     onWikilinkOpenRef.current = onWikilinkOpen;
-  }, [onChange, onBlur, onEditorReady, onFormatStateChange, onStatusChange, onWikilinkOpen]);
+    onFindResultChangeRef.current = onFindResultChange;
+  }, [onChange, onBlur, onEditorReady, onFormatStateChange, onStatusChange, onWikilinkOpen, onFindResultChange]);
 
   // Build the view before paint, so the canvas and the host's toolbar appear in the first frame.
   useLayoutEffect(() => {
@@ -59,7 +63,8 @@ export function MarkdownEditor({
 
     const reporter = new EditorStateReporter(
       (formatState) => onFormatStateChangeRef.current(formatState),
-      (status) => onStatusChangeRef.current(status)
+      (status) => onStatusChangeRef.current(status),
+      (findResult) => onFindResultChangeRef.current(findResult)
     );
     const hostListener = EditorView.updateListener.of((update) => {
       if (update.docChanged) {
@@ -82,6 +87,7 @@ export function MarkdownEditor({
         extensions: [
           createBaseSetup(),
           markdownPreview(),
+          editorFind(),
           currentNote(initialNoteId),
           editorError(),
           wikilinkResolutions(),

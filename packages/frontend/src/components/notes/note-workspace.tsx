@@ -17,6 +17,8 @@ interface NoteWorkspaceProps {
 }
 
 const SELECT_HINT = "Select a note to read it.";
+const EDITOR_SURFACE_KEY = "editor";
+const READER_SURFACE_KEY = "reader";
 
 /**
  * The open note: its header above the surface it opens on — the reader for a
@@ -35,7 +37,8 @@ export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
   const editorRef = useRef<NoteEditorHandle>(null);
   const note = noteId ? getNote(noteId) : undefined;
   const isTextNote = note?.entityType === ENTITY_TYPE.NOTE && note.contentType === NOTE_CONTENT_TYPE.TEXT;
-  const find = useFind(isTextNote && (note.isReadOnly || isNoteReadMode));
+  const isEditing = note?.entityType === ENTITY_TYPE.NOTE && !note.isReadOnly && !isNoteReadMode;
+  const find = useFind(isTextNote, isEditing ? EDITOR_SURFACE_KEY : READER_SURFACE_KEY);
 
   // Saved content never reaches the content cache, so the draft is written
   // before the editor goes, and the cached entry is dropped so whichever
@@ -61,8 +64,6 @@ export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
   if (note?.entityType !== ENTITY_TYPE.NOTE) {
     return <EmptyState message={SELECT_HINT} />;
   }
-
-  const isEditing = !note.isReadOnly && !isNoteReadMode;
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -92,7 +93,13 @@ export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
 
       <div className="flex-1 min-h-0">
         {isEditing ? (
-          <NoteEditor ref={editorRef} note={note} onUnsavedChange={setIsUnsaved} />
+          <NoteEditor
+            ref={editorRef}
+            note={note}
+            onUnsavedChange={setIsUnsaved}
+            findRef={find.surfaceRef}
+            onFindResult={find.onResult}
+          />
         ) : (
           <NoteReader note={note} findRef={find.surfaceRef} onFindResult={find.onResult} />
         )}
