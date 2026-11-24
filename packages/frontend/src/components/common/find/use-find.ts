@@ -55,7 +55,6 @@ export function useFind(isEnabled: boolean) {
           setQuery(selectionQuery);
         }
 
-        setResult(undefined);
         setIsOpen(true);
       }
 

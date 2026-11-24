@@ -10,7 +10,7 @@ import type { FindResult, FindSurfaceHandle } from "../common/find/find.types.js
 interface NoteReaderProps {
   note: NoteFileMetadata;
   findRef: Ref<FindSurfaceHandle>;
-  onFindResult: (result: FindResult) => void;
+  onFindResult: (result?: FindResult) => void;
 }
 
 const STATUS_CLASS = "p-panel text-sm text-text-muted";

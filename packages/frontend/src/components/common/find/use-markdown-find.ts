@@ -10,7 +10,8 @@ interface MarkdownFindOptions {
   content?: string;
   /** The element the surface's selection and focus belong to */
   containerRef: RefObject<HTMLElement | null>;
-  onResult: (result: FindResult) => void;
+  /** Called with undefined while the surface holds no query */
+  onResult: (result?: FindResult) => void;
   ref?: Ref<FindSurfaceHandle>;
 }
 
@@ -40,7 +41,7 @@ export function useMarkdownFind({
   const currentIndex = useMemo(() => locateCurrentMatch(items, matches, current), [items, matches, current]);
 
   useEffect(() => {
-    onResult({ currentIndex, total: matches.length });
+    onResult(query ? { currentIndex, total: matches.length } : undefined);
   }, [onResult, query, currentIndex, matches.length]);
 
   const step = useCallback(
