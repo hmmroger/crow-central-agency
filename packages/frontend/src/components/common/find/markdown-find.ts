@@ -6,7 +6,7 @@ import {
   TAG_TOKEN,
   WIKILINK_TOKEN,
 } from "@crow-central-agency/shared";
-import { lexMarkdown } from "../../../utils/marked-config.js";
+import { ENDING_NEWLINE_PATTERN, lexMarkdown } from "../../../utils/marked-config.js";
 import type { TextMark, TokenMarks } from "../../../utils/marked-config.types.js";
 import type { FindRange } from "./find.types.js";
 import type { MarkdownDocument, MarkdownFindPiece, MarkdownFindText } from "./markdown-find.types.js";
@@ -16,7 +16,6 @@ const CELL_SEPARATOR = "\t";
 const TAG_SEPARATOR = " ";
 const TAG_MARK = "#";
 const EXCLUDED_CODE_LANGUAGES = new Set(["mermaid", HTMLVIEW_FENCE_LANG]);
-const ENDING_NEWLINE_PATTERN = /\n$/;
 
 /** Collects the text a rendered document shows, one newline per block boundary and `<br>` */
 class MarkdownFindTextBuilder {
@@ -102,7 +101,7 @@ class MarkdownFindTextBuilder {
         case "text":
           if (token.tokens) {
             this.addInline(token.tokens);
-          } else {
+          } else if (!token.escaped) {
             this.addPiece(token, token.text);
           }
 

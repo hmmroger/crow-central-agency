@@ -22,7 +22,7 @@ export const FIND_CURRENT_CLASS = "find-current";
 type MarkedRenderer = Renderer;
 const renderDefaultTable = Renderer.prototype.table;
 const CODE_LANGUAGE_PATTERN = /^\S*/;
-const ENDING_NEWLINE_PATTERN = /\n$/;
+export const ENDING_NEWLINE_PATTERN = /\n$/;
 
 // Custom code-block renderer covering mermaid diagrams and htmlview embeds.
 const codeBlockExtension: TokenizerAndRendererExtension = {
@@ -92,7 +92,7 @@ function createMarkingInstance(marks: TokenMarks): Marked {
     renderer: {
       text(token) {
         const tokenMarks = marks.get(token);
-        return tokenMarks ? markText(token.text, tokenMarks) : false;
+        return tokenMarks && !("escaped" in token && token.escaped) ? markText(token.text, tokenMarks) : false;
       },
       codespan(token) {
         const tokenMarks = marks.get(token);
