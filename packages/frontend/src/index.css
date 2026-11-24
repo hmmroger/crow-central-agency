@@ -536,6 +536,15 @@
     outline-offset: 1px;
   }
 
+  /* Generated content is never part of a selection or a copy, so a control's label can't leak into either */
+  [data-chrome-label] {
+    user-select: none;
+  }
+
+  [data-chrome-label]::before {
+    content: attr(data-chrome-label);
+  }
+
   .mermaid-expanded .mermaid-viewport,
   .mermaid-expanded .mermaid-stage {
     height: 100%;

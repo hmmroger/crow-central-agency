@@ -1,3 +1,5 @@
+import { setChromeLabel } from "./markdown-chrome";
+
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 1.25;
@@ -14,7 +16,7 @@ function createControlButton(label: string, symbol: string): HTMLButtonElement {
   button.type = "button";
   button.className = "mermaid-control-btn";
   button.setAttribute("aria-label", label);
-  button.textContent = symbol;
+  setChromeLabel(button, symbol);
   return button;
 }
 

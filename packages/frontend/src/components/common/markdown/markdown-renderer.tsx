@@ -19,14 +19,17 @@ import {
   MERMAID_VIEWPORT_SELECTOR,
 } from "./mermaid-viewport";
 import { useMermaidViewport } from "./use-mermaid-viewport";
+import { COPY_LABEL, copyWithFeedback, toChromeLabelAttribute } from "./markdown-chrome";
 
 const HTMLVIEW_COPY_ACTION = "copy";
 const HTMLVIEW_EXPAND_ACTION = "expand";
+const EXPAND_LABEL = "Expand";
+const CODE_COPY_BUTTON = `<button class="code-copy-btn" aria-label="Copy code to clipboard" ${toChromeLabelAttribute(COPY_LABEL)}></button>`;
 
 const HTMLVIEW_CHROME = [
   `<div class="htmlview-chrome">`,
-  `<button type="button" class="htmlview-btn" data-htmlview-action="${HTMLVIEW_COPY_ACTION}" aria-label="Copy source">Copy</button>`,
-  `<button type="button" class="htmlview-btn" data-htmlview-action="${HTMLVIEW_EXPAND_ACTION}" aria-label="Expand view">Expand</button>`,
+  `<button type="button" class="htmlview-btn" data-htmlview-action="${HTMLVIEW_COPY_ACTION}" aria-label="Copy source" ${toChromeLabelAttribute(COPY_LABEL)}></button>`,
+  `<button type="button" class="htmlview-btn" data-htmlview-action="${HTMLVIEW_EXPAND_ACTION}" aria-label="Expand view" ${toChromeLabelAttribute(EXPAND_LABEL)}></button>`,
   `</div>`,
 ].join("");
 
@@ -139,7 +142,7 @@ export function MarkdownRenderer({ content, className, isStreaming, find }: Mark
               className: "w-[95vw] lg:w-4xl 2xl:w-7xl h-[80vh] flex flex-col",
             });
           } else {
-            copyHtmlviewSource(htmlviewBtn, source);
+            copyWithFeedback(htmlviewBtn, source);
           }
         }
 
@@ -156,19 +159,7 @@ export function MarkdownRenderer({ content, className, isStreaming, find }: Mark
       }
 
       const code = pre.querySelector("code");
-      const text = code?.textContent ?? pre.textContent ?? "";
-
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          target.textContent = "Copied!";
-          setTimeout(() => {
-            target.textContent = "Copy";
-          }, 2000);
-        })
-        .catch(() => {
-          console.warn("Clipboard not available.");
-        });
+      copyWithFeedback(target, code?.textContent ?? pre.textContent ?? "");
     },
     [showDialog]
   );
@@ -188,10 +179,7 @@ export function MarkdownRenderer({ content, className, isStreaming, find }: Mark
  * are part of the rendered string and survive React re-renders.
  */
 function injectCopyButtons(html: string): string {
-  return html.replace(
-    /<pre([^>]*)>(\s*<code)/g,
-    '<pre$1><button class="code-copy-btn" aria-label="Copy code to clipboard">Copy</button>$2'
-  );
+  return html.replace(/<pre([^>]*)>(\s*<code)/g, `<pre$1>${CODE_COPY_BUTTON}$2`);
 }
 
 /**
@@ -222,18 +210,4 @@ async function drawMermaid(mermaidContainer: HTMLElement): Promise<void> {
     errorPre.textContent = `Mermaid Error: ${error}`;
     mermaidContainer.replaceChildren(errorPre);
   }
-}
-
-function copyHtmlviewSource(button: HTMLElement, source: string): void {
-  navigator.clipboard
-    .writeText(source)
-    .then(() => {
-      button.textContent = "Copied!";
-      setTimeout(() => {
-        button.textContent = "Copy";
-      }, 2000);
-    })
-    .catch(() => {
-      console.warn("Clipboard not available.");
-    });
 }
