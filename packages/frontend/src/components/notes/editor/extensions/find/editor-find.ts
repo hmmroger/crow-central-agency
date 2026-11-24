@@ -3,13 +3,14 @@ import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate
 import { FIND_CURRENT_CLASS, FIND_MARK_TAG, FIND_MATCH_CLASS } from "../../../../../utils/marked-config.js";
 import type { FindQuery } from "../../../../common/find/find.types.js";
 import { findTableAround } from "../../table-commands.js";
-import { toCellMarkdown } from "../table/table-cell-content.js";
+import { hasTrailingBreak, toCellMarkdown } from "../table/table-cell-content.js";
 import { isTableCellActive } from "../table/table-cell-state.js";
 import { ACTIVE_TABLE_CELL_CLASS } from "../table/table-widget.js";
 import { findStateField, getFindState, setFindCurrent, setFindQuery } from "./find-state.js";
 
 const MATCH_MARK = Decoration.mark({ class: FIND_MATCH_CLASS, tagName: FIND_MARK_TAG });
 const CURRENT_MARK = Decoration.mark({ class: FIND_CURRENT_CLASS, tagName: FIND_MARK_TAG });
+const LINE_BREAK = "\n";
 
 /** Marks every match in the visible ranges; a table draws its own cells' marks */
 class FindHighlightPlugin {
@@ -97,11 +98,17 @@ export function getFindSelectionText(view: EditorView): string | undefined {
   const cell = view.contentDOM.querySelector(`.${ACTIVE_TABLE_CELL_CLASS}`);
   const selection = window.getSelection();
 
-  if (!cell || !selection || selection.isCollapsed || !cell.contains(selection.anchorNode)) {
+  if (!(cell instanceof HTMLElement) || !selection || selection.isCollapsed || !cell.contains(selection.anchorNode)) {
     return undefined;
   }
 
-  const text = selection.toString();
+  const selectedText = selection.toString();
+  const isDisplayBreakSelected =
+    hasTrailingBreak(cell) &&
+    selectedText.endsWith(LINE_BREAK) &&
+    cell.lastChild !== null &&
+    selection.containsNode(cell.lastChild);
+  const text = isDisplayBreakSelected ? selectedText.slice(0, -LINE_BREAK.length) : selectedText;
 
   return text.trim() ? toCellMarkdown(text) : undefined;
 }

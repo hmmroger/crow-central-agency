@@ -1,4 +1,4 @@
-import { useCallback, type KeyboardEvent, type RefObject } from "react";
+import { useCallback, useLayoutEffect, useRef, type KeyboardEvent, type RefObject } from "react";
 import { CaseSensitive, ChevronDown, ChevronUp, X } from "lucide-react";
 import { hasCommandModifier } from "../../../utils/platform-utils.js";
 import { ACTION_BUTTON_VARIANT, ActionButton } from "../action-button.js";
@@ -20,6 +20,8 @@ interface FindBarProps {
 const QUERY_LABEL = "Find";
 const NO_RESULTS_LABEL = "No results";
 const LINE_BREAK = "\n";
+/** What Safari reports for a key that an input method is still processing */
+const IME_PROCESS_KEY_CODE = 229;
 
 /** Display-only find bar: the query, its match count, stepping, match case and close; the query may span lines */
 export function FindBar({
@@ -36,9 +38,23 @@ export function FindBar({
   const hasMatches = result !== undefined && result.total > 0;
   const count = hasMatches ? `${(result.currentIndex ?? 0) + 1} of ${result.total}` : NO_RESULTS_LABEL;
   const status = query && result ? count : "";
+  const pendingCaretRef = useRef<number>(undefined);
+
+  // The newline goes through the query state, not the DOM, so React's value tracking stays in step.
+  useLayoutEffect(() => {
+    const caret = pendingCaretRef.current;
+    pendingCaretRef.current = undefined;
+    if (caret !== undefined) {
+      inputRef.current?.setSelectionRange(caret, caret);
+    }
+  }, [inputRef, query]);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.nativeEvent.isComposing || event.keyCode === IME_PROCESS_KEY_CODE) {
+        return;
+      }
+
       if (event.key === "Escape") {
         event.preventDefault();
         onClose();
@@ -52,8 +68,9 @@ export function FindBar({
 
       event.preventDefault();
       if (hasCommandModifier(event.nativeEvent)) {
-        input.setRangeText(LINE_BREAK, input.selectionStart, input.selectionEnd, "end");
-        onQueryChange(input.value);
+        const { value, selectionStart, selectionEnd } = input;
+        pendingCaretRef.current = selectionStart + LINE_BREAK.length;
+        onQueryChange(value.slice(0, selectionStart) + LINE_BREAK + value.slice(selectionEnd));
       } else if (event.shiftKey) {
         onPrevious();
       } else {
