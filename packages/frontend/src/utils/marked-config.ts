@@ -18,6 +18,7 @@ import type { LexedMarkdown, TextMark, TokenMarks } from "./marked-config.types"
 
 export const FIND_MATCH_CLASS = "find-match";
 export const FIND_CURRENT_CLASS = "find-current";
+export const FIND_MARK_TAG = "mark";
 
 type MarkedRenderer = Renderer;
 const renderDefaultTable = Renderer.prototype.table;
@@ -77,7 +78,7 @@ function markText(text: string, marks: TextMark[]): string {
 
   for (const mark of marks) {
     const markClass = mark.isCurrent ? FIND_CURRENT_CLASS : FIND_MATCH_CLASS;
-    html += `${escapeHtml(text.slice(offset, mark.start))}<mark class="${markClass}">${escapeHtml(text.slice(mark.start, mark.end))}</mark>`;
+    html += `${escapeHtml(text.slice(offset, mark.start))}<${FIND_MARK_TAG} class="${markClass}">${escapeHtml(text.slice(mark.start, mark.end))}</${FIND_MARK_TAG}>`;
     offset = mark.end;
   }
 

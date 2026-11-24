@@ -20,13 +20,25 @@ function findIndexFrom(matches: FindRange[], position: number): number | undefin
   return index === -1 ? 0 : index;
 }
 
+function getCurrentMatch(findState: EditorFindState): FindRange | undefined {
+  return findState.currentIndex === undefined ? undefined : findState.matches[findState.currentIndex];
+}
+
+/** The cursor, or the current match while the selection still holds it, as a table cell selection does */
+function getQueryStart(findState: EditorFindState, state: EditorState): number {
+  const { from, to } = state.selection.main;
+  const current = getCurrentMatch(findState);
+
+  return current && from <= current.start && current.start <= to ? current.start : from;
+}
+
 function updateFindState(previous: EditorFindState, transaction: Transaction): EditorFindState {
   let next = previous;
 
   if (previous.query && transaction.docChanged) {
     const matches = matchFindText(transaction.newDoc.toString(), previous.query);
-    const current = previous.currentIndex === undefined ? undefined : previous.matches[previous.currentIndex];
-    const position = current ? transaction.changes.mapPos(current.start, 1) : 0;
+    const current = getCurrentMatch(previous);
+    const position = current ? transaction.changes.mapPos(current.start, 1) : transaction.newSelection.main.from;
     next = { query: previous.query, matches, currentIndex: findIndexFrom(matches, position) };
   }
 
@@ -35,7 +47,7 @@ function updateFindState(previous: EditorFindState, transaction: Transaction): E
       const query = effect.value;
       const matches = query ? matchFindText(transaction.newDoc.toString(), query) : [];
       next = query
-        ? { query, matches, currentIndex: findIndexFrom(matches, transaction.startState.selection.main.from) }
+        ? { query, matches, currentIndex: findIndexFrom(matches, getQueryStart(previous, transaction.startState)) }
         : NO_FIND;
     } else if (effect.is(setFindCurrent) && next.matches[effect.value]) {
       next = { query: next.query, matches: next.matches, currentIndex: effect.value };

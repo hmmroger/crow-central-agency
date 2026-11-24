@@ -18,7 +18,7 @@ import { SYNTAX_NODE, type DelimitedSyntaxNodeName } from "../markdown-syntax.ty
 import { TABLE_SPAN_KIND, type TableCellSpan } from "./table-cell-content.types.js";
 import type { TableCell } from "./table-syntax.types.js";
 import { getWikilinkResolutions } from "../wikilink-resolution-state.js";
-import { FIND_CURRENT_CLASS, FIND_MATCH_CLASS } from "../../../../../utils/marked-config.js";
+import { FIND_CURRENT_CLASS, FIND_MARK_TAG, FIND_MATCH_CLASS } from "../../../../../utils/marked-config.js";
 import type { TextMark } from "../../../../../utils/marked-config.types.js";
 
 const LINE_BREAK = "\n";
@@ -30,7 +30,6 @@ const UNESCAPED_PIPE_PATTERN = /(?<!\\)\|/g;
 const ESCAPED_PIPE = "\\|";
 /** Marks a cell whose last line break is followed by an extra one, since a trailing break alone does not render */
 const TRAILING_BREAK_ATTRIBUTE = "data-trailing-break";
-const FIND_MARK_TAG = "mark";
 
 function pushSpan(spans: TableCellSpan[], span: TableCellSpan, cellFrom: number): void {
   if (span.from < span.to) {
