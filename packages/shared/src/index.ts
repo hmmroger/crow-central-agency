@@ -4,6 +4,7 @@ export {
   TAG_LINE_SOURCE,
   TAG_SOURCE,
   hashtagExtension,
+  isHashtagToken,
   taglineExtension,
 } from "./marked-extensions/tag-extension.js";
 export { TAG_TOKEN, type HashtagToken, type TagLineToken } from "./marked-extensions/tag-extension.types.js";

@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useRef, useState, useCallback } from "react";
-import { parseMarkdown } from "../../../utils/marked-config";
+import { lexMarkdown, renderMarkdown } from "../../../utils/marked-config";
 import { renderMermaidDiagram } from "../../../utils/mermaid-render";
 import { useWikilinkResolveQuery } from "../../../hooks/queries/use-wikilink-resolve-query";
 import { useAppStore } from "../../../stores/app-store";
@@ -47,10 +47,10 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   const showDialog = useOptionalModalDialog()?.showDialog;
 
   // Memoize parsed HTML with copy buttons and embed chrome injected
-  const parsed = useMemo(() => parseMarkdown(content), [content]);
-  const html = useMemo(() => injectHtmlviewChrome(injectCopyButtons(parsed.html)), [parsed]);
+  const lexed = useMemo(() => lexMarkdown(content), [content]);
+  const html = useMemo(() => injectHtmlviewChrome(injectCopyButtons(renderMarkdown(lexed))), [lexed]);
   const [renderedHtml, setRenderedHtml] = useState(html);
-  const { data: resolutions } = useWikilinkResolveQuery(parsed.wikilinkTargets);
+  const { data: resolutions } = useWikilinkResolveQuery(lexed.wikilinkTargets);
   const goToNote = useAppStore((state) => state.goToNote);
   const innerHtml = useMemo(() => ({ __html: renderedHtml }), [renderedHtml]);
 
