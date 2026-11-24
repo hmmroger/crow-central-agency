@@ -18,6 +18,8 @@ import { SYNTAX_NODE, type DelimitedSyntaxNodeName } from "../markdown-syntax.ty
 import { TABLE_SPAN_KIND, type TableCellSpan } from "./table-cell-content.types.js";
 import type { TableCell } from "./table-syntax.types.js";
 import { getWikilinkResolutions } from "../wikilink-resolution-state.js";
+import { FIND_CURRENT_CLASS, FIND_MATCH_CLASS } from "../../../../../utils/marked-config.js";
+import type { TextMark } from "../../../../../utils/marked-config.types.js";
 
 const LINE_BREAK = "\n";
 const LINE_BREAK_TAG = "<br>";
@@ -28,6 +30,7 @@ const UNESCAPED_PIPE_PATTERN = /(?<!\\)\|/g;
 const ESCAPED_PIPE = "\\|";
 /** Marks a cell whose last line break is followed by an extra one, since a trailing break alone does not render */
 const TRAILING_BREAK_ATTRIBUTE = "data-trailing-break";
+const FIND_MARK_TAG = "mark";
 
 function pushSpan(spans: TableCellSpan[], span: TableCellSpan, cellFrom: number): void {
   if (span.from < span.to) {
@@ -223,6 +226,14 @@ function buildWikilinkMarkSpecs(
   return markSpecs;
 }
 
+function wrapInFindMark(node: Node, isCurrent: boolean): Node {
+  const mark = document.createElement(FIND_MARK_TAG);
+  mark.className = isCurrent ? FIND_CURRENT_CLASS : FIND_MATCH_CLASS;
+  mark.append(node);
+
+  return mark;
+}
+
 function createSegmentNode(
   text: string,
   coveringSpans: TableCellSpan[],
@@ -230,6 +241,7 @@ function createSegmentNode(
 ): Node {
   const classes: string[] = [];
   const attributes: Record<string, string> = {};
+  let isCurrentFind: boolean | undefined;
 
   for (const span of coveringSpans) {
     if (span.kind === TABLE_SPAN_KIND.FORMAT) {
@@ -244,28 +256,37 @@ function createSegmentNode(
         classes.push(markSpec.className);
         Object.assign(attributes, markSpec.attributes);
       }
+    } else if (span.kind === TABLE_SPAN_KIND.FIND) {
+      isCurrentFind = span.isCurrent;
     }
   }
 
-  if (classes.length === 0) {
-    return document.createTextNode(text);
+  let node: Node = document.createTextNode(text);
+
+  if (classes.length > 0) {
+    const element = document.createElement("span");
+    element.className = classes.join(" ");
+    element.append(node);
+    setAttributes(element, attributes);
+    node = element;
   }
 
-  const element = document.createElement("span");
-  element.className = classes.join(" ");
-  element.textContent = text;
-
-  setAttributes(element, attributes);
-
-  return element;
+  return isCurrentFind === undefined ? node : wrapInFindMark(node, isCurrentFind);
 }
 
 /**
  * Shows the cell as rendered inline markdown: syntax marks hidden, formats and links styled, `<br>` as a
- * line break, images drawn.
+ * line break, images drawn, and the find marks over its text, as offsets into its content.
  */
-export function renderInactiveCell(element: HTMLElement, cell: TableCell, state: EditorState): void {
-  const spans = getCellSpans(cell, state);
+export function renderInactiveCell(
+  element: HTMLElement,
+  cell: TableCell,
+  state: EditorState,
+  findMarks: TextMark[]
+): void {
+  const spans = getCellSpans(cell, state).concat(
+    findMarks.map((mark) => ({ kind: TABLE_SPAN_KIND.FIND, isCurrent: mark.isCurrent, from: mark.start, to: mark.end }))
+  );
   const boundaries = getSegmentBoundaries(spans, cell.content.length);
   const wikilinkMarkSpecs = buildWikilinkMarkSpecs(spans, getWikilinkResolutions(state));
 
@@ -309,9 +330,38 @@ export function hasTrailingBreak(element: HTMLElement): boolean {
   return element.hasAttribute(TRAILING_BREAK_ATTRIBUTE);
 }
 
-/** Shows the cell's markdown as editable text, with each `<br>` as a line break. */
-export function renderActiveCell(element: HTMLElement, markdown: string): void {
-  element.textContent = markdown.replace(LINE_BREAK_TAG_PATTERN, LINE_BREAK);
+/** Shows the cell's markdown as editable text, with each `<br>` as a line break and the find marks over the rest. */
+export function renderActiveCell(element: HTMLElement, markdown: string, findMarks: TextMark[]): void {
+  const lineBreaks = Array.from(markdown.matchAll(LINE_BREAK_TAG_PATTERN), (match) => ({
+    from: match.index,
+    to: match.index + match[0].length,
+  }));
+  const boundaries = new Set([0, markdown.length]);
+
+  for (const range of lineBreaks.concat(findMarks.map((mark) => ({ from: mark.start, to: mark.end })))) {
+    boundaries.add(range.from);
+    boundaries.add(range.to);
+  }
+
+  const sorted = Array.from(boundaries).sort((first, second) => first - second);
+  element.replaceChildren();
+
+  for (let index = 0; index < sorted.length - 1; index++) {
+    const from = sorted[index];
+    const to = sorted[index + 1];
+    const lineBreak = lineBreaks.find((range) => range.from <= from && range.to >= to);
+    const mark = findMarks.find((candidate) => candidate.start <= from && candidate.end >= to);
+
+    if (lineBreak) {
+      if (lineBreak.from === from) {
+        element.append(LINE_BREAK);
+      }
+    } else {
+      const text = document.createTextNode(markdown.slice(from, to));
+      element.append(mark ? wrapInFindMark(text, mark.isCurrent) : text);
+    }
+  }
+
   ensureTrailingBreak(element);
 }
 

@@ -219,18 +219,6 @@
     color: var(--color-text-base);
     overflow-wrap: break-word;
 
-    & mark.find-match {
-      background: var(--color-find-match);
-      color: inherit;
-      border-radius: var(--radius-sm);
-    }
-
-    & mark.find-current {
-      background: var(--color-find-current);
-      color: var(--color-text-primary);
-      border-radius: var(--radius-sm);
-    }
-
     & h1,
     & h2,
     & h3,
@@ -942,7 +930,7 @@
   }
 }
 
-/* Tags and note images, styled alike in the editor and rendered markdown. Unlayered, like the editor block. */
+/* Tags, note images and find marks, styled alike in the editor and rendered markdown. Unlayered, like the editor block. */
 :is(.cm-editor.md-live-editor, .markdown-content) {
   & :is(.cm-md-tag, .md-tag) {
     padding: 0 0.25em;
@@ -971,6 +959,18 @@
     color: var(--color-text-muted);
     background: var(--color-surface-elevated);
     border: 1px dashed var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+
+  & mark.find-match {
+    background: var(--color-find-match);
+    color: inherit;
+    border-radius: var(--radius-sm);
+  }
+
+  & mark.find-current {
+    background: var(--color-find-current);
+    color: var(--color-text-primary);
     border-radius: var(--radius-sm);
   }
 }

@@ -14,6 +14,7 @@ import type { CommandTarget } from "../../markdown-commands.types.js";
 import type { WikilinkResolutionMap } from "../../../../../hooks/queries/use-wikilink-resolve-query.types.js";
 import { releaseImageElements } from "../../../../common/note-image/image-element.js";
 import { hasCommandModifier } from "../../../../../utils/platform-utils.js";
+import type { TextMark } from "../../../../../utils/marked-config.types.js";
 import { openLinkUnderPointer, PRIMARY_BUTTON } from "../click-handler.js";
 import { setTableCellDraft } from "./table-cell-state.js";
 import type { ActiveTableCell } from "./table-cell-state.types.js";
@@ -391,14 +392,35 @@ function observeTableHeight(view: EditorView, wrapper: HTMLElement): void {
   tableHeightObservers.set(wrapper, observer);
 }
 
+function isSameFindMarks(first: TextMark[], second: TextMark[]): boolean {
+  return (
+    first.length === second.length &&
+    first.every(
+      (mark, index) =>
+        mark.start === second[index].start &&
+        mark.end === second[index].end &&
+        mark.isCurrent === second[index].isCurrent
+    )
+  );
+}
+
+/** The matches inside the cell, as offsets into its content; a match reaching past the cell is not drawn */
+function getCellFindMarks(cell: TableCell, findMarks: TextMark[]): TextMark[] {
+  return findMarks
+    .filter((mark) => cell.from <= mark.start && mark.end <= cell.to)
+    .map((mark) => ({ start: mark.start - cell.from, end: mark.end - cell.from, isCurrent: mark.isCurrent }));
+}
+
 function createCellElement(
   tagName: "th" | "td",
   cell: TableCell,
   alignment: string | undefined,
   activeCell: ActiveTableCell | undefined,
+  findMarks: TextMark[],
   state: EditorState
 ): HTMLTableCellElement {
   const element = document.createElement(tagName);
+  const cellFindMarks = getCellFindMarks(cell, findMarks);
 
   if (alignment) {
     element.style.textAlign = alignment;
@@ -407,9 +429,13 @@ function createCellElement(
   if (activeCell) {
     element.contentEditable = "true";
     element.classList.add(ACTIVE_TABLE_CELL_CLASS);
-    renderActiveCell(element, activeCell.draft ?? cell.content);
+    renderActiveCell(
+      element,
+      activeCell.draft ?? cell.content,
+      activeCell.draft === undefined || activeCell.draft === cell.content ? cellFindMarks : []
+    );
   } else {
-    renderInactiveCell(element, cell, state);
+    renderInactiveCell(element, cell, state, cellFindMarks);
   }
 
   return element;
@@ -424,7 +450,9 @@ export class TableWidget extends WidgetType {
     private readonly table: ParsedTable,
     private readonly activeCell: ActiveTableCell | undefined,
     private readonly resolutions: WikilinkResolutionMap,
-    private readonly lastHeight: number | undefined
+    private readonly lastHeight: number | undefined,
+    /** Find matches over the table's source, in document positions */
+    private readonly findMarks: TextMark[]
   ) {
     super();
   }
@@ -438,7 +466,8 @@ export class TableWidget extends WidgetType {
     return (
       isSameTable(this.table, other.table) &&
       isSameActiveCell(this.activeCell, other.activeCell) &&
-      this.resolutions === other.resolutions
+      this.resolutions === other.resolutions &&
+      isSameFindMarks(this.findMarks, other.findMarks)
     );
   }
 
@@ -469,6 +498,7 @@ export class TableWidget extends WidgetType {
             cells[column],
             this.table.delimiter.cells[column]?.alignment,
             isActive ? this.activeCell : undefined,
+            this.findMarks,
             view.state
           )
         );

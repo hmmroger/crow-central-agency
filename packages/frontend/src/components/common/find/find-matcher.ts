@@ -1,4 +1,4 @@
-import type { FindItem, FindMatch, FindQuery } from "./find.types.js";
+import type { FindItem, FindMatch, FindQuery, FindRange } from "./find.types.js";
 
 const REGEX_SPECIAL_PATTERN = /[.*+?^${}()|[\]\\]/g;
 const WHITESPACE_RUN_PATTERN = /\s+/;
@@ -13,19 +13,20 @@ function toQueryPattern(query: FindQuery): RegExp | undefined {
   return new RegExp(source, query.isCaseSensitive ? "gu" : "giu");
 }
 
-/** Every match of the query across the items, in item then text order */
-export function matchFindItems(items: FindItem[], query: FindQuery): FindMatch[] {
+/** Every match of the query in one text, in text order */
+export function matchFindText(text: string, query: FindQuery): FindRange[] {
   const pattern = toQueryPattern(query);
   if (!pattern) {
     return [];
   }
 
+  return Array.from(text.matchAll(pattern), (match) => ({ start: match.index, end: match.index + match[0].length }));
+}
+
+/** Every match of the query across the items, in item then text order */
+export function matchFindItems(items: FindItem[], query: FindQuery): FindMatch[] {
   return items.flatMap((item) =>
-    Array.from(item.text.matchAll(pattern), (match) => ({
-      itemId: item.id,
-      start: match.index,
-      end: match.index + match[0].length,
-    }))
+    matchFindText(item.text, query).map(({ start, end }) => ({ itemId: item.id, start, end }))
   );
 }
 

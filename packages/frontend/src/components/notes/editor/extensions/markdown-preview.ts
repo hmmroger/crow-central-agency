@@ -26,6 +26,7 @@ import {
 import { getAtxHeadingLevel, isDelimitedSyntaxNodeName } from "./markdown-syntax.js";
 import { SYNTAX_NODE } from "./markdown-syntax.types.js";
 import type { BlockDecorations } from "./markdown-preview.types.js";
+import { getFindState } from "./find/find-state.js";
 import { activeTableCellField, getActiveTableCell } from "./table/table-cell-state.js";
 import { tableCursorSync } from "./table/table-cursor-sync.js";
 import { tableHeightsField } from "./table/table-height-state.js";
@@ -188,7 +189,8 @@ function updateBlockDecorations(previous: BlockDecorations, transaction: Transac
     transaction.selection ||
     syntaxTree(startState) !== syntaxTree(state) ||
     getWikilinkResolutions(startState) !== getWikilinkResolutions(state) ||
-    getActiveTableCell(startState) !== getActiveTableCell(state)
+    getActiveTableCell(startState) !== getActiveTableCell(state) ||
+    getFindState(startState) !== getFindState(state)
   ) {
     return buildBlockDecorations(state);
   }
