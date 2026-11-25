@@ -1,8 +1,9 @@
-import { useEffect, useRef, type Ref } from "react";
+import { useEffect, useMemo, useRef, type Ref } from "react";
 import { NOTE_CONTENT_TYPE, type NoteFileMetadata } from "@crow-central-agency/shared";
 import { useNoteContentQuery } from "../../hooks/queries/use-note-content-query.js";
 import { cn } from "../../utils/cn.js";
-import { MarkdownRenderer } from "../common/markdown/markdown-renderer.js";
+import { lexMarkdown } from "../../utils/marked-config.js";
+import { MarkdownDocumentRenderer } from "../common/markdown/markdown-document-renderer.js";
 import { ImageViewer } from "../common/image-viewer.js";
 import { useMarkdownFind } from "../common/find/use-markdown-find.js";
 import type { FindResult, FindSurfaceHandle } from "../common/find/find.types.js";
@@ -24,10 +25,15 @@ export function NoteReader({ note, findRef, onFindResult }: NoteReaderProps) {
   const isPreviewable = note.contentType !== NOTE_CONTENT_TYPE.UNKNOWN;
   const { data, isLoading, isError, error, refetch } = useNoteContentQuery(note.id, { enabled: isPreviewable });
   const loadedTimestamp = data?.type === "text" ? data.updatedTimestamp : undefined;
+  const loadedContent = data?.type === "text" ? data.content : undefined;
+  const markdownDocument = useMemo(
+    () => (loadedContent === undefined ? undefined : lexMarkdown(loadedContent)),
+    [loadedContent]
+  );
   const canvasRef = useRef<HTMLDivElement>(null);
   const find = useMarkdownFind({
     itemId: note.id,
-    content: data?.type === "text" ? data.content : undefined,
+    markdownDocument,
     containerRef: canvasRef,
     onResult: onFindResult,
     ref: findRef,
@@ -59,17 +65,22 @@ export function NoteReader({ note, findRef, onFindResult }: NoteReaderProps) {
     return <p className="p-panel text-sm text-error">{error.message}</p>;
   }
 
-  if (!data) {
+  if (data?.type === "binary") {
+    return <ImageViewer src={data.blobUrl} alt={note.name} />;
+  }
+
+  if (!markdownDocument) {
     return <p className={STATUS_CLASS}>No content</p>;
   }
 
-  if (data.type === "text") {
-    return (
-      <div ref={canvasRef} tabIndex={-1} className="h-full overflow-y-auto px-2 pt-2 outline-none">
-        <MarkdownRenderer content={data.content} className="note-canvas" find={find} />
-      </div>
-    );
-  }
-
-  return <ImageViewer src={data.blobUrl} alt={note.name} />;
+  return (
+    <div ref={canvasRef} tabIndex={-1} className="h-full overflow-y-auto px-2 pt-2 outline-none">
+      <MarkdownDocumentRenderer
+        markdownDocument={markdownDocument}
+        marks={find?.marks}
+        revealKey={find?.revealKey}
+        className="note-canvas"
+      />
+    </div>
+  );
 }

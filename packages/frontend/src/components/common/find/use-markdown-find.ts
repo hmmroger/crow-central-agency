@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useState, type Ref, type RefObject } from "react";
+import type { LexedMarkdown } from "../../../utils/marked-config.types.js";
 import { locateCurrentMatch, matchFindItems } from "./find-matcher.js";
-import { createMarkdownDocument } from "./markdown-find.js";
+import { buildMarkdownFindText, toTokenMarks } from "./markdown-find.js";
 import type { FindMatch, FindQuery, FindResult, FindSurfaceHandle } from "./find.types.js";
-import type { MarkdownFindInput } from "./markdown-find.types.js";
+import type { MarkdownFindMarks } from "./markdown-find.types.js";
 
 interface MarkdownFindOptions {
   itemId: string;
   /** Undefined until the content is loaded */
-  content?: string;
+  markdownDocument?: LexedMarkdown;
   /** The element the surface's selection and focus belong to */
   containerRef: RefObject<HTMLElement | null>;
   /** Called with undefined while the surface holds no query */
@@ -18,23 +19,26 @@ interface MarkdownFindOptions {
 interface MarkdownFindState {
   query?: FindQuery;
   current?: FindMatch;
-  revealStep: number;
+  revealKey: number;
 }
 
 /**
- * A find surface over one markdown item: its document is lexed once, matched against the query, and
- * recounted whenever the content changes. Returns the renderer's find input.
+ * A find surface over one parsed markdown document: its find text is derived from the document's tokens,
+ * matched against the query, and recounted whenever the document changes. Returns the renderer's marks.
  */
 export function useMarkdownFind({
   itemId,
-  content,
+  markdownDocument,
   containerRef,
   onResult,
   ref,
-}: MarkdownFindOptions): MarkdownFindInput | undefined {
-  const document = useMemo(() => (content === undefined ? undefined : createMarkdownDocument(content)), [content]);
-  const [{ query, current, revealStep }, setState] = useState<MarkdownFindState>({ revealStep: 0 });
-  const items = useMemo(() => (document ? [{ id: itemId, text: document.findText.text }] : []), [document, itemId]);
+}: MarkdownFindOptions): MarkdownFindMarks | undefined {
+  const findText = useMemo(
+    () => (markdownDocument ? buildMarkdownFindText(markdownDocument) : undefined),
+    [markdownDocument]
+  );
+  const [{ query, current, revealKey }, setState] = useState<MarkdownFindState>({ revealKey: 0 });
+  const items = useMemo(() => (findText ? [{ id: itemId, text: findText.text }] : []), [findText, itemId]);
   const matches = useMemo(() => (query ? matchFindItems(items, query) : []), [items, query]);
   const currentIndex = useMemo(() => locateCurrentMatch(items, matches, current), [items, matches, current]);
 
@@ -48,7 +52,7 @@ export function useMarkdownFind({
       setState((previous) => ({
         query: previous.query,
         current: index === undefined ? previous.current : matches[index],
-        revealStep: previous.revealStep + 1,
+        revealKey: previous.revealKey + 1,
       }));
     },
     [currentIndex, matches]
@@ -58,10 +62,10 @@ export function useMarkdownFind({
     ref,
     () => ({
       setQuery: (query) =>
-        setState((previous) => ({ query, current: previous.current, revealStep: previous.revealStep + 1 })),
+        setState((previous) => ({ query, current: previous.current, revealKey: previous.revealKey + 1 })),
       next: () => step(1),
       previous: () => step(-1),
-      clear: () => setState((previous) => ({ revealStep: previous.revealStep })),
+      clear: () => setState((previous) => ({ revealKey: previous.revealKey })),
       getSelectionQuery: () => {
         const selection = window.getSelection();
         const container = containerRef.current;
@@ -78,7 +82,7 @@ export function useMarkdownFind({
   );
 
   return useMemo(
-    () => (document ? { document, matches, currentIndex, revealStep } : undefined),
-    [document, matches, currentIndex, revealStep]
+    () => (findText ? { marks: toTokenMarks(findText, matches, currentIndex), revealKey } : undefined),
+    [findText, matches, currentIndex, revealKey]
   );
 }

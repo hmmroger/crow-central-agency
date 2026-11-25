@@ -6,10 +6,10 @@ import {
   TAG_TOKEN,
   WIKILINK_TOKEN,
 } from "@crow-central-agency/shared";
-import { ENDING_NEWLINE_PATTERN, lexMarkdown } from "../../../utils/marked-config.js";
-import type { TextMark, TokenMarks } from "../../../utils/marked-config.types.js";
+import { ENDING_NEWLINE_PATTERN } from "../../../utils/marked-config.js";
+import type { LexedMarkdown, TextMark, TokenMarks } from "../../../utils/marked-config.types.js";
 import type { FindRange } from "./find.types.js";
-import type { MarkdownDocument, MarkdownFindPiece, MarkdownFindText } from "./markdown-find.types.js";
+import type { MarkdownFindPiece, MarkdownFindText } from "./markdown-find.types.js";
 
 const BOUNDARY = "\n";
 const CELL_SEPARATOR = "\t";
@@ -166,10 +166,8 @@ class MarkdownFindTextBuilder {
   }
 }
 
-export function createMarkdownDocument(content: string): MarkdownDocument {
-  const lexed = lexMarkdown(content);
-
-  return { lexed, findText: new MarkdownFindTextBuilder().build(lexed.tokens) };
+export function buildMarkdownFindText(markdownDocument: LexedMarkdown): MarkdownFindText {
+  return new MarkdownFindTextBuilder().build(markdownDocument.tokens);
 }
 
 /** Splits each match over the tokens whose text it covers, so a match across tokens becomes several marks */
