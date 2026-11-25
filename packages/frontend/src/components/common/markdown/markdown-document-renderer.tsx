@@ -52,7 +52,7 @@ export function MarkdownDocumentRenderer({
 }: MarkdownDocumentRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   useMermaidViewport(containerRef);
-  // Optional: MarkdownRenderer is general-purpose and may render outside a
+  // Optional: the renderer is general-purpose and may render outside a
   // ModalDialogProvider. When absent, showDialog is undefined and the expand
   // affordance degrades to a no-op. Reading the method out keeps the click
   // handler's dep a stable identifier (the provider's useCallback([],[])) rather
