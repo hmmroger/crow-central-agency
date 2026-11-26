@@ -174,6 +174,7 @@ function mapToolEvent(context: CopilotEventContext, event: ToolEvent): AgentStre
 
     case "tool.execution_partial_result":
     case "tool.execution_progress":
+    case "tool.shell_output":
       return [];
   }
 }
@@ -307,6 +308,12 @@ async function mapSessionEvent(
     case "session.mode_notice_delivered":
     case "session.model_deselected":
     case "session.permission_recovery":
+    case "session.autopilot_stopped":
+    case "session.compaction_summarized":
+    case "session.journal_link":
+    case "session.managed_plugin_progress":
+    case "session.mcp_server_tools_loaded":
+    case "session.quota_observation":
       return [];
   }
 }
@@ -344,6 +351,7 @@ function mapMcpControlEvent(context: CopilotEventContext, event: McpControlEvent
     case "mcp.prompts.list_changed":
     case "mcp.resources.list_changed":
     case "mcp.tools.list_changed":
+    case "mcp.oauth_recovery_completed":
       return [];
   }
 }
