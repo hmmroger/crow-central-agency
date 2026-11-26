@@ -1,5 +1,7 @@
 import type { EditorState } from "@codemirror/state";
+import type { FindResult } from "../../common/find/find.types.js";
 import { getEditorError } from "./extensions/editor-error-state.js";
+import { getFindState } from "./extensions/find/find-state.js";
 import { isTableCellActive } from "./extensions/table/table-cell-state.js";
 import {
   getHeadingLevel,
@@ -16,19 +18,33 @@ import { canDeleteTableRow } from "./table-commands.js";
 
 const INLINE_FORMATS = Object.values(INLINE_FORMAT);
 
-/** Tells the host about the formatting at the cursor and the editor status, only when either changes. */
+/** Tells the host about the formatting at the cursor, the editor status and the find result, only when one changes. */
 export class EditorStateReporter {
   private formatState: EditorFormatState | undefined;
   private status: EditorStatus | undefined;
+  private findResult: FindResult | undefined;
+  private hasReportedFind = false;
 
   constructor(
     private readonly onFormatStateChange: MarkdownEditorProps["onFormatStateChange"],
-    private readonly onStatusChange: MarkdownEditorProps["onStatusChange"]
+    private readonly onStatusChange: MarkdownEditorProps["onStatusChange"],
+    private readonly onFindResultChange: MarkdownEditorProps["onFindResultChange"]
   ) {}
 
   public report(state: EditorState): void {
     const formatState = this.getFormatState(state);
     const status = this.getStatus(state);
+    const findResult = this.getFindResult(state);
+
+    if (
+      !this.hasReportedFind ||
+      findResult?.currentIndex !== this.findResult?.currentIndex ||
+      findResult?.total !== this.findResult?.total
+    ) {
+      this.hasReportedFind = true;
+      this.findResult = findResult;
+      this.onFindResultChange(findResult);
+    }
 
     if (!this.formatState || !this.isSameFormatState(this.formatState, formatState)) {
       this.formatState = formatState;
@@ -53,6 +69,12 @@ export class EditorStateReporter {
       isInTableCell: isTableCellActive(state),
       canDeleteTableRow: canDeleteTableRow(state),
     };
+  }
+
+  private getFindResult(state: EditorState): FindResult | undefined {
+    const { query, matches, currentIndex } = getFindState(state);
+
+    return query ? { currentIndex, total: matches.length } : undefined;
   }
 
   private getStatus(state: EditorState): EditorStatus {

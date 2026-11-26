@@ -12,6 +12,8 @@ export const TABLE_SPAN_KIND = {
   WIKILINK: "wikilink",
   /** Drawn as the image while the cell is not being edited */
   IMAGE: "image",
+  /** A find match over the cell's text */
+  FIND: "find",
 } as const;
 
 /** Offsets are relative to the start of the cell's content */
@@ -21,4 +23,5 @@ export type TableCellSpan =
   | (TextRange & { kind: typeof TABLE_SPAN_KIND.FORMAT; format: DelimitedSyntaxNodeName })
   | (TextRange & { kind: typeof TABLE_SPAN_KIND.LINK; url: string })
   | (TextRange & { kind: typeof TABLE_SPAN_KIND.WIKILINK; target: string })
-  | (TextRange & { kind: typeof TABLE_SPAN_KIND.IMAGE; widget: ImageWidget });
+  | (TextRange & { kind: typeof TABLE_SPAN_KIND.IMAGE; widget: ImageWidget })
+  | (TextRange & { kind: typeof TABLE_SPAN_KIND.FIND; isCurrent: boolean });

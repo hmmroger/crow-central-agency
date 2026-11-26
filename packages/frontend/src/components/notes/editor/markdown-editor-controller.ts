@@ -1,4 +1,6 @@
 import type { EditorView } from "@codemirror/view";
+import type { FindQuery } from "../../common/find/find.types.js";
+import { applyFindQuery, getFindSelectionText, stepFind } from "./extensions/find/editor-find.js";
 import { focusActiveTableCell } from "./extensions/table/table-widget.js";
 import {
   insertDivider,
@@ -90,6 +92,22 @@ export class MarkdownEditorController implements MarkdownEditorHandle {
 
   public deleteTable(): void {
     this.run(deleteTable);
+  }
+
+  public setFindQuery(query: FindQuery | undefined): void {
+    applyFindQuery(this.view, query);
+  }
+
+  public findNext(): void {
+    stepFind(this.view, 1);
+  }
+
+  public findPrevious(): void {
+    stepFind(this.view, -1);
+  }
+
+  public getFindSelection(): string | undefined {
+    return getFindSelectionText(this.view);
   }
 
   private run(command: (target: CommandTarget) => boolean): void {

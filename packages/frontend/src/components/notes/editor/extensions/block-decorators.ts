@@ -17,6 +17,8 @@ import {
 } from "./markdown-syntax.js";
 import { SYNTAX_NODE } from "./markdown-syntax.types.js";
 import { MERMAID_FENCE_LANG, MermaidWidget } from "./mermaid-widget.js";
+import type { TextMark } from "../../../../utils/marked-config.types.js";
+import { getFindState } from "./find/find-state.js";
 import { getActiveTableCell } from "./table/table-cell-state.js";
 import { getTableHeight } from "./table/table-height-state.js";
 import { parseTable } from "./table/table-syntax.js";
@@ -214,11 +216,21 @@ export function decorateTable(syntaxNode: SyntaxNode, state: EditorState, decora
   }
 
   const activeCell = getActiveTableCell(state);
+  const { matches, currentIndex } = getFindState(state);
+  const findMarks: TextMark[] = [];
+
+  matches.forEach((match, index) => {
+    if (match.end > table.from && match.start < table.to) {
+      findMarks.push({ start: match.start, end: match.end, isCurrent: index === currentIndex });
+    }
+  });
+
   const widget = new TableWidget(
     table,
     activeCell?.tableFrom === table.from ? activeCell : undefined,
     getWikilinkResolutions(state),
-    getTableHeight(state, table.from)
+    getTableHeight(state, table.from),
+    findMarks
   );
 
   decorations.push(Decoration.replace({ widget, block: true }).range(table.from, table.to));

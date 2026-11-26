@@ -17,7 +17,7 @@ const TAG_PATTERN = new RegExp(TAG_SOURCE, "gu");
 const HASHES_ONLY_PATTERN = /^#+$/;
 const TAG_MARK_LENGTH = 1;
 
-function isHashtagToken(token: Tokens.Generic): token is HashtagToken {
+export function isHashtagToken(token: Tokens.Generic): token is HashtagToken {
   return token.type === TAG_TOKEN.HASHTAG && typeof token.text === "string";
 }
 

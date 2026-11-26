@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ENTITY_TYPE } from "@crow-central-agency/shared";
+import { ENTITY_TYPE, NOTE_CONTENT_TYPE } from "@crow-central-agency/shared";
+import { FindBar } from "../common/find/find-bar.js";
+import { useFind } from "../common/find/use-find.js";
 import { useNotesContext } from "../../providers/notes-provider.js";
 import { noteKeys } from "../../services/query-keys.js";
 import { useAppStore } from "../../stores/app-store.js";
@@ -15,6 +17,8 @@ interface NoteWorkspaceProps {
 }
 
 const SELECT_HINT = "Select a note to read it.";
+const EDITOR_SURFACE_KEY = "editor";
+const READER_SURFACE_KEY = "reader";
 
 /**
  * The open note: its header above the surface it opens on — the reader for a
@@ -32,6 +36,12 @@ export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
   const editorRef = useRef<NoteEditorHandle>(null);
   const note = noteId ? getNote(noteId) : undefined;
+  const isTextNote = note?.entityType === ENTITY_TYPE.NOTE && note.contentType === NOTE_CONTENT_TYPE.TEXT;
+  const isEditing = note?.entityType === ENTITY_TYPE.NOTE && !note.isReadOnly && !isNoteReadMode;
+  const find = useFind(isTextNote, isEditing ? EDITOR_SURFACE_KEY : READER_SURFACE_KEY);
+  const { isQueryFocused } = find;
+  // A reload while the user types a query must not move their keystrokes into the note.
+  const shouldEditorFocusOnMount = useCallback(() => !isQueryFocused(), [isQueryFocused]);
 
   // Saved content never reaches the content cache, so the draft is written
   // before the editor goes, and the cached entry is dropped so whichever
@@ -58,8 +68,6 @@ export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
     return <EmptyState message={SELECT_HINT} />;
   }
 
-  const isEditing = !note.isReadOnly && !isNoteReadMode;
-
   return (
     <div className="h-full flex flex-col min-h-0">
       <NoteHeader
@@ -72,11 +80,32 @@ export function NoteWorkspace({ noteId }: NoteWorkspaceProps) {
         }
       />
 
+      {find.isOpen && (
+        <FindBar
+          inputRef={find.inputRef}
+          query={find.query}
+          isCaseSensitive={find.isCaseSensitive}
+          result={find.result}
+          onQueryChange={find.setQuery}
+          onCaseSensitiveToggle={find.toggleCaseSensitive}
+          onNext={find.next}
+          onPrevious={find.previous}
+          onClose={find.close}
+        />
+      )}
+
       <div className="flex-1 min-h-0">
         {isEditing ? (
-          <NoteEditor ref={editorRef} note={note} onUnsavedChange={setIsUnsaved} />
+          <NoteEditor
+            ref={editorRef}
+            note={note}
+            onUnsavedChange={setIsUnsaved}
+            findRef={find.surfaceRef}
+            onFindResult={find.onResult}
+            shouldFocusOnMount={shouldEditorFocusOnMount}
+          />
         ) : (
-          <NoteReader note={note} />
+          <NoteReader note={note} findRef={find.surfaceRef} onFindResult={find.onResult} />
         )}
       </div>
     </div>
